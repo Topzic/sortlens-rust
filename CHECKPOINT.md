@@ -512,7 +512,21 @@ check is a second invisible UI.
   when a collection closes
 - 205 tests, CI and wasm green
 
+## 2026-11-21 — M5: collection-scoped search
+
+- catalog: `Collection.search: Option<String>` (serde default), op `SetCollectionSearch` with an
+  exact inverse; `set_collection_search` trims, treats whitespace as "forget it" and skips a no-op
+- engine: `set_collection_search` and the `collection.search` command, which returns the stored value
+  (null when cleared)
+- ui: the search box hint reads "Search in <collection>" while one is open; selecting a collection
+  restores its stored search and sort, `remember_search` flushes the box when it loses focus or Enter
+  is pressed (one op per edit session rather than per keystroke), and `library_search` keeps the
+  library's own query so leaving the collection restores it — `clear_filters` does the same
+- tests: trimming, a whitespace search clearing the record, undo restoring it, the command's JSON
+  face, and the UI restoring the library search when a collection closes
+- 208 tests, CI and wasm green
+
 ## Next
 
-M5 leftovers: collection-scoped search — the search box narrowing inside the open collection and
-remembering that too.
+M5 leftovers: the first-run wizard — a single screen that adds a folder, explains indexing and shows
+the first thumbnails, so a new library does not start on an empty grid.

@@ -277,6 +277,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "collection.search",
+                    label: "Search in Collection",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Search in Collection",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "collection.sort",
                     label: "Sort Collection",
                     group: Group::Organise,

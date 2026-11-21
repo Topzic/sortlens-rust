@@ -27,6 +27,9 @@ pub struct Collection {
     /// The sort this collection was last browsed with, if it has ever been changed.
     #[serde(default)]
     pub sort: Option<String>,
+    /// The search this collection was last narrowed with, so reopening it resumes where it left off.
+    #[serde(default)]
+    pub search: Option<String>,
 }
 
 impl Collection {
@@ -40,6 +43,7 @@ impl Collection {
             colour: None,
             favourite: false,
             sort: None,
+            search: None,
         }
     }
 
@@ -81,6 +85,7 @@ mod tests {
     fn a_collection_remembers_no_sort_until_one_is_chosen() {
         let collection = Collection::new(CollectionId(2), "Trip", 0);
         assert!(collection.sort.is_none());
+        assert!(collection.search.is_none());
     }
 
     #[test]

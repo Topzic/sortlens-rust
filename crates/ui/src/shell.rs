@@ -184,6 +184,8 @@ pub struct UiState {
     pub tag_order: TagOrder,
     /// The sort the whole library was last shown with, restored when a collection closes.
     pub library_sort: Sort,
+    /// The search the whole library was last narrowed with.
+    pub library_search: String,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -262,6 +264,7 @@ impl UiState {
             tag_mode: sortlens_engine::TagMode::Any,
             tag_order: TagOrder::Count,
             library_sort: Sort::Natural,
+            library_search: String::new(),
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -361,6 +364,7 @@ impl UiState {
         self.tag_filters.clear();
         if self.collection_filter.take().is_some() {
             self.sort = self.library_sort;
+            self.search = self.library_search.clone();
         }
         self.folder.clear();
         self.kind_filter = None;
@@ -404,7 +408,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
     }
 
-    top_bar(ui, state, &t, &mut actions);
+    top_bar(ui, state, &t, engine, &mut actions);
     bottom_bar(ui, state, &t, engine, &mut actions);
     if state.left_open {
         left_panel(ui, state, &t, engine, &mut actions);
@@ -455,7 +459,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     actions
 }
 
-fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::Panel::top("top_bar")
         .exact_size(t.top_bar_h)
         .frame(Frame::NONE.fill(t.chrome).inner_margin(Margin::symmetric(10, 0)))
@@ -481,12 +485,24 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Actio
                     }
 
                     ui.add_space(8.0);
-                    let search = ui.add_sized(
-                        [240.0, 24.0],
-                        TextEdit::singleline(&mut state.search).hint_text("Filter by name or folder"),
-                    );
+                    let hint = match state
+                        .collection_filter
+                        .and_then(|id| engine.collections().into_iter().find(|collection| collection.id == id))
+                    {
+                        Some(collection) => format!("Search in {}", collection.name),
+                        None => "Filter by name or folder".to_string(),
+                    };
+                    let search = ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
                     if search.changed() {
                         state.selected = None;
+                    }
+                    // Commit the search to the collection when the box is left or Enter is pressed,
+                    // rather than writing an op for every keystroke.
+                    if search.lost_focus() || ui.input(|input| input.key_pressed(Key::Enter) && search.has_focus()) {
+                        remember_search(state, engine);
+                    }
+                    if state.collection_filter.is_none() {
+                        state.library_search = state.search.clone();
                     }
                 });
             });
@@ -2188,6 +2204,26 @@ fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::Insi
     }
 }
 
+/// Store the open collection's current search, so reopening it resumes there.
+fn remember_search(state: &mut UiState, engine: &mut Engine) {
+    let Some(id) = state.collection_filter else {
+        return;
+    };
+    let stored = engine
+        .collections()
+        .into_iter()
+        .find(|collection| collection.id == id)
+        .and_then(|collection| collection.search);
+    if stored.as_deref() == Some(state.search.trim()).filter(|text| !text.is_empty())
+        || (stored.is_none() && state.search.trim().is_empty())
+    {
+        return;
+    }
+    if let Err(error) = engine.set_collection_search(id, &state.search) {
+        state.notice(error.to_string());
+    }
+}
+
 /// Collections: favourites first, each with its colour, and the actions that change both.
 fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     nav_section(ui, t, "Collections");
@@ -2982,6 +3018,16 @@ mod tests {
         let wide = fit_rect(bounds, 2.0);
         assert!(wide.width() <= bounds.width() + 0.001);
         assert!(bounds.contains_rect(wide));
+    }
+
+    #[test]
+    fn closing_a_collection_restores_the_library_search() {
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.library_search = "birthday".to_string();
+        state.search = "beach".to_string();
+        state.collection_filter = Some(sortlens_core::CollectionId(7));
+        state.clear_filters();
+        assert_eq!(state.search, "birthday", "the library's own search comes back");
     }
 
     #[test]

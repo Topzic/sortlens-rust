@@ -248,6 +248,14 @@ impl Engine {
             .set_collection_sort(id, sort)
     }
 
+    /// Remember the search a collection was narrowed with.
+    pub fn set_collection_search(&mut self, id: sortlens_core::CollectionId, search: &str) -> Result<()> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .set_collection_search(id, search)
+    }
+
     /// Delete a collection; the photos stay in the library.
     pub fn delete_collection(&mut self, id: sortlens_core::CollectionId) -> Result<()> {
         self.catalog
@@ -1404,6 +1412,12 @@ impl Engine {
                 self.set_collection_sort(id, sort)?;
                 Ok(json!({ "sort": sort.id() }))
             }
+            "collection.search" => {
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let search = args.get("search").and_then(Value::as_str).unwrap_or_default();
+                self.set_collection_search(id, search)?;
+                Ok(json!({ "search": self.collections().into_iter().find(|item| item.id == id).and_then(|item| item.search) }))
+            }
             "collection.removeFrom" => {
                 let ids = ids_from(args)?;
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
@@ -1935,6 +1949,20 @@ mod tests {
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
         assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn a_collection_remembers_its_search() {
+        let (_lib, mut engine) = library("collection-search");
+        let id = engine.create_collection("Trip").expect("create");
+        let value = engine
+            .run("collection.search", &json!({ "id": id.0, "search": " beach " }))
+            .expect("search");
+        assert_eq!(value["search"], "beach");
+        let cleared = engine
+            .run("collection.search", &json!({ "id": id.0, "search": "" }))
+            .expect("clear");
+        assert!(cleared["search"].is_null(), "an empty box forgets the search");
     }
 
     #[test]

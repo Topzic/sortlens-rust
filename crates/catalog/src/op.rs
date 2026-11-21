@@ -50,6 +50,8 @@ pub enum Op {
     SetCollectionFavourite { id: CollectionId, favourite: bool },
     /// The sort a collection is browsed with was remembered.
     SetCollectionSort { id: CollectionId, sort: Option<String> },
+    /// The search a collection was last narrowed with was remembered.
+    SetCollectionSearch { id: CollectionId, search: Option<String> },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -75,6 +77,7 @@ impl Op {
             Self::SetCollectionColour { .. } => "setCollectionColour",
             Self::SetCollectionFavourite { .. } => "setCollectionFavourite",
             Self::SetCollectionSort { .. } => "setCollectionSort",
+            Self::SetCollectionSearch { .. } => "setCollectionSearch",
             Self::Group { .. } => "group",
         }
     }

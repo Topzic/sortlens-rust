@@ -421,6 +421,16 @@ impl Catalog {
         self.commit(Op::SetCollectionSort { id, sort: Some(wanted) }).map(|_| ())
     }
 
+    /// Remember the search a collection was narrowed with, or forget it when the box is empty.
+    pub fn set_collection_search(&mut self, id: CollectionId, search: &str) -> Result<()> {
+        let wanted = search.trim();
+        let wanted = if wanted.is_empty() { None } else { Some(wanted.to_string()) };
+        if self.collections.get(&id).and_then(|collection| collection.search.clone()) == wanted {
+            return Ok(());
+        }
+        self.commit(Op::SetCollectionSearch { id, search: wanted }).map(|_| ())
+    }
+
     /// Delete a collection. The photos stay in the library.
     pub fn delete_collection(&mut self, id: CollectionId) -> Result<()> {
         let collection = self.collections.get(&id).cloned().ok_or(Error::NoSuchCollection(id))?;
@@ -636,6 +646,12 @@ impl Catalog {
                 let previous = collection.sort.clone();
                 collection.sort = sort.clone();
                 Ok(Op::SetCollectionSort { id: *id, sort: previous })
+            }
+            Op::SetCollectionSearch { id, search } => {
+                let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
+                let previous = collection.search.clone();
+                collection.search = search.clone();
+                Ok(Op::SetCollectionSearch { id: *id, search: previous })
             }
             Op::Group { ops } => {
                 // Apply in order, undo in reverse order, so a group behaves like one operation.
@@ -1084,6 +1100,27 @@ mod tests {
 
         // A sort the app no longer knows falls back to the natural order when read back.
         assert_eq!(Sort::parse("nonsense"), Sort::Natural);
+    }
+
+    #[test]
+    fn a_collection_remembers_its_search_until_it_is_cleared() {
+        let temp = TempCatalog::new("collection-search");
+        let (mut catalog, _) = temp.open();
+        let trip = catalog.create_collection("Trip").expect("create");
+        assert!(catalog.collections()[0].search.is_none());
+
+        catalog.set_collection_search(trip, "  beach  ").expect("search");
+        assert_eq!(catalog.collections()[0].search.as_deref(), Some("beach"), "trimmed");
+        catalog.set_collection_search(trip, "beach").expect("no-op");
+
+        catalog.set_collection_search(trip, "   ").expect("clear");
+        assert!(catalog.collections()[0].search.is_none(), "whitespace clears it");
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(
+            catalog.collections()[0].search.as_deref(),
+            Some("beach"),
+            "undo brings the search back"
+        );
     }
 
     #[test]
