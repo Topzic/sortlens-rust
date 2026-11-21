@@ -7,11 +7,13 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
+use serde::{Deserialize, Serialize};
 use sortlens_core::{Flag, PhotoId};
 use std::collections::BTreeMap;
 
 /// What the photographer decided about one photo in this session.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Decision {
     /// Not judged yet.
     #[default]
@@ -95,6 +97,24 @@ impl Summary {
     }
 }
 
+/// A saved session. The version lets a future format change be rejected instead of misread.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Snapshot {
+    /// Format version.
+    pub version: u32,
+    /// The queue in the order the user will see it.
+    pub queue: Vec<PhotoId>,
+    /// Where the cursor was.
+    pub cursor: usize,
+    /// Decisions staged so far.
+    pub decisions: Vec<(PhotoId, Decision)>,
+    /// The flags each photo had when the session began.
+    pub original: Vec<(PhotoId, Flag)>,
+}
+
+/// Current snapshot version.
+pub const SNAPSHOT_VERSION: u32 = 1;
+
 /// A cull session over a fixed queue of photos.
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -116,6 +136,44 @@ impl Session {
             decisions: BTreeMap::new(),
             original,
         }
+    }
+
+    /// A serialisable copy of the session, for crash resume.
+    pub fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            version: SNAPSHOT_VERSION,
+            queue: self.queue.clone(),
+            cursor: self.cursor,
+            decisions: self.decisions.iter().map(|(id, decision)| (*id, *decision)).collect(),
+            original: self.original.iter().map(|(id, flag)| (*id, *flag)).collect(),
+        }
+    }
+
+    /// Rebuild a session from a snapshot. `None` when the snapshot is from another format version or
+    /// has no photos, so a half-written or future file cannot start a bogus session.
+    pub fn restore(snapshot: Snapshot) -> Option<Self> {
+        if snapshot.version != SNAPSHOT_VERSION || snapshot.queue.is_empty() {
+            return None;
+        }
+        let cursor = snapshot.cursor.min(snapshot.queue.len().saturating_sub(1));
+        Some(Self {
+            queue: snapshot.queue,
+            cursor,
+            decisions: snapshot.decisions.into_iter().collect(),
+            original: snapshot.original.into_iter().collect(),
+        })
+    }
+
+    /// Drop queued photos that no longer exist, and clamp the cursor.
+    pub fn retain(&mut self, keep: impl Fn(PhotoId) -> bool) {
+        let anchor = self.current();
+        self.queue.retain(|id| keep(*id));
+        let queue = self.queue.clone();
+        self.decisions.retain(|id, _| queue.contains(id));
+        // Stay on the same photo when it survived; otherwise clamp.
+        self.cursor = anchor
+            .and_then(|id| queue.iter().position(|queued| *queued == id))
+            .unwrap_or_else(|| self.cursor.min(self.queue.len().saturating_sub(1)));
     }
 
     /// The photo under the cursor.
@@ -384,6 +442,46 @@ mod tests {
         let session = Session::new(Vec::new(), []);
         assert_eq!(session.current(), None);
         assert!(session.summary().is_complete());
+    }
+
+    #[test]
+    fn a_snapshot_restores_cursor_and_decisions() {
+        let mut original = session();
+        original.decide(Decision::Reject);
+        let snapshot = original.snapshot();
+        let restored = Session::restore(snapshot).expect("restore");
+        assert_eq!(restored.cursor(), 1);
+        assert_eq!(restored.decision(PhotoId(1)), Decision::Reject);
+        assert_eq!(restored.original_flag(PhotoId(2)), Flag::Pick);
+        assert_eq!(restored.summary(), original.summary());
+    }
+
+    #[test]
+    fn a_future_snapshot_is_refused() {
+        let mut snapshot = session().snapshot();
+        snapshot.version = SNAPSHOT_VERSION + 1;
+        assert!(Session::restore(snapshot).is_none());
+        let empty = Session::new(Vec::new(), []).snapshot();
+        assert!(Session::restore(empty).is_none());
+    }
+
+    #[test]
+    fn restore_clamps_a_cursor_past_the_end() {
+        let mut snapshot = session().snapshot();
+        snapshot.cursor = 99;
+        let restored = Session::restore(snapshot).expect("restore");
+        assert_eq!(restored.cursor(), 2);
+        assert_eq!(restored.current(), Some(PhotoId(3)));
+    }
+
+    #[test]
+    fn retain_drops_photos_that_are_gone() {
+        let mut session = session();
+        session.decide(Decision::Reject);
+        session.retain(|id| id != PhotoId(1));
+        assert_eq!(session.queue(), &[PhotoId(2), PhotoId(3)]);
+        assert_eq!(session.summary().rejects, 0);
+        assert_eq!(session.current(), Some(PhotoId(2)));
     }
 
     #[test]

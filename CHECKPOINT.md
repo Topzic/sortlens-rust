@@ -171,7 +171,21 @@ Nothing is written until Apply, so a discarded session leaves the library exactl
 Not built: the summary sheet with an applied-batch receipt, gesture culling, zoom/pan and session
 persistence. The cull view is real; Apply is still explicitly disabled.
 
+## 2026-11-21 — M4: cull sessions survive a crash
+
+- `sortlens-cull`: `Snapshot { version, queue, cursor, decisions, original }` with `snapshot()` and
+  `restore()`; a future or empty snapshot is refused rather than half-read, a cursor past the end is
+  clamped, and `retain()` drops photos that no longer exist while staying on the same photo
+- engine: the session is written to `<library>/cull-session.json` after every change (temp file +
+  rename), removed when the session ends, restored on `Engine::open` with photos the catalog no
+  longer has pruned out. A write failure is a warning, never an error: culling continues
+- ui: `C` opens a restored session instead of replacing it with a new one
+- tests: snapshot round trip, version refusal, cursor clamping, retention, plus engine tests that
+  reopen the library mid-session (cursor and reject survive), that ending a session deletes the
+  file, and that a session whose photos are gone is discarded
+- 118 tests, CI and wasm green
+
 ## Next
 
-Session persistence: save the cull queue, cursor and staged decisions, resume after a crash, and
-clear the file when a session ends.
+Staged deletes and Apply: the trash executor with audit-before-act, per-item results and an
+inverse op, so a cull batch can actually move files and be undone.

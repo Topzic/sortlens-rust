@@ -3532,6 +3532,7 @@ dependencies = [
 name = "sortlens-cull"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "sortlens-catalog",
  "sortlens-core",
 ]

@@ -67,6 +67,7 @@ pub struct ScanFinished {
 /// The command engine.
 pub struct Engine {
     registry: Registry,
+    dir: Option<PathBuf>,
     last_effect: Effect,
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
@@ -83,6 +84,7 @@ impl Engine {
         Self {
             registry: Registry::v0(),
             last_effect: Effect::None,
+            dir: None,
             catalog: None,
             pending: None,
             cull: None,
@@ -95,12 +97,68 @@ impl Engine {
 
     /// Open (or create) the catalog in `dir`.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self> {
-        let (catalog, report) = Catalog::open(dir)?;
-        Ok(Self {
+        let dir = dir.as_ref().to_path_buf();
+        let (catalog, report) = Catalog::open(&dir)?;
+        let mut engine = Self {
+            dir: Some(dir),
             catalog: Some(catalog),
             warnings: report.warnings,
             ..Self::new()
-        })
+        };
+        engine.restore_cull();
+        Ok(engine)
+    }
+
+    /// Where a cull session is saved between runs.
+    fn cull_path(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join("cull-session.json"))
+    }
+
+    /// Save the session, or remove the file when there is none.
+    ///
+    /// A failure here is a warning, never an error: losing the ability to resume must not stop a
+    /// photographer from culling.
+    fn persist_cull(&mut self) {
+        let Some(path) = self.cull_path() else {
+            return;
+        };
+        let result = match &self.cull {
+            Some(session) => {
+                let json = serde_json::to_vec_pretty(&session.snapshot()).map_err(|error| Error::Invalid(format!("cull session: {error}")));
+                json.and_then(|bytes| write_atomic(&path, &bytes))
+            }
+            None => match std::fs::remove_file(&path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(Error::io(path.display().to_string(), error)),
+            },
+        };
+        if let Err(error) = result {
+            self.warnings.push(format!("could not save the cull session: {error}"));
+        }
+    }
+
+    /// Restore a session saved by a previous run, dropping photos that no longer exist.
+    fn restore_cull(&mut self) {
+        let Some(path) = self.cull_path() else {
+            return;
+        };
+        let Ok(text) = std::fs::read(&path) else {
+            return;
+        };
+        let Ok(snapshot) = serde_json::from_slice::<sortlens_cull::Snapshot>(&text) else {
+            self.warnings.push("ignored an unreadable cull session file".to_string());
+            return;
+        };
+        let Some(mut session) = sortlens_cull::Session::restore(snapshot) else {
+            return;
+        };
+        session.retain(|id| self.catalog.as_ref().is_some_and(|catalog| catalog.photo(id).is_some()));
+        if session.queue().is_empty() {
+            let _ = std::fs::remove_file(&path);
+            return;
+        }
+        self.cull = Some(session);
     }
 
     /// The command table, for menus and the palette.
@@ -411,6 +469,7 @@ impl Engine {
         }
         let total = queue.len();
         self.cull = Some(sortlens_cull::Session::new(queue, flags));
+        self.persist_cull();
         Ok(total)
     }
 
@@ -440,29 +499,39 @@ impl Engine {
 
     /// Stage a decision for the current photo and advance.
     pub fn cull_decide(&mut self, decision: sortlens_cull::Decision) -> Option<PhotoId> {
-        self.cull.as_mut().and_then(|session| session.decide(decision))
+        let next = self.cull.as_mut().and_then(|session| session.decide(decision));
+        self.persist_cull();
+        next
     }
 
     /// Stage a decision for one photo without moving the cursor.
     pub fn cull_stage(&mut self, id: PhotoId, decision: sortlens_cull::Decision) -> bool {
-        self.cull
+        let changed = self
+            .cull
             .as_mut()
-            .is_some_and(|session| session.stage(id, decision) != sortlens_cull::Staged::Unchanged)
+            .is_some_and(|session| session.stage(id, decision) != sortlens_cull::Staged::Unchanged);
+        self.persist_cull();
+        changed
     }
 
     /// Jump to a photo in the session's queue.
     pub fn cull_jump(&mut self, id: PhotoId) -> bool {
-        self.cull.as_mut().is_some_and(|session| session.jump_to(id))
+        let jumped = self.cull.as_mut().is_some_and(|session| session.jump_to(id));
+        self.persist_cull();
+        jumped
     }
 
     /// Move back one photo in the session.
     pub fn cull_back(&mut self) -> Option<PhotoId> {
-        self.cull.as_mut().and_then(sortlens_cull::Session::back)
+        let next = self.cull.as_mut().and_then(sortlens_cull::Session::back);
+        self.persist_cull();
+        next
     }
 
     /// Drop the session. Nothing was written, so nothing needs undoing.
     pub fn cull_clear(&mut self) {
         self.cull = None;
+        self.persist_cull();
     }
 
     /// Whether review changes are written to XMP sidecars.
@@ -726,6 +795,16 @@ fn normalize_tag(tag: &str) -> Result<String> {
     Ok(tag)
 }
 
+/// Replace a file atomically: temp file in the same directory, then rename.
+fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    let temp = path.with_extension("tmp");
+    std::fs::write(&temp, bytes).map_err(|error| Error::io(temp.display().to_string(), error))?;
+    std::fs::rename(&temp, path).map_err(|error| {
+        let _ = std::fs::remove_file(&temp);
+        Error::io(path.display().to_string(), error)
+    })
+}
+
 /// Last path component, for job labels.
 fn folder_name(path: &str) -> String {
     path.trim_end_matches(['/', '\\'])
@@ -914,6 +993,70 @@ mod tests {
         assert_eq!(engine.cull_back(), Some(ids[1]));
         engine.cull_clear();
         assert!(engine.cull().is_none());
+    }
+
+    #[test]
+    fn a_cull_session_survives_a_restart() {
+        let folder = Temp::new("cull-resume-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let root = folder.0.to_string_lossy().to_string();
+        let (library_dir, _) = library("cull-resume");
+        let ids = {
+            let mut engine = Engine::open(&library_dir.0).expect("open");
+            engine.begin_scan(root.clone()).expect("scan");
+            wait_for_scan(&mut engine);
+            let ids: Vec<PhotoId> = engine
+                .page(&Filter::default(), Sort::Natural, 0, 10)
+                .photos
+                .iter()
+                .map(|photo| photo.id)
+                .collect();
+            engine.begin_cull(&ids).expect("begin");
+            engine.cull_decide(sortlens_cull::Decision::Reject);
+            let _ = engine.close();
+            ids
+        };
+
+        let mut engine = Engine::open(&library_dir.0).expect("reopen");
+        let session = engine.cull().expect("session restored");
+        assert_eq!(session.current(), Some(ids[1]), "resumes on the next photo");
+        assert_eq!(session.decision(ids[0]), sortlens_cull::Decision::Reject);
+        assert_eq!(engine.cull_summary()["rejects"], 1);
+
+        engine.cull_clear();
+        assert!(engine.cull().is_none());
+        let mut again = Engine::open(&library_dir.0).expect("reopen again");
+        assert!(again.cull().is_none(), "ending the session removes the file");
+        let _ = again.close();
+    }
+
+    #[test]
+    fn a_saved_session_drops_photos_that_are_gone() {
+        let folder = Temp::new("cull-prune-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let root = folder.0.to_string_lossy().to_string();
+        let (library_dir, _) = library("cull-prune");
+        let kept = {
+            let mut engine = Engine::open(&library_dir.0).expect("open");
+            engine.begin_scan(root.clone()).expect("scan");
+            wait_for_scan(&mut engine);
+            let ids: Vec<PhotoId> = engine
+                .page(&Filter::default(), Sort::Natural, 0, 10)
+                .photos
+                .iter()
+                .map(|photo| photo.id)
+                .collect();
+            engine.begin_cull(&ids).expect("begin");
+            engine.remove_root(&root).expect("remove root");
+            ids[1]
+        };
+        let _ = kept;
+        let engine = Engine::open(&library_dir.0).expect("reopen");
+        assert!(engine.cull().is_none(), "a session with no surviving photos is discarded");
     }
 
     #[test]

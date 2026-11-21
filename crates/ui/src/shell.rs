@@ -811,13 +811,14 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         return;
     }
     // Starting a session works before anything is selected: the queue comes from the filters.
+    // A session restored from a previous run is opened rather than replaced.
     if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) {
-        match start_cull(engine, state) {
-            Ok(total) => {
-                state.view = View::Cull;
-                state.notice(format!("Culling {total} photos"));
+        state.view = View::Cull;
+        if engine.cull().is_none() {
+            match start_cull(engine, state) {
+                Ok(total) => state.notice(format!("Culling {total} photos")),
+                Err(error) => state.notice(error),
             }
-            Err(error) => state.notice(error),
         }
         return;
     }
