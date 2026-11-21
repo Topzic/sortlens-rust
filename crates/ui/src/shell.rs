@@ -185,6 +185,8 @@ pub struct UiState {
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
     pub similar_threshold: u32,
+    /// How far apart two colour fingerprints may be before they are different pictures.
+    pub similar_colour: u32,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -246,6 +248,7 @@ impl UiState {
             tag_order: TagOrder::Count,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
+            similar_colour: sortlens_engine::SIMILAR_COLOUR,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -364,8 +367,16 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
             state.notice(message);
         }
     }
+    if engine.poll_similar_with(state.similar_threshold, state.similar_colour).is_some() {
+        let groups = engine.similar_groups().len();
+        state.notice(match groups {
+            0 => "No similar groups found".to_string(),
+            1 => "Found 1 similar group".to_string(),
+            other => format!("Found {other} similar groups"),
+        });
+    }
     thumbs.poll(ui.ctx());
-    if engine.is_scanning() {
+    if engine.is_scanning() || engine.hash_progress().is_some() {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
     }
 

@@ -186,9 +186,10 @@ remap a moved drive; run the wizard on a clean machine.
 
 - [ ] `sortlens-quality`: sharpness score + versioning + tests (D) — SL-E01
 - [ ] Blur scan job + threshold review + batch select (D,B) — SL-E01/E02
-- [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance (D) — SL-E03
+- [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
-- [ ] Similar: LSH bands, colour signatures, side-by-side compare (B) — SL-E03/E05
+- [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03
+- [ ] Similar: side-by-side compare and colour-only matches (B) — SL-E05
 - [ ] Batch select of group leftovers and delete (B) — SL-E05
 - [ ] `sortlens-geo`: projection, clusters, gazetteer (D) — SL-E06/E07
 - [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06

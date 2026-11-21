@@ -58,6 +58,81 @@ pub fn hash_file(path: &std::path::Path, max_edge: u32) -> Option<Hash> {
     Hash::of(&thumbnail)
 }
 
+/// Hash and colour-measure one file in a single decode.
+pub fn analyse_file(path: &std::path::Path, max_edge: u32) -> Option<(Hash, Colour)> {
+    let thumbnail = sortlens_thumbs::decode_file(path, max_edge.max(64)).ok()?;
+    Some((Hash::of(&thumbnail)?, Colour::of(&thumbnail)?))
+}
+
+/// A coarse colour fingerprint: a 3×3 grid of mean RGB.
+///
+/// Hashes measure structure only, so two different photographs with the same layout of light and
+/// dark — a page of text, a striped shirt — look alike to them. Colour separates those cases: same
+/// shapes in a different palette are not the same picture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Colour {
+    /// Mean red per cell.
+    pub red: [u8; 9],
+    /// Mean green per cell.
+    pub green: [u8; 9],
+    /// Mean blue per cell.
+    pub blue: [u8; 9],
+}
+
+impl Colour {
+    /// Measure a decoded thumbnail of any size.
+    ///
+    /// Each cell is the mean of the pixels it covers, using the same box filter as the hashes, so
+    /// every pixel contributes to exactly one cell.
+    pub fn of(thumbnail: &Thumbnail) -> Option<Self> {
+        let width = thumbnail.width;
+        let height = thumbnail.height;
+        if width == 0 || height == 0 || thumbnail.rgba.len() < (width as usize * height as usize * 4) {
+            return None;
+        }
+        let columns = ranges(width, 3);
+        let rows = ranges(height, 3);
+        let mut colour = Self {
+            red: [0; 9],
+            green: [0; 9],
+            blue: [0; 9],
+        };
+        for (row, (top, bottom)) in rows.iter().enumerate() {
+            for (column, (left, right)) in columns.iter().enumerate() {
+                let mut sums = (0u32, 0u32, 0u32);
+                for y in *top..*bottom {
+                    for x in *left..*right {
+                        let index = ((y as usize * width as usize) + x as usize) * 4;
+                        sums.0 += u32::from(thumbnail.rgba[index]);
+                        sums.1 += u32::from(thumbnail.rgba[index + 1]);
+                        sums.2 += u32::from(thumbnail.rgba[index + 2]);
+                    }
+                }
+                let count = ((bottom - top) * (right - left)).max(1);
+                let cell = row * 3 + column;
+                colour.red[cell] = (sums.0 / count).min(255) as u8;
+                colour.green[cell] = (sums.1 / count).min(255) as u8;
+                colour.blue[cell] = (sums.2 / count).min(255) as u8;
+            }
+        }
+        Some(colour)
+    }
+
+    /// Mean absolute difference per channel and cell, 0–255.
+    ///
+    /// Averaging keeps the number comparable across grids: a tolerance means the same thing for a
+    /// flat wall and for a busy street.
+    pub fn distance(self, other: Self) -> u32 {
+        let mut total: u32 = 0;
+        for cell in 0..9 {
+            total += u32::from(self.red[cell].abs_diff(other.red[cell]));
+            total += u32::from(self.green[cell].abs_diff(other.green[cell]));
+            total += u32::from(self.blue[cell].abs_diff(other.blue[cell]));
+        }
+        total / 27
+    }
+}
+
 /// Count set bits in `left XOR right`.
 pub fn hamming(left: u64, right: u64) -> u32 {
     (left ^ right).count_ones()
@@ -96,6 +171,17 @@ fn cells(thumbnail: &Thumbnail) -> Option<Vec<u8>> {
         }
     }
     Some(cells)
+}
+
+/// Split a length into `cells` contiguous ranges, each at least one pixel wide.
+fn ranges(length: u32, cells: u32) -> Vec<(u32, u32)> {
+    (0..cells)
+        .map(|cell| {
+            let start = cell * length / cells;
+            let end = (((cell + 1) * length) / cells).max(start + 1).min(length);
+            (start, end)
+        })
+        .collect()
 }
 
 /// Difference hash: one bit per horizontal neighbour pair, set when the left cell is brighter.
@@ -267,6 +353,46 @@ mod tests {
             &[],
         )
         .expect("encode")
+    }
+
+    #[test]
+    fn colour_separates_same_shapes_in_another_palette() {
+        let red = paint(60, 60, |_, _| 0);
+        let coloured = |red_value: u8, green: u8, blue: u8| {
+            let mut rgba = Vec::with_capacity(60 * 60 * 4);
+            for _ in 0..60 * 60 {
+                rgba.extend_from_slice(&[red_value, green, blue, 255]);
+            }
+            Thumbnail {
+                width: 60,
+                height: 60,
+                rgba,
+            }
+        };
+        let warm = Colour::of(&coloured(220, 40, 30)).expect("colour");
+        let cool = Colour::of(&coloured(30, 40, 220)).expect("colour");
+        let warm_again = Colour::of(&coloured(222, 42, 32)).expect("colour");
+        assert!(warm.distance(cool) > 100, "red and blue are far apart");
+        assert!(warm.distance(warm_again) < 4, "a nudge in exposure stays close");
+        assert!(Colour::of(&red).is_some());
+        assert!(
+            Colour::of(&Thumbnail {
+                width: 0,
+                height: 0,
+                rgba: Vec::new()
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn a_half_and_half_image_gives_two_different_column_means() {
+        let thumbnail = paint(60, 30, |x, _| if x < 30 { 20 } else { 220 });
+        let colour = Colour::of(&thumbnail).expect("colour");
+        assert!(colour.red[0] < 40, "left cells are dark");
+        assert!(colour.red[8] > 200, "right cells are bright");
+        assert_eq!(colour.red[0], 20, "the first cell is entirely dark");
+        assert_eq!(colour.red[1], 120, "the middle cell straddles the boundary");
     }
 
     #[test]

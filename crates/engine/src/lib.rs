@@ -16,7 +16,9 @@ pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, Ta
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 pub use sortlens_insights::{Insights, Row as InsightRow};
-pub use sortlens_similar::{DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Member as SimilarMember};
+pub use sortlens_similar::{
+    DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Member as SimilarMember,
+};
 
 use serde_json::{Value, json};
 use sortlens_catalog::{Catalog, Seed};
@@ -84,7 +86,7 @@ pub struct Engine {
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
     pending_hash: Option<PendingHash>,
-    hashes: std::collections::HashMap<u64, sortlens_hash::Hash>,
+    hashes: std::collections::HashMap<u64, (sortlens_hash::Hash, sortlens_hash::Colour)>,
     similar_members: Vec<SimilarMember>,
     similar: Vec<SimilarGroup>,
     cull: Option<sortlens_cull::Session>,
@@ -757,9 +759,10 @@ impl Engine {
         let mut todo: Vec<(PhotoId, String, u64, u64, u8)> = Vec::new();
         for photo in self.all_photos() {
             match self.hashes.get(&photo.key) {
-                Some(hash) => members.push(SimilarMember {
+                Some((hash, colour)) => members.push(SimilarMember {
                     id: photo.id,
                     hash: *hash,
+                    colour: Some(*colour),
                     pixels: u64::from(photo.width) * u64::from(photo.height),
                     rating: photo.rating,
                     bytes: photo.size,
@@ -792,10 +795,11 @@ impl Engine {
                     if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
                         break;
                     }
-                    if let Some(hash) = sortlens_hash::hash_file(std::path::Path::new(&path), 64) {
+                    if let Some((hash, colour)) = sortlens_hash::analyse_file(std::path::Path::new(&path), 64) {
                         found.push(SimilarMember {
                             id,
                             hash,
+                            colour: Some(colour),
                             pixels,
                             rating,
                             bytes,
@@ -837,6 +841,11 @@ impl Engine {
     /// Fold finished hashes into the cache and regroup. Returns the number of groups when the pass
     /// just finished.
     pub fn poll_similar(&mut self, threshold: u32) -> Option<usize> {
+        self.poll_similar_with(threshold, SIMILAR_COLOUR)
+    }
+
+    /// Poll with an explicit colour tolerance.
+    pub fn poll_similar_with(&mut self, threshold: u32, colour: u32) -> Option<usize> {
         let pending = self.pending_hash.as_ref()?;
         let found = match pending.rx.try_recv() {
             Ok(found) => found,
@@ -848,7 +857,10 @@ impl Engine {
         };
         let pending = self.pending_hash.take()?;
         for member in &found {
-            self.hashes.insert(self.key_for(member.id).unwrap_or_default(), member.hash);
+            let key = self.key_for(member.id).unwrap_or_default();
+            if let Some(colour) = member.colour {
+                self.hashes.insert(key, (member.hash, colour));
+            }
             self.similar_members.push(*member);
         }
         let status = if pending.cancel.load(std::sync::atomic::Ordering::Relaxed) {
@@ -857,7 +869,7 @@ impl Engine {
             JobStatus::Done
         };
         self.finish_job(pending.job, status, found.len(), 0, 0, None);
-        self.similar = sortlens_similar::group(&self.similar_members, threshold);
+        self.similar = sortlens_similar::group_with(&self.similar_members, threshold, colour);
         Some(self.similar.len())
     }
 

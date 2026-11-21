@@ -391,7 +391,27 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
   identical JPEGs while a third stays alone
 - 177 tests, CI and wasm green
 
+## 2026-11-21 — M6: metric index and colour fingerprint
+
+Planned as "LSH banding"; the plan changed while building it. Banded LSH cannot stay exact at a
+radius of ten bits without so many bands that every bucket holds a large fraction of the library, so
+the candidate search is a BK-tree instead: exact under Hamming distance, visiting only nodes whose
+edge range can still reach the radius. A brute-force cross-check test pins the index to the naive
+answer.
+
+- hash: `Colour` (3×3 mean RGB over the same box filter as the hashes) with a mean-absolute
+  `distance` 0–255, and `analyse_file` so structure and colour come from one decode
+- similar: `group_with(members, threshold, colour)` shares a BK-tree candidate search and vetoes a
+  pair when both have fingerprints further apart than the tolerance; `matches` is the single rule
+  `group`, `group_with` and `around` all use; `Member.colour`
+- engine: the hash cache stores `(Hash, Colour)`, the pass uses `analyse_file`, `poll_similar_with`
+  takes a colour tolerance, UI polls it every frame so a finished pass reports its group count
+- ui: separate structure and colour sliders in the Similar view
+- tests: the index matching brute force on 64 hashes, a colour mismatch refusing a structural match,
+  the no-fingerprint case still grouping, 3×3 colour grid arithmetic
+- 181 tests, CI and wasm green
+
 ## Next
 
-M6: LSH banding so a 50k library does not have to be compared pairwise, plus colour signatures for
-pictures that hashes alone miss.
+M4 leftovers: the cull summary sheet after Apply plus a receipt dialog, so a finished cull and a
+staged batch are both explained rather than just disappearing.
