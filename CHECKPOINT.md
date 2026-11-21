@@ -526,7 +526,20 @@ check is a second invisible UI.
   face, and the UI restoring the library search when a collection closes
 - 208 tests, CI and wasm green
 
+## 2026-11-21 — M5: first-run wizard
+
+- ui: `Welcome { Add, Indexing, Ready }` decided by `welcome_stage(roots, scanning, total, dismissed)`
+  — derived every frame so it cannot get stuck, and a dismissed wizard stays dismissed. The Add step
+  explains that files stay put, changes are undoable and rejects wait for Apply, then offers
+  "Add Folder…" or "Not now"; the Indexing step shows live file/folder counts, a progress bar and the
+  photos found so far
+- ui: the first scan that finds anything raises a one-time card — "Indexed N photos in <folder>" —
+  with "Start culling" (switches to the cull view) and "Dismiss"
+- tests: the stage for no roots, an empty root, a scan in progress (which wins over an existing
+  library), a library with photos (no wizard), and dismissal overriding everything
+- 209 tests, CI and wasm green
+
 ## Next
 
-M5 leftovers: the first-run wizard — a single screen that adds a folder, explains indexing and shows
-the first thumbnails, so a new library does not start on an empty grid.
+M5: tag rename and merge — renaming a keyword everywhere it appears and merging two keywords into
+one, both as one undoable group.

@@ -186,6 +186,10 @@ pub struct UiState {
     pub library_sort: Sort,
     /// The search the whole library was last narrowed with.
     pub library_search: String,
+    /// The first-run wizard was dismissed for this session.
+    pub welcome_dismissed: bool,
+    /// The first scan has finished and its result is being shown.
+    pub welcome_ready: Option<String>,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -265,6 +269,8 @@ impl UiState {
             tag_order: TagOrder::Count,
             library_sort: Sort::Natural,
             library_search: String::new(),
+            welcome_dismissed: false,
+            welcome_ready: None,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -381,7 +387,13 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     let mut actions = Vec::new();
     let t = state.theme.tokens();
 
+    let had_photos = engine.stats().total;
     if let Some(done) = engine.poll() {
+        if had_photos == 0 && done.added > 0 {
+            // The first scan found the library; say so once, then get out of the way.
+            let noun = if done.added == 1 { "photo" } else { "photos" };
+            state.welcome_ready = Some(format!("Indexed {} {noun} in {}", done.added, folder_name(&done.root)));
+        }
         if done.cancelled {
             state.notice(format!("Cancelled indexing {}", folder_name(&done.root)));
         } else {
@@ -950,6 +962,37 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             filter_strip(ui, t, state, engine, total);
             ui.add_space(10.0);
 
+            if state.view == View::Library
+                && let Some(message) = state.welcome_ready.clone()
+            {
+                Frame::NONE
+                    .fill(t.card)
+                    .stroke(Stroke::new(1.0, t.border))
+                    .corner_radius(t.corner())
+                    .inner_margin(Margin::symmetric(12, 10))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(message).size(12.0).strong());
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if ui.small_button("Dismiss").clicked() {
+                                    state.welcome_ready = None;
+                                }
+                                if ui.button(RichText::new("Start culling").size(11.5)).clicked() {
+                                    match start_cull(engine, state) {
+                                        Ok(total) => {
+                                            state.view = View::Cull;
+                                            state.welcome_ready = None;
+                                            state.notice(format!("Culling {total} photos"));
+                                        }
+                                        Err(error) => state.notice(error),
+                                    }
+                                }
+                            });
+                        });
+                    });
+                ui.add_space(8.0);
+            }
+
             match state.view {
                 View::Library if state.detail_open => {
                     detail_view(ui, t, state, engine, thumbs);
@@ -1344,45 +1387,149 @@ fn chip(ui: &mut Ui, t: &Tokens, label: &str, active: bool) -> egui::Response {
     )
 }
 
-fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, actions: &mut Vec<Action>) {
+/// Which step of the first-run wizard the library is on, if any.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Welcome {
+    /// No roots yet: the only useful action is adding a folder.
+    Add,
+    /// A scan is running: show what has been found so far.
+    Indexing,
+    /// The first scan finished and found something.
+    Ready,
+}
+
+/// Decide the step from what the library is doing.
+///
+/// The wizard is derived every frame rather than remembered, so it cannot get stuck: once photos
+/// exist and nothing is scanning it is gone, whether or not anybody clicked anything.
+pub fn welcome_stage(roots: usize, scanning: bool, total: usize, dismissed: bool) -> Option<Welcome> {
+    if dismissed {
+        return None;
+    }
+    if scanning {
+        return Some(Welcome::Indexing);
+    }
+    if roots == 0 || total == 0 {
+        return Some(Welcome::Add);
+    }
+    None
+}
+
+fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
+    let stage = welcome_stage(
+        engine.roots().len(),
+        engine.is_scanning(),
+        engine.stats().total,
+        state.welcome_dismissed,
+    )
+    .unwrap_or(Welcome::Add);
     let height = ui.available_height();
     ui.allocate_ui_with_layout(vec2(ui.available_width(), height), Layout::top_down(Align::Center), |ui| {
-        ui.add_space((height * 0.18).clamp(24.0, 160.0));
-        if engine.is_scanning() {
-            ui.label(RichText::new("Indexing…").size(19.0).strong());
-            ui.add_space(4.0);
-            ui.label(
-                RichText::new("Reading file sizes and content keys. Nothing is moved.")
-                    .size(12.5)
-                    .color(t.text_muted),
-            );
-            return;
+        ui.add_space((height * 0.14).clamp(24.0, 140.0));
+        match stage {
+            Welcome::Add => welcome_add(ui, t, state, actions),
+            Welcome::Indexing => welcome_indexing(ui, t, engine),
+            Welcome::Ready => {}
         }
-        ui.label(RichText::new("No photos yet").size(19.0).strong());
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new("Add a folder and Sortlens indexes it in place. Nothing is uploaded, moved or renamed.")
-                .size(12.5)
-                .color(t.text_muted),
-        );
-        ui.add_space(14.0);
-        ui.horizontal(|ui| {
-            if ui
-                .add(Button::new(RichText::new("Add Folder…").size(12.5)).min_size(vec2(120.0, 28.0)))
-                .clicked()
-            {
-                actions.push(Action::PickFolder);
-            }
-            if ui.button(RichText::new("Settings").size(12.5)).clicked() {
-                state.settings_open = true;
-            }
-        });
-        ui.add_space(18.0);
-        ui.label(
-            RichText::new("Supported: JPEG, HEIC, TIFF, PNG, WebP and camera raw.")
-                .size(11.0)
-                .color(t.text_faint),
-        );
+    });
+}
+
+/// Step one: what Sortlens does, and the one button worth pressing.
+fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<Action>) {
+    ui.label(RichText::new("Welcome to Sortlens").size(22.0).strong());
+    ui.add_space(6.0);
+    ui.label(
+        RichText::new("Point it at a folder of photos and it builds a catalog beside your files.")
+            .size(12.5)
+            .color(t.text_muted),
+    );
+    ui.add_space(16.0);
+    ui.allocate_ui(vec2(420.0, 0.0), |ui| {
+        for (title, detail) in [
+            ("Your files stay put", "No upload, no rename, no moving. Sortlens only reads."),
+            (
+                "Everything is undoable",
+                "Ratings, flags and keywords live in one log you can step back.",
+            ),
+            (
+                "Rejects wait for you",
+                "Culling stages decisions; nothing is trashed until you apply.",
+            ),
+        ] {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("·").size(12.0).color(t.accent));
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(title).size(12.0).strong());
+                    ui.label(RichText::new(detail).size(10.5).color(t.text_faint));
+                });
+            });
+            ui.add_space(6.0);
+        }
+    });
+    ui.add_space(12.0);
+    ui.horizontal(|ui| {
+        if ui
+            .add(Button::new(RichText::new("Add Folder…").size(12.5)).min_size(vec2(130.0, 30.0)))
+            .clicked()
+        {
+            actions.push(Action::PickFolder);
+        }
+        if ui
+            .add(Button::new(RichText::new("Not now").size(12.0)).fill(Color32::TRANSPARENT))
+            .clicked()
+        {
+            state.welcome_dismissed = true;
+        }
+    });
+    ui.add_space(10.0);
+    ui.label(
+        RichText::new("JPEG, HEIC, TIFF, PNG, WebP, GIF and camera raw · video poster frames arrive later")
+            .size(10.5)
+            .color(t.text_faint),
+    );
+}
+
+/// Step two: what has been found so far, including the first thumbnails.
+fn welcome_indexing(ui: &mut Ui, t: &Tokens, engine: &Engine) {
+    ui.label(RichText::new("Indexing…").size(20.0).strong());
+    ui.add_space(4.0);
+    let (files, dirs) = engine
+        .scan_progress()
+        .map(|progress| (progress.files, progress.dirs))
+        .unwrap_or((0, 0));
+    ui.label(
+        RichText::new(format!(
+            "{} files in {} folders so far. Reading sizes and content keys; nothing is moved.",
+            format_count(files as u64),
+            format_count(dirs as u64)
+        ))
+        .size(12.0)
+        .color(t.text_muted),
+    );
+    ui.add_space(10.0);
+    ui.add(
+        egui::ProgressBar::new(if dirs == 0 { 0.05 } else { 0.35 })
+            .desired_width(320.0)
+            .text("scanning"),
+    );
+    ui.add_space(14.0);
+    ui.label(RichText::new("Found so far").size(11.0).color(t.text_faint));
+    ui.horizontal(|ui| {
+        let recent = engine.page(&Filter::default(), Sort::Newest, 0, 8).photos;
+        if recent.is_empty() {
+            ui.label(RichText::new("Nothing yet").size(11.0).color(t.text_faint));
+        }
+        for photo in recent {
+            let (rect, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
+            ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
+            ui.painter().text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                truncate(&photo.name, 10),
+                FontId::proportional(9.0),
+                t.text_faint,
+            );
+        }
     });
 }
 
@@ -3018,6 +3165,21 @@ mod tests {
         let wide = fit_rect(bounds, 2.0);
         assert!(wide.width() <= bounds.width() + 0.001);
         assert!(bounds.contains_rect(wide));
+    }
+
+    #[test]
+    fn the_welcome_wizard_follows_what_the_library_is_doing() {
+        // Nothing added yet: the only useful step is adding a folder.
+        assert_eq!(welcome_stage(0, false, 0, false), Some(Welcome::Add));
+        // A root that turned out to be empty is the same situation.
+        assert_eq!(welcome_stage(1, false, 0, false), Some(Welcome::Add));
+        // Scanning wins, even with photos already indexed elsewhere.
+        assert_eq!(welcome_stage(1, true, 40, false), Some(Welcome::Indexing));
+        // Photos, no scan: the grid takes over and the wizard is gone.
+        assert_eq!(welcome_stage(1, false, 12, false), None);
+        // Dismissed stays dismissed whatever else happens.
+        assert_eq!(welcome_stage(0, false, 0, true), None);
+        assert_eq!(welcome_stage(1, true, 0, true), None);
     }
 
     #[test]
