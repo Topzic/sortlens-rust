@@ -77,7 +77,18 @@ Still missing: RAW embedded previews (`craft-raw`), video posters, HEIC.
 Not verified against a real camera raw: no sample file in the repo. The dispatch and fallback are
 covered; the preview extraction itself is `craft-raw`'s code path.
 
+## 2026-11-21 — M2: activity stack
+
+- engine/job.rs: `Job` with kind, label, status (running/done/cancelled/failed), counters, error,
+  start/finish times and a one-line detail; kept to the last 50
+- engine: every scan creates a job, finishes as Done / Cancelled / Failed, and `jobs()` fills the
+  running scan's counters from the scan control; `library.jobs` JSON command for scripts
+- ui: Activity tab lists jobs newest first with status colour, elapsed time, detail, per-job error,
+  and Cancel for the running one; library totals and warnings sit below
+- tests: job lifecycle, missing folder fails the job, jobs JSON, plus unit tests for the row states
+- 72 tests, CI and wasm green
+
 ## Next
 
-Activity stack (job list, per-item errors, cancel), then M3 keywords: op-log tags, keyword filter,
-sidecar write.
+M3 keywords: tag vocabulary in the op log, keyword chips on the selection, keyword filter in the
+query, XMP sidecar write on change.

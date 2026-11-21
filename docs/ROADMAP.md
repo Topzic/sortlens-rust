@@ -100,7 +100,8 @@ read during the scan. RAW, HEIC, video, priority scheduling and the activity sta
 - [ ] Video poster + duration/fps/codec (C) — SL-B11
 - [x] Placeholder cell while decoding, no spinner (B)
 - [ ] Blur-up tier transitions (B)
-- [ ] Activity stack + bell popover + cancel + per-item errors (B) — SL-A18
+- [x] Activity stack: job list, statuses, elapsed, per-item errors, cancel (B) — SL-A18
+- [ ] Bell popover and unread badges (B)
 - [ ] Offline/missing badges + cached-thumb behaviour (A,B) — SL-A12
 - [ ] `craft-ipc` + `craft-jsonrpc` control channel (E) — SL-K04
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03

@@ -463,27 +463,50 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                     None => hint(ui, t, "Keywords and collections for the selection appear here."),
                 },
                 RightTab::Activity => {
-                    if let Some(progress) = engine.scan_progress()
-                        && engine.is_scanning()
-                    {
-                        ui.label(RichText::new("Scanning folder").size(12.0).strong());
-                        detail_row(ui, t, "Files", &format_count(progress.files as u64));
-                        detail_row(ui, t, "Folders", &format_count(progress.dirs as u64));
-                        detail_row(ui, t, "Unreadable", &format_count(progress.errors as u64));
-                        ui.add_space(4.0);
-                        if ui.button("Cancel scan").clicked() {
-                            engine.cancel_scan();
-                        }
-                        ui.separator();
+                    let jobs = engine.jobs();
+                    if jobs.is_empty() {
+                        hint(ui, t, "Nothing has run yet. Scans and exports appear here.");
                     }
+                    for job in jobs.iter().rev().take(8) {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(job.kind.label()).size(10.0).color(t.text_faint));
+                            ui.label(RichText::new(truncate(&job.label, 22)).size(11.5).color(t.text));
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                let colour = match job.status {
+                                    sortlens_engine::JobStatus::Running => t.accent,
+                                    sortlens_engine::JobStatus::Done => t.pick,
+                                    sortlens_engine::JobStatus::Cancelled => t.text_faint,
+                                    sortlens_engine::JobStatus::Failed => t.reject,
+                                };
+                                ui.label(RichText::new(job.status.label()).size(10.0).color(colour));
+                                ui.label(
+                                    RichText::new(format!("{:.1}s", job.elapsed().as_secs_f64()))
+                                        .size(10.0)
+                                        .color(t.text_faint),
+                                );
+                            });
+                        });
+                        ui.label(RichText::new(job.detail()).size(10.5).color(t.text_muted));
+                        if job.status.is_running() {
+                            if ui.button(RichText::new("Cancel").size(10.5)).clicked() {
+                                engine.cancel_scan();
+                            }
+                        } else if let Some(error) = &job.error {
+                            ui.label(RichText::new(truncate(error, 60)).size(10.0).color(t.reject));
+                        }
+                        ui.add_space(6.0);
+                    }
+
+                    ui.separator();
                     let stats = engine.stats();
                     detail_row(ui, t, "Indexed", &format_count(stats.total as u64));
                     detail_row(ui, t, "On disk", &sortlens_core::format_bytes(stats.bytes));
                     detail_row(ui, t, "Missing", &format_count(stats.missing as u64));
-                    detail_row(ui, t, "Warnings", &format_count(engine.warnings().len() as u64));
-                    ui.add_space(8.0);
-                    for warning in engine.warnings().iter().rev().take(6) {
-                        ui.label(RichText::new(warning).size(10.5).color(t.text_faint));
+                    if !engine.warnings().is_empty() {
+                        ui.add_space(6.0);
+                        for warning in engine.warnings().iter().rev().take(4) {
+                            ui.label(RichText::new(truncate(warning, 70)).size(10.0).color(t.text_faint));
+                        }
                     }
                 }
             }

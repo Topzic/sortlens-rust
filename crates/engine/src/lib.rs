@@ -8,8 +8,10 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
 pub mod command;
+pub mod job;
 
 pub use command::{CommandSpec, Group, Registry, Status};
+pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 
@@ -34,6 +36,7 @@ pub enum Effect {
 /// A scan running on a worker thread.
 struct PendingScan {
     root: String,
+    job: u64,
     rx: Receiver<Result<ScanReport>>,
     control: ScanControl,
     started: Instant,
@@ -66,6 +69,8 @@ pub struct Engine {
     last_effect: Effect,
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
+    jobs: Vec<Job>,
+    next_job: u64,
     warnings: Vec<String>,
 }
 
@@ -77,6 +82,8 @@ impl Engine {
             last_effect: Effect::None,
             catalog: None,
             pending: None,
+            jobs: Vec::new(),
+            next_job: 1,
             warnings: Vec::new(),
         }
     }
@@ -170,13 +177,51 @@ impl Engine {
                 let _ = tx.send(sortlens_scan::scan_root_with(&root_path, &worker_control));
             })
             .map_err(|error| Error::Invalid(format!("could not start the scan worker: {error}")))?;
+        let job = self.start_job(JobKind::Scan, folder_name(&root));
         self.pending = Some(PendingScan {
             root,
+            job,
             rx,
             control,
             started: Instant::now(),
         });
         Ok(())
+    }
+
+    /// The activity stack, newest last, with the running scan's counters filled in.
+    pub fn jobs(&self) -> Vec<Job> {
+        let mut jobs = self.jobs.clone();
+        if let (Some(progress), Some(pending)) = (self.scan_progress(), &self.pending)
+            && let Some(job) = jobs.iter_mut().find(|job| job.id == pending.job)
+        {
+            job.files = progress.files;
+            job.dirs = progress.dirs;
+            job.unreadable = progress.errors;
+        }
+        jobs
+    }
+
+    fn start_job(&mut self, kind: JobKind, label: impl Into<String>) -> u64 {
+        const KEEP: usize = 50;
+        if self.jobs.len() >= KEEP
+            && let Some(index) = self.jobs.iter().position(|job| !job.status.is_running())
+        {
+            self.jobs.remove(index);
+        }
+        let id = self.next_job;
+        self.next_job += 1;
+        self.jobs.push(Job::running(id, kind, label));
+        id
+    }
+
+    fn finish_job(&mut self, id: u64, status: JobStatus, files: usize, dirs: usize, unreadable: usize, error: Option<String>) {
+        if let Some(job) = self.jobs.iter_mut().find(|job| job.id == id) {
+            job.files = files;
+            job.dirs = dirs;
+            job.unreadable = unreadable;
+            job.error = error;
+            job.finish(status);
+        }
     }
 
     /// Files and folders visited so far, while a scan is running.
@@ -202,11 +247,12 @@ impl Engine {
             Ok(Ok(report)) => {
                 let pending = self.pending.take()?;
                 let elapsed = pending.started.elapsed();
-                Some(self.finish_scan(pending.root, report, elapsed))
+                Some(self.finish_scan(pending.root, pending.job, report, elapsed))
             }
             Ok(Err(error)) => {
                 let pending = self.pending.take()?;
                 self.warnings.push(format!("{}: {error}", pending.root));
+                self.finish_job(pending.job, JobStatus::Failed, 0, 0, 0, Some(error.to_string()));
                 Some(ScanFinished {
                     root: pending.root,
                     added: 0,
@@ -226,8 +272,9 @@ impl Engine {
         }
     }
 
-    fn finish_scan(&mut self, root: String, report: ScanReport, elapsed: std::time::Duration) -> ScanFinished {
+    fn finish_scan(&mut self, root: String, job: u64, report: ScanReport, elapsed: std::time::Duration) -> ScanFinished {
         if report.cancelled {
+            self.finish_job(job, JobStatus::Cancelled, 0, 0, 0, None);
             // A partial walk must never be synced: it would mark every unseen file as missing.
             return ScanFinished {
                 root,
@@ -272,6 +319,9 @@ impl Engine {
         for error in &errors {
             self.warnings.push(error.clone());
         }
+
+        let status = if errors.is_empty() { JobStatus::Done } else { JobStatus::Failed };
+        self.finish_job(job, status, report.files.len(), report.dirs, errors.len(), errors.first().cloned());
 
         ScanFinished {
             root,
@@ -425,6 +475,25 @@ impl Engine {
             }
             "edit.undo" => Ok(json!({ "undone": self.undo()? })),
             "library.stats" => Ok(serde_json::to_value(self.stats()).unwrap_or(Value::Null)),
+            "library.jobs" => {
+                let jobs: Vec<Value> = self
+                    .jobs()
+                    .iter()
+                    .map(|job| {
+                        json!({
+                            "id": job.id,
+                            "kind": job.kind.label(),
+                            "label": job.label,
+                            "status": job.status.label(),
+                            "files": job.files,
+                            "dirs": job.dirs,
+                            "detail": job.detail(),
+                            "elapsedSeconds": job.elapsed().as_secs_f64(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "jobs": jobs }))
+            }
             "app.about" => Ok(json!({
                 "name": "Sortlens",
                 "version": sortlens_core::VERSION,
@@ -456,6 +525,16 @@ impl Engine {
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
         }
     }
+}
+
+/// Last path component, for job labels.
+fn folder_name(path: &str) -> String {
+    path.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(path)
+        .to_string()
 }
 
 fn ids_from(args: &Value) -> Result<Vec<PhotoId>> {
@@ -585,6 +664,44 @@ mod tests {
 
         let error = engine.run("library.addFolder", &json!({})).expect_err("path required");
         assert!(matches!(error, Error::Invalid(_)));
+    }
+
+    #[test]
+    fn a_scan_creates_a_job_that_finishes_done() {
+        let folder = Temp::new("job-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        let (_lib, mut engine) = library("job");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+
+        let running = engine.jobs();
+        assert_eq!(running.len(), 1);
+        assert!(running[0].status.is_running());
+
+        wait_for_scan(&mut engine);
+        let jobs = engine.jobs();
+        assert_eq!(jobs[0].status, JobStatus::Done);
+        assert_eq!(jobs[0].files, 1);
+        assert!(jobs[0].finished.is_some());
+    }
+
+    #[test]
+    fn a_missing_folder_fails_the_job() {
+        let missing = std::env::temp_dir().join("sortlens-no-such-folder-xyz");
+        let _ = std::fs::remove_dir_all(&missing);
+        let (_lib, mut engine) = library("job-fail");
+        engine.begin_scan(missing.to_string_lossy().to_string()).expect("start");
+        wait_for_scan(&mut engine);
+        let jobs = engine.jobs();
+        assert_eq!(jobs[0].status, JobStatus::Failed);
+        assert!(jobs[0].error.is_some());
+    }
+
+    #[test]
+    fn jobs_are_listed_as_json() {
+        let (_lib, mut engine) = library("job-json");
+        let value = engine.run("library.jobs", &json!({})).expect("jobs");
+        assert_eq!(value["jobs"].as_array().map(Vec::len), Some(0));
     }
 
     #[test]

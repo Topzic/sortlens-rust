@@ -173,6 +173,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.jobs",
+                    label: "Activity",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Activity",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.stats",
                     label: "Library Statistics",
                     group: Group::Library,
