@@ -2,7 +2,7 @@
 //! they are on disk and keep their ids.
 
 use serde::{Deserialize, Serialize};
-use sortlens_core::{CollectionId, PhotoId};
+use sortlens_core::{CollectionId, ColorLabel, PhotoId};
 use std::collections::BTreeSet;
 
 /// A named set of photos.
@@ -18,6 +18,12 @@ pub struct Collection {
     /// Unix seconds when it was created.
     #[serde(default)]
     pub created: i64,
+    /// Colour dot in the sidebar, independent of the photos' own labels.
+    #[serde(default)]
+    pub colour: Option<ColorLabel>,
+    /// Pinned to the top of the collection list.
+    #[serde(default)]
+    pub favourite: bool,
 }
 
 impl Collection {
@@ -28,7 +34,14 @@ impl Collection {
             name: name.into(),
             photos: BTreeSet::new(),
             created,
+            colour: None,
+            favourite: false,
         }
+    }
+
+    /// The colour's name, for menus and the JSON face.
+    pub fn colour_id(&self) -> Option<&'static str> {
+        self.colour.map(sortlens_core::ColorLabel::id)
     }
 
     /// Whether the collection contains a photo.
@@ -51,6 +64,22 @@ impl Collection {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_collection_has_no_colour_and_is_not_a_favourite() {
+        let collection = Collection::new(CollectionId(1), "Trip", 0);
+        assert!(collection.colour.is_none());
+        assert!(!collection.favourite);
+        assert_eq!(collection.colour_id(), None);
+    }
+
+    #[test]
+    fn an_old_record_without_the_new_fields_still_loads() {
+        let text = r#"{"id":1,"name":"Trip","photos":[],"created":10}"#;
+        let collection: Collection = serde_json::from_str(text).expect("loads");
+        assert!(collection.colour.is_none());
+        assert!(!collection.favourite, "missing fields default to absent");
+    }
 
     #[test]
     fn membership_is_a_set() {

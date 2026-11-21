@@ -233,6 +233,17 @@ impl Tokens {
     }
 
     /// Colour for a flag, including the unflagged state.
+    /// Colour used for a rating-adjacent label, in the suite's fixed order.
+    pub fn label(&self, label: sortlens_core::ColorLabel) -> Color32 {
+        match label {
+            sortlens_core::ColorLabel::Red => Color32::from_rgb(214, 84, 74),
+            sortlens_core::ColorLabel::Yellow => Color32::from_rgb(214, 176, 62),
+            sortlens_core::ColorLabel::Green => Color32::from_rgb(96, 170, 104),
+            sortlens_core::ColorLabel::Blue => Color32::from_rgb(82, 132, 202),
+            sortlens_core::ColorLabel::Purple => Color32::from_rgb(150, 108, 196),
+        }
+    }
+
     pub fn flag(&self, flag: sortlens_core::Flag) -> Color32 {
         match flag {
             sortlens_core::Flag::Pick => self.pick,

@@ -658,57 +658,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 }
             }
 
-            nav_section(ui, t, "Collections");
-            let collections = engine.collections();
-            if collections.is_empty() {
-                hint(ui, t, "Collect photos into named sets without moving them.");
-            }
-            let mut delete = None;
-            let mut rename = None;
-            for collection in &collections {
-                let selected = state.collection_filter == Some(collection.id);
-                let row = nav_row(ui, t, &collection.name, &format_count(collection.len() as u64), selected);
-                if row.clicked() {
-                    state.collection_filter = if selected { None } else { Some(collection.id) };
-                }
-                row.context_menu(|ui| {
-                    if ui.button("Rename…").clicked() {
-                        rename = Some((collection.id, collection.name.clone()));
-                        ui.close();
-                    }
-                    if ui.button("Delete collection").clicked() {
-                        delete = Some(collection.id);
-                        ui.close();
-                    }
-                });
-            }
-            if let Some((id, name)) = rename {
-                state.rename_target = Some((id, name));
-            }
-            if let Some(id) = delete {
-                match engine.delete_collection(id) {
-                    Ok(()) => {
-                        if state.collection_filter == Some(id) {
-                            state.collection_filter = None;
-                        }
-                        state.notice("Collection deleted — the photos stay in the library");
-                    }
-                    Err(error) => state.notice(error.to_string()),
-                }
-            }
-            if ui
-                .add(Button::new(RichText::new("+ New collection").size(10.5)).fill(Color32::TRANSPARENT))
-                .clicked()
-            {
-                let name = format!("Collection {}", collections.len() + 1);
-                match engine.create_collection(&name) {
-                    Ok(id) => {
-                        state.collection_filter = Some(id);
-                        state.rename_target = Some((id, name));
-                    }
-                    Err(error) => state.notice(error.to_string()),
-                }
-            }
+            collections_section(ui, t, state, engine);
         });
 }
 
@@ -2222,6 +2172,109 @@ fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::Insi
                 .size(10.5)
                 .color(t.text_faint),
         );
+    }
+}
+
+/// Collections: favourites first, each with its colour, and the actions that change both.
+fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    nav_section(ui, t, "Collections");
+    let collections = engine.collections();
+    if collections.is_empty() {
+        hint(ui, t, "Collect photos into named sets without moving them.");
+    }
+    let mut delete = None;
+    let mut rename = None;
+    let mut recolour: Option<(sortlens_core::CollectionId, Option<sortlens_core::ColorLabel>)> = None;
+    let mut pin: Option<(sortlens_core::CollectionId, bool)> = None;
+    for collection in &collections {
+        let selected = state.collection_filter == Some(collection.id);
+        let name = format!("{}{}", if collection.favourite { "★ " } else { "" }, collection.name);
+        let row = nav_row(ui, t, &name, &format_count(collection.len() as u64), selected);
+        if let Some(colour) = collection.colour {
+            // A dot before the name, so a colour is scannable without opening anything.
+            let dot = pos2(row.rect.left() + 3.0, row.rect.center().y);
+            ui.painter().circle_filled(dot, 3.0, t.label(colour));
+        }
+        if row.clicked() {
+            state.collection_filter = if selected { None } else { Some(collection.id) };
+        }
+        row.context_menu(|ui| {
+            let pin_label = if collection.favourite {
+                "Remove from favourites"
+            } else {
+                "Add to favourites"
+            };
+            if ui.button(pin_label).clicked() {
+                pin = Some((collection.id, !collection.favourite));
+                ui.close();
+            }
+            ui.menu_button("Colour", |ui| {
+                if ui.button("None").clicked() {
+                    recolour = Some((collection.id, None));
+                    ui.close();
+                }
+                for label in sortlens_core::ColorLabel::ALL {
+                    if ui.button(label.label()).clicked() {
+                        recolour = Some((collection.id, Some(label)));
+                        ui.close();
+                    }
+                }
+            });
+            if ui.button("Rename…").clicked() {
+                rename = Some((collection.id, collection.name.clone()));
+                ui.close();
+            }
+            if ui.button("Delete collection").clicked() {
+                delete = Some(collection.id);
+                ui.close();
+            }
+        });
+    }
+    if let Some((id, colour)) = recolour {
+        match engine.set_collection_colour(id, colour) {
+            Ok(()) => state.notice(match colour {
+                Some(label) => format!("Collection is {}", label.label().to_lowercase()),
+                None => "Collection colour cleared".to_string(),
+            }),
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+    if let Some((id, favourite)) = pin {
+        match engine.set_collection_favourite(id, favourite) {
+            Ok(()) => state.notice(if favourite {
+                "Pinned to the top".to_string()
+            } else {
+                "Unpinned".to_string()
+            }),
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+    if let Some((id, name)) = rename {
+        state.rename_target = Some((id, name));
+    }
+    if let Some(id) = delete {
+        match engine.delete_collection(id) {
+            Ok(()) => {
+                if state.collection_filter == Some(id) {
+                    state.collection_filter = None;
+                }
+                state.notice("Collection deleted — the photos stay in the library");
+            }
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+    if ui
+        .add(Button::new(RichText::new("+ New collection").size(10.5)).fill(Color32::TRANSPARENT))
+        .clicked()
+    {
+        let name = format!("Collection {}", collections.len() + 1);
+        match engine.create_collection(&name) {
+            Ok(id) => {
+                state.collection_filter = Some(id);
+                state.rename_target = Some((id, name));
+            }
+            Err(error) => state.notice(error.to_string()),
+        }
     }
 }
 

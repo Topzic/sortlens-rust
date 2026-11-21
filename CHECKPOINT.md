@@ -482,7 +482,23 @@ check is a second invisible UI.
   for nothing, one staged decision producing exactly one reason, and discarding clearing it
 - 197 tests, CI and wasm green
 
+## 2026-11-21 — M5: collection colours and favourites
+
+- catalog: `Collection.colour: Option<ColorLabel>` and `favourite: bool` with `serde(default)` so
+  records written before this load unchanged; ops `SetCollectionColour` and `SetCollectionFavourite`
+  whose inverses restore the previous value; `collections()` now sorts favourites first, then by
+  name, so pinning one does not disturb the rest
+- engine: `set_collection_colour`/`set_collection_favourite` and the `collection.colour` (name or
+  `none`, unknown names rejected) and `collection.favourite` commands
+- ui: the collections section moved into `collections_section` (it was pushing the sidebar past the
+  complexity budget); favourites show a star, colours a dot in the theme's label palette
+  (`Tokens::label`), and the context menu gains favourite/unfavourite and a Colour submenu
+- tests: a new collection having neither, an old JSON record loading with defaults, colour and
+  favourite undoing exactly, favourites sorting first, and the commands round-tripping with an
+  unknown colour rejected and the old colour left in place
+- 201 tests, CI and wasm green
+
 ## Next
 
-M5 leftovers: collection colours and favourites, so the sidebar can group collections rather than
-showing one flat list.
+M5 leftovers: per-view sort for collections — remembering the sort a collection was last browsed
+with, so revisiting it does not reset to the library's order.

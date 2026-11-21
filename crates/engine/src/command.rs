@@ -261,6 +261,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "collection.colour",
+                    label: "Set Collection Colour",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Collection Colour",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "collection.favourite",
+                    label: "Favourite Collection",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Favourite Collection",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "collection.removeFrom",
                     label: "Remove from Collection",
                     group: Group::Organise,

@@ -16,7 +16,7 @@ use crate::op::Op;
 use crate::photo::{Photo, Stats};
 use crate::query::{Filter, Page, Sort, TagOrder};
 use serde::{Deserialize, Serialize};
-use sortlens_core::{CollectionId, Error, Flag, MediaKind, PhotoId, Result, Review};
+use sortlens_core::{CollectionId, ColorLabel, Error, Flag, MediaKind, PhotoId, Result, Review};
 use sortlens_meta::PhotoMeta;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File, OpenOptions};
@@ -350,7 +350,13 @@ impl Catalog {
     /// Every collection, by name.
     pub fn collections(&self) -> Vec<Collection> {
         let mut collections: Vec<Collection> = self.collections.values().cloned().collect();
-        collections.sort_by_key(|collection| collection.name.to_lowercase());
+        // Favourites first, then alphabetical, so pinning one does not hide the rest of the list.
+        collections.sort_by(|left, right| {
+            right
+                .favourite
+                .cmp(&left.favourite)
+                .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+        });
         collections
     }
 
@@ -388,6 +394,22 @@ impl Catalog {
             name: name.to_string(),
         })
         .map(|_| ())
+    }
+
+    /// Set or clear a collection's colour.
+    pub fn set_collection_colour(&mut self, id: CollectionId, colour: Option<ColorLabel>) -> Result<()> {
+        if self.collections.get(&id).map(|collection| collection.colour) == Some(colour) {
+            return Ok(());
+        }
+        self.commit(Op::SetCollectionColour { id, colour }).map(|_| ())
+    }
+
+    /// Pin or unpin a collection.
+    pub fn set_collection_favourite(&mut self, id: CollectionId, favourite: bool) -> Result<()> {
+        if self.collections.get(&id).map(|collection| collection.favourite) == Some(favourite) {
+            return Ok(());
+        }
+        self.commit(Op::SetCollectionFavourite { id, favourite }).map(|_| ())
     }
 
     /// Delete a collection. The photos stay in the library.
@@ -583,6 +605,21 @@ impl Catalog {
                     id: *id,
                     added: previous_removed,
                     removed: previous_added,
+                })
+            }
+            Op::SetCollectionColour { id, colour } => {
+                let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
+                let previous = collection.colour;
+                collection.colour = *colour;
+                Ok(Op::SetCollectionColour { id: *id, colour: previous })
+            }
+            Op::SetCollectionFavourite { id, favourite } => {
+                let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
+                let previous = collection.favourite;
+                collection.favourite = *favourite;
+                Ok(Op::SetCollectionFavourite {
+                    id: *id,
+                    favourite: previous,
                 })
             }
             Op::Group { ops } => {
@@ -989,6 +1026,31 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn collection_colour_and_favourite_undo_exactly() {
+        let temp = TempCatalog::new("collection-flags");
+        let (mut catalog, _) = temp.open();
+        let trip = catalog.create_collection("Trip").expect("create");
+        let work = catalog.create_collection("Work").expect("create");
+
+        catalog.set_collection_colour(trip, Some(ColorLabel::Green)).expect("colour");
+        catalog.set_collection_favourite(trip, true).expect("favourite");
+        catalog.set_collection_colour(trip, Some(ColorLabel::Green)).expect("no-op");
+
+        let listed = catalog.collections();
+        assert_eq!(listed[0].id, trip, "the favourite comes first");
+        assert_eq!(listed[0].colour, Some(ColorLabel::Green));
+        assert_eq!(listed[1].id, work);
+        assert!(!listed[1].favourite);
+
+        // Undo the favourite, then the colour, one step each.
+        assert!(catalog.undo().expect("undo"));
+        assert!(!catalog.collections()[0].favourite || catalog.collections()[0].id == work);
+        assert!(catalog.undo().expect("undo"));
+        let trip_now = catalog.collections().into_iter().find(|item| item.id == trip).expect("trip");
+        assert_eq!(trip_now.colour, None, "clearing the colour is its own inverse");
     }
 
     #[test]

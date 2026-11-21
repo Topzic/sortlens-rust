@@ -224,6 +224,22 @@ impl Engine {
             .rename_collection(id, name)
     }
 
+    /// Set or clear a collection's colour.
+    pub fn set_collection_colour(&mut self, id: sortlens_core::CollectionId, colour: Option<ColorLabel>) -> Result<()> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .set_collection_colour(id, colour)
+    }
+
+    /// Pin or unpin a collection.
+    pub fn set_collection_favourite(&mut self, id: sortlens_core::CollectionId, favourite: bool) -> Result<()> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .set_collection_favourite(id, favourite)
+    }
+
     /// Delete a collection; the photos stay in the library.
     pub fn delete_collection(&mut self, id: sortlens_core::CollectionId) -> Result<()> {
         self.catalog
@@ -1354,6 +1370,26 @@ impl Engine {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
                 Ok(json!({ "changed": self.add_to_collection(&ids, id)? }))
             }
+            "collection.colour" => {
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let colour = match args.get("colour").and_then(Value::as_str) {
+                    None | Some("") | Some("none") => None,
+                    Some(name) => Some(
+                        ColorLabel::ALL
+                            .into_iter()
+                            .find(|label| label.id() == name)
+                            .ok_or_else(|| Error::Invalid(format!("{name} is not a colour label")))?,
+                    ),
+                };
+                self.set_collection_colour(id, colour)?;
+                Ok(json!({ "colour": colour.map(|label| label.id()) }))
+            }
+            "collection.favourite" => {
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let favourite = args.get("favourite").and_then(Value::as_bool).unwrap_or(true);
+                self.set_collection_favourite(id, favourite)?;
+                Ok(json!({ "favourite": favourite }))
+            }
             "collection.removeFrom" => {
                 let ids = ids_from(args)?;
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
@@ -1885,6 +1921,34 @@ mod tests {
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
         assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn collections_carry_a_colour_and_a_favourite_flag() {
+        let (_lib, mut engine) = library("collection-flags");
+        let id = engine.create_collection("Trip").expect("create");
+        assert!(engine.collections()[0].colour.is_none());
+
+        let value = engine
+            .run("collection.colour", &json!({ "id": id.0, "colour": "blue" }))
+            .expect("colour");
+        assert_eq!(value["colour"], "blue");
+        engine
+            .run("collection.favourite", &json!({ "id": id.0, "favourite": true }))
+            .expect("favourite");
+
+        let listed = engine.collections();
+        assert_eq!(listed[0].colour, Some(ColorLabel::Blue));
+        assert!(listed[0].favourite);
+
+        let bad = engine.run("collection.colour", &json!({ "id": id.0, "colour": "chartreuse" }));
+        assert!(bad.is_err(), "an unknown colour is rejected");
+        assert_eq!(engine.collections()[0].colour, Some(ColorLabel::Blue), "unchanged");
+
+        engine
+            .run("collection.colour", &json!({ "id": id.0, "colour": "none" }))
+            .expect("clear");
+        assert!(engine.collections()[0].colour.is_none());
     }
 
     #[test]

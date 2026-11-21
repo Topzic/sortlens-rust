@@ -44,6 +44,10 @@ pub enum Op {
         added: Vec<PhotoId>,
         removed: Vec<PhotoId>,
     },
+    /// A collection's colour dot was set or cleared.
+    SetCollectionColour { id: CollectionId, colour: Option<ColorLabel> },
+    /// A collection was pinned or unpinned.
+    SetCollectionFavourite { id: CollectionId, favourite: bool },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -66,6 +70,8 @@ impl Op {
             Self::RemoveCollection { .. } => "removeCollection",
             Self::RenameCollection { .. } => "renameCollection",
             Self::Collect { .. } => "collect",
+            Self::SetCollectionColour { .. } => "setCollectionColour",
+            Self::SetCollectionFavourite { .. } => "setCollectionFavourite",
             Self::Group { .. } => "group",
         }
     }
