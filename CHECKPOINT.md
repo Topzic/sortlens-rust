@@ -347,7 +347,17 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
   resets it
 - 154 tests, CI and wasm green; CLI smoke test listed both photos for `beach` and one for `sunset`
 
+## 2026-11-21 — M3: keyword picker and ordering
+
+- catalog: `TagOrder { Count, Name }` with `flipped()`/`label()`; `tag_vocabulary_in(order)` and the
+  existing `tag_vocabulary()` (count order) delegating to it
+- engine: `tag_vocabulary_in(order)`
+- ui: a "+ keyword" menu in the filter strip with a search box and a ✓ on active keywords, and a
+  small toggle in the Keywords header switching the list between most used and A–Z
+- tests: ordering by use and by name agreeing on counts, `flipped`
+- 155 tests, CI and wasm green
+
 ## Next
 
-Filter pickers and sort of the keyword list: choosing a keyword from a menu rather than the sidebar,
-and ordering keywords by name or count.
+M6 insights: a statistics view over the library — totals by camera, lens, rating, labels and
+keywords, computed from the catalog rather than a new store.

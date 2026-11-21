@@ -14,7 +14,7 @@
 use crate::collection::Collection;
 use crate::op::Op;
 use crate::photo::{Photo, Stats};
-use crate::query::{Filter, Page, Sort};
+use crate::query::{Filter, Page, Sort, TagOrder};
 use serde::{Deserialize, Serialize};
 use sortlens_core::{CollectionId, Error, Flag, MediaKind, PhotoId, Result, Review};
 use sortlens_meta::PhotoMeta;
@@ -328,6 +328,11 @@ impl Catalog {
 
     /// Every keyword in use, most used first, then alphabetically.
     pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
+        self.tag_vocabulary_in(TagOrder::Count)
+    }
+
+    /// Every keyword in use, in the requested order.
+    pub fn tag_vocabulary_in(&self, order: TagOrder) -> Vec<(String, usize)> {
         let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
         for photo in self.photos.values() {
             for tag in &photo.tags {
@@ -335,7 +340,10 @@ impl Catalog {
             }
         }
         let mut vocabulary: Vec<(String, usize)> = counts.into_iter().map(|(tag, count)| (tag.to_string(), count)).collect();
-        vocabulary.sort_by(|left, right| right.1.cmp(&left.1).then(left.0.cmp(&right.0)));
+        match order {
+            TagOrder::Count => vocabulary.sort_by(|left, right| right.1.cmp(&left.1).then(left.0.cmp(&right.0))),
+            TagOrder::Name => vocabulary.sort_by_key(|(tag, _)| tag.to_lowercase()),
+        }
         vocabulary
     }
 
@@ -981,6 +989,30 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn the_keyword_list_can_be_ordered_by_name_or_use() {
+        let temp = TempCatalog::new("tag-order");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![
+                    (PhotoId(1), vec!["zebra".into(), "apple".into()]),
+                    (PhotoId(2), vec!["apple".into()]),
+                ],
+            })
+            .expect("tag");
+
+        let by_count = catalog.tag_vocabulary_in(TagOrder::Count);
+        assert_eq!(by_count[0], ("apple".to_string(), 2));
+        assert_eq!(by_count[1], ("zebra".to_string(), 1));
+
+        let by_name = catalog.tag_vocabulary_in(TagOrder::Name);
+        assert_eq!(by_name[0], ("apple".to_string(), 2));
+        assert_eq!(by_name[1], ("zebra".to_string(), 1));
+        assert_eq!(TagOrder::Count.flipped(), TagOrder::Name);
     }
 
     #[test]

@@ -208,6 +208,35 @@ impl TagMode {
     }
 }
 
+/// How the keyword list is ordered.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TagOrder {
+    /// Most used first, then alphabetically.
+    #[default]
+    Count,
+    /// Alphabetically, ignoring case.
+    Name,
+}
+
+impl TagOrder {
+    /// The other order, for the toggle.
+    pub const fn flipped(self) -> Self {
+        match self {
+            Self::Count => Self::Name,
+            Self::Name => Self::Count,
+        }
+    }
+
+    /// Label for the toggle.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Count => "most used",
+            Self::Name => "A–Z",
+        }
+    }
+}
+
 /// One page of results.
 #[derive(Debug, Default)]
 pub struct Page {

@@ -12,7 +12,7 @@ pub mod job;
 
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
-pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode};
+pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 
@@ -706,7 +706,15 @@ impl Engine {
 
     /// Every keyword in use, most used first.
     pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
-        self.catalog.as_ref().map(|catalog| catalog.tag_vocabulary()).unwrap_or_default()
+        self.tag_vocabulary_in(TagOrder::Count)
+    }
+
+    /// Every keyword in use, in the requested order.
+    pub fn tag_vocabulary_in(&self, order: TagOrder) -> Vec<(String, usize)> {
+        self.catalog
+            .as_ref()
+            .map(|catalog| catalog.tag_vocabulary_in(order))
+            .unwrap_or_default()
     }
 
     /// Start a cull session over the listed photos, in the order given.

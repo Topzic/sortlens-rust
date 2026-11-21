@@ -14,7 +14,7 @@ use egui::{
     Align, Align2, Button, Color32, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
 };
 use sortlens_core::{Flag, MediaKind, PhotoId};
-use sortlens_engine::{Decision, Engine, Filter, Photo, Sort};
+use sortlens_engine::{Decision, Engine, Filter, Photo, Sort, TagOrder};
 
 /// A top-level destination in the bottom bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -178,6 +178,10 @@ pub struct UiState {
     pub tag_filters: Vec<String>,
     /// Whether several keywords must all match or just one of them.
     pub tag_mode: sortlens_engine::TagMode,
+    /// How the keyword list is ordered.
+    pub tag_order: TagOrder,
+    /// Search text inside the keyword picker.
+    pub tag_picker_query: String,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -236,6 +240,8 @@ impl UiState {
             show_missing: false,
             tag_filters: Vec::new(),
             tag_mode: sortlens_engine::TagMode::Any,
+            tag_order: TagOrder::Count,
+            tag_picker_query: String::new(),
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -575,8 +581,19 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 });
             }
 
-            nav_section(ui, t, "Keywords");
-            let vocabulary = engine.tag_vocabulary();
+            ui.horizontal(|ui| {
+                nav_section(ui, t, "Keywords");
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui
+                        .add(Button::new(RichText::new(state.tag_order.label()).size(9.5)).frame(false))
+                        .on_hover_text("Switch between most used and A–Z")
+                        .clicked()
+                    {
+                        state.tag_order = state.tag_order.flipped();
+                    }
+                });
+            });
+            let vocabulary = engine.tag_vocabulary_in(state.tag_order);
             if vocabulary.is_empty() {
                 hint(ui, t, "Select a photo, press K and type a keyword.");
             }
@@ -1170,6 +1187,34 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 if let Some(tag) = drop_tag {
                     state.tag_filters.retain(|active| *active != tag);
                 }
+                ui.menu_button(RichText::new("+ keyword").size(10.5), |ui| {
+                    ui.add(
+                        TextEdit::singleline(&mut state.tag_picker_query)
+                            .hint_text("Find a keyword")
+                            .desired_width(180.0),
+                    );
+                    ui.separator();
+                    let needle = state.tag_picker_query.trim().to_lowercase();
+                    let vocabulary: Vec<(String, usize)> = engine
+                        .tag_vocabulary_in(state.tag_order)
+                        .into_iter()
+                        .filter(|(tag, _)| needle.is_empty() || tag.contains(&needle))
+                        .collect();
+                    if vocabulary.is_empty() {
+                        ui.label(RichText::new("No keywords").size(10.5));
+                    }
+                    for (tag, count) in vocabulary.iter().take(24) {
+                        let active = state.tag_filters.iter().any(|chosen| chosen == tag);
+                        let label = format!("{}{tag}  ({count})", if active { "✓ " } else { "" });
+                        if ui.add(Button::new(RichText::new(label).size(11.0)).frame(false)).clicked() {
+                            if active {
+                                state.tag_filters.retain(|chosen| chosen != tag);
+                            } else {
+                                state.tag_filters.push(tag.clone());
+                            }
+                        }
+                    }
+                });
                 if state.tag_filters.len() > 1 {
                     let label = format!("match {}", state.tag_mode.label());
                     if chip(ui, t, &label, state.tag_mode == sortlens_engine::TagMode::All).clicked() {
