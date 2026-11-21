@@ -13,6 +13,7 @@ sortlens-catalog = { workspace = true }
 sortlens-cull = { workspace = true }
 sortlens-similar = { workspace = true }
 sortlens-insights = { workspace = true }
+sortlens-scan = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
 

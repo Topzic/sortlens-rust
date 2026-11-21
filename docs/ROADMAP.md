@@ -55,10 +55,16 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 ## M1 — Index · 2.5 w · tracks A,C
 
 **Goal:** a 5,000-photo folder becomes a browsable grid with correct counts.
+**State:** catalog, scan, grid, commands and CLI are in (commit after M0); metadata and
+thumbnails move to M2 because the grid renders before it has pixels to draw.
 
-- [ ] `sortlens-core`: ids, time, byte units, versioned errors (A)
+- [x] `sortlens-core`: ids, time, byte units, versioned errors (A)
 - [ ] Volume probe + `PathKey`/`ContentKey` identity (A) — SL-A11
-- [ ] Walker with skip rules, bounded queue, delta detection (A) — SL-A01/A17
+- [x] Walker with skip rules, bounded queue, delta detection (A) — SL-A01/A17
+- [x] `sortlens-catalog`: op log, snapshots, replay, undo, paging, counters (A) — SL-A12/A13
+- [x] Engine scan worker, `library.addFolder`/`rescan`/`page`/`stats` (A)
+- [x] Virtualised grid with selection, counts and keyboard rating/flags (B)
+- [x] CLI: add, list, rate, flag, undo (E)
 - [ ] `craft-metadata` + `craft-tiff` → `PhotoMeta` (C) — SL-B21 data
 - [ ] Format routing + magic sniff (C) — SL-B11
 - [ ] Catalog: ops, snapshot, replay, counters (A) — SL-H09

@@ -106,7 +106,7 @@ impl Registry {
                     group: Group::Library,
                     shortcut: Some("Ctrl+O"),
                     menu: "Library > Add Folder…",
-                    status: Status::Planned("M1"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "library.rescan",
@@ -114,7 +114,7 @@ impl Registry {
                     group: Group::Library,
                     shortcut: Some("Ctrl+Shift+R"),
                     menu: "Library > Rescan Folder",
-                    status: Status::Planned("M1"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "library.import",
@@ -138,7 +138,7 @@ impl Registry {
                     group: Group::Review,
                     shortcut: Some("0–5"),
                     menu: "Review > Set Rating",
-                    status: Status::Planned("M3"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "photo.flag",
@@ -146,7 +146,7 @@ impl Registry {
                     group: Group::Review,
                     shortcut: Some("P / X"),
                     menu: "Review > Pick or Reject",
-                    status: Status::Planned("M3"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "photo.label",
@@ -154,7 +154,31 @@ impl Registry {
                     group: Group::Review,
                     shortcut: Some("6–0"),
                     menu: "Review > Colour Label",
-                    status: Status::Planned("M3"),
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "edit.undo",
+                    label: "Undo",
+                    group: Group::Review,
+                    shortcut: Some("Ctrl+Z"),
+                    menu: "Review > Undo",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.removeRoot",
+                    label: "Remove Folder",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Remove Folder",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.stats",
+                    label: "Library Statistics",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Library Statistics",
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "photo.keyword",

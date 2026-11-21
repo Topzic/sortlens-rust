@@ -1,15 +1,19 @@
 //! The application shell: five surfaces, in the suite's order.
 //!
 //! Top bar (identity, search, filters, actions), left panel (sources, folders, collections),
-//! canvas, right panel (details, tags, activity), bottom bar (views, review state, zoom).
+//! canvas (grid today, cull and detail later), right panel (details, tags, activity), bottom bar
+//! (views, review state, counts).
 //!
 //! The shell owns presentation state and nothing else. Anything that changes the library goes
-//! through [`Engine::run`]; anything that changes the process (theme, quit) is returned as an
-//! [`Action`] for the host to apply.
+//! through [`Engine`]; anything that changes the process (theme, folder picker, quit) is returned
+//! as an [`Action`] for the host to apply.
 
 use crate::theme::{ThemeKind, Tokens};
-use egui::{Align, Button, Color32, Frame, Layout, Margin, RichText, Sense, Stroke, TextEdit, Ui, vec2};
-use sortlens_engine::Engine;
+use egui::{
+    Align, Align2, Button, Color32, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, vec2,
+};
+use sortlens_core::{Flag, MediaKind, PhotoId};
+use sortlens_engine::{Engine, Filter, Photo, Sort};
 
 /// A top-level destination in the bottom bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -89,6 +93,12 @@ pub enum Action {
     Quit,
     /// Show a transient message in the bottom bar.
     Notice(String),
+    /// Ask the host for a folder to index.
+    PickFolder,
+    /// Rescan an already indexed root.
+    Rescan(String),
+    /// Remove a root from the library.
+    RemoveRoot(String),
 }
 
 /// Everything the shell remembers between frames.
@@ -100,6 +110,8 @@ pub struct UiState {
     pub view: View,
     /// Search query.
     pub search: String,
+    /// Root filter, if the user picked one folder in the sidebar.
+    pub root: Option<String>,
     /// Whether the left panel is shown.
     pub left_open: bool,
     /// Width of the left panel.
@@ -114,6 +126,10 @@ pub struct UiState {
     pub settings_open: bool,
     /// About dialog visibility.
     pub about_open: bool,
+    /// Selected photo.
+    pub selected: Option<PhotoId>,
+    /// Sidebar row for "All Photos".
+    pub all_photos_selected: bool,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -126,6 +142,7 @@ impl UiState {
             theme,
             view: View::Library,
             search: String::new(),
+            root: None,
             left_open: true,
             left_w: t.left_w,
             right_open: true,
@@ -133,6 +150,8 @@ impl UiState {
             title_inset,
             settings_open: false,
             about_open: false,
+            selected: None,
+            all_photos_selected: true,
             notice: None,
         }
     }
@@ -142,11 +161,20 @@ impl UiState {
         self.notice = Some((text.into(), std::time::Instant::now() + std::time::Duration::from_secs(4)));
     }
 
-    /// The message still worth showing, if any.
     fn live_notice(&self) -> Option<&str> {
         match &self.notice {
             Some((text, until)) if std::time::Instant::now() < *until => Some(text),
             _ => None,
+        }
+    }
+
+    /// The filter implied by the sidebar and the search field.
+    pub fn filter(&self) -> Filter {
+        Filter {
+            root: self.root.clone(),
+            text: self.search.clone(),
+            include_missing: false,
+            ..Filter::default()
         }
     }
 }
@@ -158,13 +186,27 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> Vec<Action
     let mut actions = Vec::new();
     let t = state.theme.tokens();
 
+    if let Some(done) = engine.poll() {
+        let mut message = format!("Indexed {} photos in {}", done.added + done.updated, folder_name(&done.root));
+        if done.missing > 0 {
+            message.push_str(&format!(" · {} missing", done.missing));
+        }
+        if !done.errors.is_empty() {
+            message.push_str(&format!(" · {} unreadable", done.errors.len()));
+        }
+        state.notice(message);
+    }
+    if engine.is_scanning() {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
+    }
+
     top_bar(ui, state, &t, &mut actions);
-    bottom_bar(ui, state, &t, &mut actions);
+    bottom_bar(ui, state, &t, engine, &mut actions);
     if state.left_open {
-        left_panel(ui, state, &t, &mut actions);
+        left_panel(ui, state, &t, engine, &mut actions);
     }
     if state.right_open {
-        right_panel(ui, state, &t);
+        right_panel(ui, state, &t, engine);
     }
     canvas(ui, state, &t, engine, &mut actions);
 
@@ -200,28 +242,27 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Actio
                         state.right_open = !state.right_open;
                     }
                     if icon_button(ui, state.theme.label(), t).clicked() {
-                        let next = next_theme(state.theme);
-                        actions.push(Action::SetTheme(next));
+                        actions.push(Action::SetTheme(next_theme(state.theme)));
                     }
-                    if icon_button(ui, "Filters", t).clicked() {
-                        state.notice("Filtering arrives with ratings in M3");
+                    if icon_button(ui, "Add Folder…", t).clicked() {
+                        actions.push(Action::PickFolder);
                     }
 
                     ui.add_space(8.0);
                     let search = ui.add_sized(
                         [240.0, 24.0],
-                        TextEdit::singleline(&mut state.search).hint_text("Search photos, folders, collections"),
+                        TextEdit::singleline(&mut state.search).hint_text("Filter by name or folder"),
                     );
                     if search.changed() {
-                        // M3 wires this to the query engine; the field is real, the search is not yet.
-                        state.notice("Search arrives with the query engine in M3");
+                        state.selected = None;
                     }
                 });
             });
         });
 }
 
-fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    let stats = engine.stats();
     egui::Panel::bottom("bottom_bar")
         .exact_size(t.bottom_bar_h)
         .frame(Frame::NONE.fill(t.chrome).inner_margin(Margin::symmetric(10, 0)))
@@ -235,57 +276,86 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Ac
                             .fill(if selected { t.selection } else { Color32::TRANSPARENT })
                             .stroke(Stroke::NONE),
                     );
-                    if let Some(milestone) = view.milestone() {
-                        if response.clicked() {
-                            actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label())));
+                    if response.clicked() {
+                        match view.milestone() {
+                            Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
+                            None => state.view = view,
                         }
-                    } else if response.clicked() {
-                        state.view = view;
                     }
                 }
 
+                ui.add_space(12.0);
+                ui.label(RichText::new(summary(&stats)).size(11.5).color(t.text_muted));
+
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(RichText::new("0 photos").size(11.5).color(t.text_muted));
-                    ui.add_space(6.0);
-                    ui.label(RichText::new("Fit").size(11.5).color(t.text_muted));
                     if let Some(text) = state.live_notice() {
-                        ui.add_space(12.0);
                         ui.label(RichText::new(text.to_owned()).size(11.5).color(t.accent));
+                        ui.add_space(10.0);
                     }
+                    if let Some(selected) = state.selected.and_then(|id| engine.photo(id)) {
+                        ui.label(RichText::new(format!("{}★", selected.rating)).size(11.5).color(t.text_muted));
+                        ui.label(RichText::new(selected.name.clone()).size(11.5).color(t.text_muted));
+                    } else {
+                        ui.label(RichText::new("No selection").size(11.5).color(t.text_faint));
+                    }
+                    ui.add_space(6.0);
+                    ui.label(RichText::new("Fit").size(11.5).color(t.text_faint));
                 });
             });
         });
 }
 
-fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::Panel::left("left_panel")
         .resizable(true)
         .default_size(state.left_w)
-        .size_range(200.0..=380.0)
+        .size_range(210.0..=380.0)
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::same(10)))
         .show(ui, |ui| {
             state.left_w = ui.available_width();
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Library").size(12.0).strong());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let add = ui
-                        .add_enabled(false, Button::new("+").small())
-                        .on_disabled_hover_text("Adding folders arrives in M1");
-                    if add.clicked() {
-                        actions.push(Action::Notice("Adding folders arrives in M1".into()));
+                    if ui.add(Button::new("+").small()).on_hover_text("Add a folder to index").clicked() {
+                        actions.push(Action::PickFolder);
                     }
                 });
             });
             ui.add_space(6.0);
             ui.separator();
 
+            let stats = engine.stats();
             nav_section(ui, t, "Sources");
-            nav_row(ui, t, "This Mac", "0", true);
-            nav_row(ui, t, "Camera Card", "—", false);
+            if nav_row(ui, t, "All Photos", &format_count(stats.total as u64), state.root.is_none()).clicked() {
+                state.root = None;
+                state.all_photos_selected = true;
+            }
+            if engine.is_scanning() {
+                ui.label(RichText::new("Scanning…").size(11.0).color(t.accent));
+            }
 
             nav_section(ui, t, "Folders");
-            if engine_is_empty() {
+            let roots: Vec<(String, usize)> = engine.counts_by_root();
+            if roots.is_empty() {
                 hint(ui, t, "No folders yet. Add one to index a shoot.");
+            }
+            for (root, count) in roots {
+                let selected = state.root.as_deref() == Some(root.as_str());
+                let response = nav_row(ui, t, &folder_name(&root), &format_count(count as u64), selected);
+                if response.clicked() {
+                    state.root = Some(root.clone());
+                    state.all_photos_selected = false;
+                }
+                response.context_menu(|ui| {
+                    if ui.button("Rescan").clicked() {
+                        actions.push(Action::Rescan(root.clone()));
+                        ui.close();
+                    }
+                    if ui.button("Remove from library").clicked() {
+                        actions.push(Action::RemoveRoot(root.clone()));
+                        ui.close();
+                    }
+                });
             }
 
             nav_section(ui, t, "Collections");
@@ -293,11 +363,11 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Ac
         });
 }
 
-fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
+fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     egui::Panel::right("right_panel")
         .resizable(true)
         .default_size(t.right_w)
-        .size_range(240.0..=420.0)
+        .size_range(250.0..=420.0)
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::same(10)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -321,44 +391,256 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
             });
             ui.separator();
             ui.add_space(4.0);
+
             match state.right_tab {
-                RightTab::Details => {
-                    hint(ui, t, "Select a photo to see camera, exposure and file details.");
-                }
-                RightTab::Tags => {
-                    hint(ui, t, "Keywords and collections for the selection appear here.");
-                }
+                RightTab::Details => match state.selected.and_then(|id| engine.photo(id)) {
+                    Some(photo) => details(ui, t, photo),
+                    None => hint(ui, t, "Select a photo to see camera, exposure and file details."),
+                },
+                RightTab::Tags => match state.selected.and_then(|id| engine.photo(id)) {
+                    Some(photo) => tags(ui, t, photo),
+                    None => hint(ui, t, "Keywords and collections for the selection appear here."),
+                },
                 RightTab::Activity => {
-                    hint(ui, t, "Background jobs appear here: indexing, previews, exports.");
+                    let stats = engine.stats();
+                    detail_row(ui, t, "Indexed", &format_count(stats.total as u64));
+                    detail_row(ui, t, "On disk", &sortlens_core::format_bytes(stats.bytes));
+                    detail_row(ui, t, "Missing", &format_count(stats.missing as u64));
+                    detail_row(ui, t, "Warnings", &format_count(engine.warnings().len() as u64));
+                    ui.add_space(8.0);
+                    for warning in engine.warnings().iter().rev().take(6) {
+                        ui.label(RichText::new(warning).size(10.5).color(t.text_faint));
+                    }
                 }
             }
         });
+}
+
+fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
+    ui.label(RichText::new(photo.name.clone()).size(13.0).strong());
+    ui.add_space(6.0);
+    let kind = match photo.kind {
+        MediaKind::Raw => "Raw",
+        MediaKind::Image => "Image",
+        MediaKind::Video => "Video",
+    };
+    detail_row(ui, t, "Kind", kind);
+    detail_row(ui, t, "Folder", if photo.folder().is_empty() { "—" } else { photo.folder() });
+    detail_row(ui, t, "Size", &sortlens_core::format_bytes(photo.size));
+    detail_row(ui, t, "Rating", &format!("{} of 5", photo.rating));
+    detail_row(ui, t, "Flag", photo.flag.id());
+    detail_row(ui, t, "Label", photo.label.map(|label| label.label()).unwrap_or("—"));
+    detail_row(ui, t, "Status", if photo.missing { "missing" } else { "present" });
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new("Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.")
+            .size(10.5)
+            .color(t.text_faint),
+    );
+}
+
+fn tags(ui: &mut Ui, t: &Tokens, photo: &Photo) {
+    match photo.label {
+        Some(label) => {
+            ui.label(RichText::new(label.label()).size(12.0).color(t.text));
+        }
+        None => hint(ui, t, "No colour label."),
+    }
+    ui.add_space(6.0);
+    hint(ui, t, "Keywords arrive in M3.");
 }
 
 fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(t.bg).inner_margin(Margin::same(14)))
         .show(ui, |ui| {
+            let filter = state.filter();
+            let total = engine.count(&filter);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(state.view.label()).size(16.0).strong());
                 ui.add_space(6.0);
-                ui.label(RichText::new("0 photos").size(12.0).color(t.text_muted));
+                ui.label(
+                    RichText::new(format!("{} photos", format_count(total as u64)))
+                        .size(12.0)
+                        .color(t.text_muted),
+                );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(RichText::new("Grid").size(11.5).color(t.text_muted));
+                    if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
+                        state.root = None;
+                    }
+                    ui.label(RichText::new("Added order").size(11.5).color(t.text_faint));
                 });
             });
             ui.add_space(8.0);
-            filter_strip(ui, t, state, actions);
+            filter_strip(ui, t, total);
             ui.add_space(10.0);
 
             match state.view {
-                View::Library => empty_library(ui, t, state, engine, actions),
+                View::Library => {
+                    if total == 0 {
+                        empty_library(ui, t, state, engine, actions);
+                    } else {
+                        grid(ui, t, state, engine, &filter);
+                    }
+                }
                 other => planned_view(ui, t, other),
+            }
+            keyboard(ui, state, engine);
+        });
+}
+
+fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, filter: &Filter) {
+    let gap = t.grid_gap;
+    let available = ui.available_width();
+    let min_cell = 132.0;
+    let columns = (((available + gap) / (min_cell + gap)).floor() as usize).max(1);
+    let cell = ((available - gap * (columns.saturating_sub(1)) as f32) / columns as f32)
+        .floor()
+        .max(64.0);
+    let caption = 24.0;
+    let row_height = cell + caption + gap;
+    let total = engine.count(filter);
+    let rows = total.div_ceil(columns);
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show_rows(ui, row_height, rows, |ui, range| {
+            ui.spacing_mut().item_spacing = vec2(gap, 0.0);
+            let offset = range.start * columns;
+            let limit = (range.end - range.start) * columns;
+            let page = engine.page(filter, Sort::Natural, offset, limit);
+            for row in 0..(range.end - range.start) {
+                ui.horizontal(|ui| {
+                    for column in 0..columns {
+                        let index = row * columns + column;
+                        match page.photos.get(index) {
+                            Some(photo) => {
+                                let selected = state.selected == Some(photo.id);
+                                let response = photo_cell(ui, t, photo, selected, cell, caption);
+                                if response.clicked() {
+                                    state.selected = Some(photo.id);
+                                    state.right_tab = RightTab::Details;
+                                }
+                                if response.double_clicked() {
+                                    state.notice("The detail view arrives in M4");
+                                }
+                            }
+                            None => {
+                                let (_, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::hover());
+                                let _ = response;
+                            }
+                        }
+                    }
+                });
+                ui.add_space(gap);
             }
         });
 }
 
-fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<Action>) {
+fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::click());
+    let image = Rect::from_min_size(rect.min, vec2(cell, cell));
+    let painter = ui.painter();
+
+    painter.rect_filled(image, t.corner(), if response.hovered() { t.hover } else { t.thumb_bg });
+
+    let glyph = match photo.kind {
+        MediaKind::Raw => "RAW",
+        MediaKind::Video => "VID",
+        MediaKind::Image => "IMG",
+    };
+    painter.text(
+        image.center() - vec2(0.0, 4.0),
+        Align2::CENTER_CENTER,
+        glyph,
+        t.font(10.0),
+        t.text_faint,
+    );
+
+    if photo.flag != Flag::None {
+        let colour = t.flag(photo.flag);
+        let badge = Rect::from_min_size(image.min + vec2(5.0, 5.0), vec2(7.0, 7.0));
+        painter.rect_filled(badge, 3.0, colour);
+    }
+
+    // Stars sit along the bottom edge of the thumbnail so the eye can scan a whole row.
+    for star in 0..5 {
+        let centre = image.left_bottom() + vec2(9.0 + star as f32 * 10.0, -9.0);
+        let colour = if star < photo.rating { t.star() } else { t.text_faint };
+        painter.circle_filled(centre, 2.6, colour);
+    }
+
+    painter.text(
+        rect.left_top() + vec2(2.0, cell + 5.0),
+        Align2::LEFT_TOP,
+        truncate(&photo.name, (cell / 6.2) as usize),
+        t.font(11.0),
+        t.text,
+    );
+
+    if selected {
+        painter.rect_stroke(image, t.corner(), Stroke::new(2.0, t.accent), StrokeKind::Inside);
+    }
+    response
+}
+
+fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
+    let Some(id) = state.selected else {
+        return;
+    };
+    if ui.memory(|memory| memory.focused()).is_some() {
+        return;
+    }
+
+    let mut rating = None;
+    let mut flag = None;
+    ui.input(|input| {
+        for (key, stars) in [
+            (Key::Num0, 0u8),
+            (Key::Num1, 1),
+            (Key::Num2, 2),
+            (Key::Num3, 3),
+            (Key::Num4, 4),
+            (Key::Num5, 5),
+        ] {
+            if input.key_pressed(key) && !input.modifiers.command {
+                rating = Some(stars);
+            }
+        }
+        if input.key_pressed(Key::P) {
+            flag = Some(Flag::Pick);
+        }
+        if input.key_pressed(Key::X) {
+            flag = Some(Flag::Reject);
+        }
+        if input.key_pressed(Key::U) {
+            flag = Some(Flag::None);
+        }
+    });
+
+    if let Some(stars) = rating {
+        match engine.rate(&[id], stars) {
+            Ok(_) => state.notice(if stars == 0 {
+                "Cleared rating".into()
+            } else {
+                format!("Rated {stars}★")
+            }),
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+    if let Some(flag) = flag {
+        match engine.flag(&[id], flag) {
+            Ok(_) => state.notice(match flag {
+                Flag::Pick => "Picked".to_string(),
+                Flag::Reject => "Rejected".to_string(),
+                Flag::None => "Unflagged".to_string(),
+            }),
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+}
+
+fn filter_strip(ui: &mut Ui, t: &Tokens, total: usize) {
     Frame::NONE
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.border))
@@ -366,31 +648,40 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<
         .inner_margin(Margin::symmetric(8, 6))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                for label in ["Rating", "Flags", "Colour", "Kind", "Edited"] {
-                    let response = ui
-                        .add_enabled(
-                            false,
-                            Button::new(RichText::new(label).size(11.0))
-                                .fill(Color32::TRANSPARENT)
-                                .stroke(Stroke::NONE),
-                        )
-                        .on_disabled_hover_text("Filters arrive with ratings in M3");
-                    if response.clicked() {
-                        actions.push(Action::Notice("Filters arrive in M3".into()));
-                    }
+                for label in ["Rating", "Flags", "Colour", "Kind"] {
+                    ui.add_enabled(
+                        false,
+                        Button::new(RichText::new(label).size(11.0))
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::NONE),
+                    )
+                    .on_disabled_hover_text("Composable filters arrive with keywords in M3");
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(RichText::new("No filters").size(11.0).color(t.text_faint));
+                    ui.label(
+                        RichText::new(format!("No filters · {} shown", format_count(total as u64)))
+                            .size(11.0)
+                            .color(t.text_faint),
+                    );
                 });
             });
         });
-    let _ = state;
 }
 
-fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, _engine: &mut Engine, actions: &mut Vec<Action>) {
+fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, actions: &mut Vec<Action>) {
     let height = ui.available_height();
     ui.allocate_ui_with_layout(vec2(ui.available_width(), height), Layout::top_down(Align::Center), |ui| {
         ui.add_space((height * 0.18).clamp(24.0, 160.0));
+        if engine.is_scanning() {
+            ui.label(RichText::new("Indexing…").size(19.0).strong());
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new("Reading file sizes and content keys. Nothing is moved.")
+                    .size(12.5)
+                    .color(t.text_muted),
+            );
+            return;
+        }
         ui.label(RichText::new("No photos yet").size(19.0).strong());
         ui.add_space(4.0);
         ui.label(
@@ -400,14 +691,11 @@ fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, _engine: &mut Eng
         );
         ui.add_space(14.0);
         ui.horizontal(|ui| {
-            let add = ui
-                .add_enabled(
-                    false,
-                    Button::new(RichText::new("Add Folder…").size(12.5)).min_size(vec2(120.0, 28.0)),
-                )
-                .on_disabled_hover_text("Folder indexing arrives in M1");
-            if add.clicked() {
-                actions.push(Action::Notice("Folder indexing arrives in M1".into()));
+            if ui
+                .add(Button::new(RichText::new("Add Folder…").size(12.5)).min_size(vec2(120.0, 28.0)))
+                .clicked()
+            {
+                actions.push(Action::PickFolder);
             }
             if ui.button(RichText::new("Settings").size(12.5)).clicked() {
                 state.settings_open = true;
@@ -431,11 +719,7 @@ fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {
             ui.add_space(80.0);
             ui.label(RichText::new(format!("{} is not built yet", view.label())).size(17.0).strong());
             ui.add_space(4.0);
-            ui.label(
-                RichText::new(format!("Planned for {milestone}. The command and its shortcuts exist already."))
-                    .size(12.0)
-                    .color(t.text_muted),
-            );
+            ui.label(RichText::new(format!("Planned for {milestone}.")).size(12.0).color(t.text_muted));
         },
     );
 }
@@ -504,27 +788,35 @@ fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
 fn nav_row(ui: &mut Ui, t: &Tokens, label: &str, count: &str, selected: bool) -> egui::Response {
     let height = 24.0;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
-    let hovered = response.hovered();
-    if selected || hovered {
+    if selected || response.hovered() {
         ui.painter()
             .rect_filled(rect, t.corner(), if selected { t.selection } else { t.hover });
     }
-    let text_color = t.text;
+    let width = rect.width() - 12.0;
     ui.painter().text(
         rect.left_center() + vec2(6.0, 0.0),
-        egui::Align2::LEFT_CENTER,
-        label,
+        Align2::LEFT_CENTER,
+        truncate(label, (width / 6.4) as usize),
         t.font(12.0),
-        text_color,
+        t.text,
     );
     ui.painter().text(
         rect.right_center() - vec2(6.0, 0.0),
-        egui::Align2::RIGHT_CENTER,
+        Align2::RIGHT_CENTER,
         count,
         t.font(11.0),
         t.text_faint,
     );
     response
+}
+
+fn detail_row(ui: &mut Ui, t: &Tokens, key: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(key).size(11.0).color(t.text_faint));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ui.label(RichText::new(value).size(11.5).color(t.text));
+        });
+    });
 }
 
 fn hint(ui: &mut Ui, t: &Tokens, text: &str) {
@@ -544,6 +836,44 @@ fn next_theme(kind: ThemeKind) -> ThemeKind {
     ThemeKind::ALL[(index + 1) % ThemeKind::ALL.len()]
 }
 
-fn engine_is_empty() -> bool {
-    true
+fn folder_name(path: &str) -> String {
+    path.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(path)
+        .to_string()
+}
+
+fn truncate(text: &str, max_chars: usize) -> String {
+    let max_chars = max_chars.max(4);
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    let mut out: String = text.chars().take(max_chars - 1).collect();
+    out.push('…');
+    out
+}
+
+fn summary(stats: &sortlens_engine::Stats) -> String {
+    let mut parts = vec![format!("{} photos", format_count(stats.total as u64))];
+    if stats.picks > 0 {
+        parts.push(format!("{} picks", format_count(stats.picks as u64)));
+    }
+    if stats.rejects > 0 {
+        parts.push(format!("{} rejects", format_count(stats.rejects as u64)));
+    }
+    if stats.missing > 0 {
+        parts.push(format!("{} missing", format_count(stats.missing as u64)));
+    }
+    parts.join(" · ")
+}
+
+fn format_count(count: u64) -> String {
+    sortlens_core::format_count(count)
+}
+
+#[allow(dead_code)]
+fn cell_size(width: f32, columns: usize, gap: f32) -> Vec2 {
+    vec2(((width - gap * columns.saturating_sub(1) as f32) / columns as f32).max(1.0), 0.0)
 }

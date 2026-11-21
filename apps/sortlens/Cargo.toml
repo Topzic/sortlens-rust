@@ -17,6 +17,7 @@ craft-ui = { workspace = true }
 craft-window = { workspace = true }
 craft-settings = { workspace = true }
 serde = { workspace = true }
+rfd = "0.15"
 
 [dev-dependencies]
 toml = "0.9"
