@@ -13,10 +13,14 @@ sortlens-catalog = { workspace = true }
 sortlens-cull = { workspace = true }
 sortlens-similar = { workspace = true }
 sortlens-insights = { workspace = true }
+sortlens-hash = { workspace = true }
 sortlens-scan = { workspace = true }
 sortlens-sidecar = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
+
+[dev-dependencies]
+craft-jpeg = { workspace = true }
 
 [lints]
 workspace = true

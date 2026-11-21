@@ -16,11 +16,13 @@ pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, Ta
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 pub use sortlens_insights::{Insights, Row as InsightRow};
+pub use sortlens_similar::{DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Member as SimilarMember};
 
 use serde_json::{Value, json};
 use sortlens_catalog::{Catalog, Seed};
 use sortlens_scan::{ScanControl, ScanProgress, ScanReport};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::Instant;
 
@@ -42,6 +44,15 @@ struct PendingScan {
     rx: Receiver<Result<ScanReport>>,
     control: ScanControl,
     started: Instant,
+}
+
+/// A hash pass in flight.
+struct PendingHash {
+    job: u64,
+    rx: Receiver<Vec<SimilarMember>>,
+    total: usize,
+    done: Arc<std::sync::atomic::AtomicUsize>,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// What a finished scan changed.
@@ -72,6 +83,10 @@ pub struct Engine {
     last_effect: Effect,
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
+    pending_hash: Option<PendingHash>,
+    hashes: std::collections::HashMap<u64, sortlens_hash::Hash>,
+    similar_members: Vec<SimilarMember>,
+    similar: Vec<SimilarGroup>,
     cull: Option<sortlens_cull::Session>,
     deleted: Vec<sortlens_cull::trash::DeletedBatch>,
     next_batch: u64,
@@ -90,6 +105,10 @@ impl Engine {
             dir: None,
             catalog: None,
             pending: None,
+            pending_hash: None,
+            hashes: std::collections::HashMap::new(),
+            similar_members: Vec::new(),
+            similar: Vec::new(),
             cull: None,
             deleted: Vec::new(),
             next_batch: 1,
@@ -318,6 +337,11 @@ impl Engine {
     }
 
     /// Every photo in the library, whatever the filters.
+    /// Content key for a photo, so a renamed file keeps its hash.
+    fn key_for(&self, id: PhotoId) -> Option<u64> {
+        self.catalog.as_ref()?.photo(id).map(|photo| photo.key)
+    }
+
     fn all_photos(&self) -> Vec<Photo> {
         match &self.catalog {
             Some(catalog) => catalog.page(&Filter::default(), Sort::Natural, 0, 1_000_000).photos,
@@ -713,6 +737,135 @@ impl Engine {
         }
     }
 
+    /// Groups found by the last finished hash pass.
+    pub fn similar_groups(&self) -> &[SimilarGroup] {
+        &self.similar
+    }
+
+    /// Start hashing every photo, reusing hashes already computed for unchanged files.
+    ///
+    /// Returns the number of photos that still need a hash: zero means the groups are already
+    /// up to date and no job was started.
+    pub fn begin_similar(&mut self, threshold: u32) -> Result<usize> {
+        if self.catalog.is_none() {
+            return Err(Error::Invalid("no library is open".into()));
+        }
+        if self.pending_hash.is_some() {
+            return Err(Error::Invalid("a similarity pass is already running".into()));
+        }
+        let mut members: Vec<SimilarMember> = Vec::new();
+        let mut todo: Vec<(PhotoId, String, u64, u64, u8)> = Vec::new();
+        for photo in self.all_photos() {
+            match self.hashes.get(&photo.key) {
+                Some(hash) => members.push(SimilarMember {
+                    id: photo.id,
+                    hash: *hash,
+                    pixels: u64::from(photo.width) * u64::from(photo.height),
+                    rating: photo.rating,
+                    bytes: photo.size,
+                }),
+                None => todo.push((
+                    photo.id,
+                    photo.path(),
+                    u64::from(photo.width) * u64::from(photo.height),
+                    photo.size,
+                    photo.rating,
+                )),
+            }
+        }
+        if todo.is_empty() {
+            self.similar = sortlens_similar::group(&members, threshold);
+            return Ok(0);
+        }
+
+        let (tx, rx) = channel();
+        let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let worker_done = Arc::clone(&done);
+        let worker_cancel = Arc::clone(&cancel);
+        let total = todo.len();
+        std::thread::Builder::new()
+            .name("sortlens-hash".into())
+            .spawn(move || {
+                let mut found = Vec::with_capacity(todo.len());
+                for (id, path, pixels, bytes, rating) in todo {
+                    if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
+                    if let Some(hash) = sortlens_hash::hash_file(std::path::Path::new(&path), 64) {
+                        found.push(SimilarMember {
+                            id,
+                            hash,
+                            pixels,
+                            rating,
+                            bytes,
+                        });
+                    }
+                    worker_done.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                let _ = tx.send(found);
+            })
+            .map_err(|error| Error::Invalid(format!("could not start the hash worker: {error}")))?;
+
+        let job = self.start_job(JobKind::Hash, format!("{total} photos"));
+        self.pending_hash = Some(PendingHash {
+            job,
+            rx,
+            total,
+            done,
+            cancel,
+        });
+        // Keep the members already known so new hashes can be folded in without re-reading them.
+        self.similar_members = members;
+        Ok(total)
+    }
+
+    /// How far a running or finished hash pass got.
+    pub fn hash_progress(&self) -> Option<(usize, usize)> {
+        self.pending_hash
+            .as_ref()
+            .map(|pending| (pending.done.load(std::sync::atomic::Ordering::Relaxed), pending.total))
+    }
+
+    /// Stop the running hash pass; hashes already computed are kept.
+    pub fn cancel_similar(&mut self) {
+        if let Some(pending) = &self.pending_hash {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Fold finished hashes into the cache and regroup. Returns the number of groups when the pass
+    /// just finished.
+    pub fn poll_similar(&mut self, threshold: u32) -> Option<usize> {
+        let pending = self.pending_hash.as_ref()?;
+        let found = match pending.rx.try_recv() {
+            Ok(found) => found,
+            Err(TryRecvError::Empty) => return None,
+            Err(TryRecvError::Disconnected) => {
+                self.pending_hash = None;
+                return None;
+            }
+        };
+        let pending = self.pending_hash.take()?;
+        for member in &found {
+            self.hashes.insert(self.key_for(member.id).unwrap_or_default(), member.hash);
+            self.similar_members.push(*member);
+        }
+        let status = if pending.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            JobStatus::Cancelled
+        } else {
+            JobStatus::Done
+        };
+        self.finish_job(pending.job, status, found.len(), 0, 0, None);
+        self.similar = sortlens_similar::group(&self.similar_members, threshold);
+        Some(self.similar.len())
+    }
+
+    /// Groups around one photo, for "find similar to this".
+    pub fn similar_to(&self, id: PhotoId, threshold: u32) -> Option<SimilarGroup> {
+        sortlens_similar::around(&self.similar_members, id, threshold)
+    }
+
     /// Every keyword in use, most used first.
     pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
         self.tag_vocabulary_in(TagOrder::Count)
@@ -1023,7 +1176,6 @@ impl Engine {
                 "collection.new" | "collection.addTo" => "collections arrive in M5",
                 "cull.start" | "cull.apply" | "cull.undo" => "culling arrives in M4",
                 "view.detail" => "the detail view arrives in M4",
-                "view.similar" => "similar search arrives in M6",
                 "view.places" => "the map arrives in M5",
                 "library.findMissing" => "missing-file repair arrives in M7",
                 _ => "this command is planned",
@@ -1150,6 +1302,42 @@ impl Engine {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
                 self.delete_collection(id)?;
                 Ok(json!({ "deleted": true }))
+            }
+            "similar.start" => {
+                let threshold = args
+                    .get("threshold")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(u64::from(SIMILAR_THRESHOLD)) as u32;
+                let queued = self.begin_similar(threshold)?;
+                Ok(json!({ "queued": queued }))
+            }
+            "similar.groups" => {
+                let threshold = args
+                    .get("threshold")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(u64::from(SIMILAR_THRESHOLD)) as u32;
+                let _ = self.poll_similar(threshold);
+                let groups: Vec<Value> = self
+                    .similar_groups()
+                    .iter()
+                    .map(|group| {
+                        json!({
+                            "best": group.best.0,
+                            "size": group.len(),
+                            "spread": group.spread,
+                            "members": group.members.iter().map(|member| json!({
+                                "id": member.id.0,
+                                "pixels": member.pixels,
+                                "rating": member.rating,
+                            })).collect::<Vec<_>>(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({
+                    "groups": groups,
+                    "hashed": self.hashes.len(),
+                    "pending": self.hash_progress(),
+                }))
             }
             "view.insights" => {
                 let insights = self.insights();
@@ -1717,6 +1905,68 @@ mod tests {
             .run("library.subfolders", &json!({ "root": root, "prefix": "day1/" }))
             .expect("subfolders");
         assert_eq!(inner["folders"][0]["name"], "sub");
+    }
+
+    #[test]
+    fn a_hash_pass_groups_identical_files_and_keeps_the_best() {
+        let folder = Temp::new("similar-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        let gradient = encode_gradient(120, 80);
+        let stripes = encode_gradient(120, 80);
+        std::fs::write(folder.0.join("a.jpg"), &gradient).expect("write");
+        std::fs::write(folder.0.join("copy.jpg"), &gradient).expect("write");
+        // A visibly different picture, so it must stay on its own.
+        std::fs::write(folder.0.join("other.jpg"), &stripes[..stripes.len() / 3]).expect("write");
+
+        let (_lib, mut engine) = library("similar");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        assert_eq!(engine.stats().total, 3);
+
+        engine.begin_similar(SIMILAR_THRESHOLD).expect("start");
+        assert!(engine.hash_progress().is_some());
+        for _ in 0..600 {
+            if engine.poll_similar(SIMILAR_THRESHOLD).is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let groups = engine.similar_groups();
+        assert_eq!(groups.len(), 1, "only the two identical files pair up");
+        assert_eq!(groups[0].len(), 2);
+        assert!(engine.hash_progress().is_none());
+
+        let workers = engine.jobs();
+        let job = workers.iter().find(|job| job.kind == JobKind::Hash).expect("hash job");
+        assert_eq!(job.status, JobStatus::Done);
+
+        // A second pass reuses the hashes and starts no new job.
+        assert_eq!(engine.begin_similar(SIMILAR_THRESHOLD).expect("second"), 0);
+        assert_eq!(engine.similar_groups().len(), 1);
+
+        let best = engine.similar_groups()[0].best;
+        let found = engine.similar_to(best, SIMILAR_THRESHOLD).expect("anchor");
+        assert_eq!(found.len(), 2);
+    }
+
+    /// A greyscale JPEG with a diagonal ramp, for the similarity test.
+    fn encode_gradient(width: u32, height: u32) -> Vec<u8> {
+        let mut luma = Vec::with_capacity((width * height) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                luma.push(((x * 2 + y) % 240) as u8);
+            }
+        }
+        craft_jpeg::encode_baseline(
+            &luma,
+            width as usize,
+            height as usize,
+            1,
+            92,
+            craft_jpeg::ChromaSubsampling::S444,
+            &[],
+        )
+        .expect("encode")
     }
 
     #[test]

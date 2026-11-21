@@ -3579,11 +3579,13 @@ dependencies = [
 name = "sortlens-engine"
 version = "0.1.0"
 dependencies = [
+ "craft-jpeg",
  "serde",
  "serde_json",
  "sortlens-catalog",
  "sortlens-core",
  "sortlens-cull",
+ "sortlens-hash",
  "sortlens-insights",
  "sortlens-scan",
  "sortlens-sidecar",
@@ -3601,7 +3603,9 @@ dependencies = [
 name = "sortlens-hash"
 version = "0.1.0"
 dependencies = [
+ "craft-jpeg",
  "sortlens-core",
+ "sortlens-thumbs",
 ]
 
 [[package]]

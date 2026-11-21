@@ -55,7 +55,7 @@ impl View {
             Self::Cull => Some("M4"),
             Self::Places => Some("M5"),
             Self::Insights => None,
-            Self::Similar => Some("M6"),
+            Self::Similar => None,
         }
     }
 }
@@ -183,6 +183,8 @@ pub struct UiState {
     pub tag_order: TagOrder,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
+    /// How close two hashes must be to count as the same subject.
+    pub similar_threshold: u32,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -243,6 +245,7 @@ impl UiState {
             tag_mode: sortlens_engine::TagMode::Any,
             tag_order: TagOrder::Count,
             tag_picker_query: String::new(),
+            similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -935,6 +938,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 }
                 View::Cull => cull_view(ui, t, state, engine, thumbs),
                 View::Insights => insights_view(ui, t, engine),
+                View::Similar => similar_view(ui, t, state, engine, thumbs),
                 other => planned_view(ui, t, other),
             }
             keyboard(ui, state, engine);
@@ -1862,6 +1866,112 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             .size(10.5)
             .color(t.text_faint),
         );
+    }
+}
+
+/// Near-duplicate groups, hashed on demand and cached by content key.
+fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
+    let progress = engine.hash_progress();
+    let threshold = state.similar_threshold;
+    let groups = engine.similar_groups().len();
+    ui.horizontal(|ui| {
+        let label = if progress.is_some() { "Hashing…" } else { "Find similar photos" };
+        if ui
+            .add_enabled(progress.is_none(), Button::new(RichText::new(label).size(11.5)))
+            .clicked()
+        {
+            match engine.begin_similar(threshold) {
+                Ok(0) => state.notice("Groups up to date".to_string()),
+                Ok(queued) => state.notice(format!("Hashing {queued} previews")),
+                Err(error) => state.notice(error.to_string()),
+            }
+        }
+        if let Some((done, total)) = progress {
+            ui.add(egui::ProgressBar::new(if total == 0 { 0.0 } else { done as f32 / total as f32 }).desired_width(180.0));
+            ui.label(RichText::new(format!("{done} of {total}")).size(10.5).color(t.text_muted));
+            if ui.small_button("Cancel").clicked() {
+                engine.cancel_similar();
+            }
+        } else {
+            ui.label(
+                RichText::new(format!("{groups} groups · {} identical bits", threshold))
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        }
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            let value = state.similar_threshold as u64;
+            let mut slider = value;
+            if ui.add(egui::Slider::new(&mut slider, 0..=20).text("strictness")).changed() {
+                state.similar_threshold = slider as u32;
+            }
+        });
+    });
+    ui.add_space(8.0);
+
+    let found: Vec<sortlens_engine::SimilarGroup> = engine.similar_groups().to_vec();
+    if found.is_empty() {
+        ui.add_space(40.0);
+        ui.vertical_centered(|ui| {
+            ui.label(RichText::new("No groups yet").size(15.0).strong());
+            ui.label(
+                RichText::new("Hash the library to find bursts and re-edits.")
+                    .size(11.0)
+                    .color(t.text_faint),
+            );
+        });
+    } else {
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            for group in &found {
+                Frame::NONE
+                    .fill(t.card)
+                    .stroke(Stroke::new(1.0, t.border))
+                    .corner_radius(t.corner())
+                    .inner_margin(Margin::same(8))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(format!("{} photos", group.len())).size(11.5).strong());
+                            ui.label(
+                                RichText::new(format!("spread {} bits", group.spread))
+                                    .size(10.0)
+                                    .color(t.text_faint),
+                            );
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if ui.small_button("Select all but the best").clicked() {
+                                    state.selected = group.others().into_iter().next();
+                                    state.notice(format!("{} set aside", group.len() - 1));
+                                }
+                            });
+                        });
+                        ui.horizontal(|ui| {
+                            for member in group.members.iter().take(8) {
+                                let Some(photo) = engine.photo(member.id).cloned() else {
+                                    continue;
+                                };
+                                let (rect, response) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::click());
+                                ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
+                                if let Some(texture) = thumbs.get(ui.ctx(), &photo, 128).cloned() {
+                                    let uv = cover_uv(texture.size_vec2(), rect.size());
+                                    ui.painter().image(texture.id(), rect, uv, Color32::WHITE);
+                                }
+                                if member.id == group.best {
+                                    ui.painter().text(
+                                        rect.left_top() + vec2(2.0, 2.0),
+                                        Align2::LEFT_TOP,
+                                        "best",
+                                        FontId::proportional(9.5),
+                                        t.text,
+                                    );
+                                }
+                                if response.clicked() {
+                                    state.selected = Some(member.id);
+                                }
+                            }
+                        });
+                    });
+                ui.add_space(6.0);
+            }
+        });
     }
 }
 

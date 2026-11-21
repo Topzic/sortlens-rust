@@ -371,7 +371,27 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
   leap-day bucketing, an empty library having no shares, and the JSON face matching the typed view
 - 161 tests, CI and wasm green; CLI smoke test over a two-photo library
 
+## 2026-11-21 — M6: perceptual hashing and duplicate groups
+
+- hash: `Hash { difference, average }` from a 9×8 box-filtered luma grid (every source pixel counted
+  once, so the result does not depend on sample placement); `distance` takes the smaller of the two
+  distances and ignores a zero average hash, which is the no-structure signal that would otherwise
+  make every flat image match every other; `hash_file` decodes a small copy, using RAW embedded
+  previews like the grid
+- similar: `group` chains near-duplicates with union-find (largest group first, best member first
+  inside), `around` for find-similar-to, best pick by pixels then stars then bytes then id
+- engine: `begin_similar`/`poll_similar`/`hash_progress`/`cancel_similar` on a worker thread that
+  reuses hashes cached by content key, one `Hash` job in the activity stack, `similar_to`; commands
+  `similar.start` and `similar.groups`, `view.similar` now Ready
+- ui: `View::Similar` with a start button, progress bar and cancel, a strictness slider, and one card
+  per group showing thumbnails with the best member marked
+- tests: gradient sets all 64 difference bits, a brightened copy stays within 8 bits, stripes one way
+  and the other are far apart, identical files hash together, degenerate averages do not match,
+  union-find chaining, stable grouping across input order, and an engine pass that groups two
+  identical JPEGs while a third stays alone
+- 177 tests, CI and wasm green
+
 ## Next
 
-M6 similar: perceptual hashing (`sortlens-hash`) so near-duplicate groups can be found and a best
-pick chosen.
+M6: LSH banding so a 50k library does not have to be compared pairwise, plus colour signatures for
+pictures that hashes alone miss.

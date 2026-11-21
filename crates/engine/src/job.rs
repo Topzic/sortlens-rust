@@ -16,6 +16,8 @@ pub enum JobKind {
     Export,
     /// Writing XMP sidecars beside photos.
     Sidecar,
+    /// Hashing previews to find near-duplicates.
+    Hash,
 }
 
 impl JobKind {
@@ -26,6 +28,7 @@ impl JobKind {
             Self::Preview => "Previews",
             Self::Export => "Export",
             Self::Sidecar => "Sidecars",
+            Self::Hash => "Similar",
         }
     }
 }
