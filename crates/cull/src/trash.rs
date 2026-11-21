@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
+use serde::{Deserialize, Serialize};
 use sortlens_core::{Error, PhotoId, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -88,7 +89,8 @@ pub struct Batch {
 }
 
 /// Where an applied file went.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Location {
     /// It is in the operating system's trash.
     Trash,
@@ -99,7 +101,7 @@ pub enum Location {
 }
 
 /// One file the batch acted on.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Applied {
     /// Catalog id.
     pub id: PhotoId,
@@ -107,6 +109,38 @@ pub struct Applied {
     pub from: PathBuf,
     /// Where it went.
     pub location: Location,
+}
+
+/// A batch that was applied, kept so the rejects bin can list it and restore it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeletedBatch {
+    /// Monotonic id within the library.
+    pub id: u64,
+    /// Unix seconds when it was applied.
+    pub applied_at: i64,
+    /// How the files were disposed of (`trash`, `tag`, or `move:<folder>`).
+    pub mode: String,
+    /// The files the batch acted on.
+    pub items: Vec<Applied>,
+    /// The flag each photo carried before the batch, so restoring is exact.
+    pub previous_flags: Vec<(PhotoId, sortlens_core::Flag)>,
+    /// How many files failed.
+    pub failed: usize,
+}
+
+impl DeletedBatch {
+    /// A readable summary for the bin row.
+    pub fn summary(&self) -> String {
+        let noun = if self.items.len() == 1 { "photo" } else { "photos" };
+        let mut text = format!("{} {noun}", self.items.len());
+        if self.mode == "tag" {
+            text.push_str(" · kept on disk");
+        }
+        if self.failed > 0 {
+            text.push_str(&format!(" · {} failed", self.failed));
+        }
+        text
+    }
 }
 
 /// What happened to the batch.
@@ -317,6 +351,26 @@ pub fn apply_checked(batch: &Batch) -> Result<Report> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
+    #[test]
+    fn a_deleted_batch_round_trips_through_json() {
+        let batch = DeletedBatch {
+            id: 4,
+            applied_at: 1_700_000_000,
+            mode: "move:/tmp/rejects".into(),
+            items: vec![Applied {
+                id: PhotoId(9),
+                from: PathBuf::from("/photos/a.jpg"),
+                location: Location::Moved(PathBuf::from("/tmp/rejects/a.jpg")),
+            }],
+            previous_flags: vec![(PhotoId(9), sortlens_core::Flag::None)],
+            failed: 0,
+        };
+        let json = serde_json::to_string(&batch).expect("serialise");
+        let back: DeletedBatch = serde_json::from_str(&json).expect("parse");
+        assert_eq!(back, batch);
+        assert_eq!(back.summary(), "1 photo");
+    }
+
     use super::*;
 
     struct Temp(PathBuf);

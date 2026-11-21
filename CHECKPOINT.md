@@ -210,7 +210,25 @@ Not wired: undoing a batch restores catalog state only — moved files are put b
 `sortlens_cull::trash::undo`, which the UI does not call yet, and trashed files stay in the system
 Trash. `Mode::Trash` has no automated test because it would write to the real Trash.
 
+## 2026-11-21 — M4: the rejects bin
+
+- `sortlens-cull::trash`: `DeletedBatch { id, applied_at, mode, items, previous_flags, failed }`
+  with serde and a `summary()`; `Applied`/`Location` are serialisable so a batch can be replayed
+- engine: applied batches are appended to `<library>/deleted.json` (atomic, reloaded on open, ids
+  monotonic), `deleted_batches()` lists them, `restore_batch(id)` moves files back through
+  `trash::undo`, clears the missing marks and restores the flags in one `Op::Group`, then drops the
+  batch. A file that cannot come back refuses the restore instead of leaving the catalog lying.
+  Commands `library.deleted` and `library.restoreBatch`
+- ui: "Recently Deleted" sidebar row with a count, and a dialog listing batches newest first with
+  summary, age, mode and a Restore button; it names the Trash limitation in place
+- tests: batch JSON round trip, apply → bin → reopen → restore restoring file, missing state and
+  flag, empty-bin error for an unknown id
+- 132 tests, CI and wasm green
+
+Not built: emptying the bin (permanent delete from Sortlens) and restoring trashed files, which
+stays a Finder/Explorer action.
+
 ## Next
 
-Rejects bin: a "Recently Deleted" source holding applied batches, plus wiring batch undo so the
-files move back with the catalog state.
+Library health: detect missing and moved photos, offer to relocate by content key, and remove
+entries whose files are gone for good.

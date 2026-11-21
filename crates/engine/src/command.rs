@@ -173,6 +173,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.deleted",
+                    label: "Recently Deleted",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Recently Deleted",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.restoreBatch",
+                    label: "Restore Batch",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Restore Batch",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.jobs",
                     label: "Activity",
                     group: Group::Library,

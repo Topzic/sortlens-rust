@@ -72,6 +72,8 @@ pub struct Engine {
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
     cull: Option<sortlens_cull::Session>,
+    deleted: Vec<sortlens_cull::trash::DeletedBatch>,
+    next_batch: u64,
     jobs: Vec<Job>,
     next_job: u64,
     write_sidecars: bool,
@@ -88,6 +90,8 @@ impl Engine {
             catalog: None,
             pending: None,
             cull: None,
+            deleted: Vec::new(),
+            next_batch: 1,
             jobs: Vec::new(),
             next_job: 1,
             write_sidecars: true,
@@ -106,7 +110,83 @@ impl Engine {
             ..Self::new()
         };
         engine.restore_cull();
+        engine.load_deleted();
         Ok(engine)
+    }
+
+    /// Where the rejects bin is saved.
+    fn deleted_path(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join("deleted.json"))
+    }
+
+    fn load_deleted(&mut self) {
+        let Some(path) = self.deleted_path() else {
+            return;
+        };
+        let Ok(text) = std::fs::read(&path) else {
+            return;
+        };
+        match serde_json::from_slice::<Vec<sortlens_cull::trash::DeletedBatch>>(&text) {
+            Ok(batches) => {
+                self.next_batch = batches.iter().map(|batch| batch.id).max().unwrap_or(0) + 1;
+                self.deleted = batches;
+            }
+            Err(_) => self.warnings.push("ignored an unreadable rejects bin".to_string()),
+        }
+    }
+
+    fn persist_deleted(&mut self) {
+        let Some(path) = self.deleted_path() else {
+            return;
+        };
+        let result = serde_json::to_vec_pretty(&self.deleted)
+            .map_err(|error| Error::Invalid(format!("rejects bin: {error}")))
+            .and_then(|bytes| write_atomic(&path, &bytes));
+        if let Err(error) = result {
+            self.warnings.push(format!("could not save the rejects bin: {error}"));
+        }
+    }
+
+    /// Applied batches, newest last, for the rejects bin.
+    pub fn deleted_batches(&self) -> &[sortlens_cull::trash::DeletedBatch] {
+        &self.deleted
+    }
+
+    /// Restore one applied batch: put moved files back and restore the catalog state.
+    ///
+    /// Returns how many photos were restored. Files sent to the system Trash cannot be restored by
+    /// Sortlens and are reported by name instead of being silently skipped.
+    pub fn restore_batch(&mut self, id: u64) -> Result<usize> {
+        let index = self
+            .deleted
+            .iter()
+            .position(|batch| batch.id == id)
+            .ok_or_else(|| Error::Invalid(format!("no applied batch {id}")))?;
+        let batch = self.deleted[index].clone();
+        let report = sortlens_cull::trash::undo(&batch.items);
+        // A file that cannot come back would leave the catalog claiming it exists: refuse the
+        // restore and say which file needs handling by hand.
+        if let Some((_, message)) = report.failed.first() {
+            self.warnings.push(message.clone());
+            return Err(Error::Invalid(message.clone()));
+        }
+
+        let mut ops = Vec::new();
+        for item in &batch.items {
+            ops.push(Op::Missing {
+                id: item.id,
+                missing: false,
+            });
+        }
+        if !batch.previous_flags.is_empty() {
+            ops.push(Op::Flag {
+                changes: batch.previous_flags.clone(),
+            });
+        }
+        self.mutate(Op::Group { ops })?;
+        self.deleted.remove(index);
+        self.persist_deleted();
+        Ok(batch.items.len())
     }
 
     /// Where a cull session is saved between runs.
@@ -501,11 +581,14 @@ impl Engine {
         if changed.is_empty() {
             return Err(Error::Invalid("nothing is staged yet".into()));
         }
+        let mode_id = mode.id();
         let mut candidates = Vec::new();
         let mut flags = Vec::new();
+        let mut previous_flags = Vec::new();
         for (id, decision) in &changed {
             // Unknown ids are an error, not a silent skip: Apply must not quietly drop a decision.
-            self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            previous_flags.push((*id, photo.flag));
             if let Some(flag) = decision.flag() {
                 flags.push((*id, flag));
             }
@@ -565,6 +648,21 @@ impl Engine {
             report.failed.len(),
             report.failed.first().map(|(_, message)| message.clone()),
         );
+
+        let applied_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_secs() as i64)
+            .unwrap_or_default();
+        self.deleted.push(sortlens_cull::trash::DeletedBatch {
+            id: self.next_batch,
+            applied_at,
+            mode: mode_id,
+            items: report.applied.clone(),
+            previous_flags,
+            failed: report.failed.len(),
+        });
+        self.next_batch += 1;
+        self.persist_deleted();
 
         self.cull = None;
         self.persist_cull();
@@ -828,6 +926,31 @@ impl Engine {
                 Ok(json!({ "cleared": true }))
             }
             "cull.summary" => Ok(self.cull_summary()),
+            "library.deleted" => {
+                let batches: Vec<Value> = self
+                    .deleted
+                    .iter()
+                    .rev()
+                    .map(|batch| {
+                        json!({
+                            "id": batch.id,
+                            "appliedAt": batch.applied_at,
+                            "mode": batch.mode,
+                            "count": batch.items.len(),
+                            "failed": batch.failed,
+                            "summary": batch.summary(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "batches": batches }))
+            }
+            "library.restoreBatch" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| Error::Invalid("a batch id is required".into()))?;
+                Ok(json!({ "restored": self.restore_batch(id)? }))
+            }
             "cull.apply" => {
                 let mode = match args.get("mode").and_then(Value::as_str).unwrap_or("trash") {
                     "trash" => sortlens_cull::trash::Mode::Trash,
@@ -1242,6 +1365,46 @@ mod tests {
         assert!(engine.photo(id).expect("photo").missing, "the catalog knows it is gone");
         assert!(engine.cull().is_none());
 
+        let _ = std::fs::remove_dir_all(&destination);
+    }
+
+    #[test]
+    fn an_applied_batch_lands_in_the_rejects_bin_and_restores() {
+        let folder = Temp::new("bin-photos");
+        std::fs::create_dir_all(folder.0.join("day1")).expect("dir");
+        let image = folder.0.join("day1/a.jpg");
+        std::fs::write(&image, b"x").expect("write");
+        let destination = std::env::temp_dir().join(format!("sortlens-engine-bin-dest-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&destination);
+        let (library_dir, _) = library("bin");
+
+        let id = {
+            let mut engine = Engine::open(&library_dir.0).expect("open");
+            engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+            wait_for_scan(&mut engine);
+            let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+            engine.begin_cull(&[id]).expect("begin");
+            engine.cull_decide(sortlens_cull::Decision::Reject);
+            engine
+                .cull_apply(sortlens_cull::trash::Mode::Move(destination.clone()))
+                .expect("apply");
+            assert_eq!(engine.deleted_batches().len(), 1);
+            assert_eq!(engine.deleted_batches()[0].items.len(), 1);
+            assert_eq!(engine.deleted_batches()[0].summary(), "1 photo");
+            id
+        };
+
+        // The bin survives a restart.
+        let mut engine = Engine::open(&library_dir.0).expect("reopen");
+        let batch_id = engine.deleted_batches()[0].id;
+        assert_eq!(engine.run("library.deleted", &json!({})).expect("list")["batches"][0]["count"], 1);
+
+        assert_eq!(engine.restore_batch(batch_id).expect("restore"), 1);
+        assert!(image.exists(), "the file is back");
+        assert!(!engine.photo(id).expect("photo").missing);
+        assert_eq!(engine.photo(id).expect("photo").flag, Flag::None, "the flag is back");
+        assert!(engine.deleted_batches().is_empty(), "the batch left the bin");
+        assert!(engine.run("library.restoreBatch", &json!({ "id": batch_id })).is_err());
         let _ = std::fs::remove_dir_all(&destination);
     }
 

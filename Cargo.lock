@@ -3569,6 +3569,7 @@ name = "sortlens-cull"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "sortlens-catalog",
  "sortlens-core",
  "trash",

@@ -182,6 +182,8 @@ pub struct UiState {
     pub delete_mode: DeleteMode,
     /// Whether the Apply confirmation is showing.
     pub apply_open: bool,
+    /// Whether the rejects bin is showing.
+    pub deleted_open: bool,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -213,6 +215,7 @@ impl UiState {
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
             apply_open: false,
+            deleted_open: false,
             notice: None,
         }
     }
@@ -309,6 +312,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.apply_open {
         apply_dialog(ui, state, &t, engine);
+    }
+    if state.deleted_open {
+        deleted_dialog(ui, state, &t, engine);
     }
 
     if state.live_notice().is_some() {
@@ -447,6 +453,11 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         .size(11.0)
                         .color(t.accent),
                 );
+            }
+
+            let deleted = engine.deleted_batches().len();
+            if nav_row(ui, t, "Recently Deleted", &format_count(deleted as u64), false).clicked() {
+                state.deleted_open = true;
             }
 
             nav_section(ui, t, "Folders");
@@ -1319,6 +1330,75 @@ fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {
             ui.label(RichText::new(format!("Planned for {milestone}.")).size(12.0).color(t.text_muted));
         },
     );
+}
+
+/// Human-friendly age for a batch.
+fn age_label(applied_at: i64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_secs() as i64)
+        .unwrap_or(applied_at);
+    let seconds = (now - applied_at).max(0);
+    match seconds {
+        0..=59 => "just now".to_string(),
+        60..=3599 => format!("{} min ago", seconds / 60),
+        3600..=86_399 => format!("{} h ago", seconds / 3600),
+        _ => format!("{} days ago", seconds / 86_400),
+    }
+}
+
+fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let mut open = state.deleted_open;
+    egui::Window::new("Recently Deleted")
+        .open(&mut open)
+        .resizable(true)
+        .collapsible(false)
+        .default_width(420.0)
+        .show(ui.ctx(), |ui| {
+            let batches: Vec<(u64, String, String, String)> = engine
+                .deleted_batches()
+                .iter()
+                .rev()
+                .map(|batch| (batch.id, batch.summary(), age_label(batch.applied_at), batch.mode.clone()))
+                .collect();
+            if batches.is_empty() {
+                hint(ui, t, "Nothing has been applied yet.");
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("Applying a cull batch lists it here so you can put it back.")
+                        .size(10.5)
+                        .color(t.text_faint),
+                );
+                return;
+            }
+            let mut restore = None;
+            for (id, summary, age, mode) in batches {
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(summary).size(12.0).color(t.text));
+                        ui.label(RichText::new(format!("{age} · {mode}")).size(10.5).color(t.text_faint));
+                    });
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.button(RichText::new("Restore").size(11.0)).clicked() {
+                            restore = Some(id);
+                        }
+                    });
+                });
+                ui.separator();
+            }
+            if let Some(id) = restore {
+                match engine.restore_batch(id) {
+                    Ok(count) => state.notice(format!("Restored {count} photo(s)")),
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
+            ui.label(
+                RichText::new("Files sent to the system Trash are restored from the Trash itself.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        });
+    state.deleted_open = open;
 }
 
 fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
