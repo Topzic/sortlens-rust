@@ -24,6 +24,8 @@ Commands:
   tag <id> <keyword>        add a keyword
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
+  folders [--root R] [--in PREFIX]
+                            list subfolders with recursive counts
   check                     verify every indexed file is still on disk
   relocate                  find missing files elsewhere under their root
   list [--tag KW]           filter the listing by keyword
@@ -165,6 +167,19 @@ fn run() -> Result<(), String> {
             }
             for (tag, count) in vocabulary {
                 println!("{count:>6}  {tag}");
+            }
+            Ok(())
+        }
+        "folders" => {
+            let roots = engine.counts_by_root();
+            let root = text_value(rest, "--root").unwrap_or_else(|| roots.first().map(|(root, _)| root.clone()).unwrap_or_default());
+            let prefix = text_value(rest, "--in").unwrap_or_default();
+            let folders = engine.subfolders(&root, &prefix);
+            if folders.is_empty() {
+                println!("{root}/{prefix} has no subfolders");
+            }
+            for (name, count) in folders {
+                println!("{count:>6}  {prefix}{name}/");
             }
             Ok(())
         }

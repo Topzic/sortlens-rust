@@ -264,7 +264,20 @@ stays a Finder/Explorer action.
 
 Not built: collection favourites, colours, per-collection search/sort, and reordering.
 
+## 2026-11-21 — M5: subfolder drill-down
+
+- catalog: `folders(root, prefix)` lists the immediate subfolders of a scope with recursive photo
+  counts, skipping missing photos
+- engine: `subfolders(root, prefix)` and the `library.subfolders` command
+- ui: the Folders section shows the chosen root's subfolders with counts, clicking one descends a
+  level and re-selecting it goes back up; a breadcrumb row (`Root › day1 › sub`) sits above the
+  filter strip with clickable segments and "Up one level"; choosing another root clears the scope
+- cli: `folders [--root R] [--in PREFIX]`
+- tests: one-level listing with recursive counts and folder filtering in the catalog, the engine
+  command, and `parent_prefix`
+- 144 tests, CI and wasm green; CLI smoke test listed `day1/` (2), `day2/` (1) and `day1/sub/` (1)
+
 ## Next
 
-M5 folder drill-down: subfolder-first navigation from the sidebar, with breadcrumbs, so a shoot's
-day folders are one click apart.
+Sort keys: a header control for capture time, name, size and rating, persisted per view, with the
+catalog already able to sort.

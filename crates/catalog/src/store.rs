@@ -403,6 +403,30 @@ impl Catalog {
         Ok(changed)
     }
 
+    /// Immediate subfolders under `prefix` inside `root`, with how many photos each holds.
+    ///
+    /// `prefix` is a relative path with a trailing slash, or empty for the root itself. Counts are
+    /// recursive, so a folder shows everything below it, not just its own files.
+    pub fn folders(&self, root: &str, prefix: &str) -> Vec<(String, usize)> {
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        for photo in self.photos.values() {
+            if photo.root != root || photo.missing {
+                continue;
+            }
+            let Some(rest) = photo.rel.strip_prefix(prefix) else {
+                continue;
+            };
+            let Some((folder, _)) = rest.split_once('/') else {
+                continue;
+            };
+            if folder.is_empty() {
+                continue;
+            }
+            *counts.entry(folder.to_string()).or_insert(0) += 1;
+        }
+        counts.into_iter().collect()
+    }
+
     /// Photo counts per root, for the sidebar.
     pub fn counts_by_root(&self) -> Vec<(String, usize)> {
         let mut counts: BTreeMap<String, usize> = self.roots.iter().map(|root| (root.clone(), 0)).collect();
@@ -952,6 +976,31 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn folders_are_listed_one_level_at_a_time_with_recursive_counts() {
+        let temp = TempCatalog::new("folders");
+        let (mut catalog, _) = temp.open();
+        let mut seeds: Vec<Seed> = Vec::new();
+        for rel in ["a.jpg", "day1/b.jpg", "day1/c.jpg", "day1/sub/d.jpg", "day2/e.jpg"] {
+            let mut seed = seed(rel);
+            seed.key = rel.len() as u64;
+            seeds.push(seed);
+        }
+        catalog.sync_root("/photos", seeds).expect("sync");
+
+        let top = catalog.folders("/photos", "");
+        assert_eq!(top, vec![("day1".to_string(), 3), ("day2".to_string(), 1)]);
+        let inside = catalog.folders("/photos", "day1/");
+        assert_eq!(inside, vec![("sub".to_string(), 1)]);
+        assert!(catalog.folders("/photos", "day1/sub/").is_empty());
+
+        let in_day1 = Filter {
+            folder: Some("day1/".into()),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&in_day1), 3);
     }
 
     #[test]

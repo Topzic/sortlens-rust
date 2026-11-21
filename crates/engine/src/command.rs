@@ -173,6 +173,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.subfolders",
+                    label: "Subfolders",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Subfolders",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.health",
                     label: "Check Library",
                     group: Group::Library,

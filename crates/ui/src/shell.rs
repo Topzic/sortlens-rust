@@ -188,6 +188,8 @@ pub struct UiState {
     pub health_open: bool,
     /// Last health check: (checked, present, missing).
     pub health: Option<(usize, usize, usize)>,
+    /// Relative folder inside the chosen root, with a trailing slash, or empty for the whole root.
+    pub folder: String,
     /// Only this collection, chosen in the sidebar.
     pub collection_filter: Option<sortlens_core::CollectionId>,
     /// Collection being renamed, with its draft name.
@@ -226,6 +228,7 @@ impl UiState {
             deleted_open: false,
             health_open: false,
             health: None,
+            folder: String::new(),
             collection_filter: None,
             rename_target: None,
             notice: None,
@@ -254,6 +257,7 @@ impl UiState {
             label: self.label_filter,
             tag: self.tag_filter.clone(),
             collection: self.collection_filter,
+            folder: (self.root.is_some() && !self.folder.is_empty()).then(|| self.folder.clone()),
             include_missing: self.show_missing,
             ..Filter::default()
         }
@@ -266,6 +270,7 @@ impl UiState {
             || self.label_filter.is_some()
             || self.tag_filter.is_some()
             || self.collection_filter.is_some()
+            || !self.folder.is_empty()
             || self.show_missing
             || self.root.is_some()
             || !self.search.is_empty()
@@ -278,6 +283,7 @@ impl UiState {
         self.label_filter = None;
         self.tag_filter = None;
         self.collection_filter = None;
+        self.folder.clear();
         self.show_missing = false;
         self.root = None;
     }
@@ -479,6 +485,20 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             if nav_row(ui, t, "Library health", "", false).clicked() {
                 state.health_open = true;
             }
+            if let Some(root) = state.root.clone() {
+                let folders = engine.subfolders(&root, &state.folder);
+                if !folders.is_empty() {
+                    nav_section(ui, t, "Subfolders");
+                }
+                for (name, count) in folders {
+                    let prefix = format!("{}{name}/", state.folder);
+                    let selected = state.folder == prefix;
+                    if nav_row(ui, t, &name, &format_count(count as u64), selected).clicked() {
+                        state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
+                    }
+                }
+            }
+
             let deleted = engine.deleted_batches().len();
             if nav_row(ui, t, "Recently Deleted", &format_count(deleted as u64), false).clicked() {
                 state.deleted_open = true;
@@ -493,6 +513,9 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 let selected = state.root.as_deref() == Some(root.as_str());
                 let response = nav_row(ui, t, &folder_name(&root), &format_count(count as u64), selected);
                 if response.clicked() {
+                    if state.root.as_deref() != Some(root.as_str()) {
+                        state.folder.clear();
+                    }
                     state.root = Some(root.clone());
                     state.all_photos_selected = false;
                 }
@@ -800,10 +823,14 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
                         state.root = None;
+                        state.folder.clear();
                     }
                     ui.label(RichText::new("Added order").size(11.5).color(t.text_faint));
                 });
             });
+            if state.root.is_some() {
+                breadcrumbs(ui, t, state);
+            }
             ui.add_space(8.0);
             filter_strip(ui, t, state, engine, total);
             ui.add_space(10.0);
@@ -1165,6 +1192,63 @@ fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, 
 
 /// Start a session over what the filters currently show. A session is a fixed queue: changing the
 /// filters afterwards does not silently change what is being culled.
+/// The parent of a relative folder prefix ("day1/sub/" → "day1/", "day1/" → "").
+fn parent_prefix(folder: &str) -> String {
+    let trimmed = folder.trim_end_matches('/');
+    match trimmed.rsplit_once('/') {
+        Some((parent, _)) => format!("{parent}/"),
+        None => String::new(),
+    }
+}
+
+/// Root › day1 › sub, each segment clickable.
+fn breadcrumbs(ui: &mut Ui, t: &Tokens, state: &mut UiState) {
+    let Some(root) = state.root.clone() else {
+        return;
+    };
+    let mut target: Option<String> = None;
+    ui.horizontal(|ui| {
+        let at_root = state.folder.is_empty();
+        if ui
+            .add(
+                Button::new(
+                    RichText::new(folder_name(&root))
+                        .size(11.0)
+                        .color(if at_root { t.text } else { t.accent }),
+                )
+                .frame(false),
+            )
+            .clicked()
+        {
+            target = Some(String::new());
+        }
+        let mut prefix = String::new();
+        for segment in state.folder.trim_end_matches('/').split('/').filter(|part| !part.is_empty()) {
+            prefix.push_str(segment);
+            prefix.push('/');
+            ui.label(RichText::new("›").size(11.0).color(t.text_faint));
+            let here = prefix.clone();
+            let at_here = state.folder == here;
+            if ui
+                .add(Button::new(RichText::new(segment).size(11.0).color(if at_here { t.text } else { t.accent })).frame(false))
+                .clicked()
+            {
+                target = Some(here);
+            }
+        }
+        if !at_root {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui.add(Button::new(RichText::new("Up one level").size(10.5)).frame(false)).clicked() {
+                    target = Some(parent_prefix(&state.folder));
+                }
+            });
+        }
+    });
+    if let Some(folder) = target {
+        state.folder = folder;
+    }
+}
+
 /// The largest rect of a given aspect ratio that fits inside `bounds`, centred.
 fn fit_rect(bounds: Rect, aspect: f32) -> Rect {
     let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.5 };
@@ -1860,6 +1944,13 @@ mod tests {
         let wide = fit_rect(bounds, 2.0);
         assert!(wide.width() <= bounds.width() + 0.001);
         assert!(bounds.contains_rect(wide));
+    }
+
+    #[test]
+    fn parent_prefix_walks_up_one_level_at_a_time() {
+        assert_eq!(parent_prefix("day1/sub/"), "day1/");
+        assert_eq!(parent_prefix("day1/"), "");
+        assert_eq!(parent_prefix(""), "");
     }
 
     #[test]

@@ -165,7 +165,7 @@ same photo; apply 148 rejects to trash; undo restores all 148.
 
 ## M5 — Organise · 2.0 w · tracks A,B
 
-- [ ] Subfolder-first drill-down (B) — SL-A03
+- [x] Subfolder-first drill-down: one level at a time, recursive counts, breadcrumbs (B) — SL-A03
 - [ ] Folder favourites/colours/search/sort/range-select/select-all (B) — SL-A05..A10
 - [x] Collections: create/rename/delete, add/remove, sidebar, filter (A,B) — SL-G01..G03
 - [ ] Collection favourites, colours, per-collection search and sort (B) — SL-G04

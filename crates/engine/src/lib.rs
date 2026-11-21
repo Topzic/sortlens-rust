@@ -147,6 +147,14 @@ impl Engine {
         }
     }
 
+    /// Immediate subfolders of a scope, with recursive photo counts.
+    pub fn subfolders(&self, root: &str, prefix: &str) -> Vec<(String, usize)> {
+        self.catalog
+            .as_ref()
+            .map(|catalog| catalog.folders(root, prefix))
+            .unwrap_or_default()
+    }
+
     /// Every collection, by name.
     pub fn collections(&self) -> Vec<sortlens_catalog::Collection> {
         self.catalog.as_ref().map(Catalog::collections).unwrap_or_default()
@@ -1103,6 +1111,19 @@ impl Engine {
                 self.delete_collection(id)?;
                 Ok(json!({ "deleted": true }))
             }
+            "library.subfolders" => {
+                let root = args
+                    .get("root")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a root is required".into()))?;
+                let prefix = args.get("prefix").and_then(Value::as_str).unwrap_or("");
+                let folders: Vec<Value> = self
+                    .subfolders(root, prefix)
+                    .into_iter()
+                    .map(|(name, count)| json!({ "name": name, "count": count }))
+                    .collect();
+                Ok(json!({ "folders": folders }))
+            }
             "library.health" => {
                 let health = self.check_health()?;
                 Ok(json!({
@@ -1576,6 +1597,35 @@ mod tests {
         assert!(engine.cull().is_none());
 
         let _ = std::fs::remove_dir_all(&destination);
+    }
+
+    #[test]
+    fn subfolders_are_listed_per_level() {
+        let folder = Temp::new("subfolder-photos");
+        std::fs::create_dir_all(folder.0.join("day1/sub")).expect("dir");
+        std::fs::create_dir_all(folder.0.join("day2")).expect("dir");
+        std::fs::write(folder.0.join("top.jpg"), b"t").expect("write");
+        std::fs::write(folder.0.join("day1/a.jpg"), b"a").expect("write");
+        std::fs::write(folder.0.join("day1/sub/b.jpg"), b"b").expect("write");
+        std::fs::write(folder.0.join("day2/c.jpg"), b"c").expect("write");
+        let root = folder.0.to_string_lossy().to_string();
+        let (_lib, mut engine) = library("subfolders");
+        engine.begin_scan(root.clone()).expect("scan");
+        wait_for_scan(&mut engine);
+
+        let value = engine
+            .run("library.subfolders", &json!({ "root": root, "prefix": "" }))
+            .expect("subfolders");
+        let folders = value["folders"].as_array().expect("array");
+        assert_eq!(folders.len(), 2);
+        assert_eq!(folders[0]["name"], "day1");
+        assert_eq!(folders[0]["count"], 2, "counts include nested photos");
+        assert_eq!(folders[1]["name"], "day2");
+
+        let inner = engine
+            .run("library.subfolders", &json!({ "root": root, "prefix": "day1/" }))
+            .expect("subfolders");
+        assert_eq!(inner["folders"][0]["name"], "sub");
     }
 
     #[test]
