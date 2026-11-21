@@ -14,6 +14,21 @@ const LIB_CRATES: &[&str] = &[
 
 const APP_CRATES: &[&str] = &["sortlens", "sortlens-cli", "sortlens-web", "sortlens-server"];
 
+/// Crates that only the shell may use. Format and platform craft crates (metadata, jpeg, tiff,
+/// raw, settings, atomic) are allowed at any layer; these are the ones that assume a window.
+const UI_ONLY: &[&str] = &[
+    "egui",
+    "eframe",
+    "craft-ui",
+    "craft-window",
+    "craft-menu",
+    "craft-dialogs",
+    "craft-keymap",
+    "craft-update",
+    "craft-quit",
+    "craft-extensions",
+];
+
 fn main() -> ExitCode {
     let task = std::env::args().nth(1).unwrap_or_else(|| "help".into());
     let result = match task.as_str() {
@@ -120,10 +135,10 @@ fn layers() -> Result<(), String> {
         }
         let deps = dependencies(&manifest)?;
 
-        // Only the ui crate may know about egui or any craft UI crate.
+        // Only the ui crate may know that a window exists.
         if *name != "ui" {
             for dep in &deps {
-                if dep == "egui" || dep == "eframe" || dep.starts_with("craft-") {
+                if UI_ONLY.contains(&dep.as_str()) {
                     problems.push(format!("crates/{name} depends on {dep}; only crates/ui may"));
                 }
             }

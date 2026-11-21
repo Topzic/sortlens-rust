@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
+use sortlens_meta::PhotoMeta;
 
 /// Everything Sortlens knows about one file.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -47,9 +48,24 @@ pub struct Photo {
     /// Capture time, seconds since the Unix epoch, from EXIF when available.
     #[serde(default)]
     pub captured: Option<i64>,
-    /// Camera model, once metadata has been read.
+    /// Camera make and model.
     #[serde(default)]
     pub camera: String,
+    /// Lens model.
+    #[serde(default)]
+    pub lens: String,
+    /// ISO speed.
+    #[serde(default)]
+    pub iso: Option<u32>,
+    /// Aperture f-number.
+    #[serde(default)]
+    pub aperture: Option<f64>,
+    /// Exposure time in seconds.
+    #[serde(default)]
+    pub shutter: Option<f64>,
+    /// Focal length in millimetres.
+    #[serde(default)]
+    pub focal: Option<f64>,
 }
 
 impl Photo {
@@ -73,7 +89,37 @@ impl Photo {
             height: 0,
             captured: None,
             camera: String::new(),
+            lens: String::new(),
+            iso: None,
+            aperture: None,
+            shutter: None,
+            focal: None,
         }
+    }
+
+    /// Copy the metadata facts onto the record.
+    pub fn apply_meta(&mut self, meta: &PhotoMeta) {
+        self.width = meta.width;
+        self.height = meta.height;
+        self.captured = meta.captured;
+        self.camera = meta.camera.clone();
+        self.lens = meta.lens.clone();
+        self.iso = meta.iso;
+        self.aperture = meta.aperture;
+        self.shutter = meta.shutter;
+        self.focal = meta.focal;
+    }
+
+    /// Exposure summary for the details panel.
+    pub fn exposure(&self) -> String {
+        PhotoMeta {
+            shutter: self.shutter,
+            aperture: self.aperture,
+            iso: self.iso,
+            focal: self.focal,
+            ..PhotoMeta::default()
+        }
+        .exposure_summary()
     }
 
     /// Absolute path, joined with `/` so it is stable to store and compare.
@@ -96,6 +142,11 @@ impl Photo {
     /// Whether the photo carries any review state.
     pub fn is_reviewed(&self) -> bool {
         self.rating > 0 || self.flag != Flag::None || self.label.is_some()
+    }
+
+    /// Capture time as `2026-11-21 14:32`, when known.
+    pub fn captured_label(&self) -> Option<String> {
+        self.captured.map(sortlens_meta::format_epoch)
     }
 
     /// Timestamp used for ordering when EXIF is absent.

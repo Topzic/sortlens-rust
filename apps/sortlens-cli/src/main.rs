@@ -86,12 +86,18 @@ fn run() -> Result<(), String> {
             let page = engine.page(&Filter::default(), Sort::Natural, 0, limit);
             for photo in &page.photos {
                 let label = photo.label.map(|label| label.label()).unwrap_or("-");
+                let size = if photo.width > 0 {
+                    format!("{}x{}", photo.width, photo.height)
+                } else {
+                    "-".to_string()
+                };
                 println!(
-                    "{:>6}  {}  {:>2}★  {:>6}  {:>9}  {}",
+                    "{:>6}  {}  {:>2}★  {:>6}  {:>9}  {:>9}  {}",
                     photo.id.0,
                     label,
                     photo.rating,
                     photo.flag.id(),
+                    size,
                     sortlens_core::format_bytes(photo.size),
                     photo.rel
                 );

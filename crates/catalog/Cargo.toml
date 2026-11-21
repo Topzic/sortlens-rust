@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 sortlens-core = { workspace = true }
+sortlens-meta = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 crc32fast = { workspace = true }

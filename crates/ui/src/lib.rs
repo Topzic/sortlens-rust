@@ -8,9 +8,11 @@
 
 pub mod shell;
 pub mod theme;
+pub mod thumbs;
 
 pub use shell::{Action, RightTab, UiState, View, show};
 pub use theme::{ThemeKind, Tokens, apply};
+pub use thumbs::Thumbnails;
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

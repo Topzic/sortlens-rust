@@ -25,7 +25,28 @@ Verified: `cargo xtask ci` green (fmt, clippy -D warnings, 42 tests, layer/lint/
 Known gaps (deliberate, next milestones): no thumbnails yet (cells show kind + name), metadata
 not read (width/camera/captured stay empty), filters in the bar are still disabled, no cull view.
 
+## 2026-11-21 — M2: previews and metadata
+
+Shipped:
+- `sortlens-meta`: EXIF through `craft-metadata` into one optional-field struct (dimensions,
+  capture time with UTC-offset handling, camera, lens, ISO, aperture, shutter, focal), plus
+  civil-date conversion both ways. Read is bounded to 8 MiB per file. 6 tests.
+- `sortlens-thumbs`: JPEG decode (8-bit, RGB/grey), box-filter downscale that never upscales,
+  content-addressed disk cache with atomic writes and torn-file tolerance, and a two-worker
+  `Service` with in-flight de-duplication and remembered failures. 7 tests, including real
+  JPEG encode→decode round trips.
+- `sortlens-ui`: texture cache (cover-fit, 900-texture cap), thumbnail requests only for visible
+  rows, richer details panel (dimensions, camera, lens, exposure, capture date).
+- scan/catalog: metadata travels with the file and is stored on the record; rescan refreshes it.
+- CLI `list` shows dimensions.
+
+Verified: `cargo xtask ci` green (55 tests); CLI round trip on a real 320×200 JPEG reads
+`320x200` from EXIF; thumbnails decode from that file in tests.
+
+Known gaps: RAW/HEIC/PNG/TIFF thumbnails, video posters, priority scheduling, activity stack,
+non-JPEG previews fall back to the kind glyph.
+
 ## Next
 
-M2 — previews: `sortlens-meta` + `craft-metadata`/`craft-jpeg`/`craft-tiff`, tiered thumbnail
-cache, texture upload, priority scheduler, scan progress with counts.
+M2.5 — remaining decoders (PNG/TIFF via craft-tiff, RAW embedded previews via craft-raw) and
+the activity stack; then M3 keywords + composable filters.

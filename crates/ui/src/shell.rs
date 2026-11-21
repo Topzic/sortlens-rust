@@ -9,8 +9,9 @@
 //! as an [`Action`] for the host to apply.
 
 use crate::theme::{ThemeKind, Tokens};
+use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
-    Align, Align2, Button, Color32, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, vec2,
+    Align, Align2, Button, Color32, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
 };
 use sortlens_core::{Flag, MediaKind, PhotoId};
 use sortlens_engine::{Engine, Filter, Photo, Sort};
@@ -182,7 +183,7 @@ impl UiState {
 /// Draw the whole window.
 ///
 /// Returns host actions; the caller applies them and, for a theme change, persists the choice.
-pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> Vec<Action> {
+pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) -> Vec<Action> {
     let mut actions = Vec::new();
     let t = state.theme.tokens();
 
@@ -196,6 +197,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> Vec<Action
         }
         state.notice(message);
     }
+    thumbs.poll(ui.ctx());
     if engine.is_scanning() {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
     }
@@ -208,7 +210,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> Vec<Action
     if state.right_open {
         right_panel(ui, state, &t, engine);
     }
-    canvas(ui, state, &t, engine, &mut actions);
+    canvas(ui, state, &t, engine, thumbs, &mut actions);
 
     if state.settings_open {
         settings_dialog(ui, state, &t, &mut actions);
@@ -427,6 +429,17 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
     detail_row(ui, t, "Kind", kind);
     detail_row(ui, t, "Folder", if photo.folder().is_empty() { "—" } else { photo.folder() });
     detail_row(ui, t, "Size", &sortlens_core::format_bytes(photo.size));
+    if photo.width > 0 && photo.height > 0 {
+        detail_row(ui, t, "Dimensions", &format!("{} × {}", photo.width, photo.height));
+    }
+    if !photo.camera.is_empty() {
+        detail_row(ui, t, "Camera", &photo.camera);
+        detail_row(ui, t, "Lens", if photo.lens.is_empty() { "—" } else { &photo.lens });
+        detail_row(ui, t, "Exposure", &photo.exposure());
+    }
+    if let Some(captured) = photo.captured_label() {
+        detail_row(ui, t, "Captured", &captured);
+    }
     detail_row(ui, t, "Rating", &format!("{} of 5", photo.rating));
     detail_row(ui, t, "Flag", photo.flag.id());
     detail_row(ui, t, "Label", photo.label.map(|label| label.label()).unwrap_or("—"));
@@ -450,7 +463,7 @@ fn tags(ui: &mut Ui, t: &Tokens, photo: &Photo) {
     hint(ui, t, "Keywords arrive in M3.");
 }
 
-fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(t.bg).inner_margin(Margin::same(14)))
         .show(ui, |ui| {
@@ -480,7 +493,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, act
                     if total == 0 {
                         empty_library(ui, t, state, engine, actions);
                     } else {
-                        grid(ui, t, state, engine, &filter);
+                        grid(ui, t, state, engine, thumbs, &filter);
                     }
                 }
                 other => planned_view(ui, t, other),
@@ -489,7 +502,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, act
         });
 }
 
-fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, filter: &Filter) {
+fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &mut Thumbnails, filter: &Filter) {
     let gap = t.grid_gap;
     let available = ui.available_width();
     let min_cell = 132.0;
@@ -516,7 +529,7 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, filter: &
                         match page.photos.get(index) {
                             Some(photo) => {
                                 let selected = state.selected == Some(photo.id);
-                                let response = photo_cell(ui, t, photo, selected, cell, caption);
+                                let response = photo_cell(ui, t, photo, selected, cell, caption, thumbs);
                                 if response.clicked() {
                                     state.selected = Some(photo.id);
                                     state.right_tab = RightTab::Details;
@@ -537,25 +550,34 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, filter: &
         });
 }
 
-fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32) -> egui::Response {
+fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32, thumbs: &mut Thumbnails) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::click());
     let image = Rect::from_min_size(rect.min, vec2(cell, cell));
     let painter = ui.painter();
 
     painter.rect_filled(image, t.corner(), if response.hovered() { t.hover } else { t.thumb_bg });
 
-    let glyph = match photo.kind {
-        MediaKind::Raw => "RAW",
-        MediaKind::Video => "VID",
-        MediaKind::Image => "IMG",
-    };
-    painter.text(
-        image.center() - vec2(0.0, 4.0),
-        Align2::CENTER_CENTER,
-        glyph,
-        t.font(10.0),
-        t.text_faint,
-    );
+    let texture = thumbs.get(ui.ctx(), photo, GRID_SIZE).cloned();
+    match &texture {
+        Some(texture) => {
+            let uv = cover_uv(texture.size_vec2(), image.size());
+            painter.image(texture.id(), image, uv, Color32::WHITE);
+        }
+        None => {
+            let glyph = match photo.kind {
+                MediaKind::Raw => "RAW",
+                MediaKind::Video => "VID",
+                MediaKind::Image => "IMG",
+            };
+            painter.text(
+                image.center() - vec2(0.0, 4.0),
+                Align2::CENTER_CENTER,
+                glyph,
+                t.font(10.0),
+                t.text_faint,
+            );
+        }
+    }
 
     if photo.flag != Flag::None {
         let colour = t.flag(photo.flag);
@@ -843,6 +865,24 @@ fn folder_name(path: &str) -> String {
         .filter(|name| !name.is_empty())
         .unwrap_or(path)
         .to_string()
+}
+
+/// UV rectangle that fills the cell while keeping the image's aspect ratio (cover, not contain).
+fn cover_uv(image: Vec2, target: Vec2) -> Rect {
+    if image.x <= 0.0 || image.y <= 0.0 || target.x <= 0.0 || target.y <= 0.0 {
+        return Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+    }
+    let image_aspect = image.x / image.y;
+    let target_aspect = target.x / target.y;
+    if image_aspect > target_aspect {
+        let keep = target_aspect / image_aspect;
+        let inset = (1.0 - keep) / 2.0;
+        Rect::from_min_max(pos2(inset, 0.0), pos2(1.0 - inset, 1.0))
+    } else {
+        let keep = image_aspect / target_aspect;
+        let inset = (1.0 - keep) / 2.0;
+        Rect::from_min_max(pos2(0.0, inset), pos2(1.0, 1.0 - inset))
+    }
 }
 
 fn truncate(text: &str, max_chars: usize) -> String {

@@ -16,6 +16,7 @@ use crate::photo::{Photo, Stats};
 use crate::query::{Filter, Page, Sort};
 use serde::{Deserialize, Serialize};
 use sortlens_core::{Error, Flag, MediaKind, PhotoId, Result};
+use sortlens_meta::PhotoMeta;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -68,13 +69,14 @@ pub struct SyncOutcome {
 }
 
 /// One file from a scan, in the shape the catalog wants.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Seed {
     pub rel: String,
     pub size: u64,
     pub modified: Option<i64>,
     pub kind: MediaKind,
     pub key: u64,
+    pub meta: PhotoMeta,
 }
 
 /// The catalog.
@@ -409,7 +411,8 @@ impl Catalog {
                 None => {
                     let id = PhotoId(self.next_id);
                     self.next_id += 1;
-                    let photo = Photo::from_scan(id, root, &seed.rel, seed.size, seed.modified, seed.kind, seed.key);
+                    let mut photo = Photo::from_scan(id, root, &seed.rel, seed.size, seed.modified, seed.kind, seed.key);
+                    photo.apply_meta(&seed.meta);
                     self.commit(Op::AddPhoto { photo: Box::new(photo) })?;
                     outcome.added += 1;
                 }
@@ -431,6 +434,7 @@ impl Catalog {
                     updated.kind = seed.kind;
                     updated.key = seed.key;
                     updated.missing = false;
+                    updated.apply_meta(&seed.meta);
                     self.commit(Op::AddPhoto { photo: Box::new(updated) })?;
                     outcome.updated += 1;
                 }
@@ -559,6 +563,7 @@ mod tests {
             modified: Some(10),
             kind: MediaKind::Image,
             key: 7,
+            meta: PhotoMeta::default(),
         }
     }
 

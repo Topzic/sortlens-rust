@@ -85,17 +85,23 @@ files → rename a subfolder → no duplicate rows.
 ## M2 — Preview scales · 2.5 w · track C
 
 **Goal:** 50k photos, 60 fps, bounded memory, visible activity.
+**State:** JPEG thumbnails, the disk cache and the two-worker decode service are in; metadata is
+read during the scan. RAW, HEIC, video, priority scheduling and the activity stack remain.
 
-- [ ] Tiered disk cache + memory LRU + byte budgets (C) — SL-M02/M06
+- [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
 - [ ] Priority scheduler + generation cancellation + backpressure (C)
-- [ ] JPEG/PNG/WebP/TIFF/HEIC decode paths (C) — README format table
+- [ ] Priority scheduler + generation cancellation + backpressure (C)
+- [x] JPEG decode path (C)
+- [ ] PNG/WebP/TIFF/HEIC decode paths (C) — README format table
 - [ ] RAW embedded previews (`craft-raw`) (C) — SL-B18
 - [ ] Video poster + duration/fps/codec (C) — SL-B11
-- [ ] Blur-up tier transitions; no spinner (B)
+- [x] Placeholder cell while decoding, no spinner (B)
+- [ ] Blur-up tier transitions (B)
 - [ ] Activity stack + bell popover + cancel + per-item errors (B) — SL-A18
 - [ ] Offline/missing badges + cached-thumb behaviour (A,B) — SL-A12
 - [ ] `craft-ipc` + `craft-jsonrpc` control channel (E) — SL-K04
-- [ ] `sortlens-cli scan` + `snapshot` with JSON output (E) — SL-K03
+- [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
+- [ ] JSON output mode for the CLI (E)
 - [ ] Benchmarks: cold thumb rate, 100k scroll p99, RSS (E)
 
 **Demo:** 50k library scrolls at 60 fps; unplug the drive → offline badges, no freeze; CLI

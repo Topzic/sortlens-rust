@@ -8,6 +8,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
 use sortlens_core::{MediaKind, Result};
+use sortlens_meta::PhotoMeta;
 use std::fs;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -76,7 +77,7 @@ pub fn is_sidecar(extension: &str) -> bool {
 }
 
 /// A file the walker accepted.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ScannedFile {
     /// Absolute path.
     pub path: PathBuf,
@@ -92,6 +93,8 @@ pub struct ScannedFile {
     pub key: u64,
     /// Directories between the root and the file.
     pub depth: usize,
+    /// EXIF and XMP facts, empty when the file has none.
+    pub meta: PhotoMeta,
 }
 
 /// Why a candidate was skipped, counted rather than listed one by one.
@@ -258,6 +261,7 @@ pub fn scan_root(root: &Path) -> Result<ScanReport> {
                 }
             };
             let rel = relative_path(&root, &path);
+            let meta = sortlens_meta::read(&path);
             report.files.push(ScannedFile {
                 path,
                 rel,
@@ -266,6 +270,7 @@ pub fn scan_root(root: &Path) -> Result<ScanReport> {
                 kind,
                 key,
                 depth,
+                meta,
             });
         }
 

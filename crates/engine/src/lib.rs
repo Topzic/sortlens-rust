@@ -213,6 +213,7 @@ impl Engine {
                 modified: file.modified,
                 kind: file.kind,
                 key: file.key,
+                meta: file.meta.clone(),
             })
             .collect();
         let errors: Vec<String> = report

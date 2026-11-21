@@ -12,7 +12,7 @@ use craft_window::Prefix;
 use craft_window::policy::{Backend, Frame, TitleBarPref, apply as apply_titlebar, decide_for};
 use settings::Prefs;
 use sortlens_engine::Engine;
-use sortlens_ui::{Action, ThemeKind, UiState, apply as apply_theme};
+use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 
 /// Left inset that clears the traffic lights in an integrated title bar.
 const MAC_TRAFFIC_LIGHTS: f32 = 78.0;
@@ -45,6 +45,14 @@ fn library_dir() -> std::path::PathBuf {
             .unwrap_or_else(|| home().join(".local").join("share"))
     };
     base.join("Sortlens").join("Library")
+}
+
+/// Thumbnail cache, next to the library and safe to delete.
+fn cache_dir() -> std::path::PathBuf {
+    library_dir()
+        .parent()
+        .map(|base| base.join("Cache").join("thumbs"))
+        .unwrap_or_else(|| std::path::PathBuf::from("thumbs"))
 }
 
 fn home() -> std::path::PathBuf {
@@ -81,6 +89,7 @@ struct App {
     ui: UiState,
     store: SettingsStore<Prefs>,
     applied_theme: ThemeKind,
+    thumbs: Thumbnails,
 }
 
 impl App {
@@ -107,6 +116,7 @@ impl App {
             ui,
             store,
             applied_theme: kind,
+            thumbs: Thumbnails::new(cache_dir()),
         }
     }
 
@@ -154,7 +164,7 @@ impl eframe::App for App {
             ctx.request_repaint_after(deadline.saturating_duration_since(std::time::Instant::now()));
         }
 
-        let actions = sortlens_ui::show(ui, &mut self.ui, &mut self.engine);
+        let actions = sortlens_ui::show(ui, &mut self.ui, &mut self.engine, &mut self.thumbs);
         for action in actions {
             self.apply(&ctx, action);
         }
