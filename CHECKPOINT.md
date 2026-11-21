@@ -427,7 +427,18 @@ answer.
   is forgotten on dismissal
 - 182 tests, CI and wasm green
 
+## 2026-11-21 — M4: gesture culling
+
+- cull: `gesture::classify(delta)` — a drag counts only past 84 points and only when the vertical
+  travel dominates by 1.4×, so a sideways scrub never flags a photo; up is keep, down is reject.
+  `progress` clamps toward the threshold for the overlay, `Gesture::decision`/`label` for staging
+- ui: the cull canvas senses drags, tints and labels the photo while the finger is down (with a hint
+  when the drag is too short), stages the decision on release and clears the drag state
+- tests: short drags doing nothing, direction choosing the decision, sideways and diagonal drags
+  ignored, progress clamped to 1
+- 186 tests, CI and wasm green
+
 ## Next
 
-M4: gesture culling — drag up for pick and down for reject with a live overlay, so a trackpad pass
-needs no keys.
+M4: zoom and pan on the cull canvas — pinch or scroll to inspect, drag with a modifier to move the
+frame, so a soft frame can be judged without opening the detail view.

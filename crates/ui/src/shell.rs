@@ -15,6 +15,7 @@ use egui::{
     pos2, vec2,
 };
 use sortlens_core::{Flag, MediaKind, PhotoId};
+use sortlens_cull::gesture::Gesture;
 use sortlens_engine::{Decision, Engine, Filter, Photo, Sort, TagOrder};
 
 /// A top-level destination in the bottom bar.
@@ -191,6 +192,8 @@ pub struct UiState {
     pub summary_open: bool,
     /// A finished Apply is waiting to be acknowledged.
     pub receipt_open: bool,
+    /// Where a canvas drag began, while one is in flight.
+    pub drag_from: Option<egui::Pos2>,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -255,6 +258,7 @@ impl UiState {
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
             summary_open: false,
             receipt_open: false,
+            drag_from: None,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -1788,7 +1792,35 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     let strip_height = 84.0;
     let action_height = 46.0;
     let image_height = (ui.available_height() - strip_height - action_height - 16.0).max(160.0);
-    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), image_height), Sense::hover());
+    let (area, area_response) = ui.allocate_exact_size(vec2(ui.available_width(), image_height), Sense::drag());
+
+    // A drag on the canvas is a decision: up keeps, down rejects, sideways is ignored.
+    let mut drag_delta = (0.0, 0.0);
+    if area_response.dragged()
+        && let Some(origin) = state.drag_from
+        && let Some(pointer) = area_response.interact_pointer_pos()
+    {
+        drag_delta = (pointer.x - origin.x, pointer.y - origin.y);
+    }
+    if area_response.drag_started() {
+        state.drag_from = area_response.interact_pointer_pos();
+        drag_delta = (0.0, 0.0);
+    }
+    if area_response.drag_stopped() {
+        let gesture = sortlens_cull::gesture::classify(drag_delta);
+        if let Some(decision) = gesture.decision() {
+            engine.cull_decide(decision);
+            let said = match gesture {
+                Gesture::Pick => "Kept",
+                _ => "Rejected",
+            };
+            state.notice(said.to_string());
+        }
+        state.drag_from = None;
+        drag_delta = (0.0, 0.0);
+    }
+    let gesture = sortlens_cull::gesture::classify(drag_delta);
+    let drag_progress = sortlens_cull::gesture::progress(drag_delta);
 
     match current.and_then(|id| engine.photo(id).cloned()) {
         Some(photo) => {
@@ -1825,6 +1857,32 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 t.font(11.0),
                 t.text_muted,
             );
+            if gesture != Gesture::None {
+                let tint = match gesture {
+                    Gesture::Pick => t.pick,
+                    _ => t.reject,
+                };
+                painter.rect_filled(
+                    area,
+                    t.corner(),
+                    Color32::from_rgba_unmultiplied(tint.r(), tint.g(), tint.b(), (drag_progress * 70.0) as u8),
+                );
+                painter.text(
+                    area.center(),
+                    Align2::CENTER_CENTER,
+                    gesture.label(),
+                    t.font(26.0),
+                    Color32::from_rgba_unmultiplied(tint.r(), tint.g(), tint.b(), (drag_progress * 255.0) as u8),
+                );
+            } else if drag_progress > 0.05 {
+                painter.text(
+                    area.center(),
+                    Align2::CENTER_CENTER,
+                    "drag further or sideways to cancel",
+                    t.font(11.0),
+                    t.text_faint,
+                );
+            }
         }
         None => {
             ui.painter().rect_filled(area, t.corner(), t.thumb_bg);
