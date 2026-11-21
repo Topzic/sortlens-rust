@@ -14,6 +14,7 @@ pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
+pub use sortlens_cull::{Decision, Summary as CullSummary};
 
 use serde_json::{Value, json};
 use sortlens_catalog::{Catalog, Seed};
@@ -447,6 +448,11 @@ impl Engine {
         self.cull
             .as_mut()
             .is_some_and(|session| session.stage(id, decision) != sortlens_cull::Staged::Unchanged)
+    }
+
+    /// Jump to a photo in the session's queue.
+    pub fn cull_jump(&mut self, id: PhotoId) -> bool {
+        self.cull.as_mut().is_some_and(|session| session.jump_to(id))
     }
 
     /// Move back one photo in the session.

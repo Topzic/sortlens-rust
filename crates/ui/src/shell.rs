@@ -14,7 +14,7 @@ use egui::{
     Align, Align2, Button, Color32, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
 };
 use sortlens_core::{Flag, MediaKind, PhotoId};
-use sortlens_engine::{Engine, Filter, Photo, Sort};
+use sortlens_engine::{Decision, Engine, Filter, Photo, Sort};
 
 /// A top-level destination in the bottom bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -692,6 +692,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         grid(ui, t, state, engine, thumbs, &filter);
                     }
                 }
+                View::Cull => cull_view(ui, t, state, engine, thumbs),
                 other => planned_view(ui, t, other),
             }
             keyboard(ui, state, engine);
@@ -803,16 +804,31 @@ fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32,
 }
 
 fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
-    let Some(id) = state.selected else {
-        return;
-    };
     if ui.memory(|memory| memory.focused()).is_some() {
         return;
     }
+    if cull_keyboard(ui, engine) {
+        return;
+    }
+    // Starting a session works before anything is selected: the queue comes from the filters.
+    if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) {
+        match start_cull(engine, state) {
+            Ok(total) => {
+                state.view = View::Cull;
+                state.notice(format!("Culling {total} photos"));
+            }
+            Err(error) => state.notice(error),
+        }
+        return;
+    }
+    let Some(id) = state.selected else {
+        return;
+    };
 
     let mut rating = None;
     let mut flag = None;
     let mut keyword = false;
+    let culling = engine.cull().is_some();
     ui.input(|input| {
         for (key, stars) in [
             (Key::Num0, 0u8),
@@ -826,13 +842,15 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
                 rating = Some(stars);
             }
         }
-        if input.key_pressed(Key::P) {
+        // In a cull session P/X/U belong to the session, which stages decisions instead of
+        // writing flags one photo at a time.
+        if !culling && input.key_pressed(Key::P) {
             flag = Some(Flag::Pick);
         }
-        if input.key_pressed(Key::X) {
+        if !culling && input.key_pressed(Key::X) {
             flag = Some(Flag::Reject);
         }
-        if input.key_pressed(Key::U) {
+        if !culling && input.key_pressed(Key::U) {
             flag = Some(Flag::None);
         }
         if input.key_pressed(Key::K) && !input.modifiers.command {
@@ -990,6 +1008,261 @@ fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, 
                 .color(t.text_faint),
         );
     });
+}
+
+/// Start a session over what the filters currently show. A session is a fixed queue: changing the
+/// filters afterwards does not silently change what is being culled.
+/// The largest rect of a given aspect ratio that fits inside `bounds`, centred.
+fn fit_rect(bounds: Rect, aspect: f32) -> Rect {
+    let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.5 };
+    let (mut width, mut height) = (bounds.width(), bounds.height());
+    if width / height > aspect {
+        width = height * aspect;
+    } else {
+        height = width / aspect;
+    }
+    Rect::from_center_size(bounds.center(), vec2(width, height))
+}
+
+fn start_cull(engine: &mut Engine, state: &UiState) -> std::result::Result<usize, String> {
+    const QUEUE_CAP: usize = 500;
+    let ids: Vec<sortlens_core::PhotoId> = engine
+        .page(&state.filter(), Sort::Natural, 0, QUEUE_CAP)
+        .photos
+        .iter()
+        .map(|photo| photo.id)
+        .collect();
+    engine.begin_cull(&ids).map_err(|error| error.to_string())
+}
+
+fn cull_keyboard(ui: &mut Ui, engine: &mut Engine) -> bool {
+    if engine.cull().is_none() {
+        return false;
+    }
+    let mut decision = None;
+    let mut back = false;
+    ui.input(|input| {
+        if input.key_pressed(Key::P) && !input.modifiers.command {
+            decision = Some(Decision::Pick);
+        }
+        if input.key_pressed(Key::X) && !input.modifiers.command {
+            decision = Some(Decision::Reject);
+        }
+        if input.key_pressed(Key::Space) {
+            decision = Some(Decision::Deferred);
+        }
+        if input.key_pressed(Key::U) && !input.modifiers.command {
+            decision = Some(Decision::Unjudged);
+        }
+        if input.key_pressed(Key::ArrowLeft) {
+            back = true;
+        }
+    });
+    if let Some(decision) = decision {
+        engine.cull_decide(decision);
+    } else if back {
+        engine.cull_back();
+    }
+    true
+}
+
+fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
+    let snapshot = engine.cull().map(|session| {
+        let queue = session.queue().to_vec();
+        let cursor = session.cursor();
+        let summary = session.summary();
+        let current = session.current();
+        let up_next: Vec<sortlens_core::PhotoId> = queue.iter().skip(cursor + 1).take(4).copied().collect();
+        let decision = current.map(|id| session.decision(id)).unwrap_or_default();
+        (current, decision, cursor, queue.len(), summary, up_next)
+    });
+
+    let Some((current, decision, cursor, total, summary, up_next)) = snapshot else {
+        ui.vertical_centered(|ui| {
+            ui.add_space(60.0);
+            ui.label(RichText::new("Cull").size(20.0).strong());
+            ui.add_space(6.0);
+            let photos = engine.count(&state.filter());
+            if photos == 0 {
+                ui.label(RichText::new("No photos match the current filters.").size(12.0).color(t.text_muted));
+                return;
+            }
+            ui.label(
+                RichText::new(format!("{photos} photos in view. Nothing moves until you apply."))
+                    .size(12.0)
+                    .color(t.text_muted),
+            );
+            ui.add_space(10.0);
+            if ui
+                .add(Button::new(RichText::new(format!("Start culling {photos} photos")).size(12.5)))
+                .clicked()
+            {
+                match start_cull(engine, state) {
+                    Ok(total) => state.notice(format!("Culling {total} photos")),
+                    Err(error) => state.notice(error),
+                }
+            }
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("P pick · X reject · Space defer · U clear · ← back")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        });
+        return;
+    };
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Cull").size(16.0).strong());
+        ui.add_space(6.0);
+        let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
+        ui.label(RichText::new(format!("{position} of {total}")).size(12.5).color(t.text_muted));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ui.add(Button::new(RichText::new("End session").size(11.0))).clicked() {
+                engine.cull_clear();
+            }
+            ui.label(
+                RichText::new(format!(
+                    "{} picked · {} rejected · {} deferred",
+                    summary.picks, summary.rejects, summary.deferred
+                ))
+                .size(11.0)
+                .color(t.text_faint),
+            );
+        });
+    });
+
+    // Progress through the queue.
+    let progress = if total == 0 {
+        0.0
+    } else {
+        (total - summary.unjudged) as f32 / total as f32
+    };
+    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), 3.0), Sense::hover());
+    ui.painter().rect_filled(bar, t.corner(), t.border);
+    let mut filled = bar;
+    filled.set_width(bar.width() * progress);
+    ui.painter().rect_filled(filled, t.corner(), t.accent);
+    ui.add_space(8.0);
+
+    let strip_height = 84.0;
+    let action_height = 46.0;
+    let image_height = (ui.available_height() - strip_height - action_height - 16.0).max(160.0);
+    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), image_height), Sense::hover());
+
+    match current.and_then(|id| engine.photo(id).cloned()) {
+        Some(photo) => {
+            let painter = ui.painter();
+            painter.rect_filled(area, t.corner(), t.thumb_bg);
+            let aspect = if photo.width > 0 && photo.height > 0 {
+                photo.width as f32 / photo.height as f32
+            } else {
+                1.5
+            };
+            let fitted = fit_rect(area.shrink(8.0), aspect);
+            match thumbs.get(ui.ctx(), &photo, 1600).cloned() {
+                Some(texture) => {
+                    let uv = cover_uv(texture.size_vec2(), fitted.size());
+                    painter.image(texture.id(), fitted, uv, Color32::WHITE);
+                }
+                None => {
+                    painter.text(fitted.center(), Align2::CENTER_CENTER, &photo.rel, t.font(11.0), t.text_faint);
+                }
+            }
+            let badge = match decision {
+                Decision::Pick => Some(("PICK", t.pick)),
+                Decision::Reject => Some(("REJECT", t.reject)),
+                Decision::Deferred => Some(("DEFERRED", t.text_muted)),
+                Decision::Unjudged => None,
+            };
+            if let Some((text, colour)) = badge {
+                painter.text(fitted.left_top() + vec2(10.0, 10.0), Align2::LEFT_TOP, text, t.font(11.0), colour);
+            }
+            painter.text(
+                area.left_bottom() + vec2(10.0, -6.0),
+                Align2::LEFT_BOTTOM,
+                truncate(&photo.rel, 70),
+                t.font(11.0),
+                t.text_muted,
+            );
+        }
+        None => {
+            ui.painter().rect_filled(area, t.corner(), t.thumb_bg);
+        }
+    }
+
+    ui.add_space(6.0);
+    // Up next: the four photos behind the current one, for a jump without losing the queue.
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Up next").size(10.5).color(t.text_faint));
+        let mut jump = None;
+        for id in up_next {
+            if let Some(photo) = engine.photo(id).cloned() {
+                let (rect, response) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::click());
+                ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
+                if let Some(texture) = thumbs.get(ui.ctx(), &photo, 160).cloned() {
+                    let uv = cover_uv(texture.size_vec2(), rect.size());
+                    ui.painter().image(texture.id(), rect, uv, Color32::WHITE);
+                }
+                if response.clicked() {
+                    jump = Some(id);
+                }
+            }
+        }
+        if let Some(id) = jump {
+            engine.cull_jump(id);
+        }
+        if summary.is_complete() {
+            ui.label(RichText::new("Session complete").size(11.0).color(t.accent));
+        }
+    });
+
+    ui.add_space(4.0);
+    let mut decision_now = None;
+    ui.horizontal(|ui| {
+        let buttons = [
+            ("Pick", Decision::Pick, t.pick, "P"),
+            ("Reject", Decision::Reject, t.reject, "X"),
+            ("Defer", Decision::Deferred, t.text_muted, "Space"),
+            ("Clear", Decision::Unjudged, t.text_faint, "U"),
+        ];
+        for (label, choice, colour, key) in buttons {
+            let text = RichText::new(format!("{label}  {key}")).size(11.5).color(colour);
+            let button = Button::new(text)
+                .fill(t.card)
+                .stroke(Stroke::new(1.0, t.border))
+                .corner_radius(t.corner());
+            if ui.add(button).clicked() {
+                decision_now = Some(choice);
+            }
+        }
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ui
+                .add_enabled(false, Button::new(RichText::new("Apply rejects…").size(11.5)))
+                .on_disabled_hover_text("Apply arrives with the trash executor in M4")
+                .clicked()
+            {
+                decision_now = None;
+            }
+            if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
+                engine.cull_back();
+            }
+        });
+    });
+    if let Some(choice) = decision_now {
+        engine.cull_decide(choice);
+    }
+    if summary.is_complete() && summary.changed() > 0 {
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(format!(
+                "{} photos staged. Apply moves them to the bin once the trash executor lands.",
+                summary.changed()
+            ))
+            .size(10.5)
+            .color(t.text_faint),
+        );
+    }
 }
 
 fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {
@@ -1188,4 +1461,30 @@ fn format_count(count: u64) -> String {
 #[allow(dead_code)]
 fn cell_size(width: f32, columns: usize, gap: f32) -> Vec2 {
     vec2(((width - gap * columns.saturating_sub(1) as f32) / columns as f32).max(1.0), 0.0)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fit_rect_keeps_the_aspect_and_stays_inside() {
+        let bounds = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
+        let portrait = fit_rect(bounds, 0.5);
+        assert!((portrait.width() / portrait.height() - 0.5).abs() < 0.001);
+        assert!(bounds.contains_rect(portrait));
+        assert_eq!(portrait.center(), bounds.center());
+
+        let wide = fit_rect(bounds, 2.0);
+        assert!(wide.width() <= bounds.width() + 0.001);
+        assert!(bounds.contains_rect(wide));
+    }
+
+    #[test]
+    fn a_nonsense_aspect_falls_back_to_three_by_two() {
+        let bounds = Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 300.0));
+        let fitted = fit_rect(bounds, 0.0);
+        assert!((fitted.width() / fitted.height() - 1.5).abs() < 0.001);
+    }
 }

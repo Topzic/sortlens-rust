@@ -155,7 +155,23 @@ external-change detection lands, so a stale sidecar cannot quietly undo a cull.
 
 Nothing is written until Apply, so a discarded session leaves the library exactly as it was.
 
+## 2026-11-21 — M4: the cull view
+
+- ui: `View::Cull` with a start screen (photo count from the current filters, "Start culling N
+  photos"), a canvas that letterboxes the current photo at its own aspect, the decision badge,
+  an "up next" strip of the following four photos (click to jump), a progress bar, live
+  pick/reject/defer counts, and the P/X/U/Space/←/C keys
+- `C` starts a session from the filters even with nothing selected; a session is a fixed queue, so
+  changing filters afterwards cannot silently change what is being culled
+- in a session P/X/U stage decisions instead of writing flags; outside one they keep their old
+  meaning. Apply stays disabled and names its milestone: nothing moves yet
+- `fit_rect` and its fallback are unit tested
+- 112 tests, CI and wasm green
+
+Not built: the summary sheet with an applied-batch receipt, gesture culling, zoom/pan and session
+persistence. The cull view is real; Apply is still explicitly disabled.
+
 ## Next
 
-The cull view: canvas with the current photo, up-next strip, action bar with live counts, P/X/U/Space
-decisions, and session persistence so a crash resumes at the same photo.
+Session persistence: save the cull queue, cursor and staged decisions, resume after a crash, and
+clear the file when a session ends.

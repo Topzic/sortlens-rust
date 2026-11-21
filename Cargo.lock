@@ -3671,6 +3671,7 @@ dependencies = [
  "egui",
  "serde",
  "sortlens-core",
+ "sortlens-cull",
  "sortlens-engine",
  "sortlens-thumbs",
 ]

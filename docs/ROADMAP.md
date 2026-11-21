@@ -144,9 +144,11 @@ the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
 
 - [x] `sortlens-cull` state machine + transition table tests (A) — SL-C09
 - [ ] Session persistence + resume + crash resume (A) — SL-C07
-- [ ] Cull view: canvas, up-next strip, action bar, summary (B) — SL-C01/C06/C17
+- [x] Cull view: canvas, up-next strip, action bar, live counts (B) — SL-C01/C06/C17
+- [ ] Cull summary sheet + applied-batch receipt (B) — SL-C17
 - [ ] Overlays inside image bounds + two-phase animation + reduced motion (B) — SL-C04
-- [ ] Keyboard decisions + gestures (B) — SL-C02/C03
+- [x] Keyboard decisions: P/X/Space/U/←/C (B) — SL-C02
+- [ ] Gestures (drag up/down) (B) — SL-C03
 - [ ] Zoom levels + pan (B) — SL-C05? (zoom) SL-C02
 - [ ] Prefetch 3 ahead with priority (C) — SL-C05
 - [ ] Staging + Apply plan dialog (counts/size/list) (A,B) — SL-C10
