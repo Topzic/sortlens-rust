@@ -271,6 +271,27 @@ impl Catalog {
         self.photos.values().filter(|photo| filter.matches(photo)).count()
     }
 
+    /// Photos the catalog believes are missing.
+    pub fn missing_photos(&self) -> Vec<Photo> {
+        self.photos.values().filter(|photo| photo.missing).cloned().collect()
+    }
+
+    /// Remove every photo currently marked missing. Returns how many went.
+    pub fn remove_missing(&mut self) -> Result<usize> {
+        let missing: Vec<Photo> = self.photos.values().filter(|photo| photo.missing).cloned().collect();
+        let removed = missing.len();
+        if missing.is_empty() {
+            return Ok(0);
+        }
+        // One group, so undoing brings the whole purge back rather than the last photo only.
+        let ops = missing
+            .into_iter()
+            .map(|photo| Op::RemovePhoto { photo: Box::new(photo) })
+            .collect();
+        self.commit(Op::Group { ops })?;
+        Ok(removed)
+    }
+
     /// Every keyword in use, most used first, then alphabetically.
     pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
         let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
@@ -364,6 +385,26 @@ impl Catalog {
                     }
                 }
                 Ok(Op::Flag { changes: previous })
+            }
+            Op::Relocate { changes } => {
+                // Undoing a relocation means putting the old path back and, if the photo was missing
+                // before, being missing again — so the inverse is a small ordered group.
+                let mut inverse = Vec::new();
+                for (id, rel) in changes {
+                    let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+                    if &photo.rel != rel {
+                        inverse.push(Op::Relocate {
+                            changes: vec![(*id, photo.rel.clone())],
+                        });
+                        inverse.push(Op::Missing {
+                            id: *id,
+                            missing: photo.missing,
+                        });
+                        photo.rel = rel.clone();
+                        photo.missing = false;
+                    }
+                }
+                Ok(Op::Group { ops: inverse })
             }
             Op::Group { ops } => {
                 // Apply in order, undo in reverse order, so a group behaves like one operation.
@@ -764,6 +805,58 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn relocating_a_photo_clears_missing_and_undoes() {
+        let temp = TempCatalog::new("relocate");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Missing {
+                id: PhotoId(1),
+                missing: true,
+            })
+            .expect("missing");
+
+        catalog
+            .commit(Op::Relocate {
+                changes: vec![(PhotoId(1), "moved/a.jpg".into())],
+            })
+            .expect("relocate");
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.rel, "moved/a.jpg");
+        assert!(!photo.missing);
+
+        assert!(catalog.undo().expect("undo"));
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.rel, "a.jpg");
+        assert!(photo.missing, "undo puts the missing state back too");
+    }
+
+    #[test]
+    fn removing_missing_photos_keeps_the_rest_and_undoes() {
+        let temp = TempCatalog::new("remove-missing");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Missing {
+                id: PhotoId(2),
+                missing: true,
+            })
+            .expect("missing");
+        assert_eq!(catalog.missing_photos().len(), 1);
+
+        assert_eq!(catalog.remove_missing().expect("remove"), 1);
+        assert_eq!(catalog.count(&Filter::default()), 1);
+        assert!(catalog.undo().expect("undo"));
+        // The photo comes back still marked missing, exactly as it was before the purge.
+        assert!(catalog.photo(PhotoId(2)).is_some());
+        let with_missing = Filter {
+            include_missing: true,
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&with_missing), 2);
     }
 
     #[test]

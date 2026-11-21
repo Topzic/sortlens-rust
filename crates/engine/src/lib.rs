@@ -147,6 +147,107 @@ impl Engine {
         }
     }
 
+    /// Check every photo against the disk and record what changed.
+    ///
+    /// This is the "library doctor": it stats each file, then commits one group of missing flags, so
+    /// the health report and the badges agree and the whole check is one undo step.
+    pub fn check_health(&mut self) -> Result<Health> {
+        let mut health = Health::default();
+        let photos: Vec<(PhotoId, String, bool)> = self
+            .all_photos()
+            .into_iter()
+            .map(|photo| (photo.id, photo.root.clone(), photo.rel.clone()))
+            .map(|(id, root, rel)| (id, format!("{root}/{rel}"), false))
+            .collect();
+        let mut changes = Vec::new();
+        for (id, _path, _) in &photos {
+            let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            let exists = PathBuf::from(&photo.root).join(&photo.rel).exists();
+            health.checked += 1;
+            if exists {
+                health.present += 1;
+                if photo.missing {
+                    changes.push((*id, false));
+                }
+            } else {
+                health.missing += 1;
+                if !photo.missing {
+                    changes.push((*id, true));
+                }
+            }
+        }
+        if !changes.is_empty() {
+            let ops = changes
+                .iter()
+                .map(|(id, missing)| Op::Missing {
+                    id: *id,
+                    missing: *missing,
+                })
+                .collect();
+            self.mutate(Op::Group { ops })?;
+        }
+        health.changed = changes.len();
+        Ok(health)
+    }
+
+    /// Look for missing photos elsewhere under their root and record the new paths.
+    ///
+    /// Matching is by content key — size plus a hash of the ends — so a moved or renamed file is
+    /// found without reading every byte.
+    pub fn relocate_missing(&mut self) -> Result<usize> {
+        let missing = self.catalog.as_ref().map(|catalog| catalog.missing_photos()).unwrap_or_default();
+        if missing.is_empty() {
+            return Ok(0);
+        }
+        let mut by_root: std::collections::BTreeMap<String, Vec<Photo>> = std::collections::BTreeMap::new();
+        for photo in missing {
+            by_root.entry(photo.root.clone()).or_default().push(photo);
+        }
+        let mut changes = Vec::new();
+        for (root, photos) in by_root {
+            let Ok(report) = sortlens_scan::scan_root(&PathBuf::from(&root)) else {
+                continue;
+            };
+            let taken: std::collections::HashSet<String> = self
+                .all_photos()
+                .into_iter()
+                .filter(|photo| photo.root == root && !photo.missing)
+                .map(|photo| photo.rel)
+                .collect();
+            for photo in photos {
+                if let Some(found) = report
+                    .files
+                    .iter()
+                    .find(|file| file.size == photo.size && file.key == photo.key && !taken.contains(&file.rel))
+                {
+                    changes.push((photo.id, found.rel.clone()));
+                }
+            }
+        }
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        let count = changes.len();
+        self.mutate(Op::Relocate { changes })?;
+        Ok(count)
+    }
+
+    /// Remove every photo the catalog believes is missing.
+    pub fn remove_missing(&mut self) -> Result<usize> {
+        match self.catalog.as_mut() {
+            Some(catalog) => catalog.remove_missing(),
+            None => Ok(0),
+        }
+    }
+
+    /// Every photo in the library, whatever the filters.
+    fn all_photos(&self) -> Vec<Photo> {
+        match &self.catalog {
+            Some(catalog) => catalog.page(&Filter::default(), Sort::Natural, 0, 1_000_000).photos,
+            None => Vec::new(),
+        }
+    }
+
     /// Applied batches, newest last, for the rejects bin.
     pub fn deleted_batches(&self) -> &[sortlens_cull::trash::DeletedBatch] {
         &self.deleted
@@ -926,6 +1027,17 @@ impl Engine {
                 Ok(json!({ "cleared": true }))
             }
             "cull.summary" => Ok(self.cull_summary()),
+            "library.health" => {
+                let health = self.check_health()?;
+                Ok(json!({
+                    "checked": health.checked,
+                    "present": health.present,
+                    "missing": health.missing,
+                    "changed": health.changed,
+                }))
+            }
+            "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
+            "library.removeMissing" => Ok(json!({ "removed": self.remove_missing()? })),
             "library.deleted" => {
                 let batches: Vec<Value> = self
                     .deleted
@@ -1022,6 +1134,19 @@ impl Engine {
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
         }
     }
+}
+
+/// What a health check found.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Health {
+    /// Photos examined.
+    pub checked: usize,
+    /// Photos whose file is there.
+    pub present: usize,
+    /// Photos whose file is gone.
+    pub missing: usize,
+    /// Photos whose missing state changed during this check.
+    pub changed: usize,
 }
 
 /// Keywords are trimmed, lowercased and length-bounded so the vocabulary stays usable.
@@ -1366,6 +1491,58 @@ mod tests {
         assert!(engine.cull().is_none());
 
         let _ = std::fs::remove_dir_all(&destination);
+    }
+
+    #[test]
+    fn health_check_marks_missing_photos_and_a_moved_file_is_found() {
+        let folder = Temp::new("health-photos");
+        std::fs::create_dir_all(folder.0.join("day1")).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"photo-a").expect("write");
+        std::fs::write(folder.0.join("day1/b.jpg"), b"photo-b").expect("write");
+        let (_lib, mut engine) = library("health");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let a = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        let clean = engine.run("library.health", &json!({})).expect("health");
+        assert_eq!(clean["missing"], 0);
+        assert_eq!(clean["checked"], 2);
+
+        // Move one file to a new subfolder: the catalog still points at the old path.
+        let moved = folder.0.join("day1/a.jpg");
+        std::fs::rename(folder.0.join("a.jpg"), &moved).expect("move");
+        let after = engine.run("library.health", &json!({})).expect("health");
+        assert_eq!(after["missing"], 1);
+        assert!(engine.photo(a).expect("photo").missing);
+
+        let relocated = engine.run("library.relocate", &json!({})).expect("relocate");
+        assert_eq!(relocated["relocated"], 1);
+        let photo = engine.photo(a).expect("photo");
+        assert_eq!(photo.rel, "day1/a.jpg");
+        assert!(!photo.missing, "a found photo is no longer missing");
+        assert_eq!(engine.run("library.health", &json!({})).expect("health")["missing"], 0);
+    }
+
+    #[test]
+    fn removing_missing_photos_can_be_undone() {
+        let folder = Temp::new("health-remove-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let (_lib, mut engine) = library("health-remove");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        std::fs::remove_file(folder.0.join("a.jpg")).expect("remove");
+        engine.check_health().expect("health");
+
+        assert_eq!(engine.run("library.removeMissing", &json!({})).expect("remove")["removed"], 1);
+        assert_eq!(engine.count(&Filter::default()), 1);
+        assert!(engine.undo().expect("undo"));
+        let with_missing = Filter {
+            include_missing: true,
+            ..Filter::default()
+        };
+        assert_eq!(engine.count(&with_missing), 2);
     }
 
     #[test]

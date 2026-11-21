@@ -30,6 +30,8 @@ pub enum Op {
     Label { changes: Vec<(PhotoId, Option<ColorLabel>)> },
     /// Keyword tags replaced on the listed photos. Each list is the complete new set, sorted.
     Tagged { changes: Vec<(PhotoId, Vec<String>)> },
+    /// Photos were found at a new path inside the same root.
+    Relocate { changes: Vec<(PhotoId, String)> },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -47,6 +49,7 @@ impl Op {
             Self::Flag { .. } => "flag",
             Self::Label { .. } => "label",
             Self::Tagged { .. } => "tagged",
+            Self::Relocate { .. } => "relocate",
             Self::Group { .. } => "group",
         }
     }

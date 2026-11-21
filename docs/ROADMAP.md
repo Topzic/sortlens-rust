@@ -170,7 +170,7 @@ same photo; apply 148 rejects to trash; undo restores all 148.
 - [ ] Collections CRUD + add/remove + favourites/colours/search/sort (A,B) — SL-G01..G04
 - [ ] Batch move with verification + undo (A) — SL-G07
 - [ ] Inline tagging + re-apply last tags in cull (B) — SL-C11/C12
-- [ ] Library doctor: missing/moved/unreadable + remove-missing (A,B) — SL-H07/H08/A13
+- [x] Library doctor: check, find-moved-by-content-key, remove-missing, all undoable (A,B) — SL-H07/H08/A13
 - [ ] First-run wizard (library → folder → remote test) (B) — SL-I12
 - [ ] Tag rename/merge UI (B) — SL-D06
 

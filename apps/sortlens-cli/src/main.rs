@@ -24,6 +24,8 @@ Commands:
   tag <id> <keyword>        add a keyword
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
+  check                     verify every indexed file is still on disk
+  relocate                  find missing files elsewhere under their root
   list [--tag KW]           filter the listing by keyword
   undo                      undo the last change
   report                    support report
@@ -164,6 +166,23 @@ fn run() -> Result<(), String> {
             for (tag, count) in vocabulary {
                 println!("{count:>6}  {tag}");
             }
+            Ok(())
+        }
+        "check" => {
+            let value = engine
+                .run("library.health", &serde_json::json!({}))
+                .map_err(|error| error.to_string())?;
+            println!(
+                "{} of {} files present, {} missing",
+                value["present"], value["checked"], value["missing"]
+            );
+            Ok(())
+        }
+        "relocate" => {
+            let value = engine
+                .run("library.relocate", &serde_json::json!({}))
+                .map_err(|error| error.to_string())?;
+            println!("relocated {}", value["relocated"]);
             Ok(())
         }
         "undo" => {

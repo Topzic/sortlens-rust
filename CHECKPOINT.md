@@ -228,7 +228,24 @@ Trash. `Mode::Trash` has no automated test because it would write to the real Tr
 Not built: emptying the bin (permanent delete from Sortlens) and restoring trashed files, which
 stays a Finder/Explorer action.
 
+## 2026-11-21 — M5: library health
+
+- catalog: `Op::Relocate` (new path, clears missing; undo restores the old path *and* the missing
+  state as a small ordered group), `missing_photos()`, and `remove_missing()` which purges as one
+  group so a single undo brings the whole purge back
+- engine: `check_health()` stats every file and commits one group of missing flags (report + badges
+  agree, one undo step); `relocate_missing()` rescans each root and matches missing photos by content
+  key under the same root; `remove_missing()`; commands `library.health`, `library.relocate`,
+  `library.removeMissing`
+- ui: "Library health" sidebar row opening a dialog with the last result and the three actions, each
+  labelled with what it does
+- cli: `check` and `relocate`
+- tests: relocate clearing missing + undo restoring both path and state, purge as one undoable group,
+  engine health check detecting a moved file, relocate finding it by key, and remove-missing undo
+- 136 tests, CI and wasm green; CLI smoke test moved a file, saw `1 of 2 missing`, relocated it and
+  read back the new relative path
+
 ## Next
 
-Library health: detect missing and moved photos, offer to relocate by content key, and remove
-entries whose files are gone for good.
+M5 collections: named sets with add/remove, persistence in the op log, a sidebar section, and
+filters that combine with the existing chips.

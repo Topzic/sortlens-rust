@@ -184,6 +184,10 @@ pub struct UiState {
     pub apply_open: bool,
     /// Whether the rejects bin is showing.
     pub deleted_open: bool,
+    /// Whether the library health dialog is showing.
+    pub health_open: bool,
+    /// Last health check: (checked, present, missing).
+    pub health: Option<(usize, usize, usize)>,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -216,6 +220,8 @@ impl UiState {
             delete_mode: DeleteMode::Trash,
             apply_open: false,
             deleted_open: false,
+            health_open: false,
+            health: None,
             notice: None,
         }
     }
@@ -315,6 +321,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.deleted_open {
         deleted_dialog(ui, state, &t, engine);
+    }
+    if state.health_open {
+        health_dialog(ui, state, &t, engine);
     }
 
     if state.live_notice().is_some() {
@@ -455,6 +464,9 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 );
             }
 
+            if nav_row(ui, t, "Library health", "", false).clicked() {
+                state.health_open = true;
+            }
             let deleted = engine.deleted_batches().len();
             if nav_row(ui, t, "Recently Deleted", &format_count(deleted as u64), false).clicked() {
                 state.deleted_open = true;
@@ -1399,6 +1411,69 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             );
         });
     state.deleted_open = open;
+}
+
+fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let mut open = state.health_open;
+    egui::Window::new("Library health")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(400.0)
+        .show(ui.ctx(), |ui| {
+            match state.health {
+                Some((checked, present, missing)) => {
+                    ui.label(
+                        RichText::new(format!("{present} of {checked} files present · {missing} missing"))
+                            .size(12.5)
+                            .strong(),
+                    );
+                }
+                None => hint(ui, t, "Not checked yet."),
+            }
+            ui.add_space(8.0);
+            if ui.button(RichText::new("Check library").size(11.5)).clicked() {
+                match engine.check_health() {
+                    Ok(health) => {
+                        state.health = Some((health.checked, health.present, health.missing));
+                        state.notice(format!("Checked {} files · {} missing", health.checked, health.missing));
+                    }
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
+            ui.label(
+                RichText::new("Stats every file and updates the missing badges in one undoable step.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(8.0);
+            if ui.button(RichText::new("Find moved photos").size(11.5)).clicked() {
+                match engine.relocate_missing() {
+                    Ok(0) => state.notice("No moved photos found under their roots"),
+                    Ok(count) => state.notice(format!("Relocated {count} photo(s)")),
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
+            ui.label(
+                RichText::new("Matches missing photos by content key under the same root.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(8.0);
+            if ui.button(RichText::new("Remove missing from library").size(11.5)).clicked() {
+                match engine.remove_missing() {
+                    Ok(0) => state.notice("Nothing is marked missing"),
+                    Ok(count) => state.notice(format!("Removed {count} missing photo(s) — undo restores them")),
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
+            ui.label(
+                RichText::new("Removes catalog entries only; the files are already gone.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        });
+    state.health_open = open;
 }
 
 fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
