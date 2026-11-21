@@ -86,6 +86,8 @@ pub struct Seed {
     pub meta: PhotoMeta,
     /// Review state read from the photo's XMP sidecar, applied when the photo is first indexed.
     pub review: Option<Review>,
+    /// Whether the sidecar carries edit settings from another application.
+    pub edited: bool,
 }
 
 /// The catalog.
@@ -664,6 +666,7 @@ impl Catalog {
                     self.next_id += 1;
                     let mut photo = Photo::from_scan(id, root, &seed.rel, seed.size, seed.modified, seed.kind, seed.key);
                     photo.apply_meta(&seed.meta);
+                    photo.edited = seed.edited;
                     if let Some(review) = &seed.review {
                         photo.adopt_review(review);
                     }
@@ -689,6 +692,7 @@ impl Catalog {
                     updated.key = seed.key;
                     updated.missing = false;
                     updated.apply_meta(&seed.meta);
+                    updated.edited = seed.edited;
                     self.commit(Op::AddPhoto { photo: Box::new(updated) })?;
                     outcome.updated += 1;
                 }
@@ -821,6 +825,7 @@ mod tests {
             key: 7,
             meta: PhotoMeta::default(),
             review: None,
+            edited: false,
         }
     }
 
@@ -976,6 +981,41 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn kind_and_edited_filters_narrow_the_view() {
+        let temp = TempCatalog::new("kind-filter");
+        let (mut catalog, _) = temp.open();
+        let mut raw = seed("b.cr3");
+        raw.kind = MediaKind::Raw;
+        raw.key = 8;
+        let mut video = seed("c.mov");
+        video.kind = MediaKind::Video;
+        video.key = 9;
+        catalog.sync_root("/photos", vec![seed("a.jpg"), raw, video]).expect("sync");
+
+        let raws = Filter {
+            kind: Some(MediaKind::Raw),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&raws), 1);
+        let images = Filter {
+            kind: Some(MediaKind::Image),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&images), 1);
+
+        let edited = Filter {
+            edited: Some(true),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&edited), 0, "nothing is edited yet");
+        let unedited = Filter {
+            edited: Some(false),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&unedited), 3);
     }
 
     #[test]

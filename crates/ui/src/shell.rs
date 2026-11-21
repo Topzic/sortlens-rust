@@ -194,6 +194,10 @@ pub struct UiState {
     pub folder: String,
     /// Order the grid is shown in.
     pub sort: Sort,
+    /// Only photos, raws or videos.
+    pub kind_filter: Option<MediaKind>,
+    /// Show only edited photos, or only unedited ones.
+    pub edited_filter: Option<bool>,
     /// Only this collection, chosen in the sidebar.
     pub collection_filter: Option<sortlens_core::CollectionId>,
     /// Collection being renamed, with its draft name.
@@ -234,6 +238,8 @@ impl UiState {
             health: None,
             folder: String::new(),
             sort: Sort::Natural,
+            kind_filter: None,
+            edited_filter: None,
             collection_filter: None,
             rename_target: None,
             notice: None,
@@ -263,6 +269,8 @@ impl UiState {
             tag: self.tag_filter.clone(),
             collection: self.collection_filter,
             folder: (self.root.is_some() && !self.folder.is_empty()).then(|| self.folder.clone()),
+            kind: self.kind_filter,
+            edited: self.edited_filter,
             include_missing: self.show_missing,
             ..Filter::default()
         }
@@ -276,6 +284,8 @@ impl UiState {
             || self.tag_filter.is_some()
             || self.collection_filter.is_some()
             || !self.folder.is_empty()
+            || self.kind_filter.is_some()
+            || self.edited_filter.is_some()
             || self.show_missing
             || self.root.is_some()
             || !self.search.is_empty()
@@ -289,6 +299,8 @@ impl UiState {
         self.tag_filter = None;
         self.collection_filter = None;
         self.folder.clear();
+        self.kind_filter = None;
+        self.edited_filter = None;
         self.show_missing = false;
         self.root = None;
     }
@@ -1134,6 +1146,34 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                                 .unwrap_or(0);
                             sortlens_core::ColorLabel::ALL.get(index + 1).copied()
                         }
+                    };
+                }
+
+                let kind_label = match state.kind_filter {
+                    None => "All kinds".to_string(),
+                    Some(MediaKind::Image) => "Photos".to_string(),
+                    Some(MediaKind::Raw) => "RAW".to_string(),
+                    Some(MediaKind::Video) => "Videos".to_string(),
+                };
+                if chip(ui, t, &kind_label, state.kind_filter.is_some()).clicked() {
+                    state.kind_filter = match state.kind_filter {
+                        None => Some(MediaKind::Image),
+                        Some(MediaKind::Image) => Some(MediaKind::Raw),
+                        Some(MediaKind::Raw) => Some(MediaKind::Video),
+                        Some(MediaKind::Video) => None,
+                    };
+                }
+
+                let edited_label = match state.edited_filter {
+                    None => "Edited".to_string(),
+                    Some(true) => "Edited only".to_string(),
+                    Some(false) => "Unedited".to_string(),
+                };
+                if chip(ui, t, &edited_label, state.edited_filter.is_some()).clicked() {
+                    state.edited_filter = match state.edited_filter {
+                        None => Some(true),
+                        Some(true) => Some(false),
+                        Some(false) => None,
                     };
                 }
 

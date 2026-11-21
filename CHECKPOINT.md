@@ -290,7 +290,23 @@ Not built: collection favourites, colours, per-collection search/sort, and reord
 Per-view orders (a separate order for collections or folders) are not built: one order applies to
 the whole library view.
 
+## 2026-11-21 — M3: kind and edited filters
+
+- sidecar: `has_edits(text)` recognises develop settings by their namespaces (`crs:`, `xmpMM:History`,
+  `xmp:History`, `darktable:`, `photoshop:History`), so a sidecar with only stars or keywords is not
+  an edit, and `read_text` gives callers the whole document
+- scan: reads the sidecar once per file and fills both the review and a new `edited` flag
+- catalog: `Photo.edited`, `Seed.edited`, `Filter.kind` and `Filter.edited`
+- ui: the filter strip cycles "All kinds → Photos → RAW → Videos" and "Edited → Edited only →
+  Unedited", and both clear with the rest
+- tests: edit markers recognised and our own sidecar not, scan marking an edited photo from a `crs:`
+  sidecar and not from a rating, catalog kind/edited counts
+- 149 tests, CI and wasm green; CLI smoke test indexed a photo with a `crs:` sidecar
+
+"Edited" means the sidecar carries someone's develop settings — detection happens at index time, so
+a photo edited after it was scanned shows as edited only after a rescan.
+
 ## Next
 
-Filter by kind and edited state: chips for photos, raws and videos, plus an "edited" flag, so a
-mixed library can be narrowed the way the vendor app allows.
+Detail view: a single-photo canvas with EXIF, previous/next navigation and a zoom toggle, so the
+library can be inspected without leaving the grid.

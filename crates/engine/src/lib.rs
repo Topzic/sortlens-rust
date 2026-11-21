@@ -595,6 +595,7 @@ impl Engine {
                 key: file.key,
                 meta: file.meta.clone(),
                 review: file.review.clone(),
+                edited: file.edited,
             })
             .collect();
         let errors: Vec<String> = report

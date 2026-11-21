@@ -43,9 +43,31 @@ impl Sidecar {
     }
 }
 
+/// Whether a sidecar carries edit settings from another application.
+///
+/// A sidecar alone means keywords or a rating; `crs:` (Camera Raw settings), a history block or a
+/// develop recipe mean the pixels were edited somewhere. That is the difference the "edited" filter
+/// needs, and it is a property of the sidecar rather than of any one field Sortlens writes.
+pub fn has_edits(text: &str) -> bool {
+    const MARKERS: &[&str] = &[
+        "crs:",
+        "xmpMM:History",
+        "<xmp:History>",
+        "xmp:History",
+        "darktable:",
+        "photoshop:History",
+    ];
+    MARKERS.iter().any(|marker| text.contains(marker))
+}
+
 /// Where the sidecar for an image lives: same folder, same stem, `.xmp`.
 pub fn path_for(image: &Path) -> PathBuf {
     image.with_extension("xmp")
+}
+
+/// Read the sidecar text beside an image, for checks that need the whole document.
+pub fn read_text(image: &Path) -> Option<String> {
+    fs::read_to_string(path_for(image)).ok()
 }
 
 /// Read the sidecar beside an image. `Ok(None)` when there is none.
@@ -479,6 +501,17 @@ mod tests {
     fn sidecar_paths_replace_the_extension() {
         assert_eq!(path_for(Path::new("/photos/IMG_1.CR3")), PathBuf::from("/photos/IMG_1.xmp"));
         assert_eq!(path_for(Path::new("/photos/IMG_1.jpg")), PathBuf::from("/photos/IMG_1.xmp"));
+    }
+
+    #[test]
+    fn edits_are_recognised_by_their_namespaces() {
+        let plain = merge(None, &sample());
+        assert!(!has_edits(&plain), "our own sidecar is not an edit");
+
+        let edited = r#"<rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="+0.5"/>"#;
+        assert!(has_edits(edited));
+        assert!(has_edits("<xmpMM:History><rdf:Seq/></xmpMM:History>"));
+        assert!(has_edits("<darktable:history_end>4</darktable:history_end>"));
     }
 
     #[test]

@@ -30,6 +30,10 @@ pub struct Filter {
     pub tag: Option<String>,
     /// Only photos in this collection. Membership is resolved by the catalog, not here.
     pub collection: Option<sortlens_core::CollectionId>,
+    /// Only photos, raws or videos.
+    pub kind: Option<sortlens_core::MediaKind>,
+    /// `Some(true)` for edited photos only, `Some(false)` for unedited only.
+    pub edited: Option<bool>,
     /// Include entries whose file is missing.
     pub include_missing: bool,
     /// Restricted id set, used by selection and by collection views.
@@ -78,6 +82,16 @@ impl Filter {
         }
         if let Some(tag) = &self.tag
             && !photo.has_tag(tag)
+        {
+            return false;
+        }
+        if let Some(kind) = self.kind
+            && photo.kind != kind
+        {
+            return false;
+        }
+        if let Some(edited) = self.edited
+            && photo.edited != edited
         {
             return false;
         }

@@ -52,10 +52,10 @@ pub fn is_sidecar(extension: &str) -> bool {
     sortlens_core::media::is_sidecar_extension(extension)
 }
 
-/// Read a photo's sidecar, if it has one. An unreadable sidecar is not a scan failure: the photo
-/// still belongs in the library, it just arrives without a review.
-fn sidecar_review(path: &Path) -> Option<Review> {
-    let sidecar = sortlens_sidecar::read(path).ok().flatten()?;
+/// The review a sidecar carries. An unreadable sidecar is not a scan failure: the photo still
+/// belongs in the library, it just arrives without a review.
+fn sidecar_review(text: &str) -> Option<Review> {
+    let sidecar = sortlens_sidecar::parse(text);
     let review = Review {
         rating: sidecar.rating,
         flag: sidecar.flag,
@@ -86,6 +86,8 @@ pub struct ScannedFile {
     pub meta: PhotoMeta,
     /// Review state from the photo's sidecar, when one exists beside it.
     pub review: Option<Review>,
+    /// Whether the sidecar carries edit settings from another application.
+    pub edited: bool,
 }
 
 /// Why a candidate was skipped, counted rather than listed one by one.
@@ -328,7 +330,9 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
             };
             let rel = relative_path(&root, &path);
             let meta = sortlens_meta::read(&path);
-            let review = sidecar_review(&path);
+            let sidecar_text = sortlens_sidecar::read_text(&path);
+            let review = sidecar_text.as_deref().and_then(sidecar_review);
+            let edited = sidecar_text.as_deref().is_some_and(sortlens_sidecar::has_edits);
             report.files.push(ScannedFile {
                 path,
                 rel,
@@ -339,6 +343,7 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
                 depth,
                 meta,
                 review,
+                edited,
             });
         }
 
@@ -469,6 +474,29 @@ mod tests {
 
         let without = report.files.iter().find(|file| file.rel == "b.jpg").expect("b.jpg");
         assert!(without.review.is_none());
+    }
+
+    #[test]
+    fn a_sidecar_with_edit_settings_marks_the_photo_edited() {
+        let tree = TempTree::new("edited");
+        let image = tree.file("a.jpg", 4);
+        let plain = tree.file("b.jpg", 4);
+        std::fs::write(
+            plain.with_extension("xmp"),
+            sortlens_sidecar::merge(None, &sortlens_sidecar::Sidecar::new(3, sortlens_core::Flag::None, None, vec![])),
+        )
+        .expect("sidecar");
+        std::fs::write(
+            image.with_extension("xmp"),
+            r#"<rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="+1.0"/>"#,
+        )
+        .expect("edited sidecar");
+
+        let report = scan_root(&tree.0).expect("scan");
+        let edited = report.files.iter().find(|file| file.rel == "a.jpg").expect("a.jpg");
+        assert!(edited.edited);
+        let plain = report.files.iter().find(|file| file.rel == "b.jpg").expect("b.jpg");
+        assert!(!plain.edited, "a rating is not an edit");
     }
 
     #[test]

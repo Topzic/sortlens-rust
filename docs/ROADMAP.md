@@ -125,7 +125,8 @@ scans headlessly and prints a JSON report.
 - [ ] External-change detection for already-known photos + retry queue (A) — SL-D11
 - [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11
 - [ ] Rating/flag/label pill + inspector + context menus (B) — SL-D01..D03
-- [ ] Filter bar: rating op, flags, labels, tags ANY/ALL, kind, pickers, badge, clear (B) — SL-B07..B13
+- [x] Filter bar: rating, flags, labels, keyword, collection, kind, edited, missing, clear (B) — SL-B07..B13
+- [ ] Tag ANY/ALL, filter pickers, active-filter badge (B)
 - [x] Sort keys: added/name/newest/oldest/largest/rating, persisted (B) — SL-B06
 - [ ] Detail view + EXIF panel + counter + lookahead (B) — SL-B18..B21
 - [ ] Shortcut overlay + full keymap wiring (B) — SL-B23

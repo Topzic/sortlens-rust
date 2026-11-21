@@ -69,6 +69,9 @@ pub struct Photo {
     /// Keyword tags, sorted and deduplicated, lowercase as typed by the user.
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Whether another application has edit settings for this photo.
+    #[serde(default)]
+    pub edited: bool,
 }
 
 impl Photo {
@@ -98,6 +101,7 @@ impl Photo {
             shutter: None,
             focal: None,
             tags: Vec::new(),
+            edited: false,
         }
     }
 
