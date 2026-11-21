@@ -7,6 +7,8 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
+pub mod trash;
+
 use serde::{Deserialize, Serialize};
 use sortlens_core::{Flag, PhotoId};
 use std::collections::BTreeMap;
@@ -277,7 +279,7 @@ impl Session {
     }
 
     /// Photos staged for rejection, in queue order.
-    pub fn rejects(&mut self) -> Vec<PhotoId> {
+    pub fn rejects(&self) -> Vec<PhotoId> {
         self.changed()
             .into_iter()
             .filter(|(_, decision)| *decision == Decision::Reject)

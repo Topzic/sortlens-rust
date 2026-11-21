@@ -185,7 +185,32 @@ persistence. The cull view is real; Apply is still explicitly disabled.
   file, and that a session whose photos are gone is discarded
 - 118 tests, CI and wasm green
 
+## 2026-11-21 — M4: staged deletes and Apply
+
+- `sortlens-cull::trash`: `Mode { Trash, Move(folder), TagOnly }`, `Candidate`, `Batch`, `audit`
+  (inside its root, still on disk, size and mtime unchanged, no symlink escape, destination
+  writable and not inside a watched root), `apply` (re-checks each file immediately before touching
+  it, per-item results), `undo` for moved files, and `apply_checked` which refuses the whole batch
+  when the audit fails — partial application is not an outcome
+- catalog: `Op::Group` applies in order and undoes in reverse, so an applied batch is one undo step
+- engine: `cull_apply(mode)` audits, disposes, then commits flags and missing marks as one group,
+  syncs sidecars for the touched photos, records an `Applied N photo(s)` job, clears the session,
+  and restores the session untouched when the audit refuses. `cull.apply` is Ready with
+  `{ mode: trash|tag|move, target }`
+- ui: "Apply rejects…" opens a confirmation with pick/reject counts and a delete-mode choice
+  (Trash or Tag only); Settings carries the same choice
+- tests: trash audit refusals (missing, changed, outside root, destination inside a root), move
+  preserves the relative path and undo restores it, tag-only moves nothing, undo of a trash batch
+  says to restore it by hand, grouped undo in the catalog, engine apply for tag-only and move,
+  and a changed file refusing the whole batch with the session kept
+- 130 tests, CI and wasm green (`trash` is a desktop-only dependency; the browser build keeps
+  tag-only)
+
+Not wired: undoing a batch restores catalog state only — moved files are put back by
+`sortlens_cull::trash::undo`, which the UI does not call yet, and trashed files stay in the system
+Trash. `Mode::Trash` has no automated test because it would write to the real Trash.
+
 ## Next
 
-Staged deletes and Apply: the trash executor with audit-before-act, per-item results and an
-inverse op, so a cull batch can actually move files and be undone.
+Rejects bin: a "Recently Deleted" source holding applied batches, plus wiring batch undo so the
+files move back with the catalog state.

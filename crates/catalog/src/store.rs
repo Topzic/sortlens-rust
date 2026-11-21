@@ -365,6 +365,15 @@ impl Catalog {
                 }
                 Ok(Op::Flag { changes: previous })
             }
+            Op::Group { ops } => {
+                // Apply in order, undo in reverse order, so a group behaves like one operation.
+                let mut inverses = Vec::with_capacity(ops.len());
+                for op in ops {
+                    inverses.push(self.apply(op)?);
+                }
+                inverses.reverse();
+                Ok(Op::Group { ops: inverses })
+            }
             Op::Tagged { changes } => {
                 let mut previous = Vec::new();
                 for (id, tags) in changes {
@@ -755,6 +764,34 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn a_group_undoes_as_one_step() {
+        let temp = TempCatalog::new("group");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Group {
+                ops: vec![
+                    Op::Flag {
+                        changes: vec![(PhotoId(1), Flag::Pick), (PhotoId(2), Flag::Reject)],
+                    },
+                    Op::Missing {
+                        id: PhotoId(2),
+                        missing: true,
+                    },
+                ],
+            })
+            .expect("group");
+
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").flag, Flag::Pick);
+        assert!(catalog.photo(PhotoId(2)).expect("photo").missing);
+
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").flag, Flag::None);
+        assert!(!catalog.photo(PhotoId(2)).expect("photo").missing);
+        assert_eq!(catalog.photo(PhotoId(2)).expect("photo").flag, Flag::None);
     }
 
     #[test]

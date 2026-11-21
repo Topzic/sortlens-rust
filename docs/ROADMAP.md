@@ -151,8 +151,9 @@ the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
 - [ ] Gestures (drag up/down) (B) — SL-C03
 - [ ] Zoom levels + pan (B) — SL-C05? (zoom) SL-C02
 - [ ] Prefetch 3 ahead with priority (C) — SL-C05
-- [ ] Staging + Apply plan dialog (counts/size/list) (A,B) — SL-C10
-- [ ] Trash executor: audit-before-act, verify, per-item results, inverse op (A) — SL-H01/H03
+- [ ] Apply confirmation with counts (A,B) — SL-C10; size/list still to come
+- [x] Staged deletes and Apply: audit, move/tag/trash, per-item results (A) — SL-C10
+- [x] Trash executor: audit-before-act, verify, per-item results, grouped inverse op (A) — SL-H01/H03
 - [ ] Quit guard for running jobs/unsaved sidecars (B) — SL-H12
 - [ ] Accessibility: decision announcements + button names (B) — SL-L02/L03
 - [ ] Tests: reject never deletes; skip preserves flags; apply idempotent; crash resume

@@ -258,7 +258,7 @@ impl Registry {
                     group: Group::Review,
                     shortcut: Some("Ctrl+Enter"),
                     menu: "Review > Apply Rejects",
-                    status: Status::Planned("M4"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "cull.undo",

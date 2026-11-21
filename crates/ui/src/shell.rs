@@ -104,6 +104,37 @@ pub enum Action {
     SetSidecars(bool),
 }
 
+/// What Apply does with rejected photos.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DeleteMode {
+    /// Send files to the operating system's trash.
+    #[default]
+    Trash,
+    /// Leave the files and record the decision.
+    TagOnly,
+}
+
+impl DeleteMode {
+    /// Every mode the UI can choose. Moving files arrives with the move feature.
+    pub const ALL: [Self; 2] = [Self::Trash, Self::TagOnly];
+
+    /// Label for the radio and the confirmation.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Trash => "Move to the Trash",
+            Self::TagOnly => "Tag only, move nothing",
+        }
+    }
+
+    /// The engine's mode.
+    pub fn mode(self) -> sortlens_cull::trash::Mode {
+        match self {
+            Self::Trash => sortlens_cull::trash::Mode::Trash,
+            Self::TagOnly => sortlens_cull::trash::Mode::TagOnly,
+        }
+    }
+}
+
 /// Everything the shell remembers between frames.
 #[derive(Debug, Clone)]
 pub struct UiState {
@@ -147,6 +178,10 @@ pub struct UiState {
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
     pub tag_focus: bool,
+    /// What Apply does with rejects.
+    pub delete_mode: DeleteMode,
+    /// Whether the Apply confirmation is showing.
+    pub apply_open: bool,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -176,6 +211,8 @@ impl UiState {
             tag_filter: None,
             tag_input: String::new(),
             tag_focus: false,
+            delete_mode: DeleteMode::Trash,
+            apply_open: false,
             notice: None,
         }
     }
@@ -269,6 +306,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.about_open {
         about_dialog(ui, state, &t, engine);
+    }
+    if state.apply_open {
+        apply_dialog(ui, state, &t, engine);
     }
 
     if state.live_notice().is_some() {
@@ -1239,11 +1279,11 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if ui
-                .add_enabled(false, Button::new(RichText::new("Apply rejects…").size(11.5)))
-                .on_disabled_hover_text("Apply arrives with the trash executor in M4")
+                .add_enabled(summary.rejects > 0, Button::new(RichText::new("Apply rejects…").size(11.5)))
+                .on_disabled_hover_text("Reject a photo first; picks and defers need no apply")
                 .clicked()
             {
-                decision_now = None;
+                state.apply_open = true;
             }
             if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
                 engine.cull_back();
@@ -1253,12 +1293,13 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     if let Some(choice) = decision_now {
         engine.cull_decide(choice);
     }
-    if summary.is_complete() && summary.changed() > 0 {
+    if summary.changed() > 0 {
         ui.add_space(4.0);
         ui.label(
             RichText::new(format!(
-                "{} photos staged. Apply moves them to the bin once the trash executor lands.",
-                summary.changed()
+                "{} photos staged. {} Apply to record the decisions — you can undo it as one step.",
+                summary.changed(),
+                state.delete_mode.label().to_lowercase()
             ))
             .size(10.5)
             .color(t.text_faint),
@@ -1278,6 +1319,63 @@ fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {
             ui.label(RichText::new(format!("Planned for {milestone}.")).size(12.0).color(t.text_muted));
         },
     );
+}
+
+fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let (rejects, picks) = match engine.cull() {
+        Some(session) => {
+            let summary = session.summary();
+            (summary.rejects, summary.picks)
+        }
+        None => (0, 0),
+    };
+    let mut open = state.apply_open;
+    egui::Window::new("Apply cull batch")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(380.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(format!("{rejects} rejects · {picks} picks")).size(13.0).strong());
+            ui.add_space(6.0);
+            ui.label(RichText::new("What happens to the rejects").size(11.0).color(t.text_muted));
+            for mode in DeleteMode::ALL {
+                if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
+                    state.delete_mode = mode;
+                }
+            }
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("Files that changed on disk since they were indexed stop the whole batch.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(rejects + picks > 0, Button::new(RichText::new("Apply").size(12.0)))
+                    .clicked()
+                {
+                    match engine.cull_apply(state.delete_mode.mode()) {
+                        Ok(report) => state.notice(format!(
+                            "Applied {} photo(s){}",
+                            report.applied.len(),
+                            if report.has_failures() {
+                                format!(", {} failed", report.failed.len())
+                            } else {
+                                String::new()
+                            }
+                        )),
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                    state.apply_open = false;
+                }
+                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                    state.apply_open = false;
+                }
+            });
+        });
+    state.apply_open = open;
 }
 
 fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
@@ -1307,6 +1405,13 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                     .size(10.5)
                     .color(t.text_faint),
             );
+            ui.add_space(8.0);
+            ui.label(RichText::new("Applying a cull batch").size(11.0).color(t.text_muted));
+            for mode in DeleteMode::ALL {
+                if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
+                    state.delete_mode = mode;
+                }
+            }
             ui.add_space(8.0);
             ui.label(
                 RichText::new("More settings arrive with the features they configure.")

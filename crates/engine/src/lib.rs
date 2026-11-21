@@ -473,6 +473,104 @@ impl Engine {
         Ok(total)
     }
 
+    /// Apply the session: commit every changed decision, then dispose of the rejects.
+    ///
+    /// The batch is audited first and the catalog change is one `Op::Group`, so a failed audit
+    /// leaves both the session and the catalog untouched, and one undo reverses the whole batch.
+    pub fn cull_apply(&mut self, mode: sortlens_cull::trash::Mode) -> Result<sortlens_cull::trash::Report> {
+        let Some(session) = self.cull.take() else {
+            return Err(Error::Invalid("no cull session is running".into()));
+        };
+        match self.apply_session(&session, mode) {
+            Ok(report) => Ok(report),
+            Err(error) => {
+                // A refused batch leaves the session exactly as it was.
+                self.cull = Some(session);
+                self.persist_cull();
+                Err(error)
+            }
+        }
+    }
+
+    fn apply_session(
+        &mut self,
+        session: &sortlens_cull::Session,
+        mode: sortlens_cull::trash::Mode,
+    ) -> Result<sortlens_cull::trash::Report> {
+        let changed = session.changed();
+        if changed.is_empty() {
+            return Err(Error::Invalid("nothing is staged yet".into()));
+        }
+        let mut candidates = Vec::new();
+        let mut flags = Vec::new();
+        for (id, decision) in &changed {
+            // Unknown ids are an error, not a silent skip: Apply must not quietly drop a decision.
+            self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            if let Some(flag) = decision.flag() {
+                flags.push((*id, flag));
+            }
+        }
+        for id in session.rejects() {
+            let photo = self.photo(id).ok_or(Error::NoSuchPhoto(id))?;
+            candidates.push(sortlens_cull::trash::Candidate {
+                id,
+                path: PathBuf::from(&photo.root).join(&photo.rel),
+                root: PathBuf::from(&photo.root),
+                size: photo.size,
+                modified: photo.modified,
+            });
+        }
+
+        let batch = sortlens_cull::trash::Batch { mode, candidates };
+        if let Err(refusals) = sortlens_cull::trash::audit(&batch) {
+            let first = refusals.first().map(sortlens_cull::trash::Refusal::message).unwrap_or_default();
+            for refusal in &refusals {
+                self.warnings.push(refusal.message());
+            }
+            return Err(Error::Invalid(format!(
+                "{} file(s) failed the safety checks: {first}",
+                refusals.len()
+            )));
+        }
+
+        let report = sortlens_cull::trash::apply(&batch);
+        let mut ops = vec![Op::Flag { changes: flags }];
+        for entry in &report.applied {
+            if !matches!(entry.location, sortlens_cull::trash::Location::Kept) {
+                ops.push(Op::Missing {
+                    id: entry.id,
+                    missing: true,
+                });
+            }
+        }
+        self.mutate(Op::Group { ops })?;
+
+        for (_, message) in &report.failed {
+            self.warnings.push(message.clone());
+        }
+        let touched: Vec<PhotoId> = report.applied.iter().map(|entry| entry.id).collect();
+        self.sync_sidecars(&touched);
+
+        let job = self.start_job(JobKind::Export, format!("Applied {} photo(s)", report.applied.len()));
+        let status = if report.has_failures() {
+            JobStatus::Failed
+        } else {
+            JobStatus::Done
+        };
+        self.finish_job(
+            job,
+            status,
+            report.applied.len(),
+            0,
+            report.failed.len(),
+            report.failed.first().map(|(_, message)| message.clone()),
+        );
+
+        self.cull = None;
+        self.persist_cull();
+        Ok(report)
+    }
+
     /// Counters for the cull action bar, zeroed when no session is running.
     pub fn cull_summary(&self) -> Value {
         match &self.cull {
@@ -614,6 +712,7 @@ impl Engine {
             Op::Flag { changes } => changes.len(),
             Op::Label { changes } => changes.len(),
             Op::Tagged { changes } => changes.len(),
+            Op::Group { ops } => ops.len(),
             _ => 0,
         };
         catalog.commit(op)?;
@@ -729,6 +828,25 @@ impl Engine {
                 Ok(json!({ "cleared": true }))
             }
             "cull.summary" => Ok(self.cull_summary()),
+            "cull.apply" => {
+                let mode = match args.get("mode").and_then(Value::as_str).unwrap_or("trash") {
+                    "trash" => sortlens_cull::trash::Mode::Trash,
+                    "tag" => sortlens_cull::trash::Mode::TagOnly,
+                    "move" => {
+                        let target = args
+                            .get("target")
+                            .and_then(Value::as_str)
+                            .ok_or_else(|| Error::Invalid("move needs a target folder".into()))?;
+                        sortlens_cull::trash::Mode::Move(PathBuf::from(target))
+                    }
+                    other => return Err(Error::Invalid(format!("unknown delete mode: {other}"))),
+                };
+                let report = self.cull_apply(mode)?;
+                Ok(json!({
+                    "applied": report.applied.len(),
+                    "failed": report.failed.len(),
+                }))
+            }
             "edit.undo" => Ok(json!({ "undone": self.undo()? })),
             "library.stats" => Ok(serde_json::to_value(self.stats()).unwrap_or(Value::Null)),
             "library.jobs" => {
@@ -1057,6 +1175,74 @@ mod tests {
         let _ = kept;
         let engine = Engine::open(&library_dir.0).expect("reopen");
         assert!(engine.cull().is_none(), "a session with no surviving photos is discarded");
+    }
+
+    #[test]
+    fn applying_tag_only_records_the_decisions_and_undos_as_one_step() {
+        let folder = Temp::new("apply-tag-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let (_lib, mut engine) = library("apply-tag");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("begin");
+        engine.cull_decide(sortlens_cull::Decision::Reject);
+        engine.cull_decide(sortlens_cull::Decision::Pick);
+
+        let report = engine.cull_apply(sortlens_cull::trash::Mode::TagOnly).expect("apply");
+        assert_eq!(report.applied.len(), 1);
+        assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::Reject);
+        assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::Pick);
+        assert!(engine.cull().is_none(), "the session ends with the batch");
+        assert!(folder.0.join("a.jpg").exists(), "tag-only moves nothing");
+
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
+        assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn applying_move_moves_the_file_and_a_changed_file_refuses_the_batch() {
+        let folder = Temp::new("apply-move-photos");
+        std::fs::create_dir_all(folder.0.join("day1")).expect("dir");
+        let image = folder.0.join("day1/a.jpg");
+        std::fs::write(&image, b"x").expect("write");
+        let destination = std::env::temp_dir().join(format!("sortlens-engine-apply-dest-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&destination);
+
+        let (_lib, mut engine) = library("apply-move");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        // A file that changed after indexing refuses the batch, and the session survives.
+        engine.begin_cull(&[id]).expect("begin");
+        engine.cull_decide(sortlens_cull::Decision::Reject);
+        std::fs::write(&image, b"edited after indexing").expect("edit");
+        let refused = engine.cull_apply(sortlens_cull::trash::Mode::Move(destination.clone()));
+        assert!(refused.is_err(), "a changed file stops the batch");
+        assert!(engine.cull().is_some(), "the session is kept");
+        assert!(image.exists(), "nothing was moved");
+
+        // Put the size back and the same batch goes through.
+        std::fs::write(&image, b"x").expect("restore size");
+        let report = engine
+            .cull_apply(sortlens_cull::trash::Mode::Move(destination.clone()))
+            .expect("applied");
+        assert_eq!(report.applied.len(), 1);
+        assert!(!image.exists());
+        assert!(destination.join("day1/a.jpg").exists(), "relative path preserved");
+        assert!(engine.photo(id).expect("photo").missing, "the catalog knows it is gone");
+        assert!(engine.cull().is_none());
+
+        let _ = std::fs::remove_dir_all(&destination);
     }
 
     #[test]
