@@ -451,7 +451,24 @@ answer.
   offsets shrinking with the slack, wheel steps and a zero wheel being ignored
 - 192 tests, CI and wasm green
 
+## 2026-11-21 — M4: screen-reader announcements
+
+egui exposes an AccessKit tree but has no "say this now" call, so the announcement is a visible
+status line marked as an AccessKit polite live region: assistive technology reads it when the text
+changes and never interrupts. The line is on screen too, because a status only a screen reader can
+check is a second invisible UI.
+
+- ui/a11y: `live_line` (label + `Live::Polite` + label text on the node), `cull_status`
+  ("Photo 3 of 12, picked", "No photos to cull"), `library_status` ("240 photos, 3 selected"),
+  `decision_sentence` ("Rejected, 4 photos left") and `decision_word`
+- ui/shell: the cull view always shows the queue position and current decision as a live line, the
+  library header announces how many photos are in view and selected, and every decision path —
+  keyboard, buttons — sets `state.announce` so the result is read once
+- tests: status sentences for each decision and an empty queue, pluralisation of "photo/photos left",
+  zero/one/many counts, and every decision having a word
+- 196 tests, CI and wasm green
+
 ## Next
 
-M4: accessibility announcements — a polite status line that names each decision and the queue
-position for screen readers, so culling does not require seeing the badge.
+M4: a quit guard — if a cull session has staged decisions or an Apply is mid-flight, ask before the
+window closes instead of dropping the work on the floor.

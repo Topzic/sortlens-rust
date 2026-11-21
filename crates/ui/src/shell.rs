@@ -196,6 +196,8 @@ pub struct UiState {
     pub drag_from: Option<egui::Pos2>,
     /// Zoom and pan of the cull canvas.
     pub cull_view: sortlens_cull::viewport::View,
+    /// The last decision, announced once so a screen reader hears the result.
+    pub announce: Option<String>,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -262,6 +264,7 @@ impl UiState {
             receipt_open: false,
             drag_from: None,
             cull_view: sortlens_cull::viewport::View::default(),
+            announce: None,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -921,10 +924,10 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             ui.horizontal(|ui| {
                 ui.label(RichText::new(state.view.label()).size(16.0).strong());
                 ui.add_space(6.0);
-                ui.label(
-                    RichText::new(format!("{} photos", format_count(total as u64)))
-                        .size(12.0)
-                        .color(t.text_muted),
+                crate::a11y::live_line(
+                    ui,
+                    &crate::a11y::library_status(total, usize::from(state.selected.is_some())),
+                    t.text_muted,
                 );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
@@ -1117,7 +1120,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         // below, which is why this does not return.
         detail_keyboard(ui, state, engine);
     }
-    if cull_keyboard(ui, engine) {
+    if cull_keyboard(ui, state, engine) {
         return;
     }
     // Starting a session works before anything is selected: the queue comes from the filters.
@@ -1675,7 +1678,7 @@ fn start_cull(engine: &mut Engine, state: &UiState) -> std::result::Result<usize
     engine.begin_cull(&ids).map_err(|error| error.to_string())
 }
 
-fn cull_keyboard(ui: &mut Ui, engine: &mut Engine) -> bool {
+fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool {
     if engine.cull().is_none() {
         return false;
     }
@@ -1700,8 +1703,11 @@ fn cull_keyboard(ui: &mut Ui, engine: &mut Engine) -> bool {
     });
     if let Some(decision) = decision {
         engine.cull_decide(decision);
+        let left = engine.cull().map(|session| session.summary().unjudged).unwrap_or_default();
+        state.announce = Some(crate::a11y::decision_sentence(decision, left));
     } else if back {
         engine.cull_back();
+        state.announce = Some("Back one photo".to_string());
     }
     true
 }
@@ -1744,7 +1750,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             }
             ui.add_space(6.0);
             ui.label(
-                RichText::new("P pick · X reject · Space defer · U clear · ← back")
+                RichText::new("P pick · X reject · Space defer · U clear · ← back · drag up/down")
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -1911,6 +1917,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     });
 
     ui.add_space(4.0);
+
     let mut decision_now = None;
     ui.horizontal(|ui| {
         let buttons = [
@@ -1942,11 +1949,27 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             }
         });
     });
+    // Spoken feedback: the queue position and what the photo now carries. Assistive technology
+    // reads this politely, so it never interrupts anything else being read.
+    let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
+    let status_colour = match decision {
+        Decision::Pick => t.pick,
+        Decision::Reject => t.reject,
+        _ => t.text_muted,
+    };
+    crate::a11y::live_line(ui, &crate::a11y::cull_status(position, total, decision), status_colour);
+
     if let Some(choice) = decision_now {
         engine.cull_decide(choice);
+        let left = engine.cull().map(|session| session.summary().unjudged).unwrap_or_default();
+        state.announce = Some(crate::a11y::decision_sentence(choice, left));
+    }
+    if let Some(said) = state.announce.clone() {
+        crate::a11y::live_line(ui, &said, t.text_muted);
     }
     if summary.changed() > 0 {
         ui.add_space(4.0);
+
         ui.label(
             RichText::new(format!(
                 "{} photos staged. {} Apply to record the decisions — you can undo it as one step.",
@@ -2242,6 +2265,7 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             if batches.is_empty() {
                 hint(ui, t, "Nothing has been applied yet.");
                 ui.add_space(4.0);
+
                 ui.label(
                     RichText::new("Applying a cull batch lists it here so you can put it back.")
                         .size(10.5)
