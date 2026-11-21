@@ -9,6 +9,7 @@
 
 pub mod gesture;
 pub mod trash;
+pub mod viewport;
 
 use serde::{Deserialize, Serialize};
 use sortlens_core::{Flag, PhotoId};

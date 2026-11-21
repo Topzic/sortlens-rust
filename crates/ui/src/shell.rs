@@ -194,6 +194,8 @@ pub struct UiState {
     pub receipt_open: bool,
     /// Where a canvas drag began, while one is in flight.
     pub drag_from: Option<egui::Pos2>,
+    /// Zoom and pan of the cull canvas.
+    pub cull_view: sortlens_cull::viewport::View,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -259,6 +261,7 @@ impl UiState {
             summary_open: false,
             receipt_open: false,
             drag_from: None,
+            cull_view: sortlens_cull::viewport::View::default(),
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -1794,33 +1797,8 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     let image_height = (ui.available_height() - strip_height - action_height - 16.0).max(160.0);
     let (area, area_response) = ui.allocate_exact_size(vec2(ui.available_width(), image_height), Sense::drag());
 
-    // A drag on the canvas is a decision: up keeps, down rejects, sideways is ignored.
-    let mut drag_delta = (0.0, 0.0);
-    if area_response.dragged()
-        && let Some(origin) = state.drag_from
-        && let Some(pointer) = area_response.interact_pointer_pos()
-    {
-        drag_delta = (pointer.x - origin.x, pointer.y - origin.y);
-    }
-    if area_response.drag_started() {
-        state.drag_from = area_response.interact_pointer_pos();
-        drag_delta = (0.0, 0.0);
-    }
-    if area_response.drag_stopped() {
-        let gesture = sortlens_cull::gesture::classify(drag_delta);
-        if let Some(decision) = gesture.decision() {
-            engine.cull_decide(decision);
-            let said = match gesture {
-                Gesture::Pick => "Kept",
-                _ => "Rejected",
-            };
-            state.notice(said.to_string());
-        }
-        state.drag_from = None;
-        drag_delta = (0.0, 0.0);
-    }
-    let gesture = sortlens_cull::gesture::classify(drag_delta);
-    let drag_progress = sortlens_cull::gesture::progress(drag_delta);
+    let fitted_size = fitted_size(area, current.and_then(|id| engine.photo(id)));
+    let (gesture, drag_progress) = canvas_interaction(state, engine, ui, area, &area_response, fitted_size, current);
 
     match current.and_then(|id| engine.photo(id).cloned()) {
         Some(photo) => {
@@ -1832,10 +1810,18 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 1.5
             };
             let fitted = fit_rect(area.shrink(8.0), aspect);
-            match thumbs.get(ui.ctx(), &photo, 1600).cloned() {
+            let zoomed = state.cull_view.is_zoomed();
+            let shown = if zoomed {
+                let wanted = fitted.size() * state.cull_view.zoom;
+                Rect::from_center_size(fitted.center() + vec2(state.cull_view.offset.0, state.cull_view.offset.1), wanted)
+            } else {
+                fitted
+            };
+            let painter = painter.with_clip_rect(if zoomed { area } else { painter.clip_rect() });
+            match thumbs.get(ui.ctx(), &photo, if zoomed { 2000 } else { 1600 }).cloned() {
                 Some(texture) => {
-                    let uv = cover_uv(texture.size_vec2(), fitted.size());
-                    painter.image(texture.id(), fitted, uv, Color32::WHITE);
+                    let uv = cover_uv(texture.size_vec2(), shown.size());
+                    painter.image(texture.id(), shown, uv, Color32::WHITE);
                 }
                 None => {
                     painter.text(fitted.center(), Align2::CENTER_CENTER, &photo.rel, t.font(11.0), t.text_faint);
@@ -1849,6 +1835,15 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             };
             if let Some((text, colour)) = badge {
                 painter.text(fitted.left_top() + vec2(10.0, 10.0), Align2::LEFT_TOP, text, t.font(11.0), colour);
+            }
+            if state.cull_view.is_zoomed() {
+                painter.text(
+                    area.right_top() + vec2(-10.0, 10.0),
+                    Align2::RIGHT_TOP,
+                    format!("{:.1}× · Z to fit", state.cull_view.zoom),
+                    t.font(10.5),
+                    t.text_muted,
+                );
             }
             painter.text(
                 area.left_bottom() + vec2(10.0, -6.0),
@@ -2433,6 +2428,75 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
             });
         });
     state.apply_open = open;
+}
+
+/// The size the picture would have at fit, which is what zoom is relative to.
+fn fitted_size(area: Rect, photo: Option<&Photo>) -> (f32, f32) {
+    let aspect = match photo {
+        Some(photo) if photo.width > 0 && photo.height > 0 => photo.width as f32 / photo.height as f32,
+        _ => 1.5,
+    };
+    let fitted = fit_rect(area.shrink(8.0), aspect);
+    (fitted.width(), fitted.height())
+}
+
+/// Wheel zoom, ⌥-drag pan, Z to fit, and a plain drag deciding the photo.
+///
+/// Returns the gesture to draw while the finger is down and how far it has travelled.
+fn canvas_interaction(
+    state: &mut UiState,
+    engine: &mut Engine,
+    ui: &Ui,
+    area: Rect,
+    response: &egui::Response,
+    fitted: (f32, f32),
+    current: Option<sortlens_core::PhotoId>,
+) -> (Gesture, f32) {
+    let size = (area.width(), area.height());
+    let mut delta = (0.0, 0.0);
+    if response.dragged()
+        && let Some(origin) = state.drag_from
+        && let Some(pointer) = response.interact_pointer_pos()
+    {
+        delta = (pointer.x - origin.x, pointer.y - origin.y);
+    }
+    if response.drag_started() {
+        state.drag_from = response.interact_pointer_pos();
+        delta = (0.0, 0.0);
+    }
+
+    if response.hovered() {
+        let notches = ui.input(|input| input.smooth_scroll_delta.y / 50.0);
+        state.cull_view.wheel(notches, size, fitted);
+    }
+    let panning = ui.input(|input| input.modifiers.alt || input.modifiers.command);
+    if panning && response.dragged() && state.cull_view.pan(delta, size, fitted) {
+        delta = (0.0, 0.0);
+    }
+    if ui.input(|input| input.key_pressed(Key::Z) && !input.modifiers.command) {
+        if state.cull_view.is_zoomed() {
+            state.cull_view.reset();
+        } else {
+            state.cull_view.zoom_by(2.0, size, fitted);
+        }
+    }
+
+    if !response.drag_stopped() {
+        return (sortlens_cull::gesture::classify(delta), sortlens_cull::gesture::progress(delta));
+    }
+    let gesture = sortlens_cull::gesture::classify(delta);
+    if gesture.decision().is_some() && current.is_some() {
+        engine.cull_decide(match gesture {
+            Gesture::Pick => Decision::Pick,
+            _ => Decision::Reject,
+        });
+        state.notice(match gesture {
+            Gesture::Pick => "Kept".to_string(),
+            _ => "Rejected".to_string(),
+        });
+    }
+    state.drag_from = None;
+    (Gesture::None, 0.0)
 }
 
 /// What the session came to, and what can be done with it.

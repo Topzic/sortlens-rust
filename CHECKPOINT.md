@@ -438,7 +438,20 @@ answer.
   ignored, progress clamped to 1
 - 186 tests, CI and wasm green
 
+## 2026-11-21 — M4: zoom and pan on the cull canvas
+
+- cull: `viewport::View` (zoom 1–8, offset in points) with `zoom_by`, `wheel` (1.12× per notch),
+  `pan`, `size`, `reset`; every change re-clamps the offset to `(zoomed − canvas)/2` per axis so the
+  picture can never be dragged off the canvas, and zooming back to fit recentres
+- ui: the canvas senses the wheel while hovered, ⌥/⌘-drag pans (a plain drag still decides), `Z`
+  toggles fit/2×, the drawn rect is offset and clipped to the canvas at 1:1 when zoomed, and a
+  "2.0× · Z to fit" badge appears; the interaction was extracted into `canvas_interaction` and
+  `fitted_size` to keep the view under the complexity budget
+- tests: clamps at both ends, recentring on zoom-out, pan stopping at the edge, no pan while fitted,
+  offsets shrinking with the slack, wheel steps and a zero wheel being ignored
+- 192 tests, CI and wasm green
+
 ## Next
 
-M4: zoom and pan on the cull canvas — pinch or scroll to inspect, drag with a modifier to move the
-frame, so a soft frame can be judged without opening the detail view.
+M4: accessibility announcements — a polite status line that names each decision and the queue
+position for screen readers, so culling does not require seeing the badge.
