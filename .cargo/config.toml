@@ -1,2 +1,7 @@
 [alias]
 xtask = "run --quiet --package xtask --"
+
+# This workspace is large enough that incremental artefacts cost gigabytes. Builds are scripted
+# (`cargo xtask ci`), so the disk is better spent on them than on incremental state.
+[build]
+incremental = false

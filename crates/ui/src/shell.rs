@@ -1400,11 +1400,65 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             }
         });
     }
+
+    ui.horizontal(|ui| {
+        if let Some(histogram) = thumbs.histogram(&photo) {
+            histogram_widget(ui, t, histogram);
+        } else {
+            ui.label(RichText::new("No preview to measure").size(10.0).color(t.text_faint));
+        }
+        ui.add_space(10.0);
+        let mut jump = None;
+        ui.vertical(|ui| {
+            ui.label(RichText::new("Lookahead").size(10.0).color(t.text_faint));
+            ui.horizontal(|ui| {
+                for delta in [-2isize, -1, 1, 2] {
+                    let Some(neighbour) = engine.neighbour(&filter, state.sort, id, delta) else {
+                        continue;
+                    };
+                    let Some(other) = engine.photo(neighbour).cloned() else {
+                        continue;
+                    };
+                    let (rect, response) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::click());
+                    ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
+                    if let Some(texture) = thumbs.get(ui.ctx(), &other, 128).cloned() {
+                        let uv = cover_uv(texture.size_vec2(), rect.size());
+                        ui.painter().image(texture.id(), rect, uv, Color32::WHITE);
+                    }
+                    if response.clicked() {
+                        jump = Some(neighbour);
+                    }
+                }
+            });
+        });
+        if let Some(target) = jump {
+            state.selected = Some(target);
+        }
+    });
+
     ui.label(
         RichText::new("P/X/U flag · 1–5 rate · ← → walk · Z zoom · Esc close")
             .size(10.0)
             .color(t.text_faint),
     );
+}
+
+/// A 64-bin luminance histogram, drawn as bars scaled to the tallest bin.
+fn histogram_widget(ui: &mut Ui, t: &Tokens, histogram: &sortlens_thumbs::Histogram) {
+    let size = vec2(190.0, 44.0);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, t.corner(), t.thumb_bg);
+    let peak = histogram.peak().max(1) as f32;
+    let width = rect.width() / histogram.bins.len() as f32;
+    for (index, count) in histogram.bins.iter().enumerate() {
+        let height = (*count as f32 / peak) * (rect.height() - 2.0);
+        let bar = Rect::from_min_size(
+            pos2(rect.left() + index as f32 * width, rect.bottom() - height),
+            vec2(width.max(1.0) - 0.5, height),
+        );
+        painter.rect_filled(bar, 0.0, t.text_muted);
+    }
 }
 
 /// Start a session over what the filters currently show. A session is a fixed queue: changing the

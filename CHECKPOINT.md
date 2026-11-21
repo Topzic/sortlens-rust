@@ -320,7 +320,20 @@ a photo edited after it was scanned shows as edited only after a rescan.
 
 Not built: the lookahead strip and the histogram in the detail view.
 
+## 2026-11-21 — M4: histogram and lookahead
+
+- thumbs: `Histogram` (64 luminance bins, Rec. 601 weights) with `from_thumbnail`, `total`, `peak`,
+  and `histogram_file` which decodes a small copy and measures it
+- ui: `Thumbnails::histogram(photo)` caches one histogram per content key (decoded at 256 px on
+  demand, never by the grid); the detail view draws it as 64 bars scaled to the tallest bin and adds
+  a lookahead strip of ±1/±2 neighbours that can be clicked
+- tests: every pixel counted with black and white in the end bins, a mid grey landing in the middle
+- 152 tests, CI and wasm green
+
+Housekeeping: `[build] incremental = false` in `.cargo/config.toml` after the disk filled up —
+incremental artefacts were 3.5 GB per build on a machine with almost no free space.
+
 ## Next
 
-The histogram and lookahead strip for the detail view, so exposure and neighbours are visible
-without leaving the photo.
+The path filter's remaining pieces: tag ANY/ALL, a picker for specific keywords, and an
+active-filter badge, so complex filters are visible at a glance.

@@ -25,6 +25,7 @@ pub struct Thumbnails {
     textures: HashMap<(u64, u32), TextureHandle>,
     order: VecDeque<(u64, u32)>,
     failed: HashMap<u64, String>,
+    histograms: HashMap<u64, sortlens_thumbs::Histogram>,
 }
 
 impl Thumbnails {
@@ -35,6 +36,7 @@ impl Thumbnails {
             textures: HashMap::new(),
             order: VecDeque::new(),
             failed: HashMap::new(),
+            histograms: HashMap::new(),
         }
     }
 
@@ -54,6 +56,18 @@ impl Thumbnails {
         }
         let _ = ctx;
         None
+    }
+
+    /// Luminance histogram for a photo, computed once and cached by content key.
+    ///
+    /// This decodes a small copy on the calling thread, so it is only asked for by the detail view
+    /// (one photo, once), never by the grid.
+    pub fn histogram(&mut self, photo: &Photo) -> Option<&sortlens_thumbs::Histogram> {
+        if let std::collections::hash_map::Entry::Vacant(entry) = self.histograms.entry(photo.key) {
+            let path = PathBuf::from(photo.path());
+            entry.insert(sortlens_thumbs::histogram_file(&path, 256).ok()?);
+        }
+        self.histograms.get(&photo.key)
     }
 
     /// Upload everything that finished decoding.

@@ -84,6 +84,47 @@ pub fn decode_raw_preview(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
     decode_image(&preview, max_edge).or_else(|_| decode_jpeg(&preview, max_edge))
 }
 
+/// A luminance histogram, 64 bins from black to white.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Histogram {
+    /// Counts per bin.
+    pub bins: [u32; 64],
+}
+
+impl Default for Histogram {
+    fn default() -> Self {
+        Self { bins: [0; 64] }
+    }
+}
+
+impl Histogram {
+    /// Count pixels in a decoded thumbnail. Alpha is ignored; the luma weights are Rec. 601.
+    pub fn from_thumbnail(thumbnail: &Thumbnail) -> Self {
+        let mut histogram = Self::default();
+        for pixel in thumbnail.rgba.chunks_exact(4) {
+            let luma = (0.299 * f32::from(pixel[0]) + 0.587 * f32::from(pixel[1]) + 0.114 * f32::from(pixel[2])).round();
+            let bin = ((luma as usize).min(255) * 64 / 256).min(63);
+            histogram.bins[bin] = histogram.bins[bin].saturating_add(1);
+        }
+        histogram
+    }
+
+    /// Total pixels counted.
+    pub fn total(&self) -> u64 {
+        self.bins.iter().map(|count| u64::from(*count)).sum()
+    }
+
+    /// Highest single bin, for scaling the drawing.
+    pub fn peak(&self) -> u32 {
+        self.bins.iter().copied().max().unwrap_or(0)
+    }
+}
+
+/// Decode a file at a small size and histogram it.
+pub fn histogram_file(path: &Path, max_edge: u32) -> Result<Histogram> {
+    decode_file(path, max_edge).map(|thumbnail| Histogram::from_thumbnail(&thumbnail))
+}
+
 /// Read a file and decode it, if the format is one this build understands.
 ///
 /// Raw files are read whole so their preview can be located; that is tens of megabytes per file
@@ -449,6 +490,32 @@ mod tests {
         }
         let thumb = resize(&samples, 32, 32, 4, 16);
         assert!(thumb.rgba.chunks(4).all(|pixel| pixel[3] == 64));
+    }
+
+    #[test]
+    fn a_histogram_counts_every_pixel_with_black_and_white_in_the_end_bins() {
+        let mut rgba = Vec::new();
+        for x in 0..4 {
+            let value = if x < 2 { 0 } else { 255 };
+            rgba.extend_from_slice(&[value, value, value, 255]);
+        }
+        let thumbnail = Thumbnail { width: 4, height: 1, rgba };
+        let histogram = Histogram::from_thumbnail(&thumbnail);
+        assert_eq!(histogram.total(), 4);
+        assert_eq!(histogram.bins[0], 2, "black lands in the first bin");
+        assert_eq!(histogram.bins[63], 2, "white lands in the last bin");
+        assert_eq!(histogram.peak(), 2);
+    }
+
+    #[test]
+    fn a_mid_grey_lands_in_the_middle() {
+        let thumbnail = Thumbnail {
+            width: 2,
+            height: 1,
+            rgba: vec![128, 128, 128, 255, 128, 128, 128, 255],
+        };
+        let histogram = Histogram::from_thumbnail(&thumbnail);
+        assert_eq!(histogram.bins[32], 2);
     }
 
     #[test]
