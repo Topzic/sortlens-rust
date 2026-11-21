@@ -90,6 +90,8 @@ struct App {
     store: SettingsStore<Prefs>,
     applied_theme: ThemeKind,
     thumbs: Thumbnails,
+    /// The quit guard has been answered, so the next close goes through.
+    confirmed_close: bool,
 }
 
 impl App {
@@ -119,6 +121,7 @@ impl App {
             store,
             applied_theme: kind,
             thumbs: Thumbnails::new(cache_dir()),
+            confirmed_close: false,
         }
     }
 
@@ -132,6 +135,8 @@ impl App {
                 }
             }
             Action::Quit => {
+                // The guard has already been answered; do not ask again on the way out.
+                self.confirmed_close = true;
                 let _ = self.store.flush();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
@@ -181,8 +186,14 @@ impl eframe::App for App {
         }
 
         if ctx.input(|input| input.viewport().close_requested()) {
-            let _ = self.engine.close();
-            let _ = self.store.flush();
+            if !self.confirmed_close && self.engine.has_unsaved() {
+                // Hold the close, ask, and let the dialog decide.
+                self.ui.quit_open = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            } else {
+                let _ = self.engine.close();
+                let _ = self.store.flush();
+            }
         }
 
         if self.engine.last_effect() == sortlens_engine::Effect::Quit {

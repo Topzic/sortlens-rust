@@ -468,7 +468,21 @@ check is a second invisible UI.
   zero/one/many counts, and every decision having a word
 - 196 tests, CI and wasm green
 
+## 2026-11-21 — M4: quit guard
+
+- engine: `unsaved()` returns the specific reasons work is in flight — a running scan (files found so
+  far unsaved), staged cull decisions (with the count, and the note that the session is kept), a
+  running similarity pass — and `has_unsaved()` for the guard
+- ui: a "Quit Sortlens?" dialog listing those reasons with "Keep working" and "Quit anyway"; a plain
+  Action::Quit from the menu still closes immediately
+- app: a close request with work in flight sends `ViewportCommand::CancelClose` and opens the dialog;
+  confirming sets `confirmed_close` so the guard cannot loop on the way out, and a clean quit still
+  closes the engine and flushes settings
+- tests: a quiet library having nothing to lose, a running scan counting, an empty session counting
+  for nothing, one staged decision producing exactly one reason, and discarding clearing it
+- 197 tests, CI and wasm green
+
 ## Next
 
-M4: a quit guard — if a cull session has staged decisions or an Apply is mid-flight, ask before the
-window closes instead of dropping the work on the floor.
+M5 leftovers: collection colours and favourites, so the sidebar can group collections rather than
+showing one flat list.

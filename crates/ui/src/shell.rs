@@ -198,6 +198,8 @@ pub struct UiState {
     pub cull_view: sortlens_cull::viewport::View,
     /// The last decision, announced once so a screen reader hears the result.
     pub announce: Option<String>,
+    /// The window was asked to close while work was in flight.
+    pub quit_open: bool,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -265,6 +267,7 @@ impl UiState {
             drag_from: None,
             cull_view: sortlens_cull::viewport::View::default(),
             announce: None,
+            quit_open: false,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -412,6 +415,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if engine.cull_complete() && !state.summary_open && !state.apply_open {
         state.summary_open = true;
+    }
+    if state.quit_open {
+        quit_dialog(ui, state, &t, engine, &mut actions);
     }
     if state.summary_open {
         summary_dialog(ui, state, &t, engine);
@@ -2521,6 +2527,38 @@ fn canvas_interaction(
     }
     state.drag_from = None;
     (Gesture::None, 0.0)
+}
+
+/// The quit guard: what would be lost, and the two ways out.
+fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
+    let reasons = engine.unsaved();
+    let mut open = state.quit_open;
+    egui::Window::new("Quit Sortlens?")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(380.0)
+        .show(ui.ctx(), |ui| {
+            for reason in &reasons {
+                ui.label(RichText::new(reason).size(11.5).color(t.text_muted));
+                ui.add_space(4.0);
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("Keep working").size(12.0)).clicked() {
+                    state.quit_open = false;
+                }
+                if ui
+                    .button(RichText::new("Quit anyway").size(12.0))
+                    .on_hover_text("Close the window now; unstaged work is dropped")
+                    .clicked()
+                {
+                    state.quit_open = false;
+                    actions.push(Action::Quit);
+                }
+            });
+        });
+    state.quit_open = open;
 }
 
 /// What the session came to, and what can be done with it.

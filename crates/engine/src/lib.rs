@@ -1054,6 +1054,36 @@ impl Engine {
         }
     }
 
+    /// Work that would be lost if the window closed now.
+    ///
+    /// A cull session's staged decisions are only persisted as a session file, so quitting mid-cull
+    /// loses the queue rather than the decisions; this names what is in flight so the guard can say
+    /// something specific instead of "are you sure?".
+    pub fn unsaved(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if self.pending.is_some() {
+            reasons.push("An index scan is running; the files found so far are not saved yet.".to_string());
+        }
+        if let Some(session) = &self.cull {
+            let summary = session.summary();
+            let staged = summary.changed();
+            if staged > 0 {
+                reasons.push(format!(
+                    "{staged} staged cull decision(s) have not been applied. The session is kept for next time."
+                ));
+            }
+        }
+        if self.pending_hash.is_some() {
+            reasons.push("A similarity pass is running; hashes finished so far are kept.".to_string());
+        }
+        reasons
+    }
+
+    /// Whether closing the window would drop something worth asking about.
+    pub fn has_unsaved(&self) -> bool {
+        !self.unsaved().is_empty()
+    }
+
     /// What the last finished Apply did, for the receipt dialog.
     pub fn receipt(&self) -> Option<&ApplyReceipt> {
         self.receipt.as_ref()
@@ -1855,6 +1885,30 @@ mod tests {
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
         assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn the_quit_guard_names_work_in_flight() {
+        let folder = Temp::new("quit-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        let (_lib, mut engine) = library("quit");
+        assert!(!engine.has_unsaved(), "a quiet library has nothing to lose");
+
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        assert!(engine.has_unsaved(), "a running scan counts");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        engine.begin_cull(&[id]).expect("begin");
+        assert!(!engine.has_unsaved(), "an empty session is nothing to lose");
+        engine.cull_decide(sortlens_cull::Decision::Pick);
+        let reasons = engine.unsaved();
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].contains("staged cull"), "{}", reasons[0]);
+
+        engine.cull_clear();
+        assert!(!engine.has_unsaved(), "discarding the session clears the warning");
     }
 
     #[test]
