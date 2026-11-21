@@ -96,7 +96,7 @@ read during the scan. RAW, HEIC, video, priority scheduling and the activity sta
 - [x] JPEG decode path (C)
 - [x] PNG/TIFF/WebP/GIF/BMP decode paths via craft-image-codecs, alpha preserved (C)
 - [ ] HEIC decode path (C)
-- [ ] RAW embedded previews (`craft-raw`) (C) — SL-B18
+- [x] RAW embedded previews (`craft-raw`) (C) — SL-B18
 - [ ] Video poster + duration/fps/codec (C) — SL-B11
 - [x] Placeholder cell while decoding, no spinner (B)
 - [ ] Blur-up tier transitions (B)

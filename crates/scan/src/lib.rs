@@ -37,23 +37,6 @@ const SKIP_DIR_NAMES: &[&str] = &[
 /// Files that are never photos even though they sit beside them.
 const SKIP_FILE_NAMES: &[&str] = &[".ds_store", "thumbs.db", "desktop.ini", ".directory"];
 
-/// Extensions treated as camera raw.
-const RAW_EXTENSIONS: &[&str] = &[
-    "3fr", "ari", "arw", "bay", "cr2", "cr3", "crw", "dcr", "dng", "erf", "fff", "iiq", "k25", "kdc", "mef", "mos", "mrw", "nef", "nrw",
-    "orf", "pef", "raf", "raw", "rw2", "rwl", "sr2", "srf", "srw", "x3f",
-];
-
-/// Extensions treated as rendered images.
-const IMAGE_EXTENSIONS: &[&str] = &[
-    "avif", "bmp", "gif", "heic", "heif", "jpe", "jpeg", "jpg", "jxl", "png", "qoi", "tif", "tiff", "webp",
-];
-
-/// Extensions treated as video.
-const VIDEO_EXTENSIONS: &[&str] = &["avi", "m4v", "mkv", "mov", "mp4", "mts", "m2ts", "webm", "wmv"];
-
-/// Sidecar and cache files that belong to a photo but are not photos.
-const SIDECAR_EXTENSIONS: &[&str] = &["aae", "xmp", "pp3", "dop", "on1", "cos", "thm", "lrf"];
-
 /// How deep the walker will go below the root. Deeper than any sane folder tree, shallow enough
 /// that a pathological mount cannot hang the import.
 pub const MAX_DEPTH: usize = 64;
@@ -61,21 +44,12 @@ pub const MAX_DEPTH: usize = 64;
 /// The class of file, from its extension only. Extension wins over content sniffing because the
 /// walker must not open every file to decide whether to open it.
 pub fn media_kind(extension: &str) -> Option<MediaKind> {
-    let extension = extension.to_ascii_lowercase();
-    if RAW_EXTENSIONS.contains(&extension.as_str()) {
-        Some(MediaKind::Raw)
-    } else if VIDEO_EXTENSIONS.contains(&extension.as_str()) {
-        Some(MediaKind::Video)
-    } else if IMAGE_EXTENSIONS.contains(&extension.as_str()) {
-        Some(MediaKind::Image)
-    } else {
-        None
-    }
+    sortlens_core::media::kind_from_extension(extension)
 }
 
 /// Whether a file extension is a sidecar rather than a photo.
 pub fn is_sidecar(extension: &str) -> bool {
-    SIDECAR_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
+    sortlens_core::media::is_sidecar_extension(extension)
 }
 
 /// A file the walker accepted.

@@ -64,7 +64,20 @@ non-JPEG previews fall back to the kind glyph.
 
 Still missing: RAW embedded previews (`craft-raw`), video posters, HEIC.
 
+## 2026-11-21 — M2: raw previews + shared media vocabulary
+
+- core: `media` module owns the extension tables (raw/image/video/sidecar), `kind_from_extension`,
+  `is_raw_path`; the scanner now delegates instead of keeping a second copy
+- thumbs: `decode_raw_preview` pulls the largest embedded preview with `craft-raw` and decodes it
+  through the ordinary pipeline; `decode_file` prefers it for raw extensions and falls back to the
+  plain decoder for mislabelled files
+- tests: raw-without-preview, mislabelled .cr2 that is really a JPEG, extension tables
+- 65 tests; CI and wasm green
+
+Not verified against a real camera raw: no sample file in the repo. The dispatch and fallback are
+covered; the preview extraction itself is `craft-raw`'s code path.
+
 ## Next
 
-RAW embedded previews via `craft-raw` (decode the camera JPEG instead of the raw pixels), then the
-activity stack, then M3 keywords.
+Activity stack (job list, per-item errors, cancel), then M3 keywords: op-log tags, keyword filter,
+sidecar write.

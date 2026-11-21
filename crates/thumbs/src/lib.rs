@@ -75,9 +75,26 @@ pub fn decode_image(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
     Ok(resize(&rgba, width, height, 4, max_edge))
 }
 
+/// Decode the largest preview embedded in a camera raw.
+///
+/// Raw files carry a full-size JPEG (or, in DNG 1.7, a JPEG XL) precisely so that browsers do not
+/// have to demosaic. Browsing uses it; only an explicit develop request touches the sensor data.
+pub fn decode_raw_preview(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
+    let preview = craft_raw::embedded_preview(bytes).ok_or_else(|| Error::UnsupportedFormat("raw file has no embedded preview".into()))?;
+    decode_image(&preview, max_edge).or_else(|_| decode_jpeg(&preview, max_edge))
+}
+
 /// Read a file and decode it, if the format is one this build understands.
+///
+/// Raw files are read whole so their preview can be located; that is tens of megabytes per file
+/// on a cold scan, which is why the result goes straight into the content-addressed cache.
 pub fn decode_file(path: &Path, max_edge: u32) -> Result<Thumbnail> {
     let bytes = fs::read(path).map_err(|error| Error::io(path.display().to_string(), error))?;
+    if sortlens_core::is_raw_path(path)
+        && let Ok(thumbnail) = decode_raw_preview(&bytes, max_edge)
+    {
+        return Ok(thumbnail);
+    }
     decode_image(&bytes, max_edge).or_else(|_| decode_jpeg(&bytes, max_edge))
 }
 
@@ -432,6 +449,28 @@ mod tests {
         }
         let thumb = resize(&samples, 32, 32, 4, 16);
         assert!(thumb.rgba.chunks(4).all(|pixel| pixel[3] == 64));
+    }
+
+    #[test]
+    fn a_raw_without_a_preview_falls_back_to_the_plain_decoder() {
+        let dir = std::env::temp_dir().join(format!("sortlens-raw-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("dir");
+        // A .cr2 that happens to contain a JPEG: the raw preview path finds nothing and the
+        // ordinary decoder takes over, which is the behaviour a mislabelled file needs.
+        let samples = gradient(40, 30);
+        let jpeg = craft_jpeg::encode_baseline(&samples, 40, 30, 3, 85, craft_jpeg::ChromaSubsampling::S444, &[]).expect("encode");
+        let path = dir.join("mislabelled.cr2");
+        fs::write(&path, &jpeg).expect("write");
+        let thumb = decode_file(&path, 128).expect("decode");
+        assert_eq!((thumb.width, thumb.height), (40, 30));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_with_no_embedded_preview_says_so() {
+        let error = decode_raw_preview(b"definitely not a raw", 128).expect_err("no preview");
+        assert!(matches!(error, Error::UnsupportedFormat(_)), "{error}");
     }
 
     #[test]
