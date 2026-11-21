@@ -66,6 +66,9 @@ pub struct Photo {
     /// Focal length in millimetres.
     #[serde(default)]
     pub focal: Option<f64>,
+    /// Keyword tags, sorted and deduplicated, lowercase as typed by the user.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl Photo {
@@ -94,6 +97,7 @@ impl Photo {
             aperture: None,
             shutter: None,
             focal: None,
+            tags: Vec::new(),
         }
     }
 
@@ -139,6 +143,11 @@ impl Photo {
         }
     }
 
+    /// Whether the photo carries a tag.
+    pub fn has_tag(&self, tag: &str) -> bool {
+        self.tags.iter().any(|existing| existing == tag)
+    }
+
     /// Whether the photo carries any review state.
     pub fn is_reviewed(&self) -> bool {
         self.rating > 0 || self.flag != Flag::None || self.label.is_some()
@@ -163,6 +172,7 @@ pub struct Stats {
     pub picks: usize,
     pub rejects: usize,
     pub labelled: usize,
+    pub tagged: usize,
     pub missing: usize,
     pub bytes: u64,
 }

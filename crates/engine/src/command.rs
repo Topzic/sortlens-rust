@@ -194,7 +194,7 @@ impl Registry {
                     group: Group::Organise,
                     shortcut: Some("K"),
                     menu: "Organise > Add Keyword…",
-                    status: Status::Planned("M3"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "collection.new",

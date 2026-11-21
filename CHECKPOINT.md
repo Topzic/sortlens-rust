@@ -88,7 +88,25 @@ covered; the preview extraction itself is `craft-raw`'s code path.
 - tests: job lifecycle, missing folder fails the job, jobs JSON, plus unit tests for the row states
 - 72 tests, CI and wasm green
 
+## 2026-11-21 — M3: keywords
+
+- catalog: `Photo.tags` (sorted, deduplicated), `Op::Tagged` replacing a photo's whole tag list so
+  undo is a plain inverse, `Filter.tag`, `tag_vocabulary()` by count, `Stats.tagged`
+- engine: `set_tag(ids, keyword, add)` normalises (trim, strip `#`, lowercase, ≤64 chars), skips
+  no-op changes, returns how many photos changed; `photo.keyword` command is Ready;
+  `tag_vocabulary()` for the sidebar
+- ui: Keywords sidebar section with counts and click-to-filter, keyword chip in the filter strip,
+  Tags tab with removable chips, an add field, and "used elsewhere" suggestions; `K` opens and
+  focuses it
+- cli: `tag`, `untag`, `keywords`, `list --tag`
+- tests: tag sorting/dedup/undo, rescan keeps tags, filter and vocabulary agree, normalisation,
+  command round trip, undo of a batch tag
+- 77 tests, CI and wasm green; CLI smoke test across separate processes confirms the tags persist
+
+XMP sidecar writing is still pending: keywords live in the op log for now, so they survive restarts
+but are invisible to other apps.
+
 ## Next
 
-M3 keywords: tag vocabulary in the op log, keyword chips on the selection, keyword filter in the
-query, XMP sidecar write on change.
+`sortlens-sidecar`: XMP read/merge/write with unknown-field preservation and atomic replacement,
+then wiring rating/flag/label/keyword changes to it.

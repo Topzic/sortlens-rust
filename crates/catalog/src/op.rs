@@ -28,6 +28,8 @@ pub enum Op {
     Flag { changes: Vec<(PhotoId, Flag)> },
     /// Colour labels changed.
     Label { changes: Vec<(PhotoId, Option<ColorLabel>)> },
+    /// Keyword tags replaced on the listed photos. Each list is the complete new set, sorted.
+    Tagged { changes: Vec<(PhotoId, Vec<String>)> },
 }
 
 impl Op {
@@ -42,6 +44,7 @@ impl Op {
             Self::Rate { .. } => "rate",
             Self::Flag { .. } => "flag",
             Self::Label { .. } => "label",
+            Self::Tagged { .. } => "tagged",
         }
     }
 }

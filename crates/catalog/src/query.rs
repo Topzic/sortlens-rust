@@ -26,6 +26,8 @@ pub struct Filter {
     pub flag: Option<Flag>,
     /// Only this label.
     pub label: Option<ColorLabel>,
+    /// Only photos carrying this keyword.
+    pub tag: Option<String>,
     /// Include entries whose file is missing.
     pub include_missing: bool,
     /// Restricted id set, used by selection and by collection views.
@@ -69,6 +71,11 @@ impl Filter {
         }
         if let Some(label) = self.label
             && photo.label != Some(label)
+        {
+            return false;
+        }
+        if let Some(tag) = &self.tag
+            && !photo.has_tag(tag)
         {
             return false;
         }

@@ -253,6 +253,9 @@ impl Catalog {
             if photo.label.is_some() {
                 stats.labelled += 1;
             }
+            if !photo.tags.is_empty() {
+                stats.tagged += 1;
+            }
             if photo.missing {
                 stats.missing += 1;
             }
@@ -264,6 +267,19 @@ impl Catalog {
     /// How many photos match a filter, without building the page.
     pub fn count(&self, filter: &Filter) -> usize {
         self.photos.values().filter(|photo| filter.matches(photo)).count()
+    }
+
+    /// Every keyword in use, most used first, then alphabetically.
+    pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for photo in self.photos.values() {
+            for tag in &photo.tags {
+                *counts.entry(tag.as_str()).or_insert(0) += 1;
+            }
+        }
+        let mut vocabulary: Vec<(String, usize)> = counts.into_iter().map(|(tag, count)| (tag.to_string(), count)).collect();
+        vocabulary.sort_by(|left, right| right.1.cmp(&left.1).then(left.0.cmp(&right.0)));
+        vocabulary
     }
 
     /// Photo counts per root, for the sidebar.
@@ -346,6 +362,20 @@ impl Catalog {
                     }
                 }
                 Ok(Op::Flag { changes: previous })
+            }
+            Op::Tagged { changes } => {
+                let mut previous = Vec::new();
+                for (id, tags) in changes {
+                    let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+                    let mut tags = tags.clone();
+                    tags.sort_unstable();
+                    tags.dedup();
+                    if photo.tags != tags {
+                        previous.push((*id, photo.tags.clone()));
+                        photo.tags = tags;
+                    }
+                }
+                Ok(Op::Tagged { changes: previous })
             }
             Op::Label { changes } => {
                 let mut previous = Vec::new();
@@ -719,6 +749,69 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn tags_are_sorted_deduplicated_and_undoable() {
+        let temp = TempCatalog::new("tags");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![(PhotoId(1), vec!["sunset".into(), "beach".into(), "beach".into()])],
+            })
+            .expect("tag");
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.tags, vec!["beach".to_string(), "sunset".to_string()]);
+        assert!(photo.has_tag("beach"));
+
+        assert!(catalog.undo().expect("undo"));
+        assert!(catalog.photo(PhotoId(1)).expect("photo").tags.is_empty());
+    }
+
+    #[test]
+    fn the_tag_filter_and_vocabulary_agree() {
+        let temp = TempCatalog::new("tag-filter");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![
+                    (PhotoId(1), vec!["beach".into()]),
+                    (PhotoId(2), vec!["beach".into(), "sunset".into()]),
+                ],
+            })
+            .expect("tag");
+
+        let filter = Filter {
+            tag: Some("beach".into()),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&filter), 2);
+        let filter = Filter {
+            tag: Some("sunset".into()),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&filter), 1);
+
+        let vocabulary = catalog.tag_vocabulary();
+        assert_eq!(vocabulary[0], ("beach".to_string(), 2));
+        assert_eq!(vocabulary[1], ("sunset".to_string(), 1));
+        assert_eq!(catalog.stats().tagged, 2);
+    }
+
+    #[test]
+    fn a_rescan_keeps_tags() {
+        let temp = TempCatalog::new("tag-rescan");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![(PhotoId(1), vec!["keep".into()])],
+            })
+            .expect("tag");
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("rescan");
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").tags, vec!["keep".to_string()]);
     }
 
     #[test]

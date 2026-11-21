@@ -349,6 +349,39 @@ impl Engine {
         })
     }
 
+    /// Add or remove one keyword on a selection.
+    pub fn set_tag(&mut self, ids: &[PhotoId], tag: &str, add: bool) -> Result<usize> {
+        let tag = normalize_tag(tag)?;
+        let mut changes = Vec::new();
+        for id in ids {
+            let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            let mut tags = photo.tags.clone();
+            if add {
+                if !tags.iter().any(|existing| existing == &tag) {
+                    tags.push(tag.clone());
+                }
+            } else {
+                tags.retain(|existing| existing != &tag);
+            }
+            tags.sort_unstable();
+            tags.dedup();
+            if tags != photo.tags {
+                changes.push((*id, tags));
+            }
+        }
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        let count = changes.len();
+        self.mutate(Op::Tagged { changes })?;
+        Ok(count)
+    }
+
+    /// Every keyword in use, most used first.
+    pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
+        self.catalog.as_ref().map(|catalog| catalog.tag_vocabulary()).unwrap_or_default()
+    }
+
     /// Set a colour label on a selection.
     pub fn label(&mut self, ids: &[PhotoId], label: Option<ColorLabel>) -> Result<usize> {
         self.mutate(Op::Label {
@@ -386,6 +419,7 @@ impl Engine {
             Op::Rate { changes } => changes.len(),
             Op::Flag { changes } => changes.len(),
             Op::Label { changes } => changes.len(),
+            Op::Tagged { changes } => changes.len(),
             _ => 0,
         };
         catalog.commit(op)?;
@@ -473,6 +507,15 @@ impl Engine {
                     .and_then(|name| ColorLabel::ALL.into_iter().find(|label| label.id() == name));
                 Ok(json!({ "changed": self.label(&ids, label)? }))
             }
+            "photo.keyword" => {
+                let ids = ids_from(args)?;
+                let tag = args
+                    .get("tag")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("tag is required".into()))?;
+                let add = args.get("add").and_then(Value::as_bool).unwrap_or(true);
+                Ok(json!({ "changed": self.set_tag(&ids, tag, add)? }))
+            }
             "edit.undo" => Ok(json!({ "undone": self.undo()? })),
             "library.stats" => Ok(serde_json::to_value(self.stats()).unwrap_or(Value::Null)),
             "library.jobs" => {
@@ -525,6 +568,18 @@ impl Engine {
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
         }
     }
+}
+
+/// Keywords are trimmed, lowercased and length-bounded so the vocabulary stays usable.
+fn normalize_tag(tag: &str) -> Result<String> {
+    let tag = tag.trim().trim_start_matches('#').trim().to_lowercase();
+    if tag.is_empty() {
+        return Err(Error::Invalid("a keyword cannot be empty".into()));
+    }
+    if tag.chars().count() > 64 {
+        return Err(Error::Invalid("a keyword cannot be longer than 64 characters".into()));
+    }
+    Ok(tag)
 }
 
 /// Last path component, for job labels.
@@ -683,6 +738,53 @@ mod tests {
         assert_eq!(jobs[0].status, JobStatus::Done);
         assert_eq!(jobs[0].files, 1);
         assert!(jobs[0].finished.is_some());
+    }
+
+    #[test]
+    fn keywords_are_normalised_added_and_removed() {
+        let folder = Temp::new("tag-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        let (_lib, mut engine) = library("tag");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        assert_eq!(engine.set_tag(&[id], "  #Beach ", true).expect("tag"), 1);
+        assert_eq!(engine.photo(id).expect("photo").tags, vec!["beach".to_string()]);
+        assert_eq!(engine.set_tag(&[id], "beach", true).expect("tag"), 0, "already present");
+        assert_eq!(engine.tag_vocabulary(), vec![("beach".to_string(), 1)]);
+
+        assert_eq!(engine.set_tag(&[id], "beach", false).expect("untag"), 1);
+        assert!(engine.photo(id).expect("photo").tags.is_empty());
+        assert!(engine.set_tag(&[id], "   ", true).is_err());
+    }
+
+    #[test]
+    fn keywords_are_undoable_and_filterable() {
+        let folder = Temp::new("tag-filter-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let (_lib, mut engine) = library("tag-filter");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let photos = engine.page(&Filter::default(), Sort::Natural, 0, 10).photos;
+        let ids: Vec<PhotoId> = photos.iter().map(|photo| photo.id).collect();
+        engine.set_tag(&ids, "keepers", true).expect("tag");
+
+        let filter = Filter {
+            tag: Some("keepers".into()),
+            ..Filter::default()
+        };
+        assert_eq!(engine.count(&filter), 2);
+        let value = engine
+            .run("photo.keyword", &json!({ "ids": ids, "tag": "keepers", "add": false }))
+            .expect("command");
+        assert_eq!(value["changed"], 2);
+        assert_eq!(engine.count(&filter), 0);
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(engine.count(&filter), 2);
     }
 
     #[test]

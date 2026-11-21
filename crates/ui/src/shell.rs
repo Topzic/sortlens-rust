@@ -139,6 +139,12 @@ pub struct UiState {
     pub label_filter: Option<sortlens_core::ColorLabel>,
     /// Whether missing files are shown.
     pub show_missing: bool,
+    /// Only this keyword, chosen in the sidebar or the filter strip.
+    pub tag_filter: Option<String>,
+    /// Text in the keyword editor.
+    pub tag_input: String,
+    /// Ask the keyword field for focus on the next frame.
+    pub tag_focus: bool,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -165,6 +171,9 @@ impl UiState {
             flag_filter: None,
             label_filter: None,
             show_missing: false,
+            tag_filter: None,
+            tag_input: String::new(),
+            tag_focus: false,
             notice: None,
         }
     }
@@ -189,6 +198,7 @@ impl UiState {
             min_rating: self.min_rating,
             flag: self.flag_filter,
             label: self.label_filter,
+            tag: self.tag_filter.clone(),
             include_missing: self.show_missing,
             ..Filter::default()
         }
@@ -199,6 +209,7 @@ impl UiState {
         self.min_rating > 0
             || self.flag_filter.is_some()
             || self.label_filter.is_some()
+            || self.tag_filter.is_some()
             || self.show_missing
             || self.root.is_some()
             || !self.search.is_empty()
@@ -209,6 +220,7 @@ impl UiState {
         self.min_rating = 0;
         self.flag_filter = None;
         self.label_filter = None;
+        self.tag_filter = None;
         self.show_missing = false;
         self.root = None;
     }
@@ -419,6 +431,18 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 });
             }
 
+            nav_section(ui, t, "Keywords");
+            let vocabulary = engine.tag_vocabulary();
+            if vocabulary.is_empty() {
+                hint(ui, t, "Select a photo, press K and type a keyword.");
+            }
+            for (tag, count) in vocabulary.iter().take(12) {
+                let selected = state.tag_filter.as_deref() == Some(tag.as_str());
+                if nav_row(ui, t, tag, &format_count(*count as u64), selected).clicked() {
+                    state.tag_filter = if selected { None } else { Some(tag.clone()) };
+                }
+            }
+
             nav_section(ui, t, "Collections");
             hint(ui, t, "Collections arrive in M5.");
         });
@@ -458,8 +482,8 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                     Some(photo) => details(ui, t, photo),
                     None => hint(ui, t, "Select a photo to see camera, exposure and file details."),
                 },
-                RightTab::Tags => match state.selected.and_then(|id| engine.photo(id)) {
-                    Some(photo) => tags(ui, t, photo),
+                RightTab::Tags => match state.selected.and_then(|id| engine.photo(id)).cloned() {
+                    Some(photo) => tags(ui, t, state, engine, &photo),
                     None => hint(ui, t, "Keywords and collections for the selection appear here."),
                 },
                 RightTab::Activity => {
@@ -547,15 +571,90 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
     );
 }
 
-fn tags(ui: &mut Ui, t: &Tokens, photo: &Photo) {
+fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo: &Photo) {
     match photo.label {
         Some(label) => {
             ui.label(RichText::new(label.label()).size(12.0).color(t.text));
         }
         None => hint(ui, t, "No colour label."),
     }
+    ui.add_space(8.0);
+
+    ui.label(RichText::new("Keywords").size(12.0).strong().color(t.text));
+    let mut remove = None;
+    if photo.tags.is_empty() {
+        hint(ui, t, "No keywords yet.");
+    }
+    ui.horizontal_wrapped(|ui| {
+        for tag in &photo.tags {
+            let chip = Button::new(RichText::new(format!("{tag}  ×")).size(11.0).color(t.text))
+                .fill(t.card)
+                .stroke(Stroke::new(1.0, t.border))
+                .corner_radius(t.corner());
+            if ui.add(chip).on_hover_text("Remove keyword").clicked() {
+                remove = Some(tag.clone());
+            }
+        }
+    });
+    if let Some(tag) = remove {
+        match engine.set_tag(&[photo.id], &tag, false) {
+            Ok(_) => state.notice(format!("Removed keyword {tag}")),
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
     ui.add_space(6.0);
-    hint(ui, t, "Keywords arrive in M3.");
+
+    ui.horizontal(|ui| {
+        let field = ui.add(
+            TextEdit::singleline(&mut state.tag_input)
+                .hint_text("Add keyword")
+                .desired_width(150.0)
+                .font(egui::TextStyle::Small),
+        );
+        if state.tag_focus {
+            field.request_focus();
+            state.tag_focus = false;
+        }
+        let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
+        let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
+        if (entered || clicked) && !state.tag_input.trim().is_empty() {
+            match engine.set_tag(&[photo.id], &state.tag_input, true) {
+                Ok(0) => state.notice("That keyword is already on this photo"),
+                Ok(_) => {
+                    state.notice(format!("Added keyword {}", state.tag_input.trim().to_lowercase()));
+                    state.tag_input.clear();
+                }
+                Err(error) => state.notice(error.to_string()),
+            }
+        }
+    });
+
+    let suggestions: Vec<(String, usize)> = engine
+        .tag_vocabulary()
+        .into_iter()
+        .filter(|(tag, _)| !photo.has_tag(tag))
+        .take(8)
+        .collect();
+    if !suggestions.is_empty() {
+        ui.add_space(8.0);
+        ui.label(RichText::new("Used elsewhere").size(10.5).color(t.text_faint));
+        let mut add = None;
+        ui.horizontal_wrapped(|ui| {
+            for (tag, _) in &suggestions {
+                if ui
+                    .add(Button::new(RichText::new(format!("+ {tag}")).size(10.5)).fill(t.card))
+                    .clicked()
+                {
+                    add = Some(tag.clone());
+                }
+            }
+        });
+        if let Some(tag) = add
+            && let Err(error) = engine.set_tag(&[photo.id], &tag, true)
+        {
+            state.notice(error.to_string());
+        }
+    }
 }
 
 fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
@@ -711,6 +810,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
 
     let mut rating = None;
     let mut flag = None;
+    let mut keyword = false;
     ui.input(|input| {
         for (key, stars) in [
             (Key::Num0, 0u8),
@@ -733,7 +833,16 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         if input.key_pressed(Key::U) {
             flag = Some(Flag::None);
         }
+        if input.key_pressed(Key::K) && !input.modifiers.command {
+            keyword = true;
+        }
     });
+
+    if keyword {
+        state.right_tab = RightTab::Tags;
+        state.right_open = true;
+        state.tag_focus = true;
+    }
 
     if let Some(stars) = rating {
         match engine.rate(&[id], stars) {
@@ -770,6 +879,11 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, total: usize) {
                 } else {
                     format!("{}★ and up", state.min_rating)
                 };
+                if let Some(tag) = state.tag_filter.clone()
+                    && chip(ui, t, &format!("#{tag}"), true).clicked()
+                {
+                    state.tag_filter = None;
+                }
                 if chip(ui, t, &rating, state.min_rating > 0).clicked() {
                     state.min_rating = (state.min_rating + 1) % 6;
                 }

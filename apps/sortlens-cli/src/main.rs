@@ -21,6 +21,10 @@ Commands:
   stats                     library counters
   rate <id> <0-5>           set stars
   flag <id> pick|reject|none
+  tag <id> <keyword>        add a keyword
+  untag <id> <keyword>      remove a keyword
+  keywords                  list keywords with photo counts
+  list [--tag KW]           filter the listing by keyword
   undo                      undo the last change
   report                    support report
 ";
@@ -83,7 +87,11 @@ fn run() -> Result<(), String> {
         }
         "list" => {
             let limit = flag_value(rest, "--limit").unwrap_or(20);
-            let page = engine.page(&Filter::default(), Sort::Natural, 0, limit);
+            let filter = Filter {
+                tag: text_value(rest, "--tag"),
+                ..Filter::default()
+            };
+            let page = engine.page(&filter, Sort::Natural, 0, limit);
             for photo in &page.photos {
                 let label = photo.label.map(|label| label.label()).unwrap_or("-");
                 let size = if photo.width > 0 {
@@ -112,6 +120,7 @@ fn run() -> Result<(), String> {
             println!("picks     {}", stats.picks);
             println!("rejects   {}", stats.rejects);
             println!("labelled  {}", stats.labelled);
+            println!("tagged    {}", stats.tagged);
             println!("missing   {}", stats.missing);
             println!("bytes     {}", sortlens_core::format_bytes(stats.bytes));
             Ok(())
@@ -133,6 +142,28 @@ fn run() -> Result<(), String> {
             };
             engine.flag(&[id], flag).map_err(|error| error.to_string())?;
             println!("flagged {id} as {}", flag.id());
+            Ok(())
+        }
+        "tag" | "untag" => {
+            let add = command == "tag";
+            let id = parse_id(rest.first())?;
+            let keyword = rest.get(1).ok_or("a keyword is required")?;
+            let changed = engine.set_tag(&[id], keyword, add).map_err(|error| error.to_string())?;
+            if changed == 0 {
+                println!("{id}: no change");
+            } else {
+                println!("{id}: {} {keyword}", if add { "tagged" } else { "untagged" });
+            }
+            Ok(())
+        }
+        "keywords" => {
+            let vocabulary = engine.tag_vocabulary();
+            if vocabulary.is_empty() {
+                println!("no keywords");
+            }
+            for (tag, count) in vocabulary {
+                println!("{count:>6}  {tag}");
+            }
             Ok(())
         }
         "undo" => {
@@ -169,6 +200,11 @@ fn parse_id(value: Option<&String>) -> Result<sortlens_core::PhotoId, String> {
         .parse::<u64>()
         .map(sortlens_core::PhotoId)
         .map_err(|_| "photo id must be a number".to_string())
+}
+
+fn text_value(args: &[String], name: &str) -> Option<String> {
+    let index = args.iter().position(|arg| arg == name)?;
+    args.get(index + 1).cloned()
 }
 
 fn flag_value(args: &[String], name: &str) -> Option<usize> {
