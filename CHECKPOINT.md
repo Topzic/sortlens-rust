@@ -277,7 +277,20 @@ Not built: collection favourites, colours, per-collection search/sort, and reord
   command, and `parent_prefix`
 - 144 tests, CI and wasm green; CLI smoke test listed `day1/` (2), `day2/` (1) and `day1/sub/` (1)
 
+## 2026-11-21 — M3: sort keys
+
+- catalog: `Sort::ALL`, `id()`, `label()` and `parse()` (unknown ids fall back to added order)
+- ui: the header's static "Added order" label became a combo box listing added order, name, newest,
+  oldest, largest and highest rated; the grid and the cull queue both use the chosen order, so a
+  session starts in the order the user was looking at
+- app: the order is saved to `library.sort` and restored on launch (`Action::SetSort`)
+- tests: ids round trip and are unique, unknown ids fall back, settings default is "added"
+- 146 tests, CI and wasm green
+
+Per-view orders (a separate order for collections or folders) are not built: one order applies to
+the whole library view.
+
 ## Next
 
-Sort keys: a header control for capture time, name, size and rating, persisted per view, with the
-catalog already able to sort.
+Filter by kind and edited state: chips for photos, raws and videos, plus an "edited" flag, so a
+mixed library can be narrowed the way the vendor app allows.

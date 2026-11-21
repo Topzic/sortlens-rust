@@ -76,6 +76,8 @@ pub struct Library {
     pub delete_mode: String,
     /// Folder that receives moved rejects when `delete_mode` is `move`.
     pub reject_folder: String,
+    /// Order the library grid opened with: `added`, `name`, `newest`, `oldest`, `largest`, `rating`.
+    pub sort: String,
 }
 
 impl Default for Library {
@@ -85,6 +87,7 @@ impl Default for Library {
             write_sidecars: true,
             delete_mode: "trash".into(),
             reject_folder: String::new(),
+            sort: "added".into(),
         }
     }
 }
@@ -126,6 +129,7 @@ mod tests {
         assert_eq!(prefs.appearance.theme, "charcoal");
         assert!(prefs.review.auto_advance);
         assert!(prefs.library.write_sidecars, "XMP sidecars are on by default");
+        assert_eq!(prefs.library.sort, "added");
         assert_eq!(prefs.library.delete_mode, "trash");
         assert!(!prefs.ai.enabled, "models are opt-in");
         assert!(!prefs.remote.enabled, "the server is opt-in");

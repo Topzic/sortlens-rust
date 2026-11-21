@@ -102,6 +102,8 @@ pub enum Action {
     RemoveRoot(String),
     /// Sidecar writing was switched on or off.
     SetSidecars(bool),
+    /// The grid order changed and should be remembered.
+    SetSort(Sort),
 }
 
 /// What Apply does with rejected photos.
@@ -190,6 +192,8 @@ pub struct UiState {
     pub health: Option<(usize, usize, usize)>,
     /// Relative folder inside the chosen root, with a trailing slash, or empty for the whole root.
     pub folder: String,
+    /// Order the grid is shown in.
+    pub sort: Sort,
     /// Only this collection, chosen in the sidebar.
     pub collection_filter: Option<sortlens_core::CollectionId>,
     /// Collection being renamed, with its draft name.
@@ -229,6 +233,7 @@ impl UiState {
             health_open: false,
             health: None,
             folder: String::new(),
+            sort: Sort::Natural,
             collection_filter: None,
             rename_target: None,
             notice: None,
@@ -825,7 +830,19 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         state.root = None;
                         state.folder.clear();
                     }
-                    ui.label(RichText::new("Added order").size(11.5).color(t.text_faint));
+                    let mut chosen = state.sort;
+                    egui::ComboBox::from_id_salt("sort_order")
+                        .selected_text(RichText::new(state.sort.label()).size(11.5).color(t.text_muted))
+                        .width(130.0)
+                        .show_ui(ui, |ui| {
+                            for sort in Sort::ALL {
+                                ui.selectable_value(&mut chosen, sort, RichText::new(sort.label()).size(11.5));
+                            }
+                        });
+                    if chosen != state.sort {
+                        state.sort = chosen;
+                        actions.push(Action::SetSort(chosen));
+                    }
                 });
             });
             if state.root.is_some() {
@@ -870,7 +887,7 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumb
             ui.spacing_mut().item_spacing = vec2(gap, 0.0);
             let offset = range.start * columns;
             let limit = (range.end - range.start) * columns;
-            let page = engine.page(filter, Sort::Natural, offset, limit);
+            let page = engine.page(filter, state.sort, offset, limit);
             for row in 0..(range.end - range.start) {
                 ui.horizontal(|ui| {
                     for column in 0..columns {
@@ -1264,7 +1281,7 @@ fn fit_rect(bounds: Rect, aspect: f32) -> Rect {
 fn start_cull(engine: &mut Engine, state: &UiState) -> std::result::Result<usize, String> {
     const QUEUE_CAP: usize = 500;
     let ids: Vec<sortlens_core::PhotoId> = engine
-        .page(&state.filter(), Sort::Natural, 0, QUEUE_CAP)
+        .page(&state.filter(), state.sort, 0, QUEUE_CAP)
         .photos
         .iter()
         .map(|photo| photo.id)

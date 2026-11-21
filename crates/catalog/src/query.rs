@@ -109,6 +109,38 @@ pub enum Sort {
 }
 
 impl Sort {
+    /// Every order, in menu order.
+    pub const ALL: [Self; 6] = [Self::Natural, Self::Name, Self::Newest, Self::Oldest, Self::Largest, Self::Rating];
+
+    /// Stable id for settings and the command layer.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Natural => "added",
+            Self::Name => "name",
+            Self::Newest => "newest",
+            Self::Oldest => "oldest",
+            Self::Largest => "largest",
+            Self::Rating => "rating",
+        }
+    }
+
+    /// Label for the header control.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Natural => "Added order",
+            Self::Name => "Name",
+            Self::Newest => "Newest first",
+            Self::Oldest => "Oldest first",
+            Self::Largest => "Largest first",
+            Self::Rating => "Highest rated",
+        }
+    }
+
+    /// Parse a stored id, falling back to the default order.
+    pub fn parse(value: &str) -> Self {
+        Self::ALL.into_iter().find(|sort| sort.id() == value).unwrap_or_default()
+    }
+
     /// Compare two photos for this order.
     pub fn compare(self, left: &Photo, right: &Photo) -> Ordering {
         match self {
@@ -216,5 +248,28 @@ mod tests {
         let b = photo(2, "same.jpg", 3, Flag::None, None);
         assert_eq!(Sort::Name.compare(&a, &b), Ordering::Less);
         assert_eq!(Sort::Newest.compare(&a, &b), Ordering::Greater);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod sort_tests {
+    use super::*;
+
+    #[test]
+    fn sorts_round_trip_through_their_ids() {
+        for sort in Sort::ALL {
+            assert_eq!(Sort::parse(sort.id()), sort);
+            assert!(!sort.label().is_empty());
+        }
+        assert_eq!(Sort::parse("nonsense"), Sort::Natural, "unknown ids fall back");
+    }
+
+    #[test]
+    fn ids_are_unique() {
+        let mut ids: Vec<&str> = Sort::ALL.iter().map(|sort| sort.id()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), Sort::ALL.len());
     }
 }

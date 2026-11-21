@@ -11,7 +11,7 @@ use craft_settings::{Location, store::SettingsStore};
 use craft_window::Prefix;
 use craft_window::policy::{Backend, Frame, TitleBarPref, apply as apply_titlebar, decide_for};
 use settings::Prefs;
-use sortlens_engine::Engine;
+use sortlens_engine::{Engine, Sort};
 use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 
 /// Left inset that clears the traffic lights in an integrated title bar.
@@ -96,9 +96,11 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>, title_inset: f32) -> Self {
         let (store, report) = SettingsStore::<Prefs>::open(Location::Auto);
         let kind = ThemeKind::from_id(&store.get().appearance.theme);
+        let saved_sort = Sort::parse(&store.get().library.sort);
         apply_theme(&cc.egui_ctx, kind);
 
         let mut ui = UiState::new(kind, title_inset);
+        ui.sort = saved_sort;
         if report.has_problems() {
             ui.notice("Settings could not be read in full; defaults are in use");
         }
@@ -147,6 +149,10 @@ impl App {
                 Ok(()) => self.ui.notice(format!("Rescanning {}…", folder_name(&root))),
                 Err(error) => self.ui.notice(error.to_string()),
             },
+            Action::SetSort(sort) => {
+                self.ui.sort = sort;
+                self.store.update(|prefs| prefs.library.sort = sort.id().to_owned());
+            }
             Action::SetSidecars(on) => self.ui.notice(if on {
                 "Writing XMP sidecars beside photos"
             } else {
