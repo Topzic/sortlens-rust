@@ -147,6 +147,11 @@ impl App {
                 Ok(()) => self.ui.notice(format!("Rescanning {}…", folder_name(&root))),
                 Err(error) => self.ui.notice(error.to_string()),
             },
+            Action::SetSidecars(on) => self.ui.notice(if on {
+                "Writing XMP sidecars beside photos"
+            } else {
+                "Sidecar writing off; changes stay in the catalog"
+            }),
             Action::RemoveRoot(root) => match self.engine.remove_root(&root) {
                 Ok(count) => self.ui.notice(format!("Removed {count} photos from {}", folder_name(&root))),
                 Err(error) => self.ui.notice(error.to_string()),

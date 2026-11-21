@@ -106,7 +106,26 @@ covered; the preview extraction itself is `craft-raw`'s code path.
 XMP sidecar writing is still pending: keywords live in the op log for now, so they survive restarts
 but are invisible to other apps.
 
+## 2026-11-21 — M3: XMP sidecars
+
+- `sortlens-sidecar`: `Sidecar { rating, flag, label, keywords }`, `path_for` (same stem, `.xmp`),
+  `read`, `merge`, `write`. Merging edits the first `rdf:Description` in place: attributes are
+  replaced element-value-wise, the `dc:subject` bag is swapped, everything else (crop settings,
+  creator tool, unknown namespaces) is left byte-for-byte alone. Namespaces are declared on demand.
+  Writes are temp-file + rename and skipped when nothing would change.
+- engine: `sync_sidecars` runs after rate/flag/label/keyword changes, reports a `Sidecars` job with
+  the number written and per-file failures, and never aborts the batch. `write_sidecars` toggles it.
+- ui: Settings → Library checkbox, plus a notice; the toggle reaches the app as `Action::SetSidecars`.
+- tests: fresh round trip, foreign file keeps `crs:Exposure2012`/`xmp:CreatorTool`, self-closing
+  description gains children, clearing a label/flag removes it, element-form rating, entity
+  escaping, atomic + idempotent write, missing sidecar, path mapping, engine writes a sidecar,
+  switch-off, read-only folder reports a failure but keeps the rating
+- 90 tests, CI and wasm green; CLI smoke test produced an `xmllint`-parseable sidecar
+
+Not implemented yet: sidecars are not read back into the catalog at scan time, and failed writes
+are retried on the next change rather than by a queue.
+
 ## Next
 
-`sortlens-sidecar`: XMP read/merge/write with unknown-field preservation and atomic replacement,
-then wiring rating/flag/label/keyword changes to it.
+Read sidecars during the scan (sidecar wins over embedded EXIF), then M4 cull view: grid/detail
+compare, staged deletes with apply/undo.

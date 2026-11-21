@@ -100,6 +100,8 @@ pub enum Action {
     Rescan(String),
     /// Remove a root from the library.
     RemoveRoot(String),
+    /// Sidecar writing was switched on or off.
+    SetSidecars(bool),
 }
 
 /// Everything the shell remembers between frames.
@@ -263,7 +265,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     canvas(ui, state, &t, engine, thumbs, &mut actions);
 
     if state.settings_open {
-        settings_dialog(ui, state, &t, &mut actions);
+        settings_dialog(ui, state, &t, engine, &mut actions);
     }
     if state.about_open {
         about_dialog(ui, state, &t, engine);
@@ -1004,7 +1006,7 @@ fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {
     );
 }
 
-fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.settings_open;
     egui::Window::new("Settings")
         .open(&mut open)
@@ -1020,6 +1022,18 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut V
             }
             ui.add_space(8.0);
             ui.separator();
+            ui.label(RichText::new("Library").size(11.0).color(t.text_muted));
+            let mut write_sidecars = engine.write_sidecars();
+            if ui.checkbox(&mut write_sidecars, "Write XMP sidecars beside photos").changed() {
+                engine.set_write_sidecars(write_sidecars);
+                actions.push(Action::SetSidecars(write_sidecars));
+            }
+            ui.label(
+                RichText::new("Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(8.0);
             ui.label(
                 RichText::new("More settings arrive with the features they configure.")
                     .size(11.0)

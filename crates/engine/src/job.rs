@@ -12,8 +12,10 @@ pub enum JobKind {
     Scan,
     /// Decoding thumbnails.
     Preview,
-    /// Writing files or sidecars.
+    /// Writing files.
     Export,
+    /// Writing XMP sidecars beside photos.
+    Sidecar,
 }
 
 impl JobKind {
@@ -23,6 +25,7 @@ impl JobKind {
             Self::Scan => "Scan",
             Self::Preview => "Previews",
             Self::Export => "Export",
+            Self::Sidecar => "Sidecars",
         }
     }
 }

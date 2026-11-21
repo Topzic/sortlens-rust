@@ -120,7 +120,7 @@ scans headlessly and prints a JSON report.
 - [x] `photo.rate/flag/label/tag` + batch variants (A) — SL-D01..D05
 - [ ] `photo.tagFromPrev` and tag rename/merge (A) — SL-D05
 - [ ] Tag registry: create/rename/merge/delete, autocomplete index (A) — SL-D06
-- [ ] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
+- [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
 - [ ] External-change detection + retry queue + failure reporting (A) — SL-D11
 - [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11
 - [ ] Rating/flag/label pill + inspector + context menus (B) — SL-D01..D03

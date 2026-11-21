@@ -71,6 +71,7 @@ pub struct Engine {
     pending: Option<PendingScan>,
     jobs: Vec<Job>,
     next_job: u64,
+    write_sidecars: bool,
     warnings: Vec<String>,
 }
 
@@ -84,6 +85,7 @@ impl Engine {
             pending: None,
             jobs: Vec::new(),
             next_job: 1,
+            write_sidecars: true,
             warnings: Vec::new(),
         }
     }
@@ -337,16 +339,20 @@ impl Engine {
 
     /// Set stars on a selection, clamped to 0–5.
     pub fn rate(&mut self, ids: &[PhotoId], stars: u8) -> Result<usize> {
-        self.mutate(Op::Rate {
+        let changed = self.mutate(Op::Rate {
             changes: ids.iter().map(|id| (*id, stars.min(5))).collect(),
-        })
+        })?;
+        self.sync_sidecars(ids);
+        Ok(changed)
     }
 
     /// Set a flag on a selection.
     pub fn flag(&mut self, ids: &[PhotoId], flag: Flag) -> Result<usize> {
-        self.mutate(Op::Flag {
+        let changed = self.mutate(Op::Flag {
             changes: ids.iter().map(|id| (*id, flag)).collect(),
-        })
+        })?;
+        self.sync_sidecars(ids);
+        Ok(changed)
     }
 
     /// Add or remove one keyword on a selection.
@@ -374,6 +380,7 @@ impl Engine {
         }
         let count = changes.len();
         self.mutate(Op::Tagged { changes })?;
+        self.sync_sidecars(ids);
         Ok(count)
     }
 
@@ -382,11 +389,53 @@ impl Engine {
         self.catalog.as_ref().map(|catalog| catalog.tag_vocabulary()).unwrap_or_default()
     }
 
+    /// Whether review changes are written to XMP sidecars.
+    pub fn write_sidecars(&self) -> bool {
+        self.write_sidecars
+    }
+
+    /// Turn sidecar writing on or off. The setting is applied to the next change, not retroactively.
+    pub fn set_write_sidecars(&mut self, on: bool) {
+        self.write_sidecars = on;
+    }
+
+    /// Rewrite the sidecar of every listed photo from the catalog.
+    ///
+    /// Failures are collected on the job rather than aborting the batch: a photo with a read-only
+    /// sidecar must still be rateable, per `docs/BEHAVIOUR.md` §4.
+    pub fn sync_sidecars(&mut self, ids: &[PhotoId]) {
+        if !self.write_sidecars || ids.is_empty() {
+            return;
+        }
+        let job = self.start_job(JobKind::Sidecar, format!("{} photo(s)", ids.len()));
+        let mut written = 0;
+        let mut failures = Vec::new();
+        for id in ids {
+            let Some(photo) = self.photo(*id).cloned() else {
+                continue;
+            };
+            let image = PathBuf::from(&photo.root).join(&photo.rel);
+            let sidecar = sortlens_sidecar::Sidecar::new(photo.rating, photo.flag, photo.label, photo.tags.clone());
+            match sortlens_sidecar::write(&image, &sidecar) {
+                Ok(_) => written += 1,
+                Err(error) => {
+                    let message = format!("{}: {error}", photo.rel);
+                    self.warnings.push(message.clone());
+                    failures.push(message);
+                }
+            }
+        }
+        let status = if failures.is_empty() { JobStatus::Done } else { JobStatus::Failed };
+        self.finish_job(job, status, written, 0, failures.len(), failures.first().cloned());
+    }
+
     /// Set a colour label on a selection.
     pub fn label(&mut self, ids: &[PhotoId], label: Option<ColorLabel>) -> Result<usize> {
-        self.mutate(Op::Label {
+        let changed = self.mutate(Op::Label {
             changes: ids.iter().map(|id| (*id, label)).collect(),
-        })
+        })?;
+        self.sync_sidecars(ids);
+        Ok(changed)
     }
 
     /// Undo the last catalog operation.
@@ -785,6 +834,81 @@ mod tests {
         assert_eq!(engine.count(&filter), 0);
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.count(&filter), 2);
+    }
+
+    #[test]
+    fn review_changes_are_written_to_a_sidecar() {
+        let folder = Temp::new("sidecar-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        let image = folder.0.join("IMG_0001.jpg");
+        std::fs::write(&image, b"x").expect("write");
+        let (_lib, mut engine) = library("sidecar");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        engine.rate(&[id], 3).expect("rate");
+        engine.flag(&[id], Flag::Pick).expect("flag");
+        engine.set_tag(&[id], "beach", true).expect("tag");
+
+        let sidecar = sortlens_sidecar::read(&image).expect("read").expect("present");
+        assert_eq!(sidecar.rating, 3);
+        assert_eq!(sidecar.flag, Flag::Pick);
+        assert_eq!(sidecar.keywords, vec!["beach".to_string()]);
+        assert!(
+            engine
+                .jobs()
+                .iter()
+                .any(|job| job.kind == JobKind::Sidecar && job.status == JobStatus::Done),
+            "the write shows up in the activity stack"
+        );
+    }
+
+    #[test]
+    fn sidecar_writing_can_be_switched_off() {
+        let folder = Temp::new("sidecar-off-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        let image = folder.0.join("a.jpg");
+        std::fs::write(&image, b"x").expect("write");
+        let (_lib, mut engine) = library("sidecar-off");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        engine.set_write_sidecars(false);
+        engine.rate(&[id], 5).expect("rate");
+        assert!(sortlens_sidecar::read(&image).expect("read").is_none());
+        assert_eq!(engine.photo(id).expect("photo").rating, 5, "the catalog still records it");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_unwritable_folder_reports_the_failure_and_keeps_the_rating() {
+        use std::os::unix::fs::PermissionsExt;
+        let folder = Temp::new("sidecar-fail-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        let (_lib, mut engine) = library("sidecar-fail");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        let mut permissions = std::fs::metadata(&folder.0).expect("meta").permissions();
+        permissions.set_mode(0o555);
+        std::fs::set_permissions(&folder.0, permissions).expect("chmod");
+
+        engine.rate(&[id], 2).expect("rating still applies");
+        assert_eq!(engine.photo(id).expect("photo").rating, 2);
+        assert!(
+            engine
+                .jobs()
+                .iter()
+                .any(|job| job.kind == JobKind::Sidecar && job.status == JobStatus::Failed)
+        );
+
+        let mut permissions = std::fs::metadata(&folder.0).expect("meta").permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&folder.0, permissions).expect("chmod back");
     }
 
     #[test]
