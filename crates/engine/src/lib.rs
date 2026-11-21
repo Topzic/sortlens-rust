@@ -147,6 +147,29 @@ impl Engine {
         }
     }
 
+    /// The photo before or after `id` in the current view order, clamped at the ends.
+    ///
+    /// Detail navigation walks the same order the grid shows, so `←`/`→` never jumps somewhere the
+    /// user cannot see. Returns `None` at the ends rather than wrapping.
+    pub fn neighbour(&self, filter: &Filter, sort: Sort, id: PhotoId, delta: isize) -> Option<PhotoId> {
+        const WINDOW: usize = 5000;
+        let page = self.page(filter, sort, 0, WINDOW);
+        let index = page.photos.iter().position(|photo| photo.id == id)?;
+        let target = index as isize + delta;
+        if target < 0 {
+            return None;
+        }
+        page.photos.get(target as usize).map(|photo| photo.id)
+    }
+
+    /// Position of a photo in the current view order, one-based, with the total.
+    pub fn position(&self, filter: &Filter, sort: Sort, id: PhotoId) -> Option<(usize, usize)> {
+        const WINDOW: usize = 5000;
+        let page = self.page(filter, sort, 0, WINDOW);
+        let index = page.photos.iter().position(|photo| photo.id == id)?;
+        Some((index + 1, page.photos.len()))
+    }
+
     /// Immediate subfolders of a scope, with recursive photo counts.
     pub fn subfolders(&self, root: &str, prefix: &str) -> Vec<(String, usize)> {
         self.catalog
@@ -1598,6 +1621,30 @@ mod tests {
         assert!(engine.cull().is_none());
 
         let _ = std::fs::remove_dir_all(&destination);
+    }
+
+    #[test]
+    fn detail_navigation_walks_the_view_order_and_stops_at_the_ends() {
+        let folder = Temp::new("detail-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::write(folder.0.join(name), name.as_bytes()).expect("write");
+        }
+        let (_lib, mut engine) = library("detail");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Name, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        let filter = Filter::default();
+        assert_eq!(engine.neighbour(&filter, Sort::Name, ids[0], 1), Some(ids[1]));
+        assert_eq!(engine.neighbour(&filter, Sort::Name, ids[2], 1), None);
+        assert_eq!(engine.neighbour(&filter, Sort::Name, ids[0], -1), None);
+        assert_eq!(engine.position(&filter, Sort::Name, ids[1]), Some((2, 3)));
     }
 
     #[test]

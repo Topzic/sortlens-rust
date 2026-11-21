@@ -198,6 +198,10 @@ pub struct UiState {
     pub kind_filter: Option<MediaKind>,
     /// Show only edited photos, or only unedited ones.
     pub edited_filter: Option<bool>,
+    /// Whether the single-photo detail view is open.
+    pub detail_open: bool,
+    /// Zoom the detail view to 1:1 instead of fitting the window.
+    pub detail_zoom: bool,
     /// Only this collection, chosen in the sidebar.
     pub collection_filter: Option<sortlens_core::CollectionId>,
     /// Collection being renamed, with its draft name.
@@ -240,6 +244,8 @@ impl UiState {
             sort: Sort::Natural,
             kind_filter: None,
             edited_filter: None,
+            detail_open: false,
+            detail_zoom: false,
             collection_filter: None,
             rename_target: None,
             notice: None,
@@ -865,6 +871,9 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             ui.add_space(10.0);
 
             match state.view {
+                View::Library if state.detail_open => {
+                    detail_view(ui, t, state, engine, thumbs);
+                }
                 View::Library => {
                     if total == 0 {
                         empty_library(ui, t, state, engine, actions);
@@ -913,7 +922,7 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumb
                                     state.right_tab = RightTab::Details;
                                 }
                                 if response.double_clicked() {
-                                    state.notice("The detail view arrives in M4");
+                                    state.detail_open = true;
                                 }
                                 response.context_menu(|ui| {
                                     ui.menu_button("Add to Collection", |ui| {
@@ -1009,6 +1018,11 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     if ui.memory(|memory| memory.focused()).is_some() {
         return;
     }
+    if state.detail_open {
+        // Arrows, Space, Z, D and Esc belong to the detail view; rating and flag keys still work
+        // below, which is why this does not return.
+        detail_keyboard(ui, state, engine);
+    }
     if cull_keyboard(ui, engine) {
         return;
     }
@@ -1060,6 +1074,11 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
             keyword = true;
         }
     });
+
+    if !state.detail_open && ui.input(|input| input.key_pressed(Key::D) && !input.modifiers.command) {
+        state.detail_open = true;
+        return;
+    }
 
     if keyword {
         state.right_tab = RightTab::Tags;
@@ -1245,6 +1264,147 @@ fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, 
                 .color(t.text_faint),
         );
     });
+}
+
+fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
+    let mut close = false;
+    let mut zoom = false;
+    let mut step = 0isize;
+    ui.input(|input| {
+        if input.key_pressed(Key::Escape) || (input.key_pressed(Key::D) && !input.modifiers.command) {
+            close = true;
+        }
+        if input.key_pressed(Key::Z) && !input.modifiers.command {
+            zoom = true;
+        }
+        if input.key_pressed(Key::ArrowRight) || input.key_pressed(Key::Space) {
+            step = 1;
+        }
+        if input.key_pressed(Key::ArrowLeft) {
+            step = -1;
+        }
+    });
+    if zoom {
+        state.detail_zoom = !state.detail_zoom;
+    }
+    if close {
+        state.detail_open = false;
+    }
+    if step != 0
+        && let Some(id) = state.selected
+        && let Some(next) = engine.neighbour(&state.filter(), state.sort, id, step)
+    {
+        state.selected = Some(next);
+    }
+}
+
+/// One photo, large, with the facts a cull needs and arrows to walk the view.
+fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
+    let filter = state.filter();
+    let Some(id) = state.selected else {
+        ui.vertical_centered(|ui| {
+            ui.add_space(60.0);
+            ui.label(RichText::new("Nothing selected").size(16.0).strong());
+            ui.label(
+                RichText::new("Pick a photo in the grid, then press D.")
+                    .size(11.5)
+                    .color(t.text_muted),
+            );
+            if ui.button("Back to the grid").clicked() {
+                state.detail_open = false;
+            }
+        });
+        return;
+    };
+    let Some(photo) = engine.photo(id).cloned() else {
+        state.detail_open = false;
+        return;
+    };
+    let position = engine.position(&filter, state.sort, id);
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(truncate(&photo.name, 42)).size(14.0).strong());
+        if let Some((index, total)) = position {
+            ui.label(RichText::new(format!("{index} of {total}")).size(11.5).color(t.text_muted));
+        }
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
+                state.detail_open = false;
+            }
+            let zoom_label = if state.detail_zoom { "Fit  Z" } else { "1:1  Z" };
+            if ui.button(RichText::new(zoom_label).size(11.0)).clicked() {
+                state.detail_zoom = !state.detail_zoom;
+            }
+        });
+    });
+    ui.add_space(6.0);
+
+    let footer = 118.0;
+    let height = (ui.available_height() - footer).max(180.0);
+    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    ui.painter().rect_filled(area, t.corner(), t.thumb_bg);
+
+    let aspect = if photo.width > 0 && photo.height > 0 {
+        photo.width as f32 / photo.height as f32
+    } else {
+        1.5
+    };
+    let fitted = fit_rect(area.shrink(6.0), aspect);
+    let target = if state.detail_zoom {
+        // 1:1 shows the image at its pixel size, cropped by the available area.
+        let width = photo.width.max(1) as f32;
+        Rect::from_center_size(area.center(), vec2(width, width / aspect))
+    } else {
+        fitted
+    };
+    match thumbs.get(ui.ctx(), &photo, 2000).cloned() {
+        Some(texture) => {
+            let uv = cover_uv(texture.size_vec2(), target.size());
+            let painter = ui.painter().with_clip_rect(area.intersect(ui.clip_rect()));
+            painter.image(texture.id(), target, uv, Color32::WHITE);
+        }
+        None => {
+            ui.painter()
+                .text(area.center(), Align2::CENTER_CENTER, "Loading preview…", t.font(11.0), t.text_faint);
+        }
+    }
+
+    ui.add_space(8.0);
+    ui.horizontal(|ui| {
+        if ui.add(Button::new(RichText::new("← Previous").size(11.0))).clicked()
+            && let Some(previous) = engine.neighbour(&filter, state.sort, id, -1)
+        {
+            state.selected = Some(previous);
+        }
+        if ui.add(Button::new(RichText::new("Next →").size(11.0))).clicked()
+            && let Some(next) = engine.neighbour(&filter, state.sort, id, 1)
+        {
+            state.selected = Some(next);
+        }
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new(format!(
+                "{}  ·  {}  ·  {}",
+                photo.camera,
+                photo.exposure(),
+                sortlens_core::format_bytes(photo.size)
+            ))
+            .size(11.0)
+            .color(t.text_muted),
+        );
+    });
+    if !photo.tags.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            for tag in &photo.tags {
+                ui.label(RichText::new(format!("#{tag}")).size(10.5).color(t.text_faint));
+            }
+        });
+    }
+    ui.label(
+        RichText::new("P/X/U flag · 1–5 rate · ← → walk · Z zoom · Esc close")
+            .size(10.0)
+            .color(t.text_faint),
+    );
 }
 
 /// Start a session over what the filters currently show. A session is a fixed queue: changing the

@@ -128,7 +128,8 @@ scans headlessly and prints a JSON report.
 - [x] Filter bar: rating, flags, labels, keyword, collection, kind, edited, missing, clear (B) — SL-B07..B13
 - [ ] Tag ANY/ALL, filter pickers, active-filter badge (B)
 - [x] Sort keys: added/name/newest/oldest/largest/rating, persisted (B) — SL-B06
-- [ ] Detail view + EXIF panel + counter + lookahead (B) — SL-B18..B21
+- [x] Detail view: large canvas, counter, fit/1:1, arrow navigation, facts line (B) — SL-B18..B20
+- [ ] Detail lookahead strip and histogram (B) — SL-B21
 - [ ] Shortcut overlay + full keymap wiring (B) — SL-B23
 - [ ] Undo/redo (20+) + audit log + viewer skeleton (A) — SL-D10/H04
 - [ ] `photo.reveal/open` (A) — SL-B22

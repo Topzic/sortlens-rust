@@ -346,7 +346,7 @@ impl Registry {
                     group: Group::View,
                     shortcut: Some("D"),
                     menu: "View > Detail",
-                    status: Status::Planned("M4"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "view.similar",

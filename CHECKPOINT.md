@@ -306,7 +306,21 @@ the whole library view.
 "Edited" means the sidecar carries someone's develop settings — detection happens at index time, so
 a photo edited after it was scanned shows as edited only after a rescan.
 
+## 2026-11-21 — M4: the detail view
+
+- engine: `neighbour(filter, sort, id, delta)` walks the same order the grid shows and stops at the
+  ends instead of wrapping; `position` gives the one-based counter
+- ui: `state.detail_open` swaps the grid for a single-photo canvas — name, counter, Fit/1:1 toggle,
+  a 2000px preview with the area as a clip rect for 1:1, a facts line (camera, exposure, size), the
+  keyword chips, and Previous/Next buttons. Double-click or `D` opens it; `Esc`/`D` closes it;
+  `←`/`→`/Space walk the view, `Z` toggles zoom, and P/X/U plus 1–5 keep working inside it
+- tests: navigation walking the view order and clamping at both ends, `position` counting
+- 150 tests, CI and wasm green
+- `view.detail` is now a Ready command
+
+Not built: the lookahead strip and the histogram in the detail view.
+
 ## Next
 
-Detail view: a single-photo canvas with EXIF, previous/next navigation and a zoom toggle, so the
-library can be inspected without leaving the grid.
+The histogram and lookahead strip for the detail view, so exposure and neighbours are visible
+without leaving the photo.
