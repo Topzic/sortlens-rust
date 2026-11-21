@@ -11,6 +11,7 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 sortlens-meta = { workspace = true }
 craft-jpeg = { workspace = true }
+craft-image-codecs = { workspace = true }
 
 [lints]
 workspace = true

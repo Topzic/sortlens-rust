@@ -61,10 +61,24 @@ pub fn decode_jpeg(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
     Ok(resize(&rgb, width, height, 3, max_edge))
 }
 
+/// Decode any raster format the suite understands, downscaled to `max_edge`.
+///
+/// The dispatcher covers PNG, TIFF, WebP, GIF, BMP and 8-bit JPEG. A file it refuses falls back to
+/// the JPEG path, which also handles the 12-bit and CMYK cases.
+pub fn decode_image(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
+    let image = craft_image_codecs::decode(bytes).map_err(|error| Error::Invalid(format!("image: {error}")))?;
+    let (width, height) = (image.width(), image.height());
+    if width == 0 || height == 0 {
+        return Err(Error::Invalid("image has no pixels".into()));
+    }
+    let rgba = image.to_rgba8();
+    Ok(resize(&rgba, width, height, 4, max_edge))
+}
+
 /// Read a file and decode it, if the format is one this build understands.
 pub fn decode_file(path: &Path, max_edge: u32) -> Result<Thumbnail> {
     let bytes = fs::read(path).map_err(|error| Error::io(path.display().to_string(), error))?;
-    decode_jpeg(&bytes, max_edge)
+    decode_image(&bytes, max_edge).or_else(|_| decode_jpeg(&bytes, max_edge))
 }
 
 /// Box-filter resize of an interleaved image down to `max_edge`.
@@ -101,6 +115,9 @@ pub fn resize(samples: &[u8], width: u32, height: u32, channels: usize, max_edge
                             sums[channel] += u32::from(samples[index + channel]);
                         }
                     }
+                    if channels == 4 && index + 3 < samples.len() {
+                        sums[3] += u32::from(samples[index + 3]);
+                    }
                     count += 1;
                 }
             }
@@ -109,7 +126,7 @@ pub fn resize(samples: &[u8], width: u32, height: u32, channels: usize, max_edge
             rgba[out] = (sums[0] / count) as u8;
             rgba[out + 1] = (sums[1] / count) as u8;
             rgba[out + 2] = (sums[2] / count) as u8;
-            rgba[out + 3] = 255;
+            rgba[out + 3] = if channels == 4 { (sums[3] / count) as u8 } else { 255 };
         }
     }
     Thumbnail {
@@ -129,6 +146,9 @@ fn to_rgba(samples: &[u8], width: u32, height: u32, channels: usize) -> Thumbnai
             if source + channel < samples.len() {
                 rgba[target + channel] = samples[source + channel];
             }
+        }
+        if channels == 4 {
+            rgba[target + 3] = samples.get(source + 3).copied().unwrap_or(255);
         }
     }
     Thumbnail { width, height, rgba }
@@ -371,6 +391,47 @@ mod tests {
         let thumb = decode_jpeg(&jpeg, 128).expect("decode");
         assert_eq!(thumb.width, 128);
         assert_eq!(thumb.height, 64);
+    }
+
+    #[test]
+    fn png_round_trips_through_the_dispatcher() {
+        let samples = gradient(96, 64);
+        let image = craft_image_codecs::Image::from_u8(96, 64, craft_image_codecs::ChannelLayout::Rgb, samples).expect("image");
+        let png = craft_image_codecs::encode(
+            &image,
+            craft_image_codecs::Format::Png,
+            &craft_image_codecs::EncodeOptions::default(),
+        )
+        .expect("encode png");
+        let thumb = decode_image(&png, 128).expect("decode png");
+        assert_eq!((thumb.width, thumb.height), (96, 64));
+        assert!(thumb.is_consistent());
+    }
+
+    #[test]
+    fn tiff_round_trips_and_is_downscaled() {
+        let samples = gradient(400, 300);
+        let image = craft_image_codecs::Image::from_u8(400, 300, craft_image_codecs::ChannelLayout::Rgb, samples).expect("image");
+        let tiff = craft_image_codecs::encode(
+            &image,
+            craft_image_codecs::Format::Tiff,
+            &craft_image_codecs::EncodeOptions::default(),
+        )
+        .expect("encode tiff");
+        let thumb = decode_image(&tiff, 128).expect("decode tiff");
+        assert_eq!(thumb.width, 128);
+        assert!(thumb.height <= 128);
+        assert!(thumb.is_consistent());
+    }
+
+    #[test]
+    fn alpha_is_carried_through_the_resize() {
+        let mut samples = vec![255u8; 32 * 32 * 4];
+        for pixel in samples.chunks_mut(4) {
+            pixel[3] = 64;
+        }
+        let thumb = resize(&samples, 32, 32, 4, 16);
+        assert!(thumb.rgba.chunks(4).all(|pixel| pixel[3] == 64));
     }
 
     #[test]

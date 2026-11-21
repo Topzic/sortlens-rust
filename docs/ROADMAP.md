@@ -94,7 +94,8 @@ read during the scan. RAW, HEIC, video, priority scheduling and the activity sta
 - [x] Cooperative cancellation + live file/folder counters during a scan (C)
 - [ ] Priority scheduler + backpressure (C)
 - [x] JPEG decode path (C)
-- [ ] PNG/WebP/TIFF/HEIC decode paths (C) — README format table
+- [x] PNG/TIFF/WebP/GIF/BMP decode paths via craft-image-codecs, alpha preserved (C)
+- [ ] HEIC decode path (C)
 - [ ] RAW embedded previews (`craft-raw`) (C) — SL-B18
 - [ ] Video poster + duration/fps/codec (C) — SL-B11
 - [x] Placeholder cell while decoding, no spinner (B)

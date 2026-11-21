@@ -55,7 +55,16 @@ non-JPEG previews fall back to the kind glyph.
   Cancel button in Activity, tidy cancelled notice
 - 57 tests, CI green
 
+## 2026-11-21 — M2: PNG, TIFF, WebP, BMP, GIF thumbnails
+
+- thumbs: `decode_image` dispatches through `craft-image-codecs` (PNG, TIFF, WebP, GIF, BMP, QOI,
+  PPM and 8-bit JPEG), falls back to the JPEG path, and carries alpha through the resize
+- 3 new tests: PNG round trip, TIFF round trip with downscale, alpha preserved
+- 60 tests; `cargo xtask ci` and `cargo xtask wasm` green (the dispatcher builds for wasm)
+
+Still missing: RAW embedded previews (`craft-raw`), video posters, HEIC.
+
 ## Next
 
-M2.5 — remaining decoders (PNG/TIFF via craft-tiff, RAW embedded previews via craft-raw) and
-the activity stack; then M3 keywords + composable filters.
+RAW embedded previews via `craft-raw` (decode the camera JPEG instead of the raw pixels), then the
+activity stack, then M3 keywords.
