@@ -12,6 +12,8 @@ use sortlens_meta::PhotoMeta;
 use std::fs;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::UNIX_EPOCH;
 
 /// Directories that never contain user photos.
@@ -128,6 +130,68 @@ pub struct ScanError {
     pub message: String,
 }
 
+/// Live counters and a cancel switch for a running scan.
+///
+/// Cloning the control is cheap and shares the same state, so a worker thread can advance the
+/// counters while the UI reads them.
+#[derive(Debug, Clone, Default)]
+pub struct ScanControl {
+    cancel: Arc<AtomicBool>,
+    files: Arc<AtomicUsize>,
+    dirs: Arc<AtomicUsize>,
+    errors: Arc<AtomicUsize>,
+}
+
+impl ScanControl {
+    /// A fresh control.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Ask the scan to stop after the directory it is in.
+    pub fn cancel(&self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    /// Whether a cancel has been requested.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+
+    /// Counters as of now.
+    pub fn snapshot(&self) -> ScanProgress {
+        ScanProgress {
+            files: self.files.load(Ordering::Relaxed),
+            dirs: self.dirs.load(Ordering::Relaxed),
+            errors: self.errors.load(Ordering::Relaxed),
+        }
+    }
+
+    fn publish(&self, report: &ScanReport) {
+        self.files.store(report.files.len(), Ordering::Relaxed);
+        self.dirs.store(report.dirs, Ordering::Relaxed);
+        self.errors.store(report.errors.len(), Ordering::Relaxed);
+    }
+}
+
+/// What a scan has done so far.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ScanProgress {
+    /// Files accepted so far.
+    pub files: usize,
+    /// Directories visited so far.
+    pub dirs: usize,
+    /// Unreadable entries so far.
+    pub errors: usize,
+}
+
+impl ScanProgress {
+    /// Whether anything has been visited yet.
+    pub fn is_empty(&self) -> bool {
+        self.files == 0 && self.dirs == 0
+    }
+}
+
 /// What one root produced.
 #[derive(Debug, Default)]
 pub struct ScanReport {
@@ -139,6 +203,9 @@ pub struct ScanReport {
     pub errors: Vec<ScanError>,
     /// Directories visited.
     pub dirs: usize,
+    /// The walk stopped because it was cancelled; the file list is partial and must not be
+    /// treated as a complete picture of the folder.
+    pub cancelled: bool,
 }
 
 impl ScanReport {
@@ -153,15 +220,25 @@ impl ScanReport {
 /// Directories are visited breadth-first so a huge folder does not starve its siblings, and the
 /// result is sorted by path at the end for a stable grid order.
 pub fn scan_root(root: &Path) -> Result<ScanReport> {
+    scan_root_with(root, &ScanControl::new())
+}
+
+/// Walk one root, reporting progress and honouring cancellation.
+pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> {
     let root = fs::canonicalize(root).map_err(|error| sortlens_core::Error::io(root.display().to_string(), error))?;
     let mut report = ScanReport::default();
     let mut queue = vec![(root.clone(), 0usize)];
     let mut index = 0;
 
     while index < queue.len() {
+        if control.is_cancelled() {
+            report.cancelled = true;
+            break;
+        }
         let (dir, depth) = queue[index].clone();
         index += 1;
         report.dirs += 1;
+        control.publish(&report);
 
         let entries = match fs::read_dir(&dir) {
             Ok(entries) => entries,
@@ -274,6 +351,7 @@ pub fn scan_root(root: &Path) -> Result<ScanReport> {
             });
         }
 
+        control.publish(&report);
         queue.extend(children.into_iter().map(|child| (child, depth + 1)));
     }
 
@@ -416,6 +494,32 @@ mod tests {
         assert_eq!(media_kind("cr3"), Some(MediaKind::Raw));
         assert_eq!(media_kind("mov"), Some(MediaKind::Video));
         assert_eq!(media_kind("txt"), None);
+    }
+
+    #[test]
+    fn cancelling_stops_the_walk_and_marks_the_report() {
+        let tree = TempTree::new("cancel");
+        tree.file("a.jpg", 4);
+        tree.file("sub/b.jpg", 4);
+        let control = ScanControl::new();
+        control.cancel();
+        let report = scan_root_with(&tree.0, &control).expect("scan");
+        assert!(report.cancelled);
+        assert!(report.files.is_empty(), "a cancelled walk reports no files");
+    }
+
+    #[test]
+    fn progress_counters_follow_the_walk() {
+        let tree = TempTree::new("progress");
+        tree.file("a.jpg", 4);
+        tree.file("sub/b.jpg", 4);
+        let control = ScanControl::new();
+        assert!(control.snapshot().is_empty());
+        let report = scan_root_with(&tree.0, &control).expect("scan");
+        assert!(!report.cancelled);
+        let progress = control.snapshot();
+        assert_eq!(progress.files, 2);
+        assert_eq!(progress.dirs, report.dirs);
     }
 
     #[test]

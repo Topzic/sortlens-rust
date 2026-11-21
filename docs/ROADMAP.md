@@ -89,8 +89,10 @@ files → rename a subfolder → no duplicate rows.
 read during the scan. RAW, HEIC, video, priority scheduling and the activity stack remain.
 
 - [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
-- [ ] Priority scheduler + generation cancellation + backpressure (C)
-- [ ] Priority scheduler + generation cancellation + backpressure (C)
+- [x] Cooperative cancellation + live file/folder counters during a scan (C)
+- [ ] Priority scheduler + backpressure (C)
+- [x] Cooperative cancellation + live file/folder counters during a scan (C)
+- [ ] Priority scheduler + backpressure (C)
 - [x] JPEG decode path (C)
 - [ ] PNG/WebP/TIFF/HEIC decode paths (C) — README format table
 - [ ] RAW embedded previews (`craft-raw`) (C) — SL-B18

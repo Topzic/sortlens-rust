@@ -15,7 +15,7 @@ pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 
 use serde_json::{Value, json};
 use sortlens_catalog::{Catalog, Seed};
-use sortlens_scan::ScanReport;
+use sortlens_scan::{ScanControl, ScanProgress, ScanReport};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::Instant;
@@ -35,6 +35,7 @@ pub enum Effect {
 struct PendingScan {
     root: String,
     rx: Receiver<Result<ScanReport>>,
+    control: ScanControl,
     started: Instant,
 }
 
@@ -55,6 +56,8 @@ pub struct ScanFinished {
     pub errors: Vec<String>,
     /// How long the walk took.
     pub elapsed: std::time::Duration,
+    /// The walk was cancelled; nothing was committed.
+    pub cancelled: bool,
 }
 
 /// The command engine.
@@ -159,18 +162,37 @@ impl Engine {
         let root: String = path.into();
         let root_path = PathBuf::from(&root);
         let (tx, rx) = channel();
+        let control = ScanControl::new();
+        let worker_control = control.clone();
         std::thread::Builder::new()
             .name("sortlens-scan".into())
             .spawn(move || {
-                let _ = tx.send(sortlens_scan::scan_root(&root_path));
+                let _ = tx.send(sortlens_scan::scan_root_with(&root_path, &worker_control));
             })
             .map_err(|error| Error::Invalid(format!("could not start the scan worker: {error}")))?;
         self.pending = Some(PendingScan {
             root,
             rx,
+            control,
             started: Instant::now(),
         });
         Ok(())
+    }
+
+    /// Files and folders visited so far, while a scan is running.
+    pub fn scan_progress(&self) -> Option<ScanProgress> {
+        self.pending.as_ref().map(|pending| pending.control.snapshot())
+    }
+
+    /// Ask the running scan to stop. It finishes the directory it is in and commits nothing.
+    pub fn cancel_scan(&mut self) -> bool {
+        match &self.pending {
+            Some(pending) => {
+                pending.control.cancel();
+                true
+            }
+            None => false,
+        }
     }
 
     /// Collect a finished scan, if one is ready.
@@ -193,6 +215,7 @@ impl Engine {
                     restored: 0,
                     errors: vec![error.to_string()],
                     elapsed: pending.started.elapsed(),
+                    cancelled: false,
                 })
             }
             Err(TryRecvError::Empty) => None,
@@ -204,6 +227,19 @@ impl Engine {
     }
 
     fn finish_scan(&mut self, root: String, report: ScanReport, elapsed: std::time::Duration) -> ScanFinished {
+        if report.cancelled {
+            // A partial walk must never be synced: it would mark every unseen file as missing.
+            return ScanFinished {
+                root,
+                added: 0,
+                updated: 0,
+                missing: 0,
+                restored: 0,
+                errors: Vec::new(),
+                elapsed,
+                cancelled: true,
+            };
+        }
         let seeds: Vec<Seed> = report
             .files
             .iter()
@@ -245,6 +281,7 @@ impl Engine {
             restored: outcome.restored,
             errors,
             elapsed,
+            cancelled: false,
         }
     }
 

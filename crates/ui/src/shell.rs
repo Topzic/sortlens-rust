@@ -222,14 +222,18 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     let t = state.theme.tokens();
 
     if let Some(done) = engine.poll() {
-        let mut message = format!("Indexed {} photos in {}", done.added + done.updated, folder_name(&done.root));
-        if done.missing > 0 {
-            message.push_str(&format!(" · {} missing", done.missing));
+        if done.cancelled {
+            state.notice(format!("Cancelled indexing {}", folder_name(&done.root)));
+        } else {
+            let mut message = format!("Indexed {} photos in {}", done.added + done.updated, folder_name(&done.root));
+            if done.missing > 0 {
+                message.push_str(&format!(" · {} missing", done.missing));
+            }
+            if !done.errors.is_empty() {
+                message.push_str(&format!(" · {} unreadable", done.errors.len()));
+            }
+            state.notice(message);
         }
-        if !done.errors.is_empty() {
-            message.push_str(&format!(" · {} unreadable", done.errors.len()));
-        }
-        state.notice(message);
     }
     thumbs.poll(ui.ctx());
     if engine.is_scanning() {
@@ -321,7 +325,22 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 }
 
                 ui.add_space(12.0);
-                ui.label(RichText::new(summary(&stats)).size(11.5).color(t.text_muted));
+                match engine.scan_progress() {
+                    Some(progress) if engine.is_scanning() => {
+                        ui.label(
+                            RichText::new(format!(
+                                "Indexing · {} files · {} folders",
+                                format_count(progress.files as u64),
+                                format_count(progress.dirs as u64)
+                            ))
+                            .size(11.5)
+                            .color(t.accent),
+                        );
+                    }
+                    _ => {
+                        ui.label(RichText::new(summary(&stats)).size(11.5).color(t.text_muted));
+                    }
+                }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if let Some(text) = state.live_notice() {
@@ -366,8 +385,14 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 state.root = None;
                 state.all_photos_selected = true;
             }
-            if engine.is_scanning() {
-                ui.label(RichText::new("Scanning…").size(11.0).color(t.accent));
+            if let Some(progress) = engine.scan_progress()
+                && engine.is_scanning()
+            {
+                ui.label(
+                    RichText::new(format!("Scanning · {} files", format_count(progress.files as u64)))
+                        .size(11.0)
+                        .color(t.accent),
+                );
             }
 
             nav_section(ui, t, "Folders");
@@ -438,6 +463,19 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                     None => hint(ui, t, "Keywords and collections for the selection appear here."),
                 },
                 RightTab::Activity => {
+                    if let Some(progress) = engine.scan_progress()
+                        && engine.is_scanning()
+                    {
+                        ui.label(RichText::new("Scanning folder").size(12.0).strong());
+                        detail_row(ui, t, "Files", &format_count(progress.files as u64));
+                        detail_row(ui, t, "Folders", &format_count(progress.dirs as u64));
+                        detail_row(ui, t, "Unreadable", &format_count(progress.errors as u64));
+                        ui.add_space(4.0);
+                        if ui.button("Cancel scan").clicked() {
+                            engine.cancel_scan();
+                        }
+                        ui.separator();
+                    }
                     let stats = engine.stats();
                     detail_row(ui, t, "Indexed", &format_count(stats.total as u64));
                     detail_row(ui, t, "On disk", &sortlens_core::format_bytes(stats.bytes));

@@ -46,6 +46,15 @@ Verified: `cargo xtask ci` green (55 tests); CLI round trip on a real 320×200 J
 Known gaps: RAW/HEIC/PNG/TIFF thumbnails, video posters, priority scheduling, activity stack,
 non-JPEG previews fall back to the kind glyph.
 
+## 2026-11-21 — M2: progress and cancellation
+
+- scan: `ScanControl` with shared atomic counters and a cancel flag; `ScanReport.cancelled`
+- engine: `scan_progress()`, `cancel_scan()`; a cancelled walk is never synced, because a partial
+  walk would mark every unseen file as missing
+- ui: live "Indexing · N files · M folders" in the bottom bar and sidebar, progress rows plus a
+  Cancel button in Activity, tidy cancelled notice
+- 57 tests, CI green
+
 ## Next
 
 M2.5 — remaining decoders (PNG/TIFF via craft-tiff, RAW embedded previews via craft-raw) and
