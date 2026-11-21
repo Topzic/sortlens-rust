@@ -139,7 +139,23 @@ are retried on the next change rather than by a queue.
 Only *new* photos adopt sidecar state: a photo the catalog already knows keeps its review until
 external-change detection lands, so a stale sidecar cannot quietly undo a cull.
 
+## 2026-11-21 — M4: the cull state machine
+
+- `sortlens-cull`: `Decision { Unjudged, Pick, Reject, Deferred }` and `Session` — queue, cursor,
+  staged decisions, original flags. `stage` reports `Changed`/`Unchanged`/`Deferred`; a decision that
+  matches the photo's original flag is not staged at all, and `Deferred` never touches a flag.
+  `changed()` lists exactly what Apply would act on; `summary()` feeds the action bar.
+- engine: `begin_cull`, `cull_decide`, `cull_stage`, `cull_back`, `cull_clear`, `cull_summary`, and
+  the `cull.start`/`cull.decide`/`cull.back`/`cull.clear`/`cull.summary` commands (all Ready).
+  `cull.apply` and `cull.undo` stay Planned("M4") because nothing moves yet.
+- tests: the transition table as a partition, advance/back, re-applying the same value writes
+  nothing, deferring preserves flags, clearing a flag is a change, rejects staged in queue order,
+  completion, jump/next-unjudged, plus engine staging that leaves the catalog untouched
+- 110 tests, CI and wasm green
+
+Nothing is written until Apply, so a discarded session leaves the library exactly as it was.
+
 ## Next
 
-M4 cull view: grid/detail compare, staged deletes with apply/undo, and the delete modes from
-`docs/BEHAVIOUR.md`.
+The cull view: canvas with the current photo, up-next strip, action bar with live counts, P/X/U/Space
+decisions, and session persistence so a crash resumes at the same photo.

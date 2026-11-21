@@ -142,7 +142,7 @@ the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
 
 **Goal:** the signature workflow, safe by construction.
 
-- [ ] `sortlens-cull` state machine + transition table tests (A) — SL-C09
+- [x] `sortlens-cull` state machine + transition table tests (A) — SL-C09
 - [ ] Session persistence + resume + crash resume (A) — SL-C07
 - [ ] Cull view: canvas, up-next strip, action bar, summary (B) — SL-C01/C06/C17
 - [ ] Overlays inside image bounds + two-phase animation + reduced motion (B) — SL-C04

@@ -69,6 +69,7 @@ pub struct Engine {
     last_effect: Effect,
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
+    cull: Option<sortlens_cull::Session>,
     jobs: Vec<Job>,
     next_job: u64,
     write_sidecars: bool,
@@ -83,6 +84,7 @@ impl Engine {
             last_effect: Effect::None,
             catalog: None,
             pending: None,
+            cull: None,
             jobs: Vec::new(),
             next_job: 1,
             write_sidecars: true,
@@ -390,6 +392,73 @@ impl Engine {
         self.catalog.as_ref().map(|catalog| catalog.tag_vocabulary()).unwrap_or_default()
     }
 
+    /// Start a cull session over the listed photos, in the order given.
+    ///
+    /// Photos the catalog does not know are ignored; nothing is staged yet, and nothing is written
+    /// until the session is applied.
+    pub fn begin_cull(&mut self, ids: &[PhotoId]) -> Result<usize> {
+        let mut queue = Vec::with_capacity(ids.len());
+        let mut flags = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(photo) = self.photo(*id) {
+                queue.push(photo.id);
+                flags.push((photo.id, photo.flag));
+            }
+        }
+        if queue.is_empty() {
+            return Err(Error::Invalid("there are no photos to cull".into()));
+        }
+        let total = queue.len();
+        self.cull = Some(sortlens_cull::Session::new(queue, flags));
+        Ok(total)
+    }
+
+    /// Counters for the cull action bar, zeroed when no session is running.
+    pub fn cull_summary(&self) -> Value {
+        match &self.cull {
+            Some(session) => {
+                let summary = session.summary();
+                json!({
+                    "total": summary.total,
+                    "picks": summary.picks,
+                    "rejects": summary.rejects,
+                    "deferred": summary.deferred,
+                    "unjudged": summary.unjudged,
+                    "current": session.current().map(|id| id.0),
+                    "cursor": session.cursor(),
+                })
+            }
+            None => json!({ "total": 0, "picks": 0, "rejects": 0, "deferred": 0, "unjudged": 0, "current": null, "cursor": 0 }),
+        }
+    }
+
+    /// The running cull session, if any.
+    pub fn cull(&self) -> Option<&sortlens_cull::Session> {
+        self.cull.as_ref()
+    }
+
+    /// Stage a decision for the current photo and advance.
+    pub fn cull_decide(&mut self, decision: sortlens_cull::Decision) -> Option<PhotoId> {
+        self.cull.as_mut().and_then(|session| session.decide(decision))
+    }
+
+    /// Stage a decision for one photo without moving the cursor.
+    pub fn cull_stage(&mut self, id: PhotoId, decision: sortlens_cull::Decision) -> bool {
+        self.cull
+            .as_mut()
+            .is_some_and(|session| session.stage(id, decision) != sortlens_cull::Staged::Unchanged)
+    }
+
+    /// Move back one photo in the session.
+    pub fn cull_back(&mut self) -> Option<PhotoId> {
+        self.cull.as_mut().and_then(sortlens_cull::Session::back)
+    }
+
+    /// Drop the session. Nothing was written, so nothing needs undoing.
+    pub fn cull_clear(&mut self) {
+        self.cull = None;
+    }
+
     /// Whether review changes are written to XMP sidecars.
     pub fn write_sidecars(&self) -> bool {
         self.write_sidecars
@@ -566,6 +635,25 @@ impl Engine {
                 let add = args.get("add").and_then(Value::as_bool).unwrap_or(true);
                 Ok(json!({ "changed": self.set_tag(&ids, tag, add)? }))
             }
+            "cull.start" => {
+                let ids = ids_from(args)?;
+                Ok(json!({ "total": self.begin_cull(&ids)? }))
+            }
+            "cull.decide" => {
+                let name = args
+                    .get("decision")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("decision is required".into()))?;
+                let decision = sortlens_cull::Decision::parse(name).ok_or_else(|| Error::Invalid(format!("unknown decision: {name}")))?;
+                let next = self.cull_decide(decision);
+                Ok(json!({ "next": next.map(|id| id.0), "summary": self.cull_summary() }))
+            }
+            "cull.back" => Ok(json!({ "current": self.cull_back().map(|id| id.0) })),
+            "cull.clear" => {
+                self.cull_clear();
+                Ok(json!({ "cleared": true }))
+            }
+            "cull.summary" => Ok(self.cull_summary()),
             "edit.undo" => Ok(json!({ "undone": self.undo()? })),
             "library.stats" => Ok(serde_json::to_value(self.stats()).unwrap_or(Value::Null)),
             "library.jobs" => {
@@ -788,6 +876,62 @@ mod tests {
         assert_eq!(jobs[0].status, JobStatus::Done);
         assert_eq!(jobs[0].files, 1);
         assert!(jobs[0].finished.is_some());
+    }
+
+    #[test]
+    fn a_cull_session_stages_without_touching_the_catalog() {
+        let folder = Temp::new("cull-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let (_lib, mut engine) = library("cull");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        assert_eq!(engine.begin_cull(&ids).expect("begin"), 2);
+        assert_eq!(engine.cull_decide(sortlens_cull::Decision::Reject), Some(ids[1]));
+        assert_eq!(engine.cull_decide(sortlens_cull::Decision::Pick), None);
+        assert_eq!(engine.cull_summary()["rejects"], 1);
+        assert_eq!(engine.cull_summary()["picks"], 1);
+        assert!(engine.cull().expect("session").summary().is_complete());
+
+        // Staged only: the catalog still says neither photo carries a flag.
+        assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
+        assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+
+        assert_eq!(engine.cull_back(), Some(ids[1]));
+        engine.cull_clear();
+        assert!(engine.cull().is_none());
+    }
+
+    #[test]
+    fn a_cull_session_needs_a_photo() {
+        let (_lib, mut engine) = library("cull-empty");
+        assert!(engine.begin_cull(&[]).is_err());
+    }
+
+    #[test]
+    fn cull_commands_round_trip_through_json() {
+        let folder = Temp::new("cull-json-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        let (_lib, mut engine) = library("cull-json");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        let started = engine.run("cull.start", &json!({ "ids": [id] })).expect("start");
+        assert_eq!(started["total"], 1);
+        let decided = engine.run("cull.decide", &json!({ "decision": "reject" })).expect("decide");
+        assert_eq!(decided["summary"]["rejects"], 1);
+        assert_eq!(engine.run("cull.summary", &json!({})).expect("summary")["total"], 1);
+        assert!(engine.run("cull.decide", &json!({ "decision": "nonsense" })).is_err());
     }
 
     #[test]
