@@ -26,8 +26,10 @@ pub struct Filter {
     pub flag: Option<Flag>,
     /// Only this label.
     pub label: Option<ColorLabel>,
-    /// Only photos carrying this keyword.
-    pub tag: Option<String>,
+    /// Only photos carrying these keywords. An empty list disables the filter.
+    pub tags: Vec<String>,
+    /// Whether every keyword must match or just one of them.
+    pub tag_mode: TagMode,
     /// Only photos in this collection. Membership is resolved by the catalog, not here.
     pub collection: Option<sortlens_core::CollectionId>,
     /// Only photos, raws or videos.
@@ -80,10 +82,15 @@ impl Filter {
         {
             return false;
         }
-        if let Some(tag) = &self.tag
-            && !photo.has_tag(tag)
-        {
-            return false;
+        if !self.tags.is_empty() {
+            let hits = self.tags.iter().filter(|tag| photo.has_tag(tag)).count();
+            let pass = match self.tag_mode {
+                TagMode::Any => hits > 0,
+                TagMode::All => hits == self.tags.len(),
+            };
+            if !pass {
+                return false;
+            }
         }
         if let Some(kind) = self.kind
             && photo.kind != kind
@@ -168,6 +175,35 @@ impl Sort {
             Self::Oldest => left.timestamp().cmp(&right.timestamp()).then(left.id.cmp(&right.id)),
             Self::Largest => right.size.cmp(&left.size).then(left.id.cmp(&right.id)),
             Self::Rating => right.rating.cmp(&left.rating).then(left.id.cmp(&right.id)),
+        }
+    }
+}
+
+/// How several keyword filters combine.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TagMode {
+    /// A photo matches when it carries any of the keywords.
+    #[default]
+    Any,
+    /// A photo matches only when it carries every keyword.
+    All,
+}
+
+impl TagMode {
+    /// The other mode, for the toggle.
+    pub const fn flipped(self) -> Self {
+        match self {
+            Self::Any => Self::All,
+            Self::All => Self::Any,
+        }
+    }
+
+    /// Label for the chip.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::All => "all",
         }
     }
 }

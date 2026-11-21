@@ -12,7 +12,7 @@ pub mod job;
 
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
-pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome};
+pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 
@@ -1874,7 +1874,7 @@ mod tests {
         engine.set_tag(&ids, "keepers", true).expect("tag");
 
         let filter = Filter {
-            tag: Some("keepers".into()),
+            tags: vec!["keepers".into()],
             ..Filter::default()
         };
         assert_eq!(engine.count(&filter), 2);

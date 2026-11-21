@@ -16,7 +16,7 @@ pub mod store;
 pub use collection::Collection;
 pub use op::Op;
 pub use photo::{Photo, Stats};
-pub use query::{Filter, Page, Sort};
+pub use query::{Filter, Page, Sort, TagMode};
 pub use store::{Catalog, LOG_NAME, OpenReport, SNAPSHOT_NAME, Seed, SyncOutcome};
 
 /// Crate version, from `Cargo.toml`.

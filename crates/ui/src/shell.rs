@@ -174,8 +174,10 @@ pub struct UiState {
     pub label_filter: Option<sortlens_core::ColorLabel>,
     /// Whether missing files are shown.
     pub show_missing: bool,
-    /// Only this keyword, chosen in the sidebar or the filter strip.
-    pub tag_filter: Option<String>,
+    /// Keywords the view is narrowed to, chosen in the sidebar or the filter strip.
+    pub tag_filters: Vec<String>,
+    /// Whether several keywords must all match or just one of them.
+    pub tag_mode: sortlens_engine::TagMode,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -232,7 +234,8 @@ impl UiState {
             flag_filter: None,
             label_filter: None,
             show_missing: false,
-            tag_filter: None,
+            tag_filters: Vec::new(),
+            tag_mode: sortlens_engine::TagMode::Any,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -272,7 +275,8 @@ impl UiState {
             min_rating: self.min_rating,
             flag: self.flag_filter,
             label: self.label_filter,
-            tag: self.tag_filter.clone(),
+            tags: self.tag_filters.clone(),
+            tag_mode: self.tag_mode,
             collection: self.collection_filter,
             folder: (self.root.is_some() && !self.folder.is_empty()).then(|| self.folder.clone()),
             kind: self.kind_filter,
@@ -282,12 +286,29 @@ impl UiState {
         }
     }
 
+    /// How many filter dimensions are narrowing the view, for the header badge.
+    pub fn active_filter_count(&self) -> usize {
+        let mut count = 0;
+        count += usize::from(self.min_rating > 0);
+        count += usize::from(self.flag_filter.is_some());
+        count += usize::from(self.label_filter.is_some());
+        count += usize::from(!self.tag_filters.is_empty());
+        count += usize::from(self.collection_filter.is_some());
+        count += usize::from(self.kind_filter.is_some());
+        count += usize::from(self.edited_filter.is_some());
+        count += usize::from(self.show_missing);
+        count += usize::from(self.root.is_some());
+        count += usize::from(!self.folder.is_empty());
+        count += usize::from(!self.search.is_empty());
+        count
+    }
+
     /// Whether any filter is narrowing the view.
     pub fn has_filters(&self) -> bool {
         self.min_rating > 0
             || self.flag_filter.is_some()
             || self.label_filter.is_some()
-            || self.tag_filter.is_some()
+            || !self.tag_filters.is_empty()
             || self.collection_filter.is_some()
             || !self.folder.is_empty()
             || self.kind_filter.is_some()
@@ -302,7 +323,7 @@ impl UiState {
         self.min_rating = 0;
         self.flag_filter = None;
         self.label_filter = None;
-        self.tag_filter = None;
+        self.tag_filters.clear();
         self.collection_filter = None;
         self.folder.clear();
         self.kind_filter = None;
@@ -560,9 +581,13 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 hint(ui, t, "Select a photo, press K and type a keyword.");
             }
             for (tag, count) in vocabulary.iter().take(12) {
-                let selected = state.tag_filter.as_deref() == Some(tag.as_str());
+                let selected = state.tag_filters.iter().any(|active| active == tag);
                 if nav_row(ui, t, tag, &format_count(*count as u64), selected).clicked() {
-                    state.tag_filter = if selected { None } else { Some(tag.clone()) };
+                    if selected {
+                        state.tag_filters.retain(|active| active != tag);
+                    } else {
+                        state.tag_filters.push(tag.clone());
+                    }
                 }
             }
 
@@ -848,6 +873,15 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         state.root = None;
                         state.folder.clear();
                     }
+                    let active = state.active_filter_count();
+                    if active > 0
+                        && chip(ui, t, &format!("{active} active"), true)
+                            .on_hover_text("Clear every filter")
+                            .clicked()
+                    {
+                        state.search.clear();
+                        state.clear_filters();
+                    }
                     let mut chosen = state.sort;
                     egui::ComboBox::from_id_salt("sort_order")
                         .selected_text(RichText::new(state.sort.label()).size(11.5).color(t.text_muted))
@@ -1127,10 +1161,20 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 {
                     state.collection_filter = None;
                 }
-                if let Some(tag) = state.tag_filter.clone()
-                    && chip(ui, t, &format!("#{tag}"), true).clicked()
-                {
-                    state.tag_filter = None;
+                let mut drop_tag = None;
+                for tag in state.tag_filters.clone() {
+                    if chip(ui, t, &format!("#{tag}"), true).clicked() {
+                        drop_tag = Some(tag);
+                    }
+                }
+                if let Some(tag) = drop_tag {
+                    state.tag_filters.retain(|active| *active != tag);
+                }
+                if state.tag_filters.len() > 1 {
+                    let label = format!("match {}", state.tag_mode.label());
+                    if chip(ui, t, &label, state.tag_mode == sortlens_engine::TagMode::All).clicked() {
+                        state.tag_mode = state.tag_mode.flipped();
+                    }
                 }
                 if chip(ui, t, &rating, state.min_rating > 0).clicked() {
                     state.min_rating = (state.min_rating + 1) % 6;
@@ -2215,6 +2259,18 @@ mod tests {
         let wide = fit_rect(bounds, 2.0);
         assert!(wide.width() <= bounds.width() + 0.001);
         assert!(bounds.contains_rect(wide));
+    }
+
+    #[test]
+    fn the_active_filter_badge_counts_dimensions() {
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        assert_eq!(state.active_filter_count(), 0);
+        state.min_rating = 3;
+        state.tag_filters = vec!["beach".into(), "sunset".into()];
+        state.show_missing = true;
+        assert_eq!(state.active_filter_count(), 3, "two keywords count as one dimension");
+        state.clear_filters();
+        assert_eq!(state.active_filter_count(), 0, "clearing removes everything");
     }
 
     #[test]

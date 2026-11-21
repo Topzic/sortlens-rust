@@ -793,7 +793,7 @@ fn decode(line: &str) -> Option<(u64, Op)> {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::query::Filter;
+    use crate::query::{Filter, TagMode};
     use sortlens_core::ColorLabel;
 
     struct TempCatalog(PathBuf);
@@ -981,6 +981,42 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn keyword_filters_combine_any_or_all() {
+        let temp = TempCatalog::new("tag-modes");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![
+                    (PhotoId(1), vec!["beach".into(), "sunset".into()]),
+                    (PhotoId(2), vec!["beach".into()]),
+                ],
+            })
+            .expect("tag");
+
+        let any = Filter {
+            tags: vec!["beach".into(), "sunset".into()],
+            tag_mode: TagMode::Any,
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&any), 2, "either keyword matches");
+
+        let all = Filter {
+            tags: vec!["beach".into(), "sunset".into()],
+            tag_mode: TagMode::All,
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&all), 1, "both keywords required");
+
+        let none = Filter {
+            tags: vec!["missing".into()],
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&none), 0);
+        assert_eq!(TagMode::Any.flipped(), TagMode::All);
     }
 
     #[test]
@@ -1214,12 +1250,12 @@ mod tests {
             .expect("tag");
 
         let filter = Filter {
-            tag: Some("beach".into()),
+            tags: vec!["beach".into()],
             ..Filter::default()
         };
         assert_eq!(catalog.count(&filter), 2);
         let filter = Filter {
-            tag: Some("sunset".into()),
+            tags: vec!["sunset".into()],
             ..Filter::default()
         };
         assert_eq!(catalog.count(&filter), 1);

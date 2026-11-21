@@ -126,7 +126,7 @@ scans headlessly and prints a JSON report.
 - [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11
 - [ ] Rating/flag/label pill + inspector + context menus (B) — SL-D01..D03
 - [x] Filter bar: rating, flags, labels, keyword, collection, kind, edited, missing, clear (B) — SL-B07..B13
-- [ ] Tag ANY/ALL, filter pickers, active-filter badge (B)
+- [x] Keyword ANY/ALL, multi-keyword filtering, active-filter badge (B)
 - [x] Sort keys: added/name/newest/oldest/largest/rating, persisted (B) — SL-B06
 - [x] Detail view: large canvas, counter, fit/1:1, arrow navigation, facts line (B) — SL-B18..B20
 - [x] Detail lookahead strip + 64-bin luminance histogram (B) — SL-B21

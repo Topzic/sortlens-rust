@@ -333,7 +333,21 @@ Not built: the lookahead strip and the histogram in the detail view.
 Housekeeping: `[build] incremental = false` in `.cargo/config.toml` after the disk filled up —
 incremental artefacts were 3.5 GB per build on a machine with almost no free space.
 
+## 2026-11-21 — M3: multi-keyword filters and an active badge
+
+- catalog: `Filter.tags: Vec<String>` with `TagMode { Any, All }` (default Any) replaces the single
+  `tag`; `TagMode::flipped()` and `label()` for the toggle
+- ui: sidebar keywords toggle membership instead of replacing the filter, the strip shows one chip
+  per active keyword plus a "match any/all" toggle when more than one is active, and the header shows
+  an "N active" badge that clears every filter when clicked (`active_filter_count` counts dimensions,
+  not keywords)
+- cli: `list --tag` maps onto the new vector
+- tests: ANY versus ALL matching with a photo carrying one and both keywords, unknown keyword
+  matching nothing, `flipped`, and the badge counting two keywords as one dimension while clearing
+  resets it
+- 154 tests, CI and wasm green; CLI smoke test listed both photos for `beach` and one for `sunset`
+
 ## Next
 
-The path filter's remaining pieces: tag ANY/ALL, a picker for specific keywords, and an
-active-filter badge, so complex filters are visible at a glance.
+Filter pickers and sort of the keyword list: choosing a keyword from a menu rather than the sidebar,
+and ordering keywords by name or count.

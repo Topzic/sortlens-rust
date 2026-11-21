@@ -92,7 +92,7 @@ fn run() -> Result<(), String> {
         "list" => {
             let limit = flag_value(rest, "--limit").unwrap_or(20);
             let filter = Filter {
-                tag: text_value(rest, "--tag"),
+                tags: text_value(rest, "--tag").into_iter().collect(),
                 ..Filter::default()
             };
             let page = engine.page(&filter, Sort::Natural, 0, limit);
