@@ -131,6 +131,14 @@ pub struct UiState {
     pub selected: Option<PhotoId>,
     /// Sidebar row for "All Photos".
     pub all_photos_selected: bool,
+    /// Minimum stars, 0 for any.
+    pub min_rating: u8,
+    /// Only this flag.
+    pub flag_filter: Option<Flag>,
+    /// Only this colour label.
+    pub label_filter: Option<sortlens_core::ColorLabel>,
+    /// Whether missing files are shown.
+    pub show_missing: bool,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -153,6 +161,10 @@ impl UiState {
             about_open: false,
             selected: None,
             all_photos_selected: true,
+            min_rating: 0,
+            flag_filter: None,
+            label_filter: None,
+            show_missing: false,
             notice: None,
         }
     }
@@ -169,14 +181,36 @@ impl UiState {
         }
     }
 
-    /// The filter implied by the sidebar and the search field.
+    /// The filter implied by the sidebar, the search field and the filter bar.
     pub fn filter(&self) -> Filter {
         Filter {
             root: self.root.clone(),
             text: self.search.clone(),
-            include_missing: false,
+            min_rating: self.min_rating,
+            flag: self.flag_filter,
+            label: self.label_filter,
+            include_missing: self.show_missing,
             ..Filter::default()
         }
+    }
+
+    /// Whether any filter is narrowing the view.
+    pub fn has_filters(&self) -> bool {
+        self.min_rating > 0
+            || self.flag_filter.is_some()
+            || self.label_filter.is_some()
+            || self.show_missing
+            || self.root.is_some()
+            || !self.search.is_empty()
+    }
+
+    /// Remove every filter except the search text.
+    pub fn clear_filters(&mut self) {
+        self.min_rating = 0;
+        self.flag_filter = None;
+        self.label_filter = None;
+        self.show_missing = false;
+        self.root = None;
     }
 }
 
@@ -485,7 +519,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 });
             });
             ui.add_space(8.0);
-            filter_strip(ui, t, total);
+            filter_strip(ui, t, state, total);
             ui.add_space(10.0);
 
             match state.view {
@@ -662,7 +696,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     }
 }
 
-fn filter_strip(ui: &mut Ui, t: &Tokens, total: usize) {
+fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, total: usize) {
     Frame::NONE
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.border))
@@ -670,24 +704,73 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, total: usize) {
         .inner_margin(Margin::symmetric(8, 6))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                for label in ["Rating", "Flags", "Colour", "Kind"] {
-                    ui.add_enabled(
-                        false,
-                        Button::new(RichText::new(label).size(11.0))
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::NONE),
-                    )
-                    .on_disabled_hover_text("Composable filters arrive with keywords in M3");
+                let rating = if state.min_rating == 0 {
+                    "Rating".to_string()
+                } else {
+                    format!("{}★ and up", state.min_rating)
+                };
+                if chip(ui, t, &rating, state.min_rating > 0).clicked() {
+                    state.min_rating = (state.min_rating + 1) % 6;
                 }
+
+                let flag_label = match state.flag_filter {
+                    None => "Flags".to_string(),
+                    Some(Flag::Pick) => "Picks".to_string(),
+                    Some(Flag::Reject) => "Rejects".to_string(),
+                    Some(Flag::None) => "Unflagged".to_string(),
+                };
+                if chip(ui, t, &flag_label, state.flag_filter.is_some()).clicked() {
+                    state.flag_filter = match state.flag_filter {
+                        None => Some(Flag::Pick),
+                        Some(Flag::Pick) => Some(Flag::Reject),
+                        Some(Flag::Reject) => Some(Flag::None),
+                        Some(Flag::None) => None,
+                    };
+                }
+
+                let label_text = match state.label_filter {
+                    None => "Colour".to_string(),
+                    Some(label) => label.label().to_string(),
+                };
+                if chip(ui, t, &label_text, state.label_filter.is_some()).clicked() {
+                    state.label_filter = match state.label_filter {
+                        None => Some(sortlens_core::ColorLabel::ALL[0]),
+                        Some(current) => {
+                            let index = sortlens_core::ColorLabel::ALL
+                                .iter()
+                                .position(|label| *label == current)
+                                .unwrap_or(0);
+                            sortlens_core::ColorLabel::ALL.get(index + 1).copied()
+                        }
+                    };
+                }
+
+                if chip(ui, t, "Missing", state.show_missing).clicked() {
+                    state.show_missing = !state.show_missing;
+                }
+
+                if state.has_filters() && chip(ui, t, "Clear", true).clicked() {
+                    state.search.clear();
+                    state.clear_filters();
+                }
+
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
-                        RichText::new(format!("No filters · {} shown", format_count(total as u64)))
+                        RichText::new(format!("{} shown", format_count(total as u64)))
                             .size(11.0)
                             .color(t.text_faint),
                     );
                 });
             });
         });
+}
+
+fn chip(ui: &mut Ui, t: &Tokens, label: &str, active: bool) -> egui::Response {
+    ui.add(
+        Button::new(RichText::new(label).size(11.0).color(if active { t.text } else { t.text_muted }))
+            .fill(if active { t.selection } else { Color32::TRANSPARENT })
+            .stroke(if active { Stroke::new(1.0, t.accent) } else { Stroke::NONE }),
+    )
 }
 
 fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, actions: &mut Vec<Action>) {
