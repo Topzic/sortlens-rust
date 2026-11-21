@@ -15,6 +15,7 @@ pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::{Decision, Summary as CullSummary};
+pub use sortlens_insights::{Insights, Row as InsightRow};
 
 use serde_json::{Value, json};
 use sortlens_catalog::{Catalog, Seed};
@@ -704,6 +705,14 @@ impl Engine {
         Ok(count)
     }
 
+    /// Statistics over the whole library, recomputed each time.
+    pub fn insights(&self) -> Insights {
+        match self.catalog.as_ref() {
+            Some(catalog) => Insights::compute(catalog.photos()),
+            None => Insights::empty(),
+        }
+    }
+
     /// Every keyword in use, most used first.
     pub fn tag_vocabulary(&self) -> Vec<(String, usize)> {
         self.tag_vocabulary_in(TagOrder::Count)
@@ -1016,7 +1025,6 @@ impl Engine {
                 "view.detail" => "the detail view arrives in M4",
                 "view.similar" => "similar search arrives in M6",
                 "view.places" => "the map arrives in M5",
-                "view.insights" => "insights arrive in M6",
                 "library.findMissing" => "missing-file repair arrives in M7",
                 _ => "this command is planned",
             }));
@@ -1142,6 +1150,28 @@ impl Engine {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
                 self.delete_collection(id)?;
                 Ok(json!({ "deleted": true }))
+            }
+            "view.insights" => {
+                let insights = self.insights();
+                Ok(json!({
+                "total": insights.stats.total,
+                "bytes": insights.stats.bytes,
+                "rated": insights.stats.rated,
+                "picks": insights.stats.picks,
+                "rejects": insights.stats.rejects,
+                "labelled": insights.stats.labelled,
+                "tagged": insights.stats.tagged,
+                "missing": insights.stats.missing,
+                "undated": insights.undated,
+                "unknownCamera": insights.unknown_camera,
+                "byRating": insights.by_rating,
+                "byLabel": insights.by_label,
+                "byKind": insights.by_kind,
+                "cameras": rows(&insights.cameras),
+                "lenses": rows(&insights.lenses),
+                "keywords": rows(&insights.keywords),
+                "years": insights.years.iter().map(|year| json!({ "year": year.year, "count": year.count })).collect::<Vec<_>>(),
+                }))
             }
             "library.subfolders" => {
                 let root = args
@@ -1279,6 +1309,11 @@ pub struct Health {
 }
 
 /// Keywords are trimmed, lowercased and length-bounded so the vocabulary stays usable.
+/// Serialise a breakdown for the JSON face.
+fn rows(rows: &[InsightRow]) -> Vec<Value> {
+    rows.iter().map(|row| json!({ "name": row.name, "count": row.count })).collect()
+}
+
 fn normalize_tag(tag: &str) -> Result<String> {
     let tag = tag.trim().trim_start_matches('#').trim().to_lowercase();
     if tag.is_empty() {
@@ -1682,6 +1717,42 @@ mod tests {
             .run("library.subfolders", &json!({ "root": root, "prefix": "day1/" }))
             .expect("subfolders");
         assert_eq!(inner["folders"][0]["name"], "sub");
+    }
+
+    #[test]
+    fn insights_reconcile_with_the_catalog() {
+        let folder = Temp::new("insights-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"aaaa").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"bbbb").expect("write");
+        let (_lib, mut engine) = library("insights");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.rate(&ids[..1], 4).expect("rate");
+        engine.flag(&ids[1..], Flag::Pick).expect("flag");
+        engine.set_tag(&ids[..1], "beach", true).expect("tag");
+
+        let value = engine.run("view.insights", &json!({})).expect("insights");
+        assert_eq!(value["total"], 2);
+        assert_eq!(value["bytes"], 8);
+        assert_eq!(value["rated"], 1);
+        assert_eq!(value["picks"], 1);
+        assert_eq!(value["tagged"], 1);
+        assert_eq!(value["byRating"][4], 1);
+        assert_eq!(value["keywords"][0]["name"], "beach");
+        assert_eq!(value["keywords"][0]["count"], 1);
+        assert_eq!(engine.count(&Filter::default()), 2);
+
+        let typed = engine.insights();
+        assert_eq!(typed.stats.total, 2);
+        assert_eq!(typed.by_rating[4], 1);
     }
 
     #[test]

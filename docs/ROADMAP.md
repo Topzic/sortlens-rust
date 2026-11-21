@@ -190,7 +190,8 @@ remap a moved drive; run the wizard on a clean machine.
 - [ ] Similar groups + best pick + bulk select + find-similar-to (D,B) — SL-E03/E04/E05
 - [ ] `sortlens-geo`: projection, clusters, gazetteer (D) — SL-E06/E07
 - [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06
-- [ ] Insights: overview, progress, highlights, seasonality (D,B) — SL-E08..E11
+- [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
+- [ ] Insights: progress, highlights, seasonality (B) — SL-E09..E11
 - [ ] Memories providers + card feed (D,B) — SL-E12
 - [ ] Chart component (fixed height, no chart dep) (B) — SL-E11
 - [ ] Tests: blur ladder, duplicate transforms, cluster determinism

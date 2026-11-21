@@ -11,7 +11,8 @@
 use crate::theme::{ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
-    Align, Align2, Button, Color32, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
+    Align, Align2, Button, Color32, FontId, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2,
+    pos2, vec2,
 };
 use sortlens_core::{Flag, MediaKind, PhotoId};
 use sortlens_engine::{Decision, Engine, Filter, Photo, Sort, TagOrder};
@@ -53,7 +54,7 @@ impl View {
             Self::Library => None,
             Self::Cull => Some("M4"),
             Self::Places => Some("M5"),
-            Self::Insights => Some("M6"),
+            Self::Insights => None,
             Self::Similar => Some("M6"),
         }
     }
@@ -933,6 +934,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     }
                 }
                 View::Cull => cull_view(ui, t, state, engine, thumbs),
+                View::Insights => insights_view(ui, t, engine),
                 other => planned_view(ui, t, other),
             }
             keyboard(ui, state, engine);
@@ -1859,6 +1861,137 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             ))
             .size(10.5)
             .color(t.text_faint),
+        );
+    }
+}
+
+/// Totals, distributions and breakdowns, all recomputed from the catalog.
+fn insights_view(ui: &mut Ui, t: &Tokens, engine: &mut Engine) {
+    let insights = engine.insights();
+    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            figure(ui, t, "Photos", &format_count(insights.stats.total as u64));
+            figure(ui, t, "On disk", &sortlens_core::format_bytes(insights.stats.bytes));
+            figure(ui, t, "Rated", &format!("{:.0}%", insights.rated_share() * 100.0));
+            figure(ui, t, "Keyworded", &format!("{:.0}%", insights.tagged_share() * 100.0));
+            figure(ui, t, "Picks", &format_count(insights.stats.picks as u64));
+            figure(ui, t, "Rejects", &format_count(insights.stats.rejects as u64));
+            figure(ui, t, "Missing", &format_count(insights.stats.missing as u64));
+        });
+        ui.add_space(14.0);
+
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(300.0);
+                ui.label(RichText::new("Ratings").size(12.0).strong());
+                for stars in (0..=5).rev() {
+                    let count = insights.by_rating[stars];
+                    bar_row(
+                        ui,
+                        t,
+                        &if stars == 0 { "Unrated".to_string() } else { "★".repeat(stars) },
+                        count,
+                        insights.stats.total,
+                    );
+                }
+                ui.add_space(12.0);
+                ui.label(RichText::new("Labels").size(12.0).strong());
+                for (index, label) in sortlens_core::ColorLabel::ALL.iter().enumerate() {
+                    bar_row(ui, t, label.label(), insights.by_label[index], insights.stats.total);
+                }
+                ui.add_space(12.0);
+                ui.label(RichText::new("Kinds").size(12.0).strong());
+                for (index, name) in ["Images", "Raw", "Video"].iter().enumerate() {
+                    bar_row(ui, t, name, insights.by_kind[index], insights.stats.total);
+                }
+            });
+            ui.add_space(18.0);
+            ui.vertical(|ui| {
+                breakdown(ui, t, "Cameras", &insights.cameras, insights.unknown_camera);
+                ui.add_space(12.0);
+                breakdown(ui, t, "Lenses", &insights.lenses, 0);
+                ui.add_space(12.0);
+                breakdown(ui, t, "Keywords", &insights.keywords, 0);
+            });
+            ui.add_space(18.0);
+            ui.vertical(|ui| {
+                ui.set_width(240.0);
+                ui.label(RichText::new("Timeline").size(12.0).strong());
+                if insights.years.is_empty() {
+                    ui.label(RichText::new("No capture dates yet").size(11.0).color(t.text_faint));
+                }
+                let peak = insights.peak_year().max(1);
+                for year in &insights.years {
+                    bar_row(ui, t, &year.year.to_string(), year.count, peak);
+                }
+                if insights.undated > 0 {
+                    ui.label(
+                        RichText::new(format!("{} with no capture date", insights.undated))
+                            .size(10.5)
+                            .color(t.text_faint),
+                    );
+                }
+            });
+        });
+    });
+}
+
+/// One headline number with a caption.
+fn figure(ui: &mut Ui, t: &Tokens, caption: &str, value: &str) {
+    ui.allocate_ui(vec2(112.0, 46.0), |ui| {
+        ui.vertical(|ui| {
+            ui.label(RichText::new(value).size(18.0).strong());
+            ui.label(RichText::new(caption).size(10.0).color(t.text_faint));
+        });
+    });
+}
+
+/// A label, a proportional bar and a count.
+fn bar_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usize) {
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(300.0), 15.0), Sense::hover());
+    let painter = ui.painter();
+    painter.text(
+        pos2(rect.left(), rect.center().y),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(10.5),
+        t.text_muted,
+    );
+    let track = Rect::from_min_max(
+        pos2(rect.left() + 92.0, rect.center().y - 4.0),
+        pos2(rect.right(), rect.center().y + 4.0),
+    );
+    painter.rect_filled(track, 2.0, t.thumb_bg);
+    let share = if whole == 0 { 0.0 } else { count as f32 / whole as f32 };
+    if count > 0 {
+        let filled = Rect::from_min_size(track.min, vec2(track.width() * share.clamp(0.02, 1.0), track.height()));
+        painter.rect_filled(filled, 2.0, t.selection);
+    }
+    painter.text(
+        pos2(rect.right(), rect.center().y),
+        Align2::RIGHT_CENTER,
+        format_count(count as u64),
+        FontId::proportional(10.5),
+        t.text_faint,
+    );
+}
+
+/// A titled list of the most common values, scaled to the largest.
+fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::InsightRow], extra: usize) {
+    ui.label(RichText::new(title).size(12.0).strong());
+    if rows.is_empty() {
+        ui.label(RichText::new("Nothing recorded yet").size(11.0).color(t.text_faint));
+        return;
+    }
+    let peak = sortlens_engine::Insights::peak(rows).max(1);
+    for row in rows {
+        bar_row(ui, t, &row.name, row.count, peak);
+    }
+    if extra > 0 {
+        ui.label(
+            RichText::new(format!("{extra} with no {}", title.to_lowercase().trim_end_matches('s')))
+                .size(10.5)
+                .color(t.text_faint),
         );
     }
 }

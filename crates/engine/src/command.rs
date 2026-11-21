@@ -370,7 +370,7 @@ impl Registry {
                     group: Group::View,
                     shortcut: Some("I"),
                     menu: "View > Insights",
-                    status: Status::Planned("M6"),
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "app.settings",

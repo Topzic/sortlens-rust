@@ -19,6 +19,7 @@ Commands:
   roots                     list roots with photo counts
   list [--limit N]          list photos (default 20)
   stats                     library counters
+  insights                  counters, cameras, lenses, keywords and years
   rate <id> <0-5>           set stars
   flag <id> pick|reject|none
   tag <id> <keyword>        add a keyword
@@ -127,6 +128,35 @@ fn run() -> Result<(), String> {
             println!("tagged    {}", stats.tagged);
             println!("missing   {}", stats.missing);
             println!("bytes     {}", sortlens_core::format_bytes(stats.bytes));
+            Ok(())
+        }
+        "insights" => {
+            let insights = engine.insights();
+            println!("photos    {}", insights.stats.total);
+            println!("bytes     {}", sortlens_core::format_bytes(insights.stats.bytes));
+            println!("rated     {:.0}%", insights.rated_share() * 100.0);
+            println!("keyworded {:.0}%", insights.tagged_share() * 100.0);
+            println!("picks     {}", insights.stats.picks);
+            println!("rejects   {}", insights.stats.rejects);
+            for (title, rows) in [
+                ("cameras", &insights.cameras),
+                ("lenses", &insights.lenses),
+                ("keywords", &insights.keywords),
+            ] {
+                if rows.is_empty() {
+                    continue;
+                }
+                println!("{title}");
+                for row in rows.iter() {
+                    println!("  {:>6}  {}", row.count, row.name);
+                }
+            }
+            if !insights.years.is_empty() {
+                println!("years");
+                for year in &insights.years {
+                    println!("  {:>6}  {}", year.count, year.year);
+                }
+            }
             Ok(())
         }
         "rate" => {

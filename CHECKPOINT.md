@@ -357,7 +357,21 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
 - tests: ordering by use and by name agreeing on counts, `flipped`
 - 155 tests, CI and wasm green
 
+## 2026-11-21 — M6: insights view
+
+- insights: `Insights::compute` over the catalog's photos in one pass — totals (`Stats`), 6 rating
+  buckets, 5 label buckets, 3 kind buckets, cameras/lenses/keywords folded to the top 8 and capture
+  years with a real leap-year calendar walk (epoch zero counts as undated, not 1970); `rated_share`,
+  `tagged_share`, `peak_year`, `peak(rows)`
+- engine: `insights()` and `view.insights` (Ready, key `I`) returning the whole view as JSON
+- ui: `View::Insights` with headline figures, proportional bars for ratings/labels/kinds, breakdown
+  lists for cameras/lenses/keywords and a timeline column; the nav tab is no longer "planned"
+- cli: `insights` prints the same numbers
+- tests: totals reconcile, buckets sum to the library size, breakdown ordering and the top-8 fold,
+  leap-day bucketing, an empty library having no shares, and the JSON face matching the typed view
+- 161 tests, CI and wasm green; CLI smoke test over a two-photo library
+
 ## Next
 
-M6 insights: a statistics view over the library — totals by camera, lens, rating, labels and
-keywords, computed from the catalog rather than a new store.
+M6 similar: perceptual hashing (`sortlens-hash`) so near-duplicate groups can be found and a best
+pick chosen.
