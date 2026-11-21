@@ -187,6 +187,10 @@ pub struct UiState {
     pub similar_threshold: u32,
     /// How far apart two colour fingerprints may be before they are different pictures.
     pub similar_colour: u32,
+    /// The cull summary sheet is open.
+    pub summary_open: bool,
+    /// A finished Apply is waiting to be acknowledged.
+    pub receipt_open: bool,
     /// Text in the keyword editor.
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
@@ -249,6 +253,8 @@ impl UiState {
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
+            summary_open: false,
+            receipt_open: false,
             tag_input: String::new(),
             tag_focus: false,
             delete_mode: DeleteMode::Trash,
@@ -390,6 +396,19 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     canvas(ui, state, &t, engine, thumbs, &mut actions);
 
+    // A finished cull explains itself; so does a finished Apply.
+    if engine.receipt().is_some() && !state.receipt_open {
+        state.receipt_open = true;
+    }
+    if engine.cull_complete() && !state.summary_open && !state.apply_open {
+        state.summary_open = true;
+    }
+    if state.summary_open {
+        summary_dialog(ui, state, &t, engine);
+    }
+    if state.receipt_open {
+        receipt_dialog(ui, state, &t, engine);
+    }
     if state.settings_open {
         settings_dialog(ui, state, &t, engine, &mut actions);
     }
@@ -1732,7 +1751,14 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
         ui.label(RichText::new(format!("{position} of {total}")).size(12.5).color(t.text_muted));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add(Button::new(RichText::new("End session").size(11.0))).clicked() {
+            if ui.add(Button::new(RichText::new("Summary").size(11.0))).clicked() {
+                state.summary_open = true;
+            }
+            if ui
+                .add(Button::new(RichText::new("End session").size(11.0)))
+                .on_hover_text("Discard staged decisions; nothing has been written yet")
+                .clicked()
+            {
                 engine.cull_clear();
             }
             ui.label(
@@ -2349,6 +2375,148 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
             });
         });
     state.apply_open = open;
+}
+
+/// What the session came to, and what can be done with it.
+fn summary_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let Some(session) = engine.cull() else {
+        state.summary_open = false;
+        return;
+    };
+    let summary = session.summary();
+    let mut open = state.summary_open;
+    egui::Window::new("Cull summary")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(340.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(summary.headline()).size(14.0).strong());
+            ui.add_space(8.0);
+            for (label, count) in [
+                ("Picks", summary.picks),
+                ("Rejects", summary.rejects),
+                ("Deferred", summary.deferred),
+                ("Not judged", summary.unjudged),
+            ] {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(label).size(11.5).color(t.text_muted));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label(RichText::new(format_count(count as u64)).size(11.5));
+                    });
+                });
+            }
+            ui.add_space(8.0);
+            ui.label(
+                RichText::new(format!(
+                    "{} photo(s) will change on Apply; {} deferral(s) are never written.",
+                    summary.changed(),
+                    summary.deferred
+                ))
+                .size(10.5)
+                .color(t.text_faint),
+            );
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(summary.changed() > 0, Button::new(RichText::new("Apply…").size(12.0)))
+                    .clicked()
+                {
+                    state.apply_open = true;
+                    state.summary_open = false;
+                }
+                if ui
+                    .add_enabled(summary.unjudged > 0, Button::new(RichText::new("Keep culling").size(12.0)))
+                    .clicked()
+                {
+                    state.summary_open = false;
+                }
+                if ui
+                    .add_enabled(!summary.is_complete(), Button::new(RichText::new("Jump to next").size(12.0)))
+                    .on_hover_text("Skip to the first photo without a decision")
+                    .clicked()
+                {
+                    engine.cull_next_unjudged();
+                    state.summary_open = false;
+                }
+                if ui
+                    .button(RichText::new("Discard").size(12.0))
+                    .on_hover_text("Drop every staged decision and restore the flags")
+                    .clicked()
+                {
+                    engine.cull_clear();
+                    state.summary_open = false;
+                    state.notice("Cull discarded".to_string());
+                }
+            });
+        });
+    state.summary_open = open;
+}
+
+/// The receipt for a finished Apply, with the way back.
+fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let Some(receipt) = engine.receipt().cloned() else {
+        state.receipt_open = false;
+        return;
+    };
+    let mut open = state.receipt_open;
+    let mut restore = false;
+    let mut show_bin = false;
+    let mut done = false;
+    egui::Window::new("Batch applied")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(360.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(receipt.headline()).size(14.0).strong());
+            ui.label(RichText::new(receipt.detail()).size(11.0).color(t.text_muted));
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(format!("Batch {} · {} file(s) kept on disk", receipt.batch_id, receipt.kept))
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            if receipt.failed > 0 {
+                ui.label(
+                    RichText::new(format!("{} file(s) could not be handled", receipt.failed))
+                        .size(10.5)
+                        .color(t.reject),
+                );
+            }
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(receipt.is_restorable(), Button::new(RichText::new("Put them back").size(12.0)))
+                    .clicked()
+                {
+                    restore = true;
+                }
+                if ui.button(RichText::new("Recently Deleted").size(12.0)).clicked() {
+                    show_bin = true;
+                }
+                if ui.button(RichText::new("Done").size(12.0)).clicked() {
+                    done = true;
+                }
+            });
+        });
+    if restore {
+        match engine.restore_batch(receipt.batch_id) {
+            Ok(_) => {
+                state.notice("Restored the batch".to_string());
+                done = true;
+            }
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+    if show_bin {
+        state.deleted_open = true;
+        done = true;
+    }
+    if !open || done {
+        engine.clear_receipt();
+        state.receipt_open = false;
+    }
 }
 
 fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {

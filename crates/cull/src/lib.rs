@@ -97,6 +97,18 @@ impl Summary {
     pub const fn changed(&self) -> usize {
         self.picks + self.rejects
     }
+
+    /// One line for the summary sheet.
+    pub fn headline(&self) -> String {
+        if self.total == 0 {
+            return "Nothing to cull".to_string();
+        }
+        if self.is_complete() {
+            format!("Judged all {} photos", self.total)
+        } else {
+            format!("{} of {} judged", self.total - self.unjudged, self.total)
+        }
+    }
 }
 
 /// A saved session. The version lets a future format change be rejected instead of misread.

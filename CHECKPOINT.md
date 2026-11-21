@@ -411,7 +411,23 @@ answer.
   the no-fingerprint case still grouping, 3×3 colour grid arithmetic
 - 181 tests, CI and wasm green
 
+## 2026-11-21 — M4: cull summary and apply receipt
+
+- cull: `Summary::headline()` ("3 of 12 judged" / "Judged all 12 photos"); `trash::Receipt` built
+  from a finished `DeletedBatch` with `headline`, `detail` ("Moved to …", tag-only spelling), `kept`
+  and `is_restorable`
+- engine: `receipt()`/`clear_receipt()` set by every Apply (mode, rejects disposed of, picks
+  written, files kept, failures, batch id), `cull_complete()`, `cull_next_unjudged()`
+- ui: a summary sheet that opens itself the moment every photo is judged and can be reopened from
+  the cull header — counts, "N photo(s) will change on Apply", Apply…/Keep culling/Jump to next/
+  Discard; and a receipt window that opens after Apply and offers "Put them back" (restore the batch)
+  or "Recently Deleted", with dismissal clearing the receipt
+- tests: a session reporting incomplete until the last decision, then complete; a tag-only batch
+  whose receipt counts one disposed file, one pick, one kept file, is restorable, names its batch and
+  is forgotten on dismissal
+- 182 tests, CI and wasm green
+
 ## Next
 
-M4 leftovers: the cull summary sheet after Apply plus a receipt dialog, so a finished cull and a
-staged batch are both explained rather than just disappearing.
+M4: gesture culling — drag up for pick and down for reject with a live overlay, so a trackpad pass
+needs no keys.

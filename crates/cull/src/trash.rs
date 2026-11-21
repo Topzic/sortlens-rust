@@ -159,6 +159,69 @@ impl Report {
     }
 }
 
+/// What one Apply did, in the terms the receipt dialog uses.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Receipt {
+    /// Batch id in the rejects bin.
+    pub batch_id: u64,
+    /// Mode id: `trash`, `tag` or `move:<folder>`.
+    pub mode: String,
+    /// Files the batch disposed of; picks are counted separately.
+    pub applied: usize,
+    /// Files that could not be disposed of.
+    pub failed: usize,
+    /// Rejects that stayed on disk because the mode was tag-only.
+    pub kept: usize,
+    /// Picks the batch also wrote.
+    pub picks: usize,
+    /// Unix seconds when it finished.
+    pub at: i64,
+}
+
+impl Receipt {
+    /// Build the receipt for a finished batch.
+    pub fn of(batch: &DeletedBatch, picks: usize) -> Self {
+        Self {
+            batch_id: batch.id,
+            mode: batch.mode.clone(),
+            applied: batch.items.len(),
+            failed: batch.failed,
+            kept: batch.items.iter().filter(|item| matches!(item.location, Location::Kept)).count(),
+            picks,
+            at: batch.applied_at,
+        }
+    }
+
+    /// A one-line headline for the dialog title.
+    pub fn headline(&self) -> String {
+        let noun = if self.applied == 1 { "photo" } else { "photos" };
+        format!("{} {noun} handled", self.applied)
+    }
+
+    /// What happened to the files, as one sentence.
+    pub fn detail(&self) -> String {
+        let mut text = if let Some(folder) = self.mode.strip_prefix("move:") {
+            format!("Moved to {folder}")
+        } else if self.mode == "tag" {
+            "Left on disk and flagged as rejected".to_string()
+        } else {
+            "Moved to the system Trash".to_string()
+        };
+        if self.picks > 0 {
+            text.push_str(&format!(" · {} pick(s) written", self.picks));
+        }
+        if self.failed > 0 {
+            text.push_str(&format!(" · {} failed", self.failed));
+        }
+        text
+    }
+
+    /// Whether the batch can be put back.
+    pub const fn is_restorable(&self) -> bool {
+        self.applied > 0 && self.failed == 0
+    }
+}
+
 /// Check the batch before anything is touched.
 ///
 /// Returns every refusal it finds, in batch order. An empty `Ok` means the batch may start.

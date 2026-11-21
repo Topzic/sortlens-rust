@@ -14,6 +14,7 @@ pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
+pub use sortlens_cull::trash::Receipt as ApplyReceipt;
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 pub use sortlens_insights::{Insights, Row as InsightRow};
 pub use sortlens_similar::{
@@ -89,6 +90,7 @@ pub struct Engine {
     hashes: std::collections::HashMap<u64, (sortlens_hash::Hash, sortlens_hash::Colour)>,
     similar_members: Vec<SimilarMember>,
     similar: Vec<SimilarGroup>,
+    receipt: Option<ApplyReceipt>,
     cull: Option<sortlens_cull::Session>,
     deleted: Vec<sortlens_cull::trash::DeletedBatch>,
     next_batch: u64,
@@ -111,6 +113,7 @@ impl Engine {
             hashes: std::collections::HashMap::new(),
             similar_members: Vec::new(),
             similar: Vec::new(),
+            receipt: None,
             cull: None,
             deleted: Vec::new(),
             next_batch: 1,
@@ -977,6 +980,7 @@ impl Engine {
         }
 
         let report = sortlens_cull::trash::apply(&batch);
+        let picks = flags.iter().filter(|(_, flag)| *flag == Flag::Pick).count();
         let mut ops = vec![Op::Flag { changes: flags }];
         for entry in &report.applied {
             if !matches!(entry.location, sortlens_cull::trash::Location::Kept) {
@@ -1013,14 +1017,16 @@ impl Engine {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|since| since.as_secs() as i64)
             .unwrap_or_default();
-        self.deleted.push(sortlens_cull::trash::DeletedBatch {
+        let batch = sortlens_cull::trash::DeletedBatch {
             id: self.next_batch,
             applied_at,
             mode: mode_id,
             items: report.applied.clone(),
             previous_flags,
             failed: report.failed.len(),
-        });
+        };
+        self.receipt = Some(sortlens_cull::trash::Receipt::of(&batch, picks));
+        self.deleted.push(batch);
         self.next_batch += 1;
         self.persist_deleted();
 
@@ -1046,6 +1052,21 @@ impl Engine {
             }
             None => json!({ "total": 0, "picks": 0, "rejects": 0, "deferred": 0, "unjudged": 0, "current": null, "cursor": 0 }),
         }
+    }
+
+    /// What the last finished Apply did, for the receipt dialog.
+    pub fn receipt(&self) -> Option<&ApplyReceipt> {
+        self.receipt.as_ref()
+    }
+
+    /// Dismiss the receipt, so it is not shown again.
+    pub fn clear_receipt(&mut self) {
+        self.receipt = None;
+    }
+
+    /// Whether every photo in the running session has been judged.
+    pub fn cull_complete(&self) -> bool {
+        self.cull.as_ref().is_some_and(|session| session.summary().is_complete())
     }
 
     /// The running cull session, if any.
@@ -1075,6 +1096,13 @@ impl Engine {
         let jumped = self.cull.as_mut().is_some_and(|session| session.jump_to(id));
         self.persist_cull();
         jumped
+    }
+
+    /// Jump to the first photo without a decision, if there is one.
+    pub fn cull_next_unjudged(&mut self) -> Option<PhotoId> {
+        let next = self.cull.as_mut().and_then(sortlens_cull::Session::next_unjudged);
+        self.persist_cull();
+        next
     }
 
     /// Move back one photo in the session.
@@ -1827,6 +1855,43 @@ mod tests {
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
         assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn the_receipt_describes_the_batch_and_survives_until_dismissed() {
+        let folder = Temp::new("receipt-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let (_lib, mut engine) = library("receipt");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        engine.begin_cull(&ids).expect("begin");
+        assert!(!engine.cull_complete(), "nothing is judged yet");
+        engine.cull_decide(sortlens_cull::Decision::Pick);
+        assert!(!engine.cull_complete());
+        engine.cull_decide(sortlens_cull::Decision::Reject);
+        assert!(engine.cull_complete(), "every photo has a decision now");
+
+        engine.cull_apply(sortlens_cull::trash::Mode::TagOnly).expect("apply");
+        let receipt = engine.receipt().expect("receipt").clone();
+        assert_eq!(receipt.applied, 1, "one reject was disposed of");
+        assert_eq!(receipt.mode, "tag");
+        assert_eq!(receipt.picks, 1, "the pick is written as a flag");
+        assert_eq!(receipt.kept, 1, "tag-only leaves the file on disk");
+        assert!(receipt.is_restorable());
+        assert!(receipt.detail().contains("Left on disk"), "{}", receipt.detail());
+        assert_eq!(receipt.batch_id, engine.deleted_batches()[0].id);
+
+        engine.clear_receipt();
+        assert!(engine.receipt().is_none(), "dismissing forgets it");
     }
 
     #[test]
