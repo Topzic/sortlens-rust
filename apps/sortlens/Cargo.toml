@@ -1,0 +1,25 @@
+[package]
+name = "sortlens"
+description = "Sortlens desktop application"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-engine = { workspace = true }
+sortlens-ui = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+craft-ui = { workspace = true }
+craft-window = { workspace = true }
+craft-settings = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+toml = "0.9"
+
+[lints]
+workspace = true

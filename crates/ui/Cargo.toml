@@ -1,0 +1,18 @@
+[package]
+name = "sortlens-ui"
+description = "The egui shell: tokens, themes, panels, grid and dialogs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-engine = { workspace = true }
+egui = { workspace = true }
+craft-ui = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

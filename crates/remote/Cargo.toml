@@ -1,0 +1,15 @@
+[package]
+name = "sortlens-remote"
+description = "Library pairing, capability tokens and the remote protocol binding"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-catalog = { workspace = true }
+
+[lints]
+workspace = true

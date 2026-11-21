@@ -1,0 +1,15 @@
+[package]
+name = "sortlens-web"
+description = "Sortlens wasm client shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-ui = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,7 @@
+/target
+/.toolchain
+/.rustup-init.sh
+/corpus
+/screenshots
+*.tmp
+.DS_Store

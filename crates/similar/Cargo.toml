@@ -1,0 +1,15 @@
+[package]
+name = "sortlens-similar"
+description = "Similar-photo search over perceptual hashes and colour signatures"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-hash = { workspace = true }
+
+[lints]
+workspace = true
