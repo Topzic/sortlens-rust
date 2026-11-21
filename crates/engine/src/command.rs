@@ -277,6 +277,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "collection.sort",
+                    label: "Sort Collection",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Sort Collection",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "collection.removeFrom",
                     label: "Remove from Collection",
                     group: Group::Organise,

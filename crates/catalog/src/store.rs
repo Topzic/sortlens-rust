@@ -412,6 +412,15 @@ impl Catalog {
         self.commit(Op::SetCollectionFavourite { id, favourite }).map(|_| ())
     }
 
+    /// Remember the sort a collection is browsed with.
+    pub fn set_collection_sort(&mut self, id: CollectionId, sort: crate::query::Sort) -> Result<()> {
+        let wanted = sort.id().to_string();
+        if self.collections.get(&id).and_then(|collection| collection.sort.as_deref()) == Some(wanted.as_str()) {
+            return Ok(());
+        }
+        self.commit(Op::SetCollectionSort { id, sort: Some(wanted) }).map(|_| ())
+    }
+
     /// Delete a collection. The photos stay in the library.
     pub fn delete_collection(&mut self, id: CollectionId) -> Result<()> {
         let collection = self.collections.get(&id).cloned().ok_or(Error::NoSuchCollection(id))?;
@@ -621,6 +630,12 @@ impl Catalog {
                     id: *id,
                     favourite: previous,
                 })
+            }
+            Op::SetCollectionSort { id, sort } => {
+                let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
+                let previous = collection.sort.clone();
+                collection.sort = sort.clone();
+                Ok(Op::SetCollectionSort { id: *id, sort: previous })
             }
             Op::Group { ops } => {
                 // Apply in order, undo in reverse order, so a group behaves like one operation.
@@ -1051,6 +1066,24 @@ mod tests {
         assert!(catalog.undo().expect("undo"));
         let trip_now = catalog.collections().into_iter().find(|item| item.id == trip).expect("trip");
         assert_eq!(trip_now.colour, None, "clearing the colour is its own inverse");
+    }
+
+    #[test]
+    fn a_collection_remembers_its_sort_and_undoes_it() {
+        let temp = TempCatalog::new("collection-sort");
+        let (mut catalog, _) = temp.open();
+        let trip = catalog.create_collection("Trip").expect("create");
+        assert!(catalog.collections()[0].sort.is_none());
+
+        catalog.set_collection_sort(trip, Sort::Newest).expect("sort");
+        assert_eq!(catalog.collections()[0].sort.as_deref(), Some(Sort::Newest.id()));
+        catalog.set_collection_sort(trip, Sort::Newest).expect("no-op");
+
+        assert!(catalog.undo().expect("undo"));
+        assert!(catalog.collections()[0].sort.is_none(), "undo forgets the sort");
+
+        // A sort the app no longer knows falls back to the natural order when read back.
+        assert_eq!(Sort::parse("nonsense"), Sort::Natural);
     }
 
     #[test]

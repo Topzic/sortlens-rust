@@ -498,7 +498,21 @@ check is a second invisible UI.
   unknown colour rejected and the old colour left in place
 - 201 tests, CI and wasm green
 
+## 2026-11-21 — M5: per-collection sort memory
+
+- catalog: `Collection.sort: Option<String>` (serde default), op `SetCollectionSort` with an exact
+  inverse; `set_collection_sort` skips a no-op and stores the id so a later `Sort::parse` reads it
+  back, with unknown ids falling back to the natural order
+- engine: `set_collection_sort` and the `collection.sort` command
+- ui: opening a collection adopts its remembered sort, changing the sort while a collection is open
+  writes it back, and `library_sort` keeps the library's own order so leaving the collection
+  (`clear_filters`) restores it; the app seeds `library_sort` from saved settings
+- tests: a collection starting with no sort, the sort round-tripping through the op log and undoing,
+  an unknown sort parsing to natural, the command's JSON face, and the UI restoring the library sort
+  when a collection closes
+- 205 tests, CI and wasm green
+
 ## Next
 
-M5 leftovers: per-view sort for collections — remembering the sort a collection was last browsed
-with, so revisiting it does not reset to the library's order.
+M5 leftovers: collection-scoped search — the search box narrowing inside the open collection and
+remembering that too.

@@ -240,6 +240,14 @@ impl Engine {
             .set_collection_favourite(id, favourite)
     }
 
+    /// Remember the sort a collection is browsed with.
+    pub fn set_collection_sort(&mut self, id: sortlens_core::CollectionId, sort: Sort) -> Result<()> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .set_collection_sort(id, sort)
+    }
+
     /// Delete a collection; the photos stay in the library.
     pub fn delete_collection(&mut self, id: sortlens_core::CollectionId) -> Result<()> {
         self.catalog
@@ -1390,6 +1398,12 @@ impl Engine {
                 self.set_collection_favourite(id, favourite)?;
                 Ok(json!({ "favourite": favourite }))
             }
+            "collection.sort" => {
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let sort = Sort::parse(args.get("sort").and_then(Value::as_str).unwrap_or_default());
+                self.set_collection_sort(id, sort)?;
+                Ok(json!({ "sort": sort.id() }))
+            }
             "collection.removeFrom" => {
                 let ids = ids_from(args)?;
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
@@ -1921,6 +1935,25 @@ mod tests {
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
         assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn a_collection_remembers_the_sort_it_was_browsed_with() {
+        let (_lib, mut engine) = library("collection-sort");
+        let id = engine.create_collection("Trip").expect("create");
+        assert!(engine.collections()[0].sort.is_none());
+
+        let value = engine
+            .run("collection.sort", &json!({ "id": id.0, "sort": "largest" }))
+            .expect("sort");
+        assert_eq!(value["sort"], "largest");
+        let remembered = engine.collections()[0].sort.clone().expect("remembered");
+        assert_eq!(Sort::parse(&remembered), Sort::Largest);
+
+        engine
+            .run("collection.sort", &json!({ "id": id.0, "sort": "nonsense" }))
+            .expect("unknown sorts fall back");
+        assert_eq!(engine.collections()[0].sort.as_deref(), Some(Sort::Natural.id()));
     }
 
     #[test]

@@ -103,6 +103,7 @@ impl App {
 
         let mut ui = UiState::new(kind, title_inset);
         ui.sort = saved_sort;
+        ui.library_sort = saved_sort;
         if report.has_problems() {
             ui.notice("Settings could not be read in full; defaults are in use");
         }

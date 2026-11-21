@@ -48,6 +48,8 @@ pub enum Op {
     SetCollectionColour { id: CollectionId, colour: Option<ColorLabel> },
     /// A collection was pinned or unpinned.
     SetCollectionFavourite { id: CollectionId, favourite: bool },
+    /// The sort a collection is browsed with was remembered.
+    SetCollectionSort { id: CollectionId, sort: Option<String> },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -72,6 +74,7 @@ impl Op {
             Self::Collect { .. } => "collect",
             Self::SetCollectionColour { .. } => "setCollectionColour",
             Self::SetCollectionFavourite { .. } => "setCollectionFavourite",
+            Self::SetCollectionSort { .. } => "setCollectionSort",
             Self::Group { .. } => "group",
         }
     }

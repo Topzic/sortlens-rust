@@ -182,6 +182,8 @@ pub struct UiState {
     pub tag_mode: sortlens_engine::TagMode,
     /// How the keyword list is ordered.
     pub tag_order: TagOrder,
+    /// The sort the whole library was last shown with, restored when a collection closes.
+    pub library_sort: Sort,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -259,6 +261,7 @@ impl UiState {
             tag_filters: Vec::new(),
             tag_mode: sortlens_engine::TagMode::Any,
             tag_order: TagOrder::Count,
+            library_sort: Sort::Natural,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -356,7 +359,9 @@ impl UiState {
         self.flag_filter = None;
         self.label_filter = None;
         self.tag_filters.clear();
-        self.collection_filter = None;
+        if self.collection_filter.take().is_some() {
+            self.sort = self.library_sort;
+        }
         self.folder.clear();
         self.kind_filter = None;
         self.edited_filter = None;
@@ -911,6 +916,14 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     if chosen != state.sort {
                         state.sort = chosen;
                         actions.push(Action::SetSort(chosen));
+                        match state.collection_filter {
+                            Some(id) => {
+                                if let Err(error) = engine.set_collection_sort(id, chosen) {
+                                    state.notice(error.to_string());
+                                }
+                            }
+                            None => state.library_sort = chosen,
+                        }
                     }
                 });
             });
@@ -2196,7 +2209,13 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
             ui.painter().circle_filled(dot, 3.0, t.label(colour));
         }
         if row.clicked() {
-            state.collection_filter = if selected { None } else { Some(collection.id) };
+            if selected {
+                state.collection_filter = None;
+            } else {
+                state.collection_filter = Some(collection.id);
+                // Reopening a collection puts the sort back to how it was last browsed.
+                state.sort = collection.sort.as_deref().map(Sort::parse).unwrap_or(Sort::Natural);
+            }
         }
         row.context_menu(|ui| {
             let pin_label = if collection.favourite {
@@ -2963,6 +2982,17 @@ mod tests {
         let wide = fit_rect(bounds, 2.0);
         assert!(wide.width() <= bounds.width() + 0.001);
         assert!(bounds.contains_rect(wide));
+    }
+
+    #[test]
+    fn closing_a_collection_restores_the_library_sort() {
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.library_sort = Sort::Newest;
+        state.sort = Sort::Largest;
+        state.collection_filter = Some(sortlens_core::CollectionId(4));
+        state.clear_filters();
+        assert!(state.collection_filter.is_none());
+        assert_eq!(state.sort, Sort::Newest, "the library's own order comes back");
     }
 
     #[test]

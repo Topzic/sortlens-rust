@@ -24,6 +24,9 @@ pub struct Collection {
     /// Pinned to the top of the collection list.
     #[serde(default)]
     pub favourite: bool,
+    /// The sort this collection was last browsed with, if it has ever been changed.
+    #[serde(default)]
+    pub sort: Option<String>,
 }
 
 impl Collection {
@@ -36,6 +39,7 @@ impl Collection {
             created,
             colour: None,
             favourite: false,
+            sort: None,
         }
     }
 
@@ -71,6 +75,12 @@ mod tests {
         assert!(collection.colour.is_none());
         assert!(!collection.favourite);
         assert_eq!(collection.colour_id(), None);
+    }
+
+    #[test]
+    fn a_collection_remembers_no_sort_until_one_is_chosen() {
+        let collection = Collection::new(CollectionId(2), "Trip", 0);
+        assert!(collection.sort.is_none());
     }
 
     #[test]
