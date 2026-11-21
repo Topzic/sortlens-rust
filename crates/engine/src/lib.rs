@@ -147,6 +147,51 @@ impl Engine {
         }
     }
 
+    /// Every collection, by name.
+    pub fn collections(&self) -> Vec<sortlens_catalog::Collection> {
+        self.catalog.as_ref().map(Catalog::collections).unwrap_or_default()
+    }
+
+    /// Create a collection.
+    pub fn create_collection(&mut self, name: &str) -> Result<sortlens_core::CollectionId> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .create_collection(name)
+    }
+
+    /// Rename a collection.
+    pub fn rename_collection(&mut self, id: sortlens_core::CollectionId, name: &str) -> Result<()> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .rename_collection(id, name)
+    }
+
+    /// Delete a collection; the photos stay in the library.
+    pub fn delete_collection(&mut self, id: sortlens_core::CollectionId) -> Result<()> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .delete_collection(id)
+    }
+
+    /// Add photos to a collection.
+    pub fn add_to_collection(&mut self, ids: &[PhotoId], id: sortlens_core::CollectionId) -> Result<usize> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .collect(id, ids, &[])
+    }
+
+    /// Remove photos from a collection.
+    pub fn remove_from_collection(&mut self, ids: &[PhotoId], id: sortlens_core::CollectionId) -> Result<usize> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .collect(id, &[], ids)
+    }
+
     /// Check every photo against the disk and record what changed.
     ///
     /// This is the "library doctor": it stats each file, then commits one group of missing flags, so
@@ -1027,6 +1072,37 @@ impl Engine {
                 Ok(json!({ "cleared": true }))
             }
             "cull.summary" => Ok(self.cull_summary()),
+            "collection.new" => {
+                let name = args
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a collection needs a name".into()))?;
+                Ok(json!({ "id": self.create_collection(name)?.0 }))
+            }
+            "collection.addTo" => {
+                let ids = ids_from(args)?;
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                Ok(json!({ "changed": self.add_to_collection(&ids, id)? }))
+            }
+            "collection.removeFrom" => {
+                let ids = ids_from(args)?;
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                Ok(json!({ "changed": self.remove_from_collection(&ids, id)? }))
+            }
+            "collection.rename" => {
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let name = args
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a collection needs a name".into()))?;
+                self.rename_collection(id, name)?;
+                Ok(json!({ "renamed": true }))
+            }
+            "collection.delete" => {
+                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                self.delete_collection(id)?;
+                Ok(json!({ "deleted": true }))
+            }
             "library.health" => {
                 let health = self.check_health()?;
                 Ok(json!({
@@ -1179,6 +1255,15 @@ fn folder_name(path: &str) -> String {
         .filter(|name| !name.is_empty())
         .unwrap_or(path)
         .to_string()
+}
+
+/// A collection id from the command arguments.
+fn collection_id_from(args: &Value) -> Result<u32> {
+    args.get("collection")
+        .or_else(|| args.get("id"))
+        .and_then(Value::as_u64)
+        .map(|id| id as u32)
+        .ok_or_else(|| Error::Invalid("a collection id is required".into()))
 }
 
 fn ids_from(args: &Value) -> Result<Vec<PhotoId>> {
@@ -1491,6 +1576,54 @@ mod tests {
         assert!(engine.cull().is_none());
 
         let _ = std::fs::remove_dir_all(&destination);
+    }
+
+    #[test]
+    fn collections_round_trip_through_the_engine() {
+        let folder = Temp::new("collection-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        let (_lib, mut engine) = library("collection");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        let created = engine.run("collection.new", &json!({ "name": "Best of 2024" })).expect("create");
+        let collection = sortlens_core::CollectionId(created["id"].as_u64().expect("id") as u32);
+        assert_eq!(engine.collections().len(), 1);
+
+        let added = engine
+            .run("collection.addTo", &json!({ "collection": collection.0, "ids": ids }))
+            .expect("add");
+        assert_eq!(added["changed"], 2);
+
+        let filter = Filter {
+            collection: Some(collection),
+            ..Filter::default()
+        };
+        assert_eq!(engine.count(&filter), 2);
+        engine
+            .run("collection.removeFrom", &json!({ "collection": collection.0, "ids": [ids[0]] }))
+            .expect("remove");
+        assert_eq!(engine.count(&filter), 1);
+
+        engine
+            .run("collection.rename", &json!({ "collection": collection.0, "name": "Keepers" }))
+            .expect("rename");
+        assert_eq!(engine.collections()[0].name, "Keepers");
+
+        engine
+            .run("collection.delete", &json!({ "collection": collection.0 }))
+            .expect("delete");
+        assert!(engine.collections().is_empty());
+        assert_eq!(engine.count(&Filter::default()), 2, "photos stay in the library");
+        assert!(engine.run("collection.addTo", &json!({ "collection": 99, "ids": ids })).is_err());
     }
 
     #[test]

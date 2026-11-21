@@ -11,11 +11,12 @@
 //! corrupt middle record stops the replay and is reported, so a damaged file costs the tail of
 //! the log rather than the library.
 
+use crate::collection::Collection;
 use crate::op::Op;
 use crate::photo::{Photo, Stats};
 use crate::query::{Filter, Page, Sort};
 use serde::{Deserialize, Serialize};
-use sortlens_core::{Error, Flag, MediaKind, PhotoId, Result, Review};
+use sortlens_core::{CollectionId, Error, Flag, MediaKind, PhotoId, Result, Review};
 use sortlens_meta::PhotoMeta;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File, OpenOptions};
@@ -57,6 +58,12 @@ struct Snapshot {
     next_id: u64,
     roots: Vec<String>,
     photos: Vec<Photo>,
+    /// Collections, added after the first format; older snapshots simply have none.
+    #[serde(default)]
+    collections: Vec<Collection>,
+    /// Next collection id, defaulted for older snapshots.
+    #[serde(default)]
+    next_collection: u32,
 }
 
 /// What a scan of one root changed.
@@ -87,6 +94,8 @@ pub struct Catalog {
     dir: PathBuf,
     photos: BTreeMap<PhotoId, Photo>,
     roots: Vec<String>,
+    collections: BTreeMap<CollectionId, Collection>,
+    next_collection: u32,
     next_id: u64,
     seq: u64,
     undo: Vec<Op>,
@@ -106,6 +115,8 @@ impl Catalog {
         let mut photos = BTreeMap::new();
         let mut roots = Vec::new();
         let mut next_id = 1u64;
+        let mut next_collection = 1u32;
+        let mut collections: BTreeMap<CollectionId, Collection> = BTreeMap::new();
         let mut seq = 0u64;
 
         if snapshot_path.exists() {
@@ -122,6 +133,12 @@ impl Catalog {
                         next_id = snapshot.next_id;
                         roots = snapshot.roots;
                         photos = snapshot.photos.into_iter().map(|photo| (photo.id, photo)).collect();
+                        next_collection = snapshot.next_collection.max(1);
+                        collections = snapshot
+                            .collections
+                            .into_iter()
+                            .map(|collection| (collection.id, collection))
+                            .collect();
                         report.snapshot_seq = seq;
                     }
                     Err(error) => report
@@ -139,6 +156,8 @@ impl Catalog {
                 dir: dir.clone(),
                 photos,
                 roots,
+                collections,
+                next_collection,
                 next_id,
                 seq,
                 undo: Vec::new(),
@@ -188,6 +207,8 @@ impl Catalog {
                 dir,
                 photos,
                 roots,
+                collections,
+                next_collection,
                 next_id,
                 seq,
                 undo: Vec::new(),
@@ -268,7 +289,18 @@ impl Catalog {
 
     /// How many photos match a filter, without building the page.
     pub fn count(&self, filter: &Filter) -> usize {
-        self.photos.values().filter(|photo| filter.matches(photo)).count()
+        self.photos.values().filter(|photo| self.matches(filter, photo)).count()
+    }
+
+    /// A filter plus collection membership.
+    fn matches(&self, filter: &Filter, photo: &Photo) -> bool {
+        if let Some(id) = filter.collection {
+            match self.collections.get(&id) {
+                Some(collection) if collection.contains(photo.id) => {}
+                _ => return false,
+            }
+        }
+        filter.matches(photo)
     }
 
     /// Photos the catalog believes are missing.
@@ -305,6 +337,72 @@ impl Catalog {
         vocabulary
     }
 
+    /// Every collection, by name.
+    pub fn collections(&self) -> Vec<Collection> {
+        let mut collections: Vec<Collection> = self.collections.values().cloned().collect();
+        collections.sort_by_key(|collection| collection.name.to_lowercase());
+        collections
+    }
+
+    /// One collection by id.
+    pub fn collection(&self, id: CollectionId) -> Option<&Collection> {
+        self.collections.get(&id)
+    }
+
+    /// Create a collection and return its id.
+    pub fn create_collection(&mut self, name: &str) -> Result<CollectionId> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("a collection needs a name".into()));
+        }
+        let id = CollectionId(self.next_collection);
+        self.next_collection += 1;
+        let created = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_secs() as i64)
+            .unwrap_or_default();
+        self.commit(Op::AddCollection {
+            collection: Box::new(Collection::new(id, name, created)),
+        })?;
+        Ok(id)
+    }
+
+    /// Rename a collection.
+    pub fn rename_collection(&mut self, id: CollectionId, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("a collection needs a name".into()));
+        }
+        self.commit(Op::RenameCollection {
+            id,
+            name: name.to_string(),
+        })
+        .map(|_| ())
+    }
+
+    /// Delete a collection. The photos stay in the library.
+    pub fn delete_collection(&mut self, id: CollectionId) -> Result<()> {
+        let collection = self.collections.get(&id).cloned().ok_or(Error::NoSuchCollection(id))?;
+        self.commit(Op::RemoveCollection {
+            collection: Box::new(collection),
+        })
+        .map(|_| ())
+    }
+
+    /// Add photos to a collection or remove them from it.
+    pub fn collect(&mut self, id: CollectionId, added: &[PhotoId], removed: &[PhotoId]) -> Result<usize> {
+        if !self.collections.contains_key(&id) {
+            return Err(Error::NoSuchCollection(id));
+        }
+        let changed = added.len() + removed.len();
+        self.commit(Op::Collect {
+            id,
+            added: added.to_vec(),
+            removed: removed.to_vec(),
+        })?;
+        Ok(changed)
+    }
+
     /// Photo counts per root, for the sidebar.
     pub fn counts_by_root(&self) -> Vec<(String, usize)> {
         let mut counts: BTreeMap<String, usize> = self.roots.iter().map(|root| (root.clone(), 0)).collect();
@@ -319,7 +417,7 @@ impl Catalog {
 
     /// One page of a filtered, sorted view.
     pub fn page(&self, filter: &Filter, sort: Sort, offset: usize, limit: usize) -> Page {
-        let mut matched: Vec<Photo> = self.photos.values().filter(|photo| filter.matches(photo)).cloned().collect();
+        let mut matched: Vec<Photo> = self.photos.values().filter(|photo| self.matches(filter, photo)).cloned().collect();
         matched.sort_by(|left, right| sort.compare(left, right));
         let total = matched.len();
         let photos = matched.into_iter().skip(offset).take(limit).collect();
@@ -405,6 +503,53 @@ impl Catalog {
                     }
                 }
                 Ok(Op::Group { ops: inverse })
+            }
+            Op::AddCollection { collection } => {
+                let collection = (**collection).clone();
+                let id = collection.id;
+                self.collections.insert(id, collection.clone());
+                self.next_collection = self.next_collection.max(id.0 + 1);
+                Ok(Op::RemoveCollection {
+                    collection: Box::new(collection),
+                })
+            }
+            Op::RemoveCollection { collection } => {
+                let id = collection.id;
+                let previous = self.collections.remove(&id);
+                match previous {
+                    Some(collection) => Ok(Op::AddCollection {
+                        collection: Box::new(collection),
+                    }),
+                    None => Ok(Op::RemoveCollection {
+                        collection: collection.clone(),
+                    }),
+                }
+            }
+            Op::RenameCollection { id, name } => {
+                let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
+                let previous = collection.name.clone();
+                collection.name = name.clone();
+                Ok(Op::RenameCollection { id: *id, name: previous })
+            }
+            Op::Collect { id, added, removed } => {
+                let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
+                let mut previous_added = Vec::new();
+                for photo in added {
+                    if collection.photos.insert(*photo) {
+                        previous_added.push(*photo);
+                    }
+                }
+                let mut previous_removed = Vec::new();
+                for photo in removed {
+                    if collection.photos.remove(photo) {
+                        previous_removed.push(*photo);
+                    }
+                }
+                Ok(Op::Collect {
+                    id: *id,
+                    added: previous_removed,
+                    removed: previous_added,
+                })
             }
             Op::Group { ops } => {
                 // Apply in order, undo in reverse order, so a group behaves like one operation.
@@ -557,6 +702,8 @@ impl Catalog {
             next_id: self.next_id,
             roots: self.roots.clone(),
             photos: self.photos.values().cloned().collect(),
+            collections: self.collections.values().cloned().collect(),
+            next_collection: self.next_collection,
         };
         let text = serde_json::to_string(&snapshot).map_err(|error| Error::Invalid(error.to_string()))?;
         let tmp = self.dir.join("snapshot.json.tmp");
@@ -805,6 +952,64 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.photos.len(), 1);
         assert_eq!(page.photos[0].name, "b.jpg");
+    }
+
+    #[test]
+    fn collections_are_created_filled_filtered_and_undone() {
+        let temp = TempCatalog::new("collections");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+
+        let id = catalog.create_collection("Best of 2024").expect("create");
+        assert_eq!(catalog.collections().len(), 1);
+        assert_eq!(catalog.collections()[0].name, "Best of 2024");
+
+        catalog.collect(id, &[PhotoId(1), PhotoId(2)], &[]).expect("add");
+        assert_eq!(catalog.collection(id).expect("collection").len(), 2);
+        let in_collection = Filter {
+            collection: Some(id),
+            ..Filter::default()
+        };
+        assert_eq!(catalog.count(&in_collection), 2);
+
+        catalog.collect(id, &[], &[PhotoId(2)]).expect("remove");
+        assert_eq!(catalog.count(&in_collection), 1);
+        assert_eq!(catalog.count(&Filter::default()), 2, "the photos stay in the library");
+
+        catalog.rename_collection(id, "Keepers").expect("rename");
+        assert_eq!(catalog.collection(id).expect("collection").name, "Keepers");
+
+        catalog.delete_collection(id).expect("delete");
+        assert!(catalog.collections().is_empty());
+        assert_eq!(catalog.count(&Filter::default()), 2);
+
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(catalog.collections().len(), 1, "undo brings the collection back");
+    }
+
+    #[test]
+    fn collections_survive_a_snapshot_and_restart() {
+        let temp = TempCatalog::new("collections-restart");
+        let id = {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            let id = catalog.create_collection("Camera roll").expect("create");
+            catalog.collect(id, &[PhotoId(1)], &[]).expect("add");
+            catalog.snapshot().expect("snapshot");
+            id
+        };
+        let (catalog, _) = temp.open();
+        let collection = catalog.collection(id).expect("collection survives");
+        assert_eq!(collection.name, "Camera roll");
+        assert_eq!(collection.len(), 1);
+    }
+
+    #[test]
+    fn a_collection_needs_a_name() {
+        let temp = TempCatalog::new("collections-nameless");
+        let (mut catalog, _) = temp.open();
+        assert!(catalog.create_collection("   ").is_err());
+        assert!(catalog.collect(sortlens_core::CollectionId(99), &[PhotoId(1)], &[]).is_err());
     }
 
     #[test]

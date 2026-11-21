@@ -188,6 +188,10 @@ pub struct UiState {
     pub health_open: bool,
     /// Last health check: (checked, present, missing).
     pub health: Option<(usize, usize, usize)>,
+    /// Only this collection, chosen in the sidebar.
+    pub collection_filter: Option<sortlens_core::CollectionId>,
+    /// Collection being renamed, with its draft name.
+    pub rename_target: Option<(sortlens_core::CollectionId, String)>,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
 }
@@ -222,6 +226,8 @@ impl UiState {
             deleted_open: false,
             health_open: false,
             health: None,
+            collection_filter: None,
+            rename_target: None,
             notice: None,
         }
     }
@@ -247,6 +253,7 @@ impl UiState {
             flag: self.flag_filter,
             label: self.label_filter,
             tag: self.tag_filter.clone(),
+            collection: self.collection_filter,
             include_missing: self.show_missing,
             ..Filter::default()
         }
@@ -258,6 +265,7 @@ impl UiState {
             || self.flag_filter.is_some()
             || self.label_filter.is_some()
             || self.tag_filter.is_some()
+            || self.collection_filter.is_some()
             || self.show_missing
             || self.root.is_some()
             || !self.search.is_empty()
@@ -269,6 +277,7 @@ impl UiState {
         self.flag_filter = None;
         self.label_filter = None;
         self.tag_filter = None;
+        self.collection_filter = None;
         self.show_missing = false;
         self.root = None;
     }
@@ -324,6 +333,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.health_open {
         health_dialog(ui, state, &t, engine);
+    }
+    if state.rename_target.is_some() {
+        rename_dialog(ui, state, &t, engine);
     }
 
     if state.live_notice().is_some() {
@@ -509,7 +521,56 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             }
 
             nav_section(ui, t, "Collections");
-            hint(ui, t, "Collections arrive in M5.");
+            let collections = engine.collections();
+            if collections.is_empty() {
+                hint(ui, t, "Collect photos into named sets without moving them.");
+            }
+            let mut delete = None;
+            let mut rename = None;
+            for collection in &collections {
+                let selected = state.collection_filter == Some(collection.id);
+                let row = nav_row(ui, t, &collection.name, &format_count(collection.len() as u64), selected);
+                if row.clicked() {
+                    state.collection_filter = if selected { None } else { Some(collection.id) };
+                }
+                row.context_menu(|ui| {
+                    if ui.button("Rename…").clicked() {
+                        rename = Some((collection.id, collection.name.clone()));
+                        ui.close();
+                    }
+                    if ui.button("Delete collection").clicked() {
+                        delete = Some(collection.id);
+                        ui.close();
+                    }
+                });
+            }
+            if let Some((id, name)) = rename {
+                state.rename_target = Some((id, name));
+            }
+            if let Some(id) = delete {
+                match engine.delete_collection(id) {
+                    Ok(()) => {
+                        if state.collection_filter == Some(id) {
+                            state.collection_filter = None;
+                        }
+                        state.notice("Collection deleted — the photos stay in the library");
+                    }
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
+            if ui
+                .add(Button::new(RichText::new("+ New collection").size(10.5)).fill(Color32::TRANSPARENT))
+                .clicked()
+            {
+                let name = format!("Collection {}", collections.len() + 1);
+                match engine.create_collection(&name) {
+                    Ok(id) => {
+                        state.collection_filter = Some(id);
+                        state.rename_target = Some((id, name));
+                    }
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
         });
 }
 
@@ -744,7 +805,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 });
             });
             ui.add_space(8.0);
-            filter_strip(ui, t, state, total);
+            filter_strip(ui, t, state, engine, total);
             ui.add_space(10.0);
 
             match state.view {
@@ -762,7 +823,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         });
 }
 
-fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &mut Thumbnails, filter: &Filter) {
+fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, filter: &Filter) {
     let gap = t.grid_gap;
     let available = ui.available_width();
     let min_cell = 132.0;
@@ -774,6 +835,7 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &
     let row_height = cell + caption + gap;
     let total = engine.count(filter);
     let rows = total.div_ceil(columns);
+    let mut add_to: Option<(sortlens_core::PhotoId, sortlens_core::CollectionId)> = None;
 
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -797,6 +859,20 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &
                                 if response.double_clicked() {
                                     state.notice("The detail view arrives in M4");
                                 }
+                                response.context_menu(|ui| {
+                                    ui.menu_button("Add to Collection", |ui| {
+                                        let collections = engine.collections();
+                                        if collections.is_empty() {
+                                            ui.label(RichText::new("No collections yet").size(10.5));
+                                        }
+                                        for collection in collections {
+                                            if ui.button(&collection.name).clicked() {
+                                                add_to = Some((photo.id, collection.id));
+                                                ui.close();
+                                            }
+                                        }
+                                    });
+                                });
                             }
                             None => {
                                 let (_, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::hover());
@@ -808,6 +884,13 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &
                 ui.add_space(gap);
             }
         });
+
+    if let Some((photo, collection)) = add_to {
+        match engine.add_to_collection(&[photo], collection) {
+            Ok(_) => state.notice("Added to collection"),
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
 }
 
 fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32, thumbs: &mut Thumbnails) -> egui::Response {
@@ -950,7 +1033,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     }
 }
 
-fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, total: usize) {
+fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, total: usize) {
     Frame::NONE
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.border))
@@ -963,6 +1046,12 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, total: usize) {
                 } else {
                     format!("{}★ and up", state.min_rating)
                 };
+                if let Some(id) = state.collection_filter
+                    && let Some(collection) = engine.collections().into_iter().find(|entry| entry.id == id)
+                    && chip(ui, t, &collection.name, true).clicked()
+                {
+                    state.collection_filter = None;
+                }
                 if let Some(tag) = state.tag_filter.clone()
                     && chip(ui, t, &format!("#{tag}"), true).clicked()
                 {
@@ -1411,6 +1500,37 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             );
         });
     state.deleted_open = open;
+}
+
+fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let Some((id, mut name)) = state.rename_target.clone() else {
+        return;
+    };
+    let mut open = true;
+    egui::Window::new("Rename collection")
+        .collapsible(false)
+        .resizable(false)
+        .default_width(300.0)
+        .show(ui.ctx(), |ui| {
+            let field = ui.add(TextEdit::singleline(&mut name).desired_width(f32::INFINITY));
+            field.request_focus();
+            let entered = ui.input(|input| input.key_pressed(Key::Enter));
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if (ui.button("Save").clicked() || entered) && !name.trim().is_empty() {
+                    match engine.rename_collection(id, &name) {
+                        Ok(()) => state.notice(format!("Renamed to {}", name.trim())),
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                    open = false;
+                }
+                if ui.button("Cancel").clicked() {
+                    open = false;
+                }
+            });
+            let _ = t;
+        });
+    state.rename_target = if open { Some((id, name)) } else { None };
 }
 
 fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {

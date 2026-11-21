@@ -6,7 +6,7 @@
 
 use crate::photo::Photo;
 use serde::{Deserialize, Serialize};
-use sortlens_core::{ColorLabel, Flag, PhotoId};
+use sortlens_core::{CollectionId, ColorLabel, Flag, PhotoId};
 
 /// One change to the catalog.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -32,6 +32,18 @@ pub enum Op {
     Tagged { changes: Vec<(PhotoId, Vec<String>)> },
     /// Photos were found at a new path inside the same root.
     Relocate { changes: Vec<(PhotoId, String)> },
+    /// A collection was created.
+    AddCollection { collection: Box<crate::collection::Collection> },
+    /// A collection was removed; the record travels with the op so undo restores it.
+    RemoveCollection { collection: Box<crate::collection::Collection> },
+    /// A collection was renamed.
+    RenameCollection { id: CollectionId, name: String },
+    /// Photos were added to and removed from a collection.
+    Collect {
+        id: CollectionId,
+        added: Vec<PhotoId>,
+        removed: Vec<PhotoId>,
+    },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -50,6 +62,10 @@ impl Op {
             Self::Label { .. } => "label",
             Self::Tagged { .. } => "tagged",
             Self::Relocate { .. } => "relocate",
+            Self::AddCollection { .. } => "addCollection",
+            Self::RemoveCollection { .. } => "removeCollection",
+            Self::RenameCollection { .. } => "renameCollection",
+            Self::Collect { .. } => "collect",
             Self::Group { .. } => "group",
         }
     }

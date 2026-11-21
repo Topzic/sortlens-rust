@@ -7,11 +7,13 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
+pub mod collection;
 pub mod op;
 pub mod photo;
 pub mod query;
 pub mod store;
 
+pub use collection::Collection;
 pub use op::Op;
 pub use photo::{Photo, Stats};
 pub use query::{Filter, Page, Sort};

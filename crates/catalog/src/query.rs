@@ -28,6 +28,8 @@ pub struct Filter {
     pub label: Option<ColorLabel>,
     /// Only photos carrying this keyword.
     pub tag: Option<String>,
+    /// Only photos in this collection. Membership is resolved by the catalog, not here.
+    pub collection: Option<sortlens_core::CollectionId>,
     /// Include entries whose file is missing.
     pub include_missing: bool,
     /// Restricted id set, used by selection and by collection views.

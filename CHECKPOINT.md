@@ -245,7 +245,26 @@ stays a Finder/Explorer action.
 - 136 tests, CI and wasm green; CLI smoke test moved a file, saw `1 of 2 missing`, relocated it and
   read back the new relative path
 
+## 2026-11-21 — M5: collections
+
+- catalog: `Collection { id, name, photos, created }` with a set of members; ops `AddCollection`,
+  `RemoveCollection`, `RenameCollection` and `Collect` (inverse swaps added/removed, so undo is
+  exact); collections and the id counter live in the snapshot with `serde(default)` so older
+  snapshots still open; `Filter.collection` resolved by the catalog, so membership composes with
+  every other chip
+- engine: `collections`, `create_collection`, `rename_collection`, `delete_collection`,
+  `add_to_collection`, `remove_from_collection`; commands `collection.new`/`addTo`/`removeFrom`/
+  `rename`/`delete` are Ready
+- ui: Collections sidebar section with counts and click-to-filter, right-click rename/delete,
+  "+ New collection", a rename dialog, a filter chip, and a per-photo "Add to Collection" context
+  menu in the grid
+- tests: create/fill/filter/rename/delete with undo, membership surviving a snapshot and restart,
+  a collection needing a name, and the whole flow through the engine commands
+- 141 tests, CI and wasm green
+
+Not built: collection favourites, colours, per-collection search/sort, and reordering.
+
 ## Next
 
-M5 collections: named sets with add/remove, persistence in the op log, a sidebar section, and
-filters that combine with the existing chips.
+M5 folder drill-down: subfolder-first navigation from the sidebar, with breadcrumbs, so a shoot's
+day folders are one click apart.
