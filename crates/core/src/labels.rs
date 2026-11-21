@@ -61,6 +61,30 @@ impl Flag {
     }
 }
 
+/// The review decision for one photo, as it travels between the scanner, the catalog and sidecars.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Review {
+    /// Stars, 0–5.
+    #[serde(default)]
+    pub rating: u8,
+    /// The cull decision.
+    #[serde(default)]
+    pub flag: Flag,
+    /// Colour label.
+    #[serde(default)]
+    pub label: Option<ColorLabel>,
+    /// Keywords, sorted and deduplicated.
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+impl Review {
+    /// Whether nothing has been decided yet.
+    pub fn is_empty(&self) -> bool {
+        self.rating == 0 && self.flag == Flag::None && self.label.is_none() && self.tags.is_empty()
+    }
+}
+
 /// What a catalog entry actually is. Drives which decoder and which preview path runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]

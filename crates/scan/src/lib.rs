@@ -7,7 +7,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
-use sortlens_core::{MediaKind, Result};
+use sortlens_core::{MediaKind, Result, Review};
 use sortlens_meta::PhotoMeta;
 use std::fs;
 use std::io::Read;
@@ -52,6 +52,19 @@ pub fn is_sidecar(extension: &str) -> bool {
     sortlens_core::media::is_sidecar_extension(extension)
 }
 
+/// Read a photo's sidecar, if it has one. An unreadable sidecar is not a scan failure: the photo
+/// still belongs in the library, it just arrives without a review.
+fn sidecar_review(path: &Path) -> Option<Review> {
+    let sidecar = sortlens_sidecar::read(path).ok().flatten()?;
+    let review = Review {
+        rating: sidecar.rating,
+        flag: sidecar.flag,
+        label: sidecar.label,
+        tags: sidecar.keywords,
+    };
+    (!review.is_empty()).then_some(review)
+}
+
 /// A file the walker accepted.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScannedFile {
@@ -71,6 +84,8 @@ pub struct ScannedFile {
     pub depth: usize,
     /// EXIF and XMP facts, empty when the file has none.
     pub meta: PhotoMeta,
+    /// Review state from the photo's sidecar, when one exists beside it.
+    pub review: Option<Review>,
 }
 
 /// Why a candidate was skipped, counted rather than listed one by one.
@@ -313,6 +328,7 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
             };
             let rel = relative_path(&root, &path);
             let meta = sortlens_meta::read(&path);
+            let review = sidecar_review(&path);
             report.files.push(ScannedFile {
                 path,
                 rel,
@@ -322,6 +338,7 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
                 key,
                 depth,
                 meta,
+                review,
             });
         }
 
@@ -428,6 +445,30 @@ mod tests {
         assert_eq!(report.files[1].kind, MediaKind::Raw);
         assert_eq!(report.files[1].depth, 1);
         assert_eq!(report.dirs, 3);
+    }
+
+    #[test]
+    fn a_sidecar_beside_a_photo_becomes_its_review() {
+        let tree = TempTree::new("sidecar");
+        let image = tree.file("a.jpg", 4);
+        tree.file("b.jpg", 4);
+        let sidecar = sortlens_sidecar::Sidecar::new(
+            5,
+            sortlens_core::Flag::Pick,
+            Some(sortlens_core::ColorLabel::Red),
+            vec!["keeper".into()],
+        );
+        sortlens_sidecar::write(&image, &sidecar).expect("write sidecar");
+
+        let report = scan_root(&tree.0).expect("scan");
+        let with = report.files.iter().find(|file| file.rel == "a.jpg").expect("a.jpg");
+        let review = with.review.as_ref().expect("review");
+        assert_eq!(review.rating, 5);
+        assert_eq!(review.flag, sortlens_core::Flag::Pick);
+        assert_eq!(review.tags, vec!["keeper".to_string()]);
+
+        let without = report.files.iter().find(|file| file.rel == "b.jpg").expect("b.jpg");
+        assert!(without.review.is_none());
     }
 
     #[test]

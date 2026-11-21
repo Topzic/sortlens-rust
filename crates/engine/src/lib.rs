@@ -299,6 +299,7 @@ impl Engine {
                 kind: file.kind,
                 key: file.key,
                 meta: file.meta.clone(),
+                review: file.review.clone(),
             })
             .collect();
         let errors: Vec<String> = report
@@ -862,6 +863,28 @@ mod tests {
                 .any(|job| job.kind == JobKind::Sidecar && job.status == JobStatus::Done),
             "the write shows up in the activity stack"
         );
+    }
+
+    #[test]
+    fn a_sidecar_measured_before_the_scan_seeds_the_photo() {
+        let folder = Temp::new("sidecar-import-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        let image = folder.0.join("IMG_0002.jpg");
+        std::fs::write(&image, b"x").expect("write");
+        sortlens_sidecar::write(
+            &image,
+            &sortlens_sidecar::Sidecar::new(4, Flag::Reject, Some(sortlens_core::ColorLabel::Blue), vec!["imported".into()]),
+        )
+        .expect("sidecar");
+
+        let (_lib, mut engine) = library("sidecar-import");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let photo = &engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0];
+        assert_eq!(photo.rating, 4);
+        assert_eq!(photo.flag, Flag::Reject);
+        assert_eq!(photo.label, Some(sortlens_core::ColorLabel::Blue));
+        assert_eq!(photo.tags, vec!["imported".to_string()]);
     }
 
     #[test]

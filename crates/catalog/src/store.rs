@@ -15,7 +15,7 @@ use crate::op::Op;
 use crate::photo::{Photo, Stats};
 use crate::query::{Filter, Page, Sort};
 use serde::{Deserialize, Serialize};
-use sortlens_core::{Error, Flag, MediaKind, PhotoId, Result};
+use sortlens_core::{Error, Flag, MediaKind, PhotoId, Result, Review};
 use sortlens_meta::PhotoMeta;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File, OpenOptions};
@@ -77,6 +77,8 @@ pub struct Seed {
     pub kind: MediaKind,
     pub key: u64,
     pub meta: PhotoMeta,
+    /// Review state read from the photo's XMP sidecar, applied when the photo is first indexed.
+    pub review: Option<Review>,
 }
 
 /// The catalog.
@@ -443,6 +445,9 @@ impl Catalog {
                     self.next_id += 1;
                     let mut photo = Photo::from_scan(id, root, &seed.rel, seed.size, seed.modified, seed.kind, seed.key);
                     photo.apply_meta(&seed.meta);
+                    if let Some(review) = &seed.review {
+                        photo.adopt_review(review);
+                    }
                     self.commit(Op::AddPhoto { photo: Box::new(photo) })?;
                     outcome.added += 1;
                 }
@@ -594,6 +599,7 @@ mod tests {
             kind: MediaKind::Image,
             key: 7,
             meta: PhotoMeta::default(),
+            review: None,
         }
     }
 
@@ -812,6 +818,55 @@ mod tests {
             .expect("tag");
         catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("rescan");
         assert_eq!(catalog.photo(PhotoId(1)).expect("photo").tags, vec!["keep".to_string()]);
+    }
+
+    #[test]
+    fn a_new_photo_takes_its_review_from_the_sidecar() {
+        let temp = TempCatalog::new("sidecar-seed");
+        let (mut catalog, _) = temp.open();
+        let review = Review {
+            rating: 4,
+            flag: Flag::Reject,
+            label: Some(sortlens_core::ColorLabel::Green),
+            tags: vec!["keeper".into()],
+        };
+        let seed = Seed {
+            review: Some(review),
+            ..seed("a.jpg")
+        };
+        catalog.sync_root("/photos", vec![seed]).expect("sync");
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.rating, 4);
+        assert_eq!(photo.flag, Flag::Reject);
+        assert!(photo.has_tag("keeper"));
+        assert!(photo.label.is_some());
+    }
+
+    #[test]
+    fn an_existing_photo_keeps_the_catalog_review_over_the_sidecar() {
+        let temp = TempCatalog::new("sidecar-existing");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(1), 2)],
+            })
+            .expect("rate");
+
+        let review = Review {
+            rating: 5,
+            ..Review::default()
+        };
+        catalog
+            .sync_root(
+                "/photos",
+                vec![Seed {
+                    review: Some(review),
+                    ..seed("a.jpg")
+                }],
+            )
+            .expect("rescan");
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, 2);
     }
 
     #[test]

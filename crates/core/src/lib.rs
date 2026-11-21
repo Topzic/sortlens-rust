@@ -15,7 +15,7 @@ pub mod units;
 
 pub use error::{Error, Result};
 pub use ids::{CollectionId, FolderId, JobId, PhotoId, TagId, VolumeId};
-pub use labels::{ColorLabel, Flag, MediaKind};
+pub use labels::{ColorLabel, Flag, MediaKind, Review};
 pub use media::{is_raw_path, kind_from_extension};
 pub use units::{format_bytes, format_count};
 

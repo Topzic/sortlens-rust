@@ -125,7 +125,21 @@ but are invisible to other apps.
 Not implemented yet: sidecars are not read back into the catalog at scan time, and failed writes
 are retried on the next change rather than by a queue.
 
+## 2026-11-21 — M3: sidecars are read at scan time
+
+- core: `Review { rating, flag, label, tags }` is the shared review record, with `is_empty()`
+- scan: each accepted file reads its sidecar (`sortlens_sidecar::read`) into `ScannedFile.review`;
+  an unreadable sidecar is ignored rather than failing the scan, and an empty review is dropped
+- catalog: `Seed.review` is applied by `Photo::adopt_review` when the photo is first indexed
+- engine: passes the review through, so a folder annotated elsewhere arrives already reviewed
+- tests: sidecar beside a photo becomes its review, photo without one stays blank, a new photo
+  takes the sidecar's state, an existing photo keeps the catalog's state
+- 94 tests, CI and wasm green; CLI smoke test imported a rating-4 / pick / keyword sidecar
+
+Only *new* photos adopt sidecar state: a photo the catalog already knows keeps its review until
+external-change detection lands, so a stale sidecar cannot quietly undo a cull.
+
 ## Next
 
-Read sidecars during the scan (sidecar wins over embedded EXIF), then M4 cull view: grid/detail
-compare, staged deletes with apply/undo.
+M4 cull view: grid/detail compare, staged deletes with apply/undo, and the delete modes from
+`docs/BEHAVIOUR.md`.

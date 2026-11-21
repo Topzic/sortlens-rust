@@ -5,7 +5,7 @@
 //! survives a rename.
 
 use serde::{Deserialize, Serialize};
-use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
+use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId, Review};
 use sortlens_meta::PhotoMeta;
 
 /// Everything Sortlens knows about one file.
@@ -141,6 +141,16 @@ impl Photo {
             Some(index) => &self.rel[..index],
             None => "",
         }
+    }
+
+    /// Take rating, flag, label and keywords from a sidecar, for a photo the catalog has not seen.
+    pub fn adopt_review(&mut self, review: &Review) {
+        self.rating = review.rating.min(5);
+        self.flag = review.flag;
+        self.label = review.label;
+        self.tags = review.tags.clone();
+        self.tags.sort_unstable();
+        self.tags.dedup();
     }
 
     /// Whether the photo carries a tag.

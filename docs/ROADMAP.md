@@ -121,7 +121,8 @@ scans headlessly and prints a JSON report.
 - [ ] `photo.tagFromPrev` and tag rename/merge (A) — SL-D05
 - [ ] Tag registry: create/rename/merge/delete, autocomplete index (A) — SL-D06
 - [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
-- [ ] External-change detection + retry queue + failure reporting (A) — SL-D11
+- [x] Sidecar review imported when a photo is first indexed (A) — SL-D09
+- [ ] External-change detection for already-known photos + retry queue (A) — SL-D11
 - [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11
 - [ ] Rating/flag/label pill + inspector + context menus (B) — SL-D01..D03
 - [ ] Filter bar: rating op, flags, labels, tags ANY/ALL, kind, pickers, badge, clear (B) — SL-B07..B13

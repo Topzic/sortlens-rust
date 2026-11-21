@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 sortlens-core = { workspace = true }
 sortlens-meta = { workspace = true }
+sortlens-sidecar = { workspace = true }
 
 [lints]
 workspace = true
