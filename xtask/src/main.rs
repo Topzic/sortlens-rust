@@ -54,6 +54,7 @@ fn main() -> ExitCode {
         "fonts" => fonts(),
         "deny" => deny(),
         "snapshot" => snapshot(),
+        "version" => version(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -94,6 +95,7 @@ fn ci() -> Result<(), String> {
     roots()?;
     assets()?;
     fonts()?;
+    version()?;
     Ok(())
 }
 
@@ -314,6 +316,59 @@ fn assets() -> Result<(), String> {
         }
     }
     report("assets", problems)
+}
+
+/// One version for the whole workspace, declared once.
+///
+/// A release is the moment a hand-written version string goes stale, and a crate that carries its own
+/// number is a crate that will disagree with the app's About window a year later. This checks that every
+/// member inherits the workspace version and that the constant the app prints comes from the same place —
+/// a check that cannot fail would be worse than none, so it names the crate that broke the rule.
+fn version() -> Result<(), String> {
+    let mut problems = Vec::new();
+    let workspace = fs::read_to_string("Cargo.toml").map_err(|error| format!("Cargo.toml: {error}"))?;
+    let declared = workspace
+        .lines()
+        .find_map(|line| line.strip_prefix("version = "))
+        .map(|value| value.trim().trim_matches('"').to_string());
+    let Some(declared) = declared else {
+        return Err("the workspace Cargo.toml declares no version".into());
+    };
+
+    let mut manifests: Vec<(String, String)> = Vec::new();
+    manifests.push(("Cargo.toml".to_string(), workspace.clone()));
+    for folder in ["crates", "apps", "xtask"] {
+        let Ok(entries) = fs::read_dir(folder) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let manifest = entry.path().join("Cargo.toml");
+            if manifest.is_file()
+                && let Ok(text) = fs::read_to_string(&manifest)
+            {
+                manifests.push((manifest.display().to_string(), text));
+            }
+        }
+    }
+    for (path, text) in &manifests {
+        for line in text.lines() {
+            let line = line.trim();
+            if line.starts_with("version = ") && !line.contains("workspace = true") && path != "Cargo.toml" {
+                problems.push(format!("{path} declares its own version: {line}"));
+            }
+        }
+        if !text.contains("version.workspace = true") && path != "Cargo.toml" {
+            problems.push(format!("{path} does not inherit the workspace version"));
+        }
+    }
+
+    let core = fs::read_to_string("crates/core/src/lib.rs").map_err(|error| format!("core: {error}"))?;
+    if !core.contains("env!(\"CARGO_PKG_VERSION\")") {
+        problems.push("sortlens-core::VERSION does not come from CARGO_PKG_VERSION".into());
+    }
+
+    println!("xtask version: {declared}");
+    report("version", problems)
 }
 
 fn report(name: &str, problems: Vec<String>) -> Result<(), String> {

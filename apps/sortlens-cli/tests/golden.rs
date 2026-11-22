@@ -252,6 +252,11 @@ const STEPS: &[Step] = &[
     // The diagnostics bundle is a published artefact: its section names are what a maintainer greps, and
     // the report must never contain the path this test library lives at.
     Step {
+        name: "44 version",
+        args: &["--version"],
+        file: None,
+    },
+    Step {
         name: "43 diagnostics",
         args: &["diagnostics"],
         file: None,
@@ -410,6 +415,24 @@ fn record(step: &Step, library: &Path, fixture_root: &Path) -> String {
         }
         Err(error) => format!("<could not run {}: {error}>\n", binary()),
     }
+}
+
+/// `--version` has to answer on a machine that has never run the app, so it must not open — let alone
+/// create — a library on the way. The golden pins the text; this pins the side effect.
+#[test]
+fn asking_for_the_version_does_not_create_a_library() {
+    let folder = Fixture::new("golden-version");
+    let library = folder.path("never-created");
+    assert!(!library.exists());
+    let output = Command::new(binary())
+        .env("SORTLENS_LIBRARY_DIR", &library)
+        .arg("--version")
+        .output()
+        .expect("run the binary");
+    assert!(output.status.success());
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(text.trim(), format!("sortlens-cli {}", sortlens_core::VERSION));
+    assert!(!library.exists(), "asking what version this is created {}", library.display());
 }
 
 /// The golden normaliser replaces the library and fixture paths so a diff is about the tool, not the

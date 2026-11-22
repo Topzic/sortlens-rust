@@ -1364,16 +1364,41 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 422 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: the report as pasted into
   a bug tracker.
 
+## 2026-11-21 — M10 (part 1): one version, and a release that says what it does not have
+
+- `cargo xtask version` (in `ci`): the root `[workspace.package] version` is the only place a number is
+  written. It fails when a member declares its own version or stops inheriting the workspace one, and when
+  `sortlens_core::VERSION` stops coming from `CARGO_PKG_VERSION`. **Proved to bite** by hardcoding
+  `version = "0.0.9"` in `crates/ai/Cargo.toml` (the first attempt at that broke `rust-version` instead,
+  which is why the second attempt replaced the exact line) and restoring it.
+- `sortlens-cli --version` / `-V` and `--help`: answered **before** a library is opened, so a version
+  question cannot create one. A test runs the binary with `SORTLENS_LIBRARY_DIR` pointing at a folder that
+  does not exist and asserts it still does not exist afterwards; a golden pins the text.
+- `.github/workflows/release.yml`: verify → build `sortlens` and `sortlens-cli` for macOS/Linux/Windows →
+  compute checksums **in one place from the uploaded files** → attach them. **Never run** — there is no
+  tag, and the file's own comment says so. Per-runner checksums were removed while writing it: a hash taken
+  on the same runner that produced the file is how a release ends up shipping a checksum of something else.
+- `docs/RELEASE.md`: the single-version rule, the artefacts, the five steps to cut a release (green ci,
+  bump once, check the absent-by-design tables, tag, read the generated page), the checksum format, and
+  what this version does not have — no models, no remote, no localisation, no HEIC/video, no PNG/TIFF/WebP.
+- `--version` golden and the ROADMAP rows ticked; signing, installers, a11y, performance budgets and the
+  final release notes stay open and are named as needing things this environment lacks.
+- 423 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: the workflow itself — it
+  has never had a tag to run on.
+
 ## Next
 
-M10 — release. Do these in order, each small enough to verify:
+M10's remaining rows, in the order that unblocks the most:
 
-1. **Version and about surface** — `sortlens-cli --version`, `app.about` already exists; make sure the
-   number lives in one place (`[workspace.package] version`) and that `--version` is covered by a golden.
-2. **Release workflow** — a `.github/workflows/release.yml` that, on a `v*` tag, builds `sortlens` and
-   `sortlens-cli` for macOS/linux/windows, runs `cargo xtask ci` first, and attaches the binaries to the
-   release. It cannot be executed here; say so in the commit rather than claiming it works.
-3. **Packaging notes** — `docs/RELEASE.md`: how to cut a release, what the artefacts are, what is
-   deliberately absent in this version (models, remote, i18n), and the checksum story.
+1. **`docs/ATTRIBUTION.md` complete** — it exists (48 lines); make it true for what actually ships: the
+   craft crates and their licences, the font stack (craft-fonts faces per file, or "not embedded"), the
+   Rust dependencies (`cargo deny` already knows the licence set), and an explicit "no models, no corpora,
+   no datasets ship with this project" line, which is the honest entry for the AI half.
+2. **Accessibility audit (SL-L01..L05)** — the tree can be inspected headlessly: assert every interactive
+   widget in each surface has a name/role, no focus trap, and that announcements are live regions. This is
+   the one M10 row that can be *tested* rather than hand-waved.
+3. **`docs/PERF.md` budgets** — record measured numbers (cold thumb rate, 100k scroll, RSS) from the runs
+   this machine can do, and mark mobile/GPU assumptions as untested.
 
-Then the M0 debt pass and the final reconciliation of README/PLAN against reality.
+Signing, installers, the icon pass, theme import and `craft-update` need credentials, a designer, or a
+launcher; they go in M10's absent-by-design table with reasons, as M8 and M9's did.

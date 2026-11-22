@@ -1,0 +1,106 @@
+name: release
+
+# Written but not yet run: no tag exists, so nothing here has been executed. It is kept because a release
+# workflow that has never been read is a worse surprise than one that has never run — and because the
+# steps below are exactly what docs/RELEASE.md asks a person to do by hand.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: verify before building
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+      - name: ci
+        run: cargo xtask ci
+      - name: goldens
+        run: cargo xtask snapshot
+      - name: wasm
+        run: cargo xtask wasm
+
+  build:
+    name: ${{ matrix.target }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: build
+        run: cargo build --release -p sortlens -p sortlens-cli --target ${{ matrix.target }}
+      - name: package
+        shell: bash
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          stem="sortlens-${version}-${{ matrix.target }}"
+          mkdir -p "dist/${stem}"
+          suffix=""
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then suffix=".exe"; fi
+          cp "target/${{ matrix.target }}/release/sortlens${suffix}" "dist/${stem}/"
+          cp "target/${{ matrix.target }}/release/sortlens-cli${suffix}" "dist/${stem}/"
+          cp README.md LICENSE-MIT LICENSE-APACHE "dist/${stem}/"
+          mkdir -p "dist/${stem}/docs"
+          cp docs/BEHAVIOUR.md docs/PACKS.md docs/RELEASE.md "dist/${stem}/docs/"
+          cd dist
+          # Only the archive is produced here; the checksums are computed in one place, on one runner,
+          # from the files that are actually uploaded. A per-runner checksum step is how a release ends
+          # up with a hash of the wrong file.
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "${stem}.zip" "${stem}" >/dev/null
+          else
+            tar -czf "${stem}.tar.gz" "${stem}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.tar.gz* dist/*.zip*
+
+  publish:
+    name: attach to the release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+          while read -r sum file; do echo "$sum  $file" > "$file.sha256"; done < SHA256SUMS
+          cat SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sha256
+            dist/SHA256SUMS
+          generate_release_notes: false
+          body: |
+            See `docs/RELEASE.md` for what is in this build and what is deliberately absent — no bundled
+            models, no remote client, no localisation yet. A checksum for every artefact is attached.

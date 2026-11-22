@@ -323,13 +323,26 @@ photos live; the UI renders correctly in Arabic and Japanese.
 
 ## M10 — Release · 2.0 w · all tracks
 
+**State:** the version contract, `--version`, the release workflow and the packaging notes are in. Signing,
+installers, the a11y audit, the remaining themes/icon pass, performance budgets and the final release
+notes are not.
+
 - [ ] Accessibility audit: focus order, roles, names, announcements, no traps (B) — SL-L01..L05
 - [ ] High-contrast preset + reduced-motion toggle (B) — SL-L09/L06
 - [ ] Theme import via `craft-ext-core` palette (B) — SL-I06
 - [ ] Icon set final pass + brand assets (B) — SL-I11
-- [ ] Packaging: macOS signed/notarised, Windows MSI, Linux AppImage/Flatpak (E)
-- [ ] `craft-update` wired to the launcher (E)
+- [x] One version, declared once: `cargo xtask version` fails when a crate declares its own version or
+  stops inheriting the workspace one, and `sortlens-cli --version` answers without opening (or creating)
+  a library — both proved to bite, the second by a test that asserts the folder is still absent (E)
+- [x] Release workflow `.github/workflows/release.yml`: verify, build the two binaries for macOS/Linux/
+  Windows, compute the checksums in one place from the uploaded files, attach them — **written but never
+  run**; no tag exists yet, and the file says so
+- [x] `docs/RELEASE.md`: the single-version rule, the artefact list, the steps to cut a release, the
+  checksum story and what this version deliberately does not have (E)
+- [ ] Packaging: macOS signed/notarised, Windows MSI, Linux AppImage/Flatpak (E) — needs signing
+  identities this repository does not have
 - [ ] Benchmarks recorded in `docs/PERF.md`; budgets green (E)
+- [ ] `craft-update` wired to the launcher (E)
 - [ ] `docs/ATTRIBUTION.md` complete (fonts, models, data, corpora) (E)
 - [ ] Release notes + 1.0 tag (E)
 

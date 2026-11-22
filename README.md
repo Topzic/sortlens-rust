@@ -43,6 +43,7 @@ scripts and AI agents.
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Deep audit: getartcraft.com, craft-libs, craft-fonts, craft-extensions, rustup, and the Sortlens repo |
 | [`docs/BEHAVIOUR.md`](docs/BEHAVIOUR.md) | Normative contracts: cull states, delete modes, XMP, scan identity, previews, crash safety |
 | [`docs/PACKS.md`](docs/PACKS.md) | The keyword pack format: what a rule may match, what is refused, and why |
+| [`docs/RELEASE.md`](docs/RELEASE.md) | How a release is cut, what the artefacts are, and what this version deliberately lacks |
 
 ## What it will do
 

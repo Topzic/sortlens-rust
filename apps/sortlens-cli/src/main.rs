@@ -13,6 +13,7 @@ use std::process::ExitCode;
 
 const USAGE: &str = "\
 sortlens-cli [--library DIR] <command> [--json]
+sortlens-cli --version | --help
 
 Commands:
   add <folder>              index a folder
@@ -422,6 +423,16 @@ fn run() -> Result<(), String> {
         }
         library = PathBuf::from(args.remove(index + 1));
         args.remove(index);
+    }
+    // `--version` and `--help` answer before a library is opened: a version question must not create
+    // one, and must work on a machine that has never run the app.
+    if args.iter().any(|arg| arg == "--version" || arg == "-V") {
+        println!("sortlens-cli {}", sortlens_core::VERSION);
+        return Ok(());
+    }
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        print!("{USAGE}");
+        return Ok(());
     }
     let Some(command) = args.first().cloned() else {
         print!("{USAGE}");
