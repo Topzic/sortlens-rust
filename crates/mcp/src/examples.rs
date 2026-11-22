@@ -48,6 +48,11 @@ pub const EXAMPLES: &[Example] = &[
         note: "Totals: photos, rated, picks, rejects, keywords, bytes, missing.",
     },
     Example {
+        command: "library.page",
+        args: r#"{"offset": 0, "limit": 5, "sort": "rating"}"#,
+        note: "One page of photos; sort: natural, name, rating, date, size, kind or edited.",
+    },
+    Example {
         command: "photo.rate",
         args: r#"{"ids": [1, 2], "stars": 4}"#,
         note: "Stars 0-5 on several photos at once; 0 clears.",

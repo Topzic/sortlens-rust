@@ -1005,9 +1005,28 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   66 with argument guidance. **Not verified by hand**: a real MCP client; the protocol is exercised
   with piped JSON and the examples with direct calls.
 
+## 2026-11-21 — M7: the registry and `Engine::run` now audit each other
+
+- new test `every_ready_command_has_a_handler_and_every_handler_is_a_command` in `command.rs`: it
+  reads the engine's own source (`include_str!("lib.rs")`), isolates `Engine::run`, collects its arms
+  and compares both ways. Reading source in a test is blunt, but it is the only check that catches a
+  half-connected command, and it found both bugs that had already shipped
+- **fixed `library.page`**: `run` handled it while the registry had no entry, so it was invisible to
+  the palette and to MCP. It is now `library.page` · "Read a Page" in `Group::Library`, with an MCP
+  example that the examples test executes
+- **fixed a quieter bug next to it**: `library.page` hard-coded `Sort::Natural`, so a caller could
+  page but never order by rating or date even though every other paging path can. It now takes
+  `sort` and reports the order it used; a test rates the last photo by name and asserts it leads a
+  rating-sorted page
+- cli: `page [--offset N] [--limit N] [--sort KEY]` prints one page as JSON, so a script can walk the
+  library without the app
+- 304 tests, CI and wasm green. Verified by hand: `page --sort rating` returned the five-star photo
+  first. **Not verified by hand**: the palette entry for "Read a Page" (the UI does not call it; the
+  grid uses `Engine::page` directly)
+
 ## Next
 
-M7: **`library.page` is callable but not a command.** `run` has an arm for it while the registry has
-no `library.page` entry, so it is neither in the tool list nor reachable from the palette — the mirror
-image of the `view.detail` bug just fixed. Audit `run`'s arms against the registry in both directions
-with a test, and add or remove what does not line up.
+M7: **`craft-fonts`** — the app still runs on egui's built-in fonts, so the ArtCraft typography in
+`docs/UX.md` is aspirational. Wire `craft-fonts` (`embed` feature, `CRAFT_FONTS_DIR`) into the app's
+`CreationContext`, add an `xtask` check that the embedded families cover what the theme asks for, and
+say in the README which families ship.

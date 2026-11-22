@@ -133,6 +133,14 @@ impl Registry {
                     status: Status::Planned("M7"),
                 },
                 CommandSpec {
+                    id: "library.page",
+                    label: "Read a Page",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Read a Page",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "photo.rate",
                     label: "Set Rating",
                     group: Group::Review,
@@ -722,6 +730,73 @@ mod tests {
         for command in Registry::v0().all() {
             assert!(command.menu.contains(" > "), "{} has no menu path", command.id);
         }
+    }
+
+    /// The source of the engine, so the test below can read what `run` actually handles.
+    const ENGINE_SOURCE: &str = include_str!("lib.rs");
+
+    /// Every command id that appears as an arm of `Engine::run`.
+    ///
+    /// The only way to know that a `Ready` command can be called is to look at the other half of the
+    /// pair — the registry says what *should* exist and `run` says what *does*. Reading the source in
+    /// a test is blunt, but it is the honest audit: it found `library.page` callable with no registry
+    /// entry (invisible to the palette and to MCP) and `view.detail`/`view.similar` registered with no
+    /// handler at all, which nobody would have found by grepping one file at a time.
+    fn handled_in_run() -> Vec<String> {
+        let start = ENGINE_SOURCE
+            .find("pub fn run(&mut self, command: &str")
+            .expect("Engine::run exists");
+        let body = &ENGINE_SOURCE[start..];
+        let end = body.find("\n    /// ").unwrap_or(body.len());
+        let arms = &body[..end];
+        let mut ids = Vec::new();
+        // Arms look like `"a.b" => { … }`, `"a.b" => Ok(…)`, or `"a.b" | "c.d" => …`.
+        for line in arms.lines() {
+            let trimmed = line.trim_start();
+            if !(trimmed.starts_with('"') || trimmed.starts_with("Self::")) {
+                continue;
+            }
+            if !trimmed.contains("=>") && !trimmed.starts_with('"') {
+                continue;
+            }
+            for part in trimmed.split("=>").next().unwrap_or_default().split('|') {
+                let part = part.trim().trim_start_matches("Self::");
+                if let Some(rest) = part.strip_prefix('"')
+                    && let Some(id) = rest.split('"').next()
+                    && id.contains('.')
+                {
+                    ids.push(id.to_string());
+                }
+            }
+        }
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
+    #[test]
+    fn every_ready_command_has_a_handler_and_every_handler_is_a_command() {
+        let registry = Registry::v0();
+        let handled = handled_in_run();
+        assert!(handled.len() > 30, "the audit found only {} arms", handled.len());
+
+        let missing: Vec<&str> = registry
+            .ready()
+            .map(|command| command.id)
+            .filter(|id| !handled.iter().any(|handled| handled == id))
+            .collect();
+        assert!(missing.is_empty(), "ready but nothing in Engine::run handles them: {missing:?}");
+
+        let unlisted: Vec<&str> = handled
+            .iter()
+            .map(String::as_str)
+            .filter(|id| !registry.all().iter().any(|command| command.id == *id))
+            .collect();
+        assert!(
+            unlisted.is_empty(),
+            "Engine::run handles these, but no command names them, so no menu, palette or tool \
+             can reach them: {unlisted:?}"
+        );
     }
 
     #[test]

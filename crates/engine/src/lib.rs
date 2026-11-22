@@ -2010,8 +2010,16 @@ impl Engine {
                     .unwrap_or_default();
                 let offset = args.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
                 let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(128) as usize;
-                let page = self.page(&filter, Sort::Natural, offset, limit);
-                Ok(json!({ "total": page.total, "offset": page.offset, "photos": page.photos }))
+                // The sort was hard-coded to Natural, so a caller could not walk the library by
+                // rating or date even though every other paging path can.
+                let sort = Sort::parse(args.get("sort").and_then(Value::as_str).unwrap_or_default());
+                let page = self.page(&filter, sort, offset, limit);
+                Ok(json!({
+                    "total": page.total,
+                    "offset": page.offset,
+                    "sort": sort.id(),
+                    "photos": page.photos,
+                }))
             }
             "photo.rate" => {
                 let ids = ids_from(args)?;
@@ -3170,6 +3178,36 @@ mod tests {
         assert!(engine.photo(ids[0]).expect("photo").has_tag("beach"));
         let forgotten = engine.run("tag.alias", &json!({ "alias": "seaside" })).expect("forget");
         assert_eq!(forgotten["changed"], true);
+    }
+
+    #[test]
+    fn a_page_can_be_read_in_any_order_not_just_the_order_it_was_written_with() {
+        let folder = Temp::new("page-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        for name in ["aa.jpg", "bb.jpg", "cc.jpg"] {
+            std::fs::write(folder.0.join(name), name.as_bytes()).expect("write");
+        }
+        let (_lib, mut engine) = library("lib-page");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<u64> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id.0)
+            .collect();
+        // The last photo by name gets five stars, so a rating sort must lead with it.
+        engine.rate(&[PhotoId(ids[2])], 5).expect("rate");
+
+        let page = engine.run("library.page", &json!({ "sort": "rating", "limit": 3 })).expect("page");
+        assert_eq!(page["sort"], "rating");
+        assert_eq!(page["total"], 3);
+        assert_eq!(page["photos"][0]["id"], ids[2], "the five-star photo leads");
+
+        // A window, not the whole library.
+        let window = engine.run("library.page", &json!({ "offset": 1, "limit": 1 })).expect("page");
+        assert_eq!(window["photos"].as_array().expect("photos").len(), 1);
+        assert_eq!(window["offset"], 1);
     }
 
     #[test]

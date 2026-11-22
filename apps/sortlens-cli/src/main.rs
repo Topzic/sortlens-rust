@@ -31,6 +31,8 @@ Commands:
   mcp                       serve the command registry over MCP on stdio, then exit
   reveal <id>               show the file in the desktop's file manager
   open <id>                 hand the file to the desktop's default application
+  page [--offset N] [--limit N] [--sort KEY]
+                            one page of photos as JSON, for scripts
   memories [--today D]      resurfacing cards; D is YYYY-MM-DD, default today
   shortcuts                 every command that has a keyboard shortcut
   registry                  keywords, the names they swallowed, and orphaned aliases
@@ -504,6 +506,20 @@ fn run() -> Result<(), String> {
                 Ok(_) => println!("{}", value["line"].as_str().unwrap_or_default()),
                 Err(error) => return Err(format!("could not run {program}: {error}")),
             }
+            Ok(())
+        }
+        "page" => {
+            let flag = |name: &str| rest.windows(2).find(|pair| pair[0] == name).map(|pair| pair[1].clone());
+            let offset = flag("--offset").and_then(|value| value.parse::<u64>().ok()).unwrap_or(0);
+            let limit = flag("--limit").and_then(|value| value.parse::<u64>().ok()).unwrap_or(20);
+            let sort = flag("--sort");
+            let value = engine
+                .run(
+                    "library.page",
+                    &serde_json::json!({ "offset": offset, "limit": limit, "sort": sort }),
+                )
+                .map_err(|error| error.to_string())?;
+            println!("{value}");
             Ok(())
         }
         "memories" => print_memories(&mut engine, rest),
