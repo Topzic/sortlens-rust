@@ -1386,19 +1386,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 423 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: the workflow itself — it
   has never had a tag to run on.
 
+## 2026-11-21 — M10 (part 2): attribution that is checked, not asserted
+
+- **the finding**: 25 of the 40 external crates in `[workspace.dependencies]` are not linked by any
+  manifest — including `log`, `chrono`, `rayon`, and fifteen `craft-*` crates. The old document implied a
+  dependency set that does not exist. Rather than delete the pins (they are promises about versions for
+  work that is coming), the document now separates **Linked today** from **Declared, not linked yet**, and
+  says plainly that nothing in the second table is compiled into the app.
+- `cargo xtask attribution` (now in `ci`) checks the document against the manifests in both directions:
+  a linked crate must be attributed; a declared-but-unlinked crate must appear in its own table; a table
+  entry for a dependency that no longer exists is a problem; every family in `fonts/embedded.txt` must be
+  attributed; and the "No model weights, corpora or datasets ship with this project" sentence must still be
+  there. It handles both manifest spellings — `crate = { workspace = true }` and `crate.workspace = true` —
+  which the first version did not, and it reported `thiserror` as unlinked for that reason.
+- **proved to bite twice**: a fake `serde_yaml` in `[workspace.dependencies]` fails with its name, and
+  deleting the `NanumGothic` row fails naming the family. Both restored.
+- the document itself was rewritten from the facts: the three pinned git origins, per-crate licences from
+  `cargo metadata`, craft-fonts as a **build input rather than a dependency**, the four embedded families
+  (all OFL-1.1) and why a symbols face is required, the fixtures being generated rather than stored, and
+  the model-weights statement.
+- 423 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: nothing here is visual.
+
 ## Next
 
-M10's remaining rows, in the order that unblocks the most:
+M10's last testable row: **the accessibility audit (SL-L01..L05)**. It can be done headlessly — build each
+surface with `Context::run_ui`, walk `AccessKit` nodes (egui exposes the tree through
+`ctx.accesskit_node_builder` and the platform adapter) and assert that every interactive widget has a name
+and a role, that no dialog traps focus without a way out, and that the announcement regions are live. Where
+a check cannot be written without a real accessibility client, say so in the row rather than ticking it.
 
-1. **`docs/ATTRIBUTION.md` complete** — it exists (48 lines); make it true for what actually ships: the
-   craft crates and their licences, the font stack (craft-fonts faces per file, or "not embedded"), the
-   Rust dependencies (`cargo deny` already knows the licence set), and an explicit "no models, no corpora,
-   no datasets ship with this project" line, which is the honest entry for the AI half.
-2. **Accessibility audit (SL-L01..L05)** — the tree can be inspected headlessly: assert every interactive
-   widget in each surface has a name/role, no focus trap, and that announcements are live regions. This is
-   the one M10 row that can be *tested* rather than hand-waved.
-3. **`docs/PERF.md` budgets** — record measured numbers (cold thumb rate, 100k scroll, RSS) from the runs
-   this machine can do, and mark mobile/GPU assumptions as untested.
-
-Signing, installers, the icon pass, theme import and `craft-update` need credentials, a designer, or a
-launcher; they go in M10's absent-by-design table with reasons, as M8 and M9's did.
+After that: `docs/PERF.md` with measured numbers, then M10's absent-by-design table (signing, installers,
+icon pass, theme import, `craft-update`), then the final README/PLAN reconciliation and the M0 debt sweep
+that is still on the list.

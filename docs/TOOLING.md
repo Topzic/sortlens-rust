@@ -377,3 +377,14 @@ maintainer needs and it says nothing about the machine.
 
 There is a test for the promise rather than only for the format: it runs the binary, reads the output
 before the golden normaliser touches it, and fails if either the library or the fixture path appears.
+
+## Checks that describe the repository
+
+`cargo xtask version` reports the one version the workspace declares and fails when a member carries its
+own number. `cargo xtask attribution` checks `docs/ATTRIBUTION.md` against reality in both directions: a
+crate a manifest links must be attributed, a crate the workspace declares but no manifest links must be
+listed as such, and a table entry for a dependency that no longer exists is a problem too. It also refuses
+a missing embedded font family and a deleted statement about model weights.
+
+Both run inside `cargo xtask ci`, so a dependency that arrives without its licence being read cannot be
+merged, and a document that has drifted from the manifests fails in the same run.

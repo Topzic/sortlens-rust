@@ -56,6 +56,7 @@ scripts and AI agents.
   soft-focus detection — all computed locally.
 - **Understand** the library with a dashboard, review progress, capture-date highlights, place
   clusters and deterministic "memories".
+- **Attributed**: every dependency, font face and asset is listed in `docs/ATTRIBUTION.md`, and a check fails when that document and the manifests disagree.
 - **Never lose anything**: OS trash by default, an audit log, undo across annotations and file
   operations, crash-safe storage, backups and volume remapping.
 - **Script** it: every read verb answers in JSON with `--json`, the CLI and the MCP server speak the

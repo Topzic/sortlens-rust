@@ -343,7 +343,11 @@ notes are not.
   identities this repository does not have
 - [ ] Benchmarks recorded in `docs/PERF.md`; budgets green (E)
 - [ ] `craft-update` wired to the launcher (E)
-- [ ] `docs/ATTRIBUTION.md` complete (fonts, models, data, corpora) (E)
+- [x] `docs/ATTRIBUTION.md` complete and **enforced**: `cargo xtask attribution` (in `ci`) fails when a
+  linked crate is unattributed, when a declared-but-unlinked crate is not listed as such, when a table
+  names a dependency that no longer exists, when an embedded font family is missing, or when the
+  "no model weights, corpora or datasets" statement is deleted — proved to bite both ways (a fake
+  `serde_yaml` dependency, and a deleted font row) (E)
 - [ ] Release notes + 1.0 tag (E)
 
 **Demo:** install from each artifact on a clean machine; first-run wizard; a11y tree has zero

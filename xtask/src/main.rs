@@ -55,6 +55,7 @@ fn main() -> ExitCode {
         "deny" => deny(),
         "snapshot" => snapshot(),
         "version" => version(),
+        "attribution" => attribution(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -83,7 +84,9 @@ fn help() {
   assets   enforce that every asset has a provenance entry
   fonts    report the embedded face set and refuse to ship one that covers no Latin text
   deny     check licences, advisories, bans and sources against deny.toml
-  snapshot golden CLI output; --update rewrites the goldens, then read the diff"
+  snapshot golden CLI output; --update rewrites the goldens, then read the diff
+  version  one version for the workspace, declared once
+  attribution  every dependency attributed, and the document honest about what is linked"
     );
 }
 
@@ -96,6 +99,7 @@ fn ci() -> Result<(), String> {
     assets()?;
     fonts()?;
     version()?;
+    attribution()?;
     Ok(())
 }
 
@@ -295,6 +299,164 @@ fn deny() -> Result<(), String> {
         return Err("cargo-deny is not installed; run: cargo install cargo-deny --locked".to_string());
     }
     run("cargo", &["deny", "check"])
+}
+
+/// Every dependency is attributed, and the document says which ones are actually linked.
+///
+/// Two failure modes matter and this catches both. A crate can be linked into the app and missing from the
+/// document, which is a licence nobody read; or the document can name crates that no longer appear in any
+/// manifest, which is a table that has stopped describing the software. Crates declared for a later
+/// milestone but not linked yet are listed separately, because "declared" and "shipped" are different
+/// claims and a reader deserves to know which is which.
+fn attribution() -> Result<(), String> {
+    let doc = fs::read_to_string("docs/ATTRIBUTION.md").map_err(|error| format!("ATTRIBUTION.md: {error}"))?;
+    let mut problems = Vec::new();
+
+    let workspace = fs::read_to_string("Cargo.toml").map_err(|error| format!("Cargo.toml: {error}"))?;
+    let mut declared: Vec<String> = Vec::new();
+    let mut inside = false;
+    for line in workspace.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            inside = trimmed == "[workspace.dependencies]";
+            continue;
+        }
+        if inside
+            && let Some((name, _)) = trimmed.split_once(" = ")
+            && !name.starts_with("sortlens-")
+        {
+            declared.push(name.to_string());
+        }
+    }
+
+    let mut manifests: Vec<String> = Vec::new();
+    for folder in ["crates", "apps", "xtask"] {
+        let Ok(entries) = fs::read_dir(folder) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let manifest = entry.path().join("Cargo.toml");
+            if let Ok(text) = fs::read_to_string(&manifest) {
+                manifests.push(text);
+            }
+        }
+    }
+    // A crate is linked when some manifest asks for it from the workspace.
+    let linked: Vec<&String> = declared
+        .iter()
+        .filter(|name| {
+            manifests.iter().any(|text| {
+                text.lines().any(|line| {
+                    // Both spellings count: `name = { workspace = true }` and `name.workspace = true`.
+                    let Some((key, rest)) = line.trim().split_once('=') else {
+                        return false;
+                    };
+                    let key = key.trim();
+                    if let Some(dotted) = key.strip_suffix(".workspace") {
+                        return dotted == name.as_str() && rest.trim() == "true";
+                    }
+                    key == name.as_str() && rest.contains("workspace = true")
+                })
+            })
+        })
+        .collect();
+    let pending: Vec<&String> = declared.iter().filter(|name| !linked.contains(name)).collect();
+
+    for name in &linked {
+        if !doc.contains(&format!("`{name}`")) {
+            problems.push(format!("{name} is linked but docs/ATTRIBUTION.md does not attribute it"));
+        }
+    }
+    let (linked_section, pending_section) = split_attribution(&doc);
+    for name in &pending {
+        if !pending_section.contains(&format!("`{name}`")) {
+            problems.push(format!(
+                "{name} is declared in Cargo.toml but not linked; list it under \"Declared, not linked yet\""
+            ));
+        }
+    }
+    // The other direction: a table entry that no longer describes anything.
+    for table in [&linked_section, &pending_section] {
+        for name in crate_names_in(table) {
+            if !declared.contains(&name) {
+                problems.push(format!("docs/ATTRIBUTION.md lists `{name}`, which is not a dependency any more"));
+            }
+        }
+    }
+
+    // Every family an embedded build carried has to be attributed, once each.
+    if let Ok(fonts) = fs::read_to_string("fonts/embedded.txt") {
+        let mut families: Vec<&str> = fonts
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+            .map(|line| line.split('|').next().unwrap_or("").trim())
+            .filter(|family| !family.is_empty())
+            .collect();
+        families.sort_unstable();
+        families.dedup();
+        for family in families {
+            if !doc.contains(family) {
+                problems.push(format!("the embedded font family \"{family}\" is not attributed"));
+            }
+        }
+    }
+
+    // And the honest entry for the half that ships no third-party data at all.
+    if !doc.contains("No model weights") {
+        problems.push("docs/ATTRIBUTION.md must say that no model weights, corpora or datasets ship with this project".into());
+    }
+
+    println!(
+        "xtask attribution: {} linked, {} declared but not linked",
+        linked.len(),
+        pending.len()
+    );
+    report("attribution", problems)
+}
+
+/// The parts of the document the checks care about, split by heading.
+fn split_attribution(doc: &str) -> (String, String) {
+    let mut linked = String::new();
+    let mut pending = String::new();
+    let mut current: &mut String = &mut linked;
+    for line in doc.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("## ") {
+            current = if trimmed.to_lowercase().contains("not linked") {
+                &mut pending
+            } else {
+                &mut linked
+            };
+        }
+        current.push_str(line);
+        current.push('\n');
+    }
+    (linked, pending)
+}
+
+/// Backticked names at the start of a table row, which is how a dependency row is written.
+fn crate_names_in(section: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in section.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with('|') {
+            continue;
+        }
+        let Some(start) = trimmed.find('`') else {
+            continue;
+        };
+        let rest = &trimmed[start + 1..];
+        let Some(end) = rest.find('`') else {
+            continue;
+        };
+        let name = &rest[..end];
+        if name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            names.push(name.to_string());
+        }
+    }
+    names
 }
 
 fn assets() -> Result<(), String> {
