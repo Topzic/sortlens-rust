@@ -8,8 +8,10 @@
 //! through [`Engine`]; anything that changes the process (theme, folder picker, quit) is returned
 //! as an [`Action`] for the host to apply.
 
+use crate::a11y;
 use crate::charts::{self, Column};
 use crate::keymap::{self, Context};
+use crate::places;
 use crate::sharpness;
 use crate::theme::{Density, GridMode, Motion, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
@@ -562,6 +564,11 @@ pub struct UiState {
     /// The cut is relative on purpose: a sharpness score is unitless and only comparable inside one library, so an
     /// absolute threshold would be a guess dressed up as a measurement.
     pub sharpness_percentile: f32,
+    /// The map's zoom, session state like the softness cut: a remembered zoom would open Places somewhere the person
+    /// did not choose.
+    pub places_zoom: u8,
+    /// Decoded basemap tiles, so panning and repainting do not decode the same tile again.
+    pub places_tiles: places::TileCache,
     /// Where a marquee drag started, while the pointer is still down.
     pub marquee: Option<egui::Pos2>,
     /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
@@ -753,6 +760,8 @@ impl UiState {
             rename_target: None,
             notice: None,
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
+            places_zoom: places::DEFAULT_ZOOM,
+            places_tiles: places::TileCache::new(),
             similar_delete_open: false,
         }
     }
@@ -1837,7 +1846,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
                 View::Insights => insights_view(ui, t, state, engine),
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
-                View::Places => places_view(ui, t, engine),
+                View::Places => places_view(ui, t, state, engine),
             }
             keyboard(ui, state, engine, actions);
         });
@@ -4230,104 +4239,231 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     }
 }
 
-/// Where the photographs were taken: the counts and the dots, without pretending to be a map.
+/// Where the photographs were taken: a basemap under the dots, and the credit on top of it.
 ///
-/// There is no basemap yet, and a field of dots on a blank rectangle is a worse answer than a number: it looks like a
-/// map and tells you nothing about where anything is. So this view shows what the catalog genuinely knows — how many
-/// photos have a location, how many clusters they form at a few zoom levels, and the names of the biggest clusters —
-/// and states, in the view, that the coastline is the next piece.
-fn places_view(ui: &mut Ui, t: &Tokens, engine: &Engine) {
+/// The tiles are the person's own folder (see `sortlens_geo::tiles`), drawn beneath the clusters, with the credit line
+/// printed over the map every frame — the view cannot show a tile whose attribution it does not have, because
+/// `Tileset` cannot exist without one. A tile that is missing from the set is painted as background: a hole in a
+/// basemap is a hole, not an error to shout about.
+///
+/// The map is centred on the library's own photos rather than on a place name: opening Places should show where these
+/// photographs are, not where the atlas starts.
+fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     let located = engine.geotagged();
-    let total = engine.all_photos().len();
-    ui.allocate_ui_with_layout(
-        vec2(ui.available_width(), ui.available_height()),
-        Layout::top_down(Align::Min),
-        |ui| {
-            ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| {
-                figure(ui, t, "With a location", &format_count(located as u64));
-                figure(ui, t, "Without", &format_count(total.saturating_sub(located) as u64));
-                let dots = engine.places(6).len();
-                figure(ui, t, "Places (zoom 6)", &format_count(dots as u64));
-                let close = engine.places(12).len();
-                figure(ui, t, "Places (zoom 12)", &format_count(close as u64));
-            });
-            ui.add_space(12.0);
-            if located == 0 {
-                ui.label(RichText::new("No photo has a location yet").size(14.0).strong());
-                ui.label(
-                    RichText::new(
-                        "A camera records where it was in the file's EXIF. Photos taken with location services off, \
-                         or stripped by another tool, do not have one.",
-                    )
-                    .size(11.0)
-                    .color(t.text_muted),
-                );
-                return;
-            }
-            ui.label(RichText::new("Biggest places").size(12.0).strong());
-            for cluster in engine.places(6).iter().take(12) {
-                let label = format!(
-                    "{:.2}{}  {:.2}{}",
-                    cluster.centre.lat.abs(),
-                    if cluster.centre.lat >= 0.0 { 'N' } else { 'S' },
-                    cluster.centre.lon.abs(),
-                    if cluster.centre.lon >= 0.0 { 'E' } else { 'W' }
-                );
-                charts::share_row(ui, t, &label, cluster.len(), located);
-            }
-            ui.add_space(12.0);
-            // The basemap: a folder the person supplies, and the credit that has to travel with it.
-            match engine.tileset() {
-                None => {
-                    ui.label(RichText::new("No basemap is installed").size(12.0).strong());
-                    ui.label(
-                        RichText::new(
-                            "Put a tile folder — {z}/{x}/{y}.png, as they come out of any tile archive — in the \
-                             tiles directory beside the catalog, with an attribution.txt naming its source and \
-                             licence. Nothing is downloaded: the map is yours, and so is its credit.",
-                        )
-                        .size(10.5)
-                        .color(t.text_muted),
-                    );
-                    if let Some(dir) = engine.tiles_dir() {
-                        ui.label(RichText::new(dir.display().to_string()).size(10.0).color(t.text_faint));
-                    }
-                }
-                Some(Err(error)) => {
-                    // A refused folder is a sentence, not a silently blank corner: the person needs to know why.
-                    ui.label(RichText::new("The basemap cannot be used").size(12.0).strong().color(t.reject));
-                    ui.label(RichText::new(error.message()).size(10.5).color(t.text_muted));
-                }
-                Some(Ok(tiles)) => {
-                    let (low, high) = tiles.zoom_range();
-                    let tiles_here = tiles.tile_count(high.max(low));
-                    ui.label(
-                        RichText::new(format!(
-                            "Basemap: zoom {low}–{high}, {} tiles at zoom {}",
-                            format_count(tiles_here as u64),
-                            high.max(low)
-                        ))
-                        .size(12.0)
-                        .strong(),
-                    );
-                    ui.add_space(4.0);
-                    ui.label(RichText::new(tiles.attribution()).size(10.5).color(t.text_muted));
-                    ui.label(
-                        RichText::new(
-                            "The coastline, and dots you can click, is the next piece of work: the tiles are read \
-                             and counted here, and nothing is drawn over them yet.",
-                        )
-                        .size(10.0)
-                        .color(t.text_faint),
-                    );
-                }
-            }
-        },
+    let tileset = engine.tileset();
+    let usable = matches!(&tileset, Some(Ok(_)));
+
+    ui.add_space(8.0);
+    // The map gets the space; the counts and the credit share what is left.
+    let footer = if usable { 74.0 } else { 96.0 };
+    let map_height = (ui.available_height() - footer).max(120.0);
+    let map_size = vec2(ui.available_width(), map_height);
+
+    if located == 0 {
+        ui.allocate_ui_with_layout(map_size, Layout::top_down(Align::Center), |ui| {
+            ui.add_space(map_height / 3.0);
+            ui.label(RichText::new("No photo has a location yet").size(15.0).strong());
+            ui.label(
+                RichText::new(
+                    "A camera records where it was in the file's EXIF. Photos taken with location services \
+                         off, or stripped by another tool, do not have one.",
+                )
+                .size(11.0)
+                .color(t.text_muted),
+            );
+        });
+        basemap_status(ui, t, engine, &tileset);
+        return;
+    }
+
+    let range = match &tileset {
+        Some(Ok(set)) => Some(set.zoom_range()),
+        _ => None,
+    };
+    if let Some(range) = range {
+        state.places_zoom = places::clamp_zoom(state.places_zoom, range);
+    }
+    let zoom = state.places_zoom;
+    let located_photos = engine.located();
+    // The mean of the photos, falling back to the first one: both are places the person has actually been, and the
+    // fallback cannot be reached with an empty list because `located == 0` returned above.
+    let centre = map_centre(&located_photos).unwrap_or(located_photos[0].1);
+
+    let (rect, response) = ui.allocate_exact_size(map_size, Sense::click());
+    // A clickable region that a screen reader can land on and name: the map, and how many dots it holds.
+    let dot_count = engine.places(zoom).len();
+    a11y::label_widget(
+        ui,
+        &response,
+        egui::Role::Canvas,
+        &format!(
+            "Map of {located} photo(s) with a location, in {dot_count} dot(s) at zoom {zoom}. \
+             Click a dot to select its photos."
+        ),
+        false,
     );
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 0.0, t.thumb_bg);
+    let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map_size.x), f64::from(map_size.y));
+
+    // Tiles first, then dots: the coastline is the backdrop, not a participant.
+    if let (Some(Ok(set)), Some(origin)) = (&tileset, origin) {
+        for cell in sortlens_geo::visible_tiles(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
+            let place = sortlens_geo::tile_rect(cell, origin);
+            let tile_rect = egui::Rect::from_min_size(
+                rect.min + vec2(place.x as f32, place.y as f32),
+                vec2(place.w as f32, place.h as f32),
+            );
+            // A tile that is missing or will not decode is a hole, painted as background rather than as a broken
+            // image: a partial tile set is a normal thing, and a toast for every gap would bury the map in noise.
+            let texture = set
+                .tile_path(cell.zoom, cell.x, cell.y)
+                .and_then(|path| state.places_tiles.texture(ui.ctx(), &path).map(egui::TextureHandle::id));
+            if let Some(id) = texture {
+                painter.image(
+                    id,
+                    tile_rect,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            } else {
+                painter.rect_filled(tile_rect, 0.0, t.thumb_bg);
+            }
+        }
+    }
+
+    // The dots, and the hit test the click below uses — one list, so what is drawn and what is clickable cannot drift.
+    let clusters = engine.places(zoom);
+    let dots = origin.map_or_else(Vec::new, |origin| places::dots(&clusters, zoom, origin, map_size.x, map_size.y));
+    for dot in &dots {
+        let cluster = &clusters[dot.cluster];
+        let centre_px = egui::pos2(rect.min.x + dot.at.0, rect.min.y + dot.at.1);
+        painter.circle_filled(centre_px, dot.radius, t.accent.gamma_multiply(0.82));
+        painter.circle_stroke(centre_px, dot.radius, egui::Stroke::new(1.0, t.accent_fg.gamma_multiply(0.7)));
+        if !cluster.is_single() {
+            painter.text(
+                centre_px,
+                Align2::CENTER_CENTER,
+                format_count(cluster.len() as u64),
+                FontId::proportional(10.0),
+                t.accent_fg,
+            );
+        }
+    }
+
+    // Clicking a dot selects exactly the photos it stands for. Clicking the map itself selects nothing: a click on
+    // the sea is not a way to clear a selection the person made on purpose.
+    // Clicking a dot selects exactly the photos it stands for. Clicking the map itself selects nothing: a click on
+    // the sea is not a way to clear a selection the person made on purpose.
+    let clicked_dot = response
+        .interact_pointer_pos()
+        .filter(|_| response.clicked())
+        // The pointer arrives in screen coordinates and the dots are relative to the map's own corner, so the origin
+        // is subtracted here. Without it every click missed by the panel's margin — which is what the click test was
+        // written to catch, and did.
+        .and_then(|pointer| places::dot_at(&dots, (pointer.x - rect.min.x, pointer.y - rect.min.y)))
+        .map(|index| &clusters[dots[index].cluster]);
+    if let Some(cluster) = clicked_dot {
+        state.selection.select_many(&cluster.members);
+        state.notice(format!(
+            "Selected {} photo(s) at {:.2}{} {:.2}{}",
+            cluster.len(),
+            cluster.centre.lat.abs(),
+            if cluster.centre.lat >= 0.0 { 'N' } else { 'S' },
+            cluster.centre.lon.abs(),
+            if cluster.centre.lon >= 0.0 { 'E' } else { 'W' }
+        ));
+    }
+
+    // The zoom controls sit over the map's corner, where a map puts them.
+    let mut zoom_changed = false;
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect.shrink(8.0)), |ui| {
+        ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
+            let (low, high) = range.unwrap_or((zoom, zoom));
+            if ui.add_enabled(zoom < high, Button::new(RichText::new("+").size(13.0))).clicked() {
+                state.places_zoom = zoom.saturating_add(1);
+                zoom_changed = true;
+            }
+            if ui.add_enabled(zoom > low, Button::new(RichText::new("−").size(13.0))).clicked() {
+                state.places_zoom = zoom.saturating_sub(1);
+                zoom_changed = true;
+            }
+            ui.label(RichText::new(format!("zoom {zoom}")).size(10.5).color(t.text_muted));
+        });
+    });
+
+    // The credit, over the map, every frame it is drawn. Never hidden behind a menu or a hover.
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), Layout::left_to_right(Align::Center), |ui| {
+        match &tileset {
+            Some(Ok(set)) => {
+                ui.label(RichText::new(set.attribution()).size(9.5).color(t.text_muted));
+            }
+            _ => {
+                ui.label(RichText::new("No basemap · dots only").size(9.5).color(t.text_faint));
+            }
+        }
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new(format!(
+                "{} photo(s) with a location · {} dot(s) · click a dot to select it",
+                format_count(located as u64),
+                format_count(clusters.len() as u64)
+            ))
+            .size(9.5)
+            .color(t.text_faint),
+        );
+    });
+    if zoom_changed {
+        ui.ctx().request_repaint();
+    }
+    basemap_status(ui, t, engine, &tileset);
 }
 
-/// Totals, distributions and breakdowns, all recomputed from the catalog.
+/// Where to centre the map: the mean of the photos, which is inside the library's spread rather than an arbitrary
+/// corner of the world.
+fn map_centre(located: &[(PhotoId, sortlens_geo::LatLon)]) -> Option<sortlens_geo::LatLon> {
+    if located.is_empty() {
+        return None;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let count = located.len() as f64;
+    let lat = located.iter().map(|(_, at)| at.lat).sum::<f64>() / count;
+    let lon = located.iter().map(|(_, at)| at.lon).sum::<f64>() / count;
+    sortlens_geo::LatLon::new(lat, lon)
+}
+
+/// The basemap's state as a sentence: absent, refused, or absent from this library.
+fn basemap_status(
+    ui: &mut Ui,
+    t: &Tokens,
+    engine: &Engine,
+    tileset: &Option<Result<sortlens_geo::tiles::Tileset, sortlens_geo::tiles::TileError>>,
+) {
+    match tileset {
+        None => {
+            ui.add_space(4.0);
+            ui.label(RichText::new("No basemap is installed").size(10.5).color(t.text_muted));
+            if let Some(dir) = engine.tiles_dir() {
+                ui.label(
+                    RichText::new(format!(
+                        "Put {{z}}/{{x}}/{{y}}.png tiles and an attribution.txt in {} — nothing is downloaded.",
+                        dir.display()
+                    ))
+                    .size(9.5)
+                    .color(t.text_faint),
+                );
+            }
+        }
+        Some(Err(error)) => {
+            ui.add_space(4.0);
+            ui.label(RichText::new("The basemap cannot be used").size(10.5).strong().color(t.reject));
+            ui.label(RichText::new(error.message()).size(9.5).color(t.text_muted));
+        }
+        Some(Ok(_)) => {}
+    }
+}
+
+/// Totals, distributions and breakdowns, all recomputed from the catalog./// Totals, distributions and breakdowns, all recomputed from the catalog.
 fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let _ = engine.poll_insights();
     // The sharpness pass lands here rather than on a timer: this is the view that asked for it, and a pass that
@@ -6810,9 +6946,10 @@ mod tests {
 
         let ctx = egui::Context::default();
         let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                places_view(ui, &tokens, &engine);
+                places_view(ui, &tokens, &mut state, &engine);
             });
         });
         output.textures_delta.clear();
@@ -6822,13 +6959,150 @@ mod tests {
 
         // And the view for a library with no locations is a sentence, not an empty map.
         let empty = Engine::open(dir.join("elsewhere")).expect("open");
+        let mut empty_state = UiState::new(ThemeKind::Charcoal, 0.0);
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                places_view(ui, &tokens, &empty);
+                places_view(ui, &tokens, &mut empty_state, &empty);
             });
         });
         output.textures_delta.clear();
         assert!(!output.shapes.is_empty(), "the empty state paints too");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A click on a dot selects that dot's photographs, all of them, and a click on the map does not clear anything.
+    ///
+    /// Real pointer events through `run_ui`: the map is found by the rectangle the view fills with the grid colour, so
+    /// the test does not have to guess where the view put it, and the dot's position comes from the same projection
+    /// the view uses. This checks the wiring — dots built, hit test resolved, members selected — which is where the
+    /// first version of this view was wrong (it indexed clusters by dot position, so an off-screen cluster shifted
+    /// every dot onto its neighbour's photos).
+    #[test]
+    fn clicking_a_dot_selects_its_photos() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-dotclick-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-dotclick");
+        for (index, factor) in [(1, 0.0_f64), (2, 0.0002)] {
+            std::fs::copy(
+                fixture.jpeg_with_location(
+                    &format!("IMG_{index:04}.jpg"),
+                    [40, 90, 160],
+                    48,
+                    32,
+                    50.8225 + factor,
+                    -0.1372 + factor,
+                ),
+                root.join(format!("IMG_{index:04}.jpg")),
+            )
+            .expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.geotagged(), 2);
+
+        let tokens = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    places_view(ui, &tokens, state, &engine);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // First frame: find the map by the rectangle it fills with the grid colour.
+        let output = frame(&mut state, egui::RawInput::default());
+        let map = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Rect(rect) if rect.fill == tokens.thumb_bg && rect.rect.width() > 100.0 => Some(rect.rect),
+                _ => None,
+            })
+            .expect("the map painted");
+
+        // The dot's position, from the same projection the view used.
+        let zoom = state.places_zoom;
+        let located = engine.located();
+        let centre = located[0].1;
+        let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map.width()), f64::from(map.height())).expect("origin");
+        let at = sortlens_geo::screen_position(centre, zoom, origin, f64::from(map.width()), f64::from(map.height())).expect("on screen");
+        let pointer = egui::pos2(map.min.x + at.x as f32, map.min.y + at.y as f32);
+
+        // Press, then release: egui reports a click on the release.
+        let pressed = egui::Event::PointerButton {
+            pos: pointer,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        };
+        let released = egui::Event::PointerButton {
+            pos: pointer,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        };
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![egui::Event::PointerMoved(pointer), pressed],
+                ..Default::default()
+            },
+        );
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![released],
+                ..Default::default()
+            },
+        );
+
+        let ids = engine.located().iter().map(|(id, _)| *id).collect::<Vec<_>>();
+        assert_eq!(state.selection.ids(), ids, "the whole dot was selected");
+        assert!(state.selection.contains(ids[0]));
+
+        // A click on the map away from the dot selects nothing and, crucially, clears nothing.
+        let sea = egui::pos2(map.max.x - 4.0, map.max.y - 4.0);
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![
+                    egui::Event::PointerMoved(sea),
+                    egui::Event::PointerButton {
+                        pos: sea,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: egui::Modifiers::default(),
+                    },
+                ],
+                ..Default::default()
+            },
+        );
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![egui::Event::PointerButton {
+                    pos: sea,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::default(),
+                }],
+                ..Default::default()
+            },
+        );
+        assert_eq!(state.selection.ids(), ids, "the sea is not a way to clear a selection");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -6865,28 +7139,40 @@ mod tests {
 
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
-        let paint = |engine: &Engine| {
-            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| places_view(ui, &tokens, engine));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let paint = |state: &mut UiState, engine: &Engine| {
+            let output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| places_view(ui, &tokens, state, engine));
             });
+            let mut output = output;
             output.textures_delta.clear();
             assert!(!output.shapes.is_empty(), "the view paints in every state");
         };
 
         // No folder at all.
         assert!(engine.tileset().is_none(), "a library with no tiles says so");
-        paint(&engine);
+        paint(&mut state, &engine);
 
         // A tile folder with tiles but no credit: refused, and the error names the file to write.
         let tiles = engine.tiles_dir().expect("a catalog directory");
-        std::fs::create_dir_all(tiles.join("5").join("1")).expect("tiles");
-        std::fs::write(tiles.join("5").join("1").join("2.png"), b"tile").expect("tile");
+        // Tiles where the view will actually look: the same projection and the same viewport the view uses, so the
+        // fixture is a tile set for this map rather than for a map somewhere else.
+        let map = vec2(720.0, 480.0);
+        let centre = engine.located()[0].1;
+        let origin = sortlens_geo::viewport_origin(5, centre, f64::from(map.x), f64::from(map.y)).expect("origin");
+        let cells = sortlens_geo::visible_tiles(5, origin, f64::from(map.x), f64::from(map.y));
+        assert!(!cells.is_empty(), "some tiles cover the viewport");
+        for cell in &cells {
+            let dir = tiles.join(cell.zoom.to_string()).join(cell.x.to_string());
+            std::fs::create_dir_all(&dir).expect("tiles");
+            std::fs::write(dir.join(format!("{}.png", cell.y)), sortlens_icon::png()).expect("tile");
+        }
         let error = match engine.tileset() {
             Some(Err(error)) => error,
             other => panic!("expected a refusal, got {other:?}"),
         };
         assert!(error.message().contains("attribution.txt"), "{}", error.message());
-        paint(&engine);
+        paint(&mut state, &engine);
 
         // Write the credit and it opens, with the credit readable through the engine.
         std::fs::write(tiles.join("attribution.txt"), "© Example Maps, CC-BY 4.0").expect("credit");
@@ -6896,7 +7182,17 @@ mod tests {
         };
         assert_eq!(set.attribution(), "© Example Maps, CC-BY 4.0");
         assert_eq!(set.zoom_range(), (5, 5));
-        paint(&engine);
+        assert_eq!(state.places_tiles.len(), 0, "nothing decoded before a map was drawn");
+        paint(&mut state, &engine);
+        // The claim of this run: the map decodes the tiles under the viewport and paints them, once.
+        assert!(!state.places_tiles.is_empty(), "the map decoded the tiles it drew");
+        assert_eq!(state.places_tiles.failures(), 0, "every fixture tile was a real PNG");
+        let decoded = state.places_tiles.decodes();
+        assert_eq!(decoded, cells.len(), "one decode per visible tile, not one per frame");
+        let held = state.places_tiles.len();
+        paint(&mut state, &engine);
+        assert_eq!(state.places_tiles.decodes(), decoded, "a second frame decodes nothing new");
+        assert_eq!(state.places_tiles.len(), held);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

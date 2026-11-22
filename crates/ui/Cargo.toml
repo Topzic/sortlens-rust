@@ -13,6 +13,7 @@ sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 sortlens-memories = { workspace = true }
 sortlens-thumbs = { workspace = true }
+sortlens-geo = { workspace = true }
 sortlens-cull = { workspace = true }
 egui = { workspace = true }
 craft-ui = { workspace = true }
@@ -22,6 +23,8 @@ serde = { workspace = true }
 sortlens-testkit = { workspace = true }
 # Tests store scores directly to exercise the review; the UI itself only reads them through the engine.
 sortlens-quality = { workspace = true }
+# A real PNG to hand the tile cache, rather than a hand-written header the decoder would reject.
+sortlens-icon = { workspace = true }
 
 [lints]
 workspace = true

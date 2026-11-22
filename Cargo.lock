@@ -3833,6 +3833,8 @@ dependencies = [
  "sortlens-core",
  "sortlens-cull",
  "sortlens-engine",
+ "sortlens-geo",
+ "sortlens-icon",
  "sortlens-memories",
  "sortlens-quality",
  "sortlens-testkit",

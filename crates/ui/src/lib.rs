@@ -10,6 +10,7 @@ pub mod a11y;
 pub mod charts;
 pub mod fonts;
 pub mod keymap;
+pub mod places;
 pub mod sharpness;
 pub mod shell;
 pub mod theme;

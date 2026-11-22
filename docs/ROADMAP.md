@@ -606,9 +606,35 @@ remap a moved drive; run the wizard on a clean machine.
     painted words are not asserted — egui hands back shapes, not text — so what the test proves is that the view
     paints in all three states and that the engine reports the right state; the credit guarantee is enforced one layer
     down, where `Tileset::open` refuses to exist without one.
-- [ ] Places **part 3b**: drawing it — decode the tiles for the visible square, draw the clusters over them, and
-  click a dot to filter. Needs `craft-image-codecs`' PNG reader (present, not yet a dependency) for the pixels; the
-  projection, the clusters, the tiles and the credit are all in place.
+- [x] Places **part 3b**: drawing it — the tiles under the dots, and a dot you can click
+  - `sortlens_geo` gained the viewport maths as pure functions: `viewport_origin`, `screen_position`,
+    `visible_tiles`, `tile_rect`. **The world does not wrap**: a map that repeated the antimeridian would draw the same
+    photographs twice with nothing to say which was which, so tile columns clamp to the world square and a viewport
+    wider than the world shows empty space beside it.
+  - `crates/ui/src/places.rs` holds the parts worth testing without a window: `dot_radius` (square-root growth, so
+    area tracks the count and a dot never swamps the coastline), `dot_at` (the **largest** dot within reach wins, not
+    the nearest, because where a big dot overhangs a small one the person is aiming at the big one), `clamp_zoom`
+    (zooming past the top of a set clamps: the tiles stop, the dots keep going), and `TileCache` — decoded once,
+    failures remembered as failures so one corrupt tile is not re-decoded every frame, bounded at 512 entries.
+  - **Two real bugs, both found by tests I wrote expecting the correct behaviour:**
+    1. The view built its dot list by skipping clusters it could not place and then indexed the cluster list by
+       *position*, so one off-screen cluster shifted every dot onto its neighbour's photographs. `Dot` now carries its
+       cluster index; `a_dot_points_at_its_own_cluster_even_when_another_is_off_screen` pins it.
+    2. The hit test compared the pointer, in screen coordinates, against dot positions relative to the map's own
+       corner — every click missed by the panel margin. Found by `clicking_a_dot_selects_its_photos`, which drives
+       real pointer events through `run_ui` and finds the map by the rectangle the view fills, so it does not have to
+       guess where the view put anything.
+  - The map is centred on the **mean of the library's own photos**, not on a place name or an atlas corner: opening
+    Places should show where these photographs are. Clicking a dot selects its members and says where they are;
+    clicking the sea selects nothing and clears nothing. The zoom controls sit over the map corner, disabled at the
+    ends of the set.
+  - The credit is printed **over the map, every frame it is drawn**, and the map is a named `Role::Canvas` region for
+    assistive technology (`cargo xtask a11y` demanded it, which is the gate doing its job).
+  - A missing or undecodable tile is painted as background, never an error toast: a partial tile set is a normal
+    thing, and a notice per gap would bury the map in noise.
+  - **Not verified by hand**: how it looks. The tests prove the tiles decode once, the dots carry the right clusters,
+    the click resolves, and the credit is the folder's own; they cannot say whether the coastline sits in the right
+    place, because there is no tile set in the repository to compare against — that needs a real archive and eyes.
 
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05

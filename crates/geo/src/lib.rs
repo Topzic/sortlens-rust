@@ -163,6 +163,102 @@ pub fn unproject(point: Point, zoom: u8) -> Option<LatLon> {
     LatLon::new(lat, lon)
 }
 
+/// A rectangle in screen pixels, relative to the top-left of the map's viewport.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScreenRect {
+    /// Distance from the viewport's left edge.
+    pub x: f64,
+    /// Distance from the viewport's top edge.
+    pub y: f64,
+    /// Width in pixels.
+    pub w: f64,
+    /// Height in pixels.
+    pub h: f64,
+}
+
+/// One tile of the basemap and where it belongs on screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TileCell {
+    /// The zoom level, so a placement can be checked against the set it came from.
+    pub zoom: u8,
+    /// The tile column, from the west edge of the world.
+    pub x: u32,
+    /// The tile row, from the north edge.
+    pub y: u32,
+}
+
+/// The world pixel at the viewport's top-left corner, for a viewport centred on `centre`.
+///
+/// This is the one piece of state a map needs: it positions every tile and every dot, so it is computed once per
+/// frame and passed around rather than each caller deriving its own centre and disagreeing by half a pixel. The
+/// result may be negative or beyond the world square when the viewport is larger than the world or hangs over an
+/// edge, which is exactly why [`visible_tiles`] clips rather than trusting the origin.
+pub fn viewport_origin(zoom: u8, centre: LatLon, viewport_width: f64, viewport_height: f64) -> Option<Point> {
+    let point = project(centre, zoom)?;
+    Some(Point {
+        x: point.x - viewport_width / 2.0,
+        y: point.y - viewport_height / 2.0,
+    })
+}
+
+/// Where a coordinate sits on screen, given the viewport's origin.
+///
+/// `None` when Mercator cannot place it at all, and `None` when the point is off screen: a dot drawn outside the
+/// viewport is a dot at the edge pretending to be somewhere it is not.
+pub fn screen_position(at: LatLon, zoom: u8, origin: Point, viewport_width: f64, viewport_height: f64) -> Option<Point> {
+    let point = project(at, zoom)?;
+    let screen = Point {
+        x: point.x - origin.x,
+        y: point.y - origin.y,
+    };
+    (screen.x >= 0.0 && screen.y >= 0.0 && screen.x <= viewport_width && screen.y <= viewport_height).then_some(screen)
+}
+
+/// The tiles that cover a viewport, with screen rectangles.
+///
+/// **The world does not wrap here.** Columns are clamped to the world square rather than repeated, because a map
+/// that wraps draws the same photographs twice: at the antimeridian the seam is a real edge of the tile set, and
+/// repeating it would put a second copy of Fiji beside the first with nothing to say which was which. A viewport
+/// wider than the world shows the world and empty space beside it.
+///
+/// Tile 0,0 is the north-west corner, which is the order every tile set uses.
+pub fn visible_tiles(zoom: u8, origin: Point, viewport_width: f64, viewport_height: f64) -> Vec<TileCell> {
+    if !origin.x.is_finite() || !origin.y.is_finite() || viewport_width <= 0.0 || viewport_height <= 0.0 {
+        return Vec::new();
+    }
+    let columns = 1u64 << u32::from(zoom);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let first_x = (origin.x / TILE).floor().max(0.0) as u64;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let first_y = (origin.y / TILE).floor().max(0.0) as u64;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let last_x = ((origin.x + viewport_width) / TILE).ceil().max(0.0) as u64;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let last_y = ((origin.y + viewport_height) / TILE).ceil().max(0.0) as u64;
+    let mut cells = Vec::new();
+    for y in first_y..last_y.min(columns) {
+        for x in first_x..last_x.min(columns) {
+            #[allow(clippy::cast_possible_truncation)]
+            cells.push(TileCell {
+                zoom,
+                x: x as u32,
+                y: y as u32,
+            });
+        }
+    }
+    cells
+}
+
+/// Where one tile's screen rectangle starts, given the viewport's origin.
+pub fn tile_rect(cell: TileCell, origin: Point) -> ScreenRect {
+    ScreenRect {
+        x: f64::from(cell.x) * TILE - origin.x,
+        y: f64::from(cell.y) * TILE - origin.y,
+        w: TILE,
+        h: TILE,
+    }
+}
+
 /// One dot on the map: a cell of the grid and the photos inside it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cluster {
@@ -485,6 +581,65 @@ mod tests {
         assert!((cluster.centre.lon - -0.118).abs() < 1e-9);
         assert_eq!(cluster.bounds, (51.504, 51.500, -0.116, -0.120));
         assert!(!cluster.is_single());
+    }
+
+    /// A viewport asks for exactly the tiles under it, in tile order, clipped to the world square.
+    #[test]
+    fn a_viewport_covers_the_tiles_under_it_and_nothing_else() {
+        let brighton = LatLon::new(50.8225, -0.1372).expect("a place");
+        // Zoom 0 is one tile wide, so a world-sized viewport is exactly that one tile.
+        let origin = viewport_origin(0, brighton, 256.0, 256.0).expect("origin");
+        assert_eq!(
+            visible_tiles(0, origin, 256.0, 256.0),
+            vec![TileCell { zoom: 0, x: 0, y: 0 }],
+            "the whole world in one tile"
+        );
+
+        // A viewport of one tile at zoom 2 may straddle up to four, and always at least one.
+        let origin = viewport_origin(2, brighton, 256.0, 256.0).expect("origin");
+        let cells = visible_tiles(2, origin, 256.0, 256.0);
+        assert!((1..=4).contains(&cells.len()), "got {} tiles", cells.len());
+        for cell in &cells {
+            assert_eq!(cell.zoom, 2);
+            assert!(cell.x < 4 && cell.y < 4, "{cell:?} is inside the world");
+            let rect = tile_rect(*cell, origin);
+            // Every returned tile overlaps the viewport; none is a tile away.
+            assert!(rect.x < 256.0 && rect.x + rect.w > 0.0, "{rect:?} is on screen horizontally");
+            assert!(rect.y < 256.0 && rect.y + rect.h > 0.0, "{rect:?} is on screen vertically");
+        }
+        // Tile order is row-major, so a caller that paints in order paints bottom-up over nothing.
+        let mut sorted = cells.clone();
+        sorted.sort_by_key(|cell| (cell.y, cell.x));
+        assert_eq!(cells, sorted);
+
+        // A viewport larger than the world gets each world tile once, not a ring of repeats.
+        let origin = viewport_origin(1, brighton, 4096.0, 4096.0).expect("origin");
+        let cells = visible_tiles(1, origin, 4096.0, 4096.0);
+        assert_eq!(cells.len(), 4, "zoom 1 is four tiles, and the world does not wrap");
+        assert_eq!(cells.iter().filter(|cell| cell.x == 1 && cell.y == 0).count(), 1);
+
+        // Nonsense input is no tiles, not a panic or one tile at the origin.
+        assert!(visible_tiles(3, origin, 0.0, 100.0).is_empty());
+        assert!(visible_tiles(3, Point { x: f64::NAN, y: 0.0 }, 100.0, 100.0).is_empty());
+    }
+
+    /// The screen position is the world position minus the origin, and a point off screen is not drawn.
+    #[test]
+    fn a_coordinate_lands_where_the_origin_says() {
+        let centre = LatLon::new(50.8225, -0.1372).expect("a place");
+        let zoom = 8;
+        let (w, h) = (512.0, 512.0);
+        let origin = viewport_origin(zoom, centre, w, h).expect("origin");
+        // The centre of the viewport is the centre of the map.
+        let screen = screen_position(centre, zoom, origin, w, h).expect("on screen");
+        assert!((screen.x - w / 2.0).abs() < 1e-6, "got {}", screen.x);
+        assert!((screen.y - h / 2.0).abs() < 1e-6, "got {}", screen.y);
+        // A point a long way away is not on screen, so it is not returned as a dot at the edge.
+        let sydney = LatLon::new(-33.8688, 151.2093).expect("a place");
+        assert_eq!(screen_position(sydney, zoom, origin, w, h), None);
+        // A coordinate Mercator cannot place is `None` even inside the viewport.
+        let pole = LatLon::new(89.0, -0.1372).expect("a latitude");
+        assert_eq!(screen_position(pole, zoom, origin, w, h), None);
     }
 
     /// A grid splits two close photos that happen to fall either side of a cell edge — stated, not discovered.

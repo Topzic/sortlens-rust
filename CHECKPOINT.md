@@ -2189,11 +2189,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   view paints in all three states and that the engine reports the right state; the credit guarantee is enforced by
   `Tileset::open`, one layer down, where it can actually bite.
 
+## 2026-11-22 (fifteenth) — Places part 3b: the tiles under the dots, and a dot that selects
+
+- `sortlens_geo`: `viewport_origin`, `screen_position`, `visible_tiles`, `tile_rect` — the viewport maths as pure
+  functions, so the UI holds no projection of its own. **The world does not wrap**: a repeated antimeridian would draw
+  the same photographs twice with nothing to say which was which, so columns clamp to the world square.
+- `crates/ui/src/places.rs`: `dot_radius` (square root, so area tracks the count), `dot_at` (**largest** dot within
+  reach wins — where a big dot overhangs a small one the person is aiming at the big one), `clamp_zoom` (past the top
+  of a set the tiles stop and the dots keep going), and `TileCache` (decode once; a failed tile is remembered as failed
+  so one corrupt file is not re-decoded every frame; bounded at 512).
+- **Two real bugs, both caught by tests written to expect correct behaviour:**
+  1. The view skipped clusters it could not place and then indexed the cluster list **by position**, so one off-screen
+     cluster shifted every dot onto its neighbour's photographs. `Dot` now carries its cluster index.
+  2. The hit test compared the pointer in screen coordinates against dot positions **relative to the map's corner** —
+     every click missed by the panel margin. `clicking_a_dot_selects_its_photos` drives real pointer events through
+     `run_ui`, finds the map by the rectangle the view fills, presses and releases, and asserts the members are
+     selected; without finding them it would have looked like it worked.
+- The map centres on the **mean of the library's own photos**. Clicking a dot selects its members and says where they
+  are; clicking the sea selects nothing and clears nothing. The credit is printed over the map every frame, and the map
+  is a named `Role::Canvas` region — `cargo xtask a11y` demanded that, which is the gate earning its keep.
+- `docs/UX.md` §5.9 rewritten: it described an offline *vector* basemap, thumbnail fans and a `geoBounds` library
+  filter, none of which exist. The absent ones are now named with reasons instead of being described as if built.
+- 572 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: how it looks. The tests prove the tiles decode once, dots carry the right clusters, the
+  click resolves and the credit is the folder's own; they cannot say the coastline sits in the right place, because
+  there is no tile set in the repository to compare against. That needs a real archive and eyes.
+
 ## Next
 
-Places part 3b: **draw** it. Decode the tiles for the visible square with `craft-image-codecs`' `decode_png_rows`
-(already in the vendored craft tree, not yet a dependency — add it, attribute it, and check `deny`), paint them beneath
-`cluster()`'s dots, and make a dot click select its members. Follow the pattern the credit set: the view may only draw
-what it can attribute, and a missing tile is a background, not an error toast. If adding a decoder for this turns out
-to need more than one run, that is fine — split 3b into "decode and paint tiles" and "click a dot", tick what lands,
-and leave the rest checked-off-absent rather than half-drawn.
+Naming dots from the gazetteer — the last piece of the map that is already half-built: `Gazetteer::nearest` exists and
+ships no data, `Tileset` is the precedent for "a file the person supplies", so a `places.txt` beside the catalog that
+the app parses into a `Gazetteer` and uses to label each cluster and the selection notice ("Selected 42 photo(s) near
+Brighton"). Keep the same discipline as the credit: no data ships, no network, and an unnamed dot says its coordinate
+rather than inventing a name. If that lands cleanly, then take the named-absent tail — registry delete-everywhere,
+20-step undo history, inline tagging in cull, video posters part 2 — one row at a time.

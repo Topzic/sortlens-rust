@@ -155,8 +155,9 @@ Every view has the same header structure:
 
 In Library, the title is the scope (folder/collection name) and the count is live. In Cull, the
 title is "Cull · <scope>" and the count is "photo 42 of 1,203". In Similar, the title is
-"Similar Shots" and the count is "12 groups · 47 photos". In Places, the count is "13,369
-geotagged". In Insights, the header holds the scope selector and a date-range chip.
+"Similar Shots" and the count is "12 groups · 47 photos". In Places the header carries the
+library's count and the map's own footer carries the geotagged count. In Insights, the header
+holds the scope selector and a date-range chip.
 
 ### 5.2 Filter bar (collapsible, identical in every view)
 
@@ -288,10 +289,29 @@ day's cut would make the review appear to make a claim it did not.
 
 ### 5.9 Places
 
-Full-canvas map, offline vector basemap, clusters that expand into thumbnail fans, zoom to
-cluster, "13,369 geotagged · 431 without location" chip, filter-bar scoping. Clicking a cluster
-filters the Library view to those photos (`library.filter {geoBounds}`). Attribution sits in the
-bottom-right corner of the map, as required.
+Full-canvas map centred on the mean of the library's own photographs, with dots over it. A dot's
+radius grows with the square root of its photo count — area tracks the count, so a dot standing
+for four hundred photographs is twice the width of one rather than a hundred times — and a dot
+for more than one photo has its count printed in it.
+
+Clicking a dot **selects those photos** and names where they are ("Selected 42 photo(s) at
+50.82N 0.14W"); clicking the sea selects nothing and clears nothing. `+` and `−` sit over the
+map's top-right corner and stop at the ends of the tile set's range: zooming past the top clamps,
+because the tiles stopping is not a reason for the dots to stop.
+
+The basemap is a `{z}/{x}/{y}.png` tile folder the person supplies, in `tiles/` beside the
+catalog, with an `attribution.txt` beside it. **The credit is printed over the map every frame it
+is drawn**, bottom-left, and a folder without one is refused outright — an unlabelled map implies
+the application made it. Nothing is downloaded and no map data ships. A tile that is missing or
+will not decode is painted as background: a hole in a tile set is a hole, not a notice.
+
+The footer states what is on the map — "4,182 photo(s) with a location · 96 dot(s) · click a dot
+to select it" — and the state of the basemap: absent, refused (with the reason), or fine.
+
+**Deliberately absent here:** a vector basemap (a tile folder is what a person can legally supply),
+thumbnail fans inside a dot, a geo-bounds filter on the Library (`library.filter {geoBounds}` does
+not exist; selecting is what a dot does), and a place name on each dot — the gazetteer can name a
+coordinate, and the wiring of names to dots is not built.
 
 ### 5.10 Insights
 
