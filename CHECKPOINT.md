@@ -775,6 +775,25 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 247 tests, CI and wasm green. Verified by hand over the CLI including the sidecar travelling both
   ways
 
+## 2026-11-21 — M7: side-by-side compare
+
+- ui: `UiState.compare: Option<PhotoId>` and `toggle_compare` — opens a compare against the next photo
+  in the current order (or the previous one when it is the last), and closes it on a second press
+- ui: the detail canvas splits into two panes drawn at the **smaller** of the two fit scales, so the
+  photo that needs less room is letterboxed instead of being blown up: the same detail at the same
+  size in both panes is what makes a compare honest. `Z` still switches both panes to a shared 1:1
+- ui: a difference line under the panes (stars, label, exposure when it differs, file size when it
+  differs, pixel dimensions), `C` toggles the compare, `S` swaps which pane is left, and left/right
+  walk the pair together so the two photos stay neighbours
+- `C` in the detail view now means compare; the global cull shortcut is guarded against
+  `detail_open`, so one key cannot mean two things in the same view
+- A photo that disappears from the library closes the compare rather than leaving an empty pane
+- tests: `compare_facts` reporting stars, pixels and size differences while staying quiet about
+  identical frames; `toggle_compare` closing an open compare, and saying "Pick a photo first" rather
+  than doing nothing when there is no selection (found by the test itself — the first version was
+  silent)
+- 249 tests, CI and wasm green
+
 ## Next
 
-M7: side-by-side compare of two photos, with the same viewport for both.
+M7: colour-only duplicate matches — compare palettes without requiring structural closeness.

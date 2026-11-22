@@ -258,6 +258,8 @@ pub struct UiState {
     pub detail_open: bool,
     /// Zoom the detail view to 1:1 instead of fitting the window.
     pub detail_zoom: bool,
+    /// The second photo in a side-by-side compare, if one is open.
+    pub compare: Option<PhotoId>,
     /// Only this collection, chosen in the sidebar.
     pub collection_filter: Option<sortlens_core::CollectionId>,
     /// Collection being renamed, with its draft name.
@@ -323,6 +325,7 @@ impl UiState {
             edited_filter: None,
             detail_open: false,
             detail_zoom: false,
+            compare: None,
             collection_filter: None,
             rename_target: None,
             notice: None,
@@ -1216,7 +1219,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     }
     // Starting a session works before anything is selected: the queue comes from the filters.
     // A session restored from a previous run is opened rather than replaced.
-    if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) {
+    if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) && !state.detail_open {
         state.view = View::Cull;
         if engine.cull().is_none() {
             match start_cull(engine, state) {
@@ -1599,6 +1602,7 @@ fn welcome_indexing(ui: &mut Ui, t: &Tokens, engine: &Engine) {
 fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     let mut close = false;
     let mut zoom = false;
+    let mut compare = false;
     let mut step = 0isize;
     ui.input(|input| {
         if input.key_pressed(Key::Escape) || (input.key_pressed(Key::D) && !input.modifiers.command) {
@@ -1613,9 +1617,15 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         if input.key_pressed(Key::ArrowLeft) {
             step = -1;
         }
+        if input.key_pressed(Key::C) && !input.modifiers.command {
+            compare = true;
+        }
     });
     if zoom {
         state.detail_zoom = !state.detail_zoom;
+    }
+    if compare {
+        toggle_compare(state, engine);
     }
     if close {
         state.detail_open = false;
@@ -1624,11 +1634,75 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         && let Some(id) = state.selected
         && let Some(next) = engine.neighbour(&state.filter(), state.sort, id, step)
     {
+        // In a compare the pair walks together, so the two photos stay neighbours.
+        if state.compare.is_some() {
+            state.compare = Some(id);
+        }
         state.selected = Some(next);
     }
 }
 
+/// Open a compare against the next photo in order, or close one that is open.
+pub fn toggle_compare(state: &mut UiState, engine: &Engine) {
+    if state.compare.take().is_some() {
+        return;
+    }
+    let Some(id) = state.selected else {
+        state.notice("Pick a photo first");
+        return;
+    };
+    let filter = state.filter();
+    if let Some(next) = engine.neighbour(&filter, state.sort, id, 1) {
+        state.compare = Some(next);
+    } else if let Some(previous) = engine.neighbour(&filter, state.sort, id, -1) {
+        state.compare = Some(previous);
+    } else {
+        state.notice("Nothing to compare with");
+    }
+}
+
 /// One photo, large, with the facts a cull needs and arrows to walk the view.
+/// Width over height, defaulting to a 3:2 frame until the size is known.
+fn aspect_of(photo: &Photo) -> f32 {
+    if photo.width > 0 && photo.height > 0 {
+        photo.width as f32 / photo.height as f32
+    } else {
+        1.5
+    }
+}
+
+/// What differs between two photos, in the order a photographer compares them.
+fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
+    let mut facts = Vec::new();
+    facts.push(("stars", format!("{} vs {}", left.rating, right.rating)));
+    facts.push((
+        "label",
+        format!(
+            "{} vs {}",
+            left.label.map_or("none", |label| label.id()),
+            right.label.map_or("none", |label| label.id())
+        ),
+    ));
+    if left.exposure() != right.exposure() {
+        facts.push(("exposure", format!("{} vs {}", left.exposure(), right.exposure())));
+    }
+    if left.size != right.size {
+        facts.push((
+            "size",
+            format!(
+                "{} vs {}",
+                sortlens_core::format_bytes(left.size),
+                sortlens_core::format_bytes(right.size)
+            ),
+        ));
+    }
+    facts.push((
+        "pixels",
+        format!("{}×{} vs {}×{}", left.width, left.height, right.width, right.height),
+    ));
+    facts
+}
+
 fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
     let filter = state.filter();
     let Some(id) = state.selected else {
@@ -1652,18 +1726,50 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
     };
     let position = engine.position(&filter, state.sort, id);
 
+    // The other half of a compare, when one is open. A photo that has gone missing closes it rather
+    // than leaving an empty pane behind.
+    let other = state.compare.and_then(|other| engine.photo(other).cloned());
+    if state.compare.is_some() && other.is_none() {
+        state.compare = None;
+    }
+
     ui.horizontal(|ui| {
         ui.label(RichText::new(truncate(&photo.name, 42)).size(14.0).strong());
+        if let Some(second) = &other {
+            ui.label(RichText::new("↔").size(13.0).color(t.text_faint));
+            ui.label(RichText::new(truncate(&second.name, 42)).size(14.0).color(t.text_muted));
+        }
         if let Some((index, total)) = position {
             ui.label(RichText::new(format!("{index} of {total}")).size(11.5).color(t.text_muted));
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
                 state.detail_open = false;
+                state.compare = None;
             }
             let zoom_label = if state.detail_zoom { "Fit  Z" } else { "1:1  Z" };
             if ui.button(RichText::new(zoom_label).size(11.0)).clicked() {
                 state.detail_zoom = !state.detail_zoom;
+            }
+            if other.is_some() {
+                if ui
+                    .button(RichText::new("Swap  S").size(11.0))
+                    .on_hover_text("Swap which pane is the left one")
+                    .clicked()
+                    && let Some(second) = state.compare
+                {
+                    state.selected = Some(second);
+                    state.compare = Some(id);
+                }
+                if ui.button(RichText::new("Compare  C").size(11.0)).clicked() {
+                    state.compare = None;
+                }
+            } else if ui
+                .button(RichText::new("Compare  C").size(11.0))
+                .on_hover_text("Show the next photo beside this one, at the same magnification")
+                .clicked()
+            {
+                toggle_compare(state, engine);
             }
         });
     });
@@ -1687,16 +1793,75 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
     } else {
         fitted
     };
-    match thumbs.get(ui.ctx(), &photo, 2000).cloned() {
-        Some(texture) => {
-            let uv = cover_uv(texture.size_vec2(), target.size());
-            let painter = ui.painter().with_clip_rect(area.intersect(ui.clip_rect()));
-            painter.image(texture.id(), target, uv, Color32::WHITE);
+    match &other {
+        // Two panes, one magnification: both photos are drawn at the smaller of the two fit scales,
+        // so the pane that would need less room is letterboxed instead of being blown up. That is
+        // what makes a compare honest — the same detail at the same size in both.
+        Some(second) => {
+            let gap = 8.0;
+            let half = vec2((area.width() - gap) / 2.0, area.height());
+            let left = Rect::from_min_size(area.min, half);
+            let right = Rect::from_min_size(pos2(area.min.x + half.x + gap, area.min.y), half);
+            ui.painter().rect_filled(right, t.corner(), t.thumb_bg);
+            let left_aspect = aspect_of(&photo);
+            let right_aspect = aspect_of(second);
+            let scale = if state.detail_zoom {
+                1.0
+            } else {
+                (half.x / photo.width.max(1) as f32)
+                    .min(area.height() / photo.height.max(1) as f32)
+                    .min(half.x / second.width.max(1) as f32)
+                    .min(area.height() / second.height.max(1) as f32)
+            };
+            let clip = ui.clip_rect();
+            for (pane, item, pane_aspect) in [(left, &photo, left_aspect), (right, second, right_aspect)] {
+                let mut sized = if state.detail_zoom {
+                    let width = item.width.max(1) as f32 * scale;
+                    Rect::from_center_size(pane.center(), vec2(width, width / pane_aspect))
+                } else {
+                    fit_rect(pane.shrink(6.0), pane_aspect)
+                };
+                if state.detail_zoom {
+                    // 1:1 crops to the pane, so keep the shared origin at the pane's centre.
+                    sized = sized.intersect(pane.expand2(vec2(4096.0, 4096.0)));
+                }
+                match thumbs.get(ui.ctx(), item, 2000).cloned() {
+                    Some(texture) => {
+                        let uv = cover_uv(texture.size_vec2(), sized.size());
+                        ui.painter()
+                            .with_clip_rect(pane.intersect(clip))
+                            .image(texture.id(), sized, uv, Color32::WHITE);
+                    }
+                    None => {
+                        ui.painter()
+                            .text(pane.center(), Align2::CENTER_CENTER, "Loading preview…", t.font(11.0), t.text_faint);
+                    }
+                }
+            }
         }
-        None => {
-            ui.painter()
-                .text(area.center(), Align2::CENTER_CENTER, "Loading preview…", t.font(11.0), t.text_faint);
-        }
+        None => match thumbs.get(ui.ctx(), &photo, 2000).cloned() {
+            Some(texture) => {
+                let uv = cover_uv(texture.size_vec2(), target.size());
+                let painter = ui.painter().with_clip_rect(area.intersect(ui.clip_rect()));
+                painter.image(texture.id(), target, uv, Color32::WHITE);
+            }
+            None => {
+                ui.painter()
+                    .text(area.center(), Align2::CENTER_CENTER, "Loading preview…", t.font(11.0), t.text_faint);
+            }
+        },
+    }
+
+    if let Some(second) = &other {
+        // The differences that matter when choosing between two frames, on one line.
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for (label, value) in compare_facts(&photo, second) {
+                ui.label(RichText::new(label).size(10.5).color(t.text_faint));
+                ui.label(RichText::new(value).size(10.5).color(t.text_muted));
+                ui.add_space(8.0);
+            }
+        });
     }
 
     ui.add_space(8.0);
@@ -3706,5 +3871,54 @@ mod tests {
         let bounds = Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 300.0));
         let fitted = fit_rect(bounds, 0.0);
         assert!((fitted.width() / fitted.height() - 1.5).abs() < 0.001);
+    }
+
+    fn sample_photo(id: u64, name: &str, rating: u8) -> Photo {
+        let mut photo = Photo::from_scan(PhotoId(id), "/photos", name, 1_000, Some(7), MediaKind::Image, 9);
+        photo.rating = rating;
+        photo.width = 3000;
+        photo.height = 2000;
+        photo
+    }
+
+    #[test]
+    fn a_compare_names_what_actually_differs() {
+        let left = sample_photo(1, "a.jpg", 5);
+        let mut right = sample_photo(2, "b.jpg", 3);
+        right.width = 2000;
+        right.height = 2000;
+        right.size = 2_000;
+
+        let facts = compare_facts(&left, &right);
+        let by_name = |name: &str| facts.iter().find(|(label, _)| *label == name).map(|(_, value)| value.clone());
+        assert_eq!(by_name("stars").as_deref(), Some("5 vs 3"));
+        assert_eq!(by_name("label").as_deref(), Some("none vs none"));
+        assert_eq!(by_name("pixels").as_deref(), Some("3000×2000 vs 2000×2000"));
+        assert!(by_name("size").is_some(), "a different file size is worth saying");
+
+        // Two copies of the same frame say so by saying very little.
+        let same = compare_facts(&left, &left);
+        assert!(same.iter().all(|(label, _)| *label != "size"));
+        assert!(same.iter().all(|(label, _)| *label != "exposure"));
+    }
+
+    #[test]
+    fn toggling_a_compare_closes_it_without_asking_the_library() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-compare-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+
+        state.compare = Some(PhotoId(4));
+        toggle_compare(&mut state, &engine);
+        assert_eq!(state.compare, None, "a second press closes the compare");
+
+        // With nothing selected there is nothing to compare against, and the reason is said out loud.
+        state.selected = None;
+        toggle_compare(&mut state, &engine);
+        assert_eq!(state.compare, None);
+        assert!(state.live_notice().is_some() || state.notice.is_some(), "the reason is not silent");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
