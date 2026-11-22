@@ -213,6 +213,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.changed",
+                    label: "Photos Changed on Disk",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Photos Changed on Disk",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.refreshChanged",
+                    label: "Refresh Changed Photos",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Refresh Changed Photos",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.retryMetadata",
                     label: "Retry Unreadable Metadata",
                     group: Group::Library,

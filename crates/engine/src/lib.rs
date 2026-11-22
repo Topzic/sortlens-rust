@@ -300,17 +300,36 @@ impl Engine {
         let mut changes = Vec::new();
         for (id, _path, _) in &photos {
             let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
-            let exists = PathBuf::from(&photo.root).join(&photo.rel).exists();
+            let path = PathBuf::from(&photo.root).join(&photo.rel);
             health.checked += 1;
-            if exists {
-                health.present += 1;
-                if photo.missing {
-                    changes.push((*id, false));
+            match std::fs::metadata(&path) {
+                Ok(meta) => {
+                    health.present += 1;
+                    if photo.missing {
+                        changes.push((*id, false));
+                    }
+                    // Size is definitive; a modification time alone is only a hint, so a tolerance
+                    // covers filesystems that store whole seconds.
+                    let size_differs = meta.len() != photo.size;
+                    let stamp = meta
+                        .modified()
+                        .ok()
+                        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|delta| delta.as_secs() as i64);
+                    let time_differs = match (stamp, photo.modified) {
+                        (Some(now), Some(indexed)) => (now - indexed).abs() > MODIFIED_TOLERANCE,
+                        _ => false,
+                    };
+                    if size_differs || time_differs {
+                        health.modified += 1;
+                        health.modified_ids.push(*id);
+                    }
                 }
-            } else {
-                health.missing += 1;
-                if !photo.missing {
-                    changes.push((*id, true));
+                Err(_) => {
+                    health.missing += 1;
+                    if !photo.missing {
+                        changes.push((*id, true));
+                    }
                 }
             }
         }
@@ -326,6 +345,42 @@ impl Engine {
         }
         health.changed = changes.len();
         Ok(health)
+    }
+
+    /// Re-read the photos the last health check found changed on disk.
+    ///
+    /// Each photo is re-hashed and its metadata extracted again, then stored with one undoable
+    /// update per photo — the same shape a rescan uses, only narrowed to what actually moved.
+    /// Returns how many photos were refreshed.
+    pub fn refresh_changed(&mut self) -> Result<usize> {
+        let changed = self.check_health()?.modified_ids;
+        let mut refreshed = 0usize;
+        for id in changed {
+            let Some(photo) = self.photo(id) else {
+                continue;
+            };
+            let path = PathBuf::from(&photo.root).join(&photo.rel);
+            let Ok(meta) = std::fs::metadata(&path) else {
+                continue;
+            };
+            let Ok(key) = sortlens_scan::content_key(&path, meta.len()) else {
+                continue;
+            };
+            let outcome = sortlens_meta::read_outcome(&path);
+            let mut updated = photo.clone();
+            updated.size = meta.len();
+            updated.modified = meta
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|delta| delta.as_secs() as i64);
+            updated.key = key;
+            updated.apply_meta(&outcome.meta());
+            updated.retry = outcome.is_retryable();
+            self.mutate(Op::AddPhoto { photo: Box::new(updated) })?;
+            refreshed += 1;
+        }
+        Ok(refreshed)
     }
 
     /// Photos whose metadata could not be read when they were indexed.
@@ -1791,6 +1846,17 @@ impl Engine {
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
             "library.readOnly" => Ok(json!({ "readOnly": self.read_only() })),
+            "library.changed" => {
+                let health = self.check_health()?;
+                Ok(json!({
+                    "checked": health.checked,
+                    "present": health.present,
+                    "missing": health.missing,
+                    "modified": health.modified,
+                    "ids": health.modified_ids,
+                }))
+            }
+            "library.refreshChanged" => Ok(json!({ "refreshed": self.refresh_changed()? })),
             "library.retryMetadata" => {
                 let all = args.get("all").and_then(Value::as_bool).unwrap_or(false);
                 let (updated, remaining) = self.retry_metadata(all)?;
@@ -1978,7 +2044,7 @@ impl Engine {
 }
 
 /// What a health check found.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Health {
     /// Photos examined.
     pub checked: usize,
@@ -1988,6 +2054,10 @@ pub struct Health {
     pub missing: usize,
     /// Photos whose missing state changed during this check.
     pub changed: usize,
+    /// Files whose size or modification time no longer matches the index.
+    pub modified: usize,
+    /// Those photos, so a refresh can act on exactly what the check found.
+    pub modified_ids: Vec<PhotoId>,
 }
 
 /// Keywords are trimmed, lowercased and length-bounded so the vocabulary stays usable.
@@ -2059,6 +2129,9 @@ impl Default for Engine {
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Seconds of modification-time drift treated as "the file did not change".
+pub const MODIFIED_TOLERANCE: i64 = 2;
 
 /// How many recent changes the change viewer and the support report cover.
 pub const HISTORY_LIMIT: usize = 200;
@@ -2480,6 +2553,41 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn a_file_changed_on_disk_is_noticed_and_refreshed() {
+        let folder = Temp::new("changed-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), vec![b'a'; 64]).expect("write");
+        std::fs::write(folder.0.join("b.jpg"), vec![b'b'; 64]).expect("write");
+        let (_lib, mut engine) = library("lib-changed");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+
+        // Nothing changed yet: a plain stat must not invent work.
+        let quiet = engine.run("library.changed", &json!({})).expect("check");
+        assert_eq!(quiet["modified"], 0, "{quiet}");
+        assert_eq!(quiet["checked"], 2);
+
+        // Replace one file with different content *and* a different size.
+        std::fs::write(folder.0.join("b.jpg"), vec![b'b'; 900]).expect("rewrite");
+        let found = engine.run("library.changed", &json!({})).expect("check");
+        assert_eq!(found["modified"], 1, "{found}");
+        let ids = found["ids"].as_array().expect("ids").clone();
+        assert_eq!(ids.len(), 1);
+
+        // Refreshing re-hashes and re-reads, so the index matches the disk again.
+        let refreshed = engine.run("library.refreshChanged", &json!({})).expect("refresh");
+        assert_eq!(refreshed["refreshed"], 1);
+        let changed_id = PhotoId(ids[0].as_u64().expect("id"));
+        assert_eq!(engine.photo(changed_id).expect("photo").size, 900);
+        let after = engine.run("library.changed", &json!({})).expect("check again");
+        assert_eq!(after["modified"], 0, "the refresh settled it");
+
+        // And it is one undoable update per photo, like every other change.
+        engine.undo().expect("undo");
+        assert_eq!(engine.photo(changed_id).expect("photo").size, 64);
     }
 
     #[test]

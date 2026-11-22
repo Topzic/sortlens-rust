@@ -206,6 +206,8 @@ pub struct UiState {
     pub audit: Option<(String, String, bool)>,
     /// The change viewer is open.
     pub history_open: bool,
+    /// How many files the last health check found changed on disk.
+    pub health_modified: usize,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -291,6 +293,7 @@ impl UiState {
             empty_bin_open: false,
             audit: None,
             history_open: false,
+            health_modified: 0,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -2731,7 +2734,11 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                 match engine.check_health() {
                     Ok(health) => {
                         state.health = Some((health.checked, health.present, health.missing));
-                        state.notice(format!("Checked {} files · {} missing", health.checked, health.missing));
+                        state.health_modified = health.modified;
+                        state.notice(format!(
+                            "Checked {} files · {} missing · {} changed",
+                            health.checked, health.missing, health.modified
+                        ));
                     }
                     Err(error) => state.notice(error.to_string()),
                 }
@@ -2741,6 +2748,27 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                     .size(10.5)
                     .color(t.text_faint),
             );
+            if state.health_modified > 0 {
+                ui.label(
+                    RichText::new(format!("{} file(s) changed on disk since they were indexed", state.health_modified))
+                        .size(11.0)
+                        .color(t.text),
+                );
+                if ui
+                    .button(RichText::new("Refresh changed").size(11.5))
+                    .on_hover_text("Re-read metadata and identity for exactly those files")
+                    .clicked()
+                {
+                    match engine.refresh_changed() {
+                        Ok(0) => state.notice("Nothing could be refreshed"),
+                        Ok(count) => {
+                            state.health_modified = 0;
+                            state.notice(format!("Refreshed {count} photo(s)"));
+                        }
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                }
+            }
             ui.add_space(8.0);
             if ui.button(RichText::new("Find moved photos").size(11.5)).clicked() {
                 match engine.relocate_missing() {

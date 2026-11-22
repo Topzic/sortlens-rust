@@ -729,7 +729,28 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 242 tests, CI and wasm green. Verified by hand: `retry`, `retry --all` updating two photos, and undo
   reversing it.
 
+## 2026-11-21 — M7: files changed on disk
+
+- engine: `check_health` now compares size **and** modification time against the index instead of only
+  testing existence. `Health.modified` counts them and `Health.modified_ids` names them, so a refresh
+  can act on exactly what the check found. A size difference is definitive; a time difference is only
+  trusted beyond `MODIFIED_TOLERANCE = 2` seconds, so a filesystem with whole-second stamps cannot
+  invent changes
+- engine: `refresh_changed()` re-hashes (`sortlens_scan::content_key`) and re-extracts metadata for
+  those photos only, storing one undoable `AddPhoto` update each — a rescan, narrowed to what moved
+- engine: commands `library.changed` (counts and ids) and `library.refreshChanged`
+- ui: the Library health dialog reports "N file(s) changed on disk since they were indexed" with a
+  "Refresh changed" button that clears the count. cli: `changed` (listing the relative paths) and
+  `refresh`
+- `Health` lost its `Copy` derive to carry the id list; every other field is still plain counts
+- tests: a quiet library reports zero changed (a stat alone must not invent work), replacing one file
+  reports exactly that one, refreshing settles it to zero, and the refresh undoes like any other update
+- 243 tests, CI and wasm green. Verified by hand: `changed` reporting one file by name, `refresh`,
+  and `changed` quiet again
+- Noted honestly: one `cargo xtask ci` run failed inside `sortlens-engine` before the message could be
+  captured; three subsequent workspace runs, three engine-only runs and the next CI run were all green,
+  so it is recorded as an unexplained flake rather than dismissed
+
 ## Next
 
-M7: external-change detection — noticing, without a full rescan, that a photo changed on disk since
-it was indexed, and re-extracting its metadata instead of trusting the indexed values.
+M7: batch move of picks into a destination folder, verified then undoable.

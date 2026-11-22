@@ -35,6 +35,8 @@ Commands:
   remap <old> <new>         repoint a moved or renamed root, sample checked
   history [--limit N]       recent changes, newest first
   retry [--all]             re-read metadata for photos that failed, or for all without EXIF
+  changed                   list files whose size or time no longer matches the index
+  refresh                   re-read exactly the changed files
   audit                     check the catalog files read back cleanly
   compact                   snapshot and empty the log
   backup <file>             write a verified backup of the index
@@ -243,6 +245,24 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "changed" => {
+            let health = engine.check_health().map_err(|error| error.to_string())?;
+            println!(
+                "{} checked, {} present, {} missing, {} changed",
+                health.checked, health.present, health.missing, health.modified
+            );
+            for id in &health.modified_ids {
+                if let Some(photo) = engine.photo(*id) {
+                    println!("  {}  {}", photo.rel, photo.root);
+                }
+            }
+            Ok(())
+        }
+        "refresh" => {
+            let count = engine.refresh_changed().map_err(|error| error.to_string())?;
+            println!("refreshed {count} photo(s)");
             Ok(())
         }
         "retry" => {
