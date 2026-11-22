@@ -42,6 +42,12 @@ pub enum Effect {
     OpenSettings,
     /// Ask the host to close the window.
     Quit,
+    /// Ask the host to bring a view forward: `"detail"`, `"similar"` or `"insights"`.
+    ///
+    /// The engine knows the command and the data, but only the host knows what is on screen, so the
+    /// view is named rather than switched. A command in the registry must have a handler; these two
+    /// were `Ready` while `run` had no arm for them, which this variant and the examples test fixed.
+    ShowView(&'static str),
 }
 
 /// Which of the two OS actions a photo asked for.
@@ -2170,6 +2176,15 @@ impl Engine {
                     "hashed": self.hashes.len(),
                     "pending": self.hash_progress(),
                 }))
+            }
+            "view.detail" => {
+                self.last_effect = Effect::ShowView("detail");
+                Ok(json!({ "view": "detail" }))
+            }
+            "view.similar" => {
+                self.last_effect = Effect::ShowView("similar");
+                let groups = self.similar_groups().len();
+                Ok(json!({ "view": "similar", "groups": groups }))
             }
             "view.insights" => {
                 let insights = self.insights();

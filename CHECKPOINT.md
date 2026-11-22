@@ -977,10 +977,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - docs: `docs/ARCHITECTURE.md` gains an MCP section (tool = command id, refusal is a result, why
   notifications go unanswered, and that writes go through the ordinary op log)
 
+## 2026-11-21 — M7: arguments an agent can copy, proven by running them
+
+- new `crates/mcp/src/examples.rs`: a worked argument set and a one-line note per command (55
+  examples) plus `NEEDS_CALLER` for the ones whose arguments only the caller can supply — a folder to
+  index, an archive to restore, a destination to move into (12 of those). `tools/list` carries both:
+  the note goes into the description an agent reads before choosing, and `arguments.example` carries
+  the exact JSON.
+- **the examples are executed, not remembered.** `every_published_example_actually_runs` builds a
+  fixture library, walks the table in order through `tools/call`, and fails the build on any
+  `isError`. That is the property that matters: a published name is one the engine accepts, so a
+  guess cannot drift into the docs.
+- it immediately paid for itself, finding four kinds of real problem:
+  1. **my own wrong names** — `collection.*` takes `id`, not `collection_id`; `cull.apply` takes
+     `mode: "tag"`, not `"tag_only"`; `library.subfolders` requires `root`.
+  2. **state dependencies** — `library.restoreBatch`, `library.forgetBatch` and `edit.undoMove` need
+     a batch or a receipt, so the test creates one and reads the id back rather than assuming `1`
+     (assuming it let a stale id pass on the first attempt).
+  3. **an example ordering bug** — `cull.back` un-decides the staged photo, so `cull.apply` after it
+     said "nothing is staged yet"; `cull.back` is now last, with a comment saying why.
+  4. **two commands that were `Ready` with no handler at all**: `view.detail` and `view.similar`
+     returned "command has no handler". Both now answer, via a new `Effect::ShowView(&'static str)`
+     that the app turns into a view change — the engine names the view and the host switches it.
+- the coverage test also refuses to let a ready command go undocumented, which is why the list is
+  complete rather than partial.
+- 302 tests, CI and wasm green. Verified against the real binary: `tools/list` returns 66 tools, all
+  66 with argument guidance. **Not verified by hand**: a real MCP client; the protocol is exercised
+  with piped JSON and the examples with direct calls.
+
 ## Next
 
-M7: **argument hints for the tool list.** `tools/list` says nothing about argument shapes, so an
-agent has to guess — my own test guessed `id` where the engine wanted `ids`, and `library.list`,
-which does not exist. Add an `args` hint to each ready `CommandSpec` (66 of them), derived by reading
-the `Engine::run` arm for each id so the hint cannot invent a name, put it in the tool description,
-and add a registry test that every ready command has one.
+M7: **`library.page` is callable but not a command.** `run` has an arm for it while the registry has
+no `library.page` entry, so it is neither in the tool list nor reachable from the palette — the mirror
+image of the `view.detail` bug just fixed. Audit `run`'s arms against the registry in both directions
+with a test, and add or remove what does not line up.

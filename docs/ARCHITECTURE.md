@@ -566,6 +566,12 @@ per line, `initialize`, `tools/list`, `tools/call`. Run it with `sortlens-cli --
 - **A tool is a command id.** `tools/list` is the command registry filtered to `Ready`; `tools/call`
   is `Engine::run`. There is no second list of agent actions, so an agent can reach exactly what the
   app can reach — and a command still marked `Planned` refuses with the milestone that will build it.
+- **Every tool publishes arguments an agent can copy.** `crates/mcp/src/examples.rs` holds a worked
+  argument set per command plus a note for the ones whose arguments only the caller can supply (a
+  folder to index, a file to back up). The examples are **executed against a fixture library in a
+  test**, so a published name is a name the engine really accepts; a wrong guess fails the build
+  instead of costing an agent a round trip. The coverage test refuses to let a ready command go
+  undocumented, which is what caught `view.detail` and `view.similar` being `Ready` with no handler.
 - **A refusal is a tool result, not a protocol error.** `isError: true` with the engine's own message
   ("ids are required", "this library is open read-only") lets the agent read the reason and adjust;
   JSON-RPC errors are reserved for malformed requests and unknown methods.

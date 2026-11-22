@@ -324,6 +324,17 @@ impl eframe::App for App {
             }
         }
 
+        if let sortlens_engine::Effect::ShowView(view) = self.engine.last_effect() {
+            match view {
+                "detail" => {
+                    self.ui.view = sortlens_ui::View::Library;
+                    self.ui.detail_open = true;
+                }
+                "similar" => self.ui.view = sortlens_ui::View::Similar,
+                "insights" => self.ui.view = sortlens_ui::View::Insights,
+                _ => {}
+            }
+        }
         if self.engine.last_effect() == sortlens_engine::Effect::Quit {
             let _ = self.engine.close();
             let _ = self.store.flush();

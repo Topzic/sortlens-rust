@@ -17,6 +17,8 @@ use std::io::{BufRead, Write};
 use serde_json::{Value, json};
 use sortlens_engine::Engine;
 
+pub mod examples;
+
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -125,9 +127,21 @@ impl Mcp {
             if !command.is_ready() {
                 continue;
             }
+            // The description carries the worked example, because an agent choosing a tool needs
+            // the argument shapes as much as the label. The examples are executed in a test, so a
+            // name here is a name the engine really accepts.
+            let args = examples::arguments(command.id);
+            let description = match &args {
+                Some(details) => match details["note"].as_str() {
+                    Some(note) => format!("{} ({}). Arguments: {note}", command.label, command.menu),
+                    None => format!("{} ({})", command.label, command.menu),
+                },
+                None => format!("{} ({})", command.label, command.menu),
+            };
             tools.push(json!({
                 "name": command.id,
-                "description": format!("{} ({})", command.label, command.menu),
+                "description": description,
+                "arguments": args,
                 // Deliberately permissive: the engine validates every argument and says what was
                 // wrong, which is more truthful than a schema that tries to restate 40 commands.
                 "inputSchema": {
@@ -294,6 +308,146 @@ mod tests {
         let history = call(&mut server, "tools/call", json!({ "name": "library.history" }));
         let text = history["result"]["content"][0]["text"].as_str().expect("text");
         assert!(text.contains("rate"), "{text}");
+    }
+
+    /// Every published example is run against a real fixture library.
+    ///
+    /// This is the test that makes `examples.rs` trustworthy: an argument name the engine does not
+    /// accept comes back as `isError`, and the failure message names the command and the reason, so
+    /// the fix is to correct the example rather than to relax the test.
+    #[test]
+    fn every_published_example_actually_runs() {
+        let (mut server, temp) = server("examples");
+        let photos = temp.0.join("photos");
+        std::fs::create_dir_all(photos.join("day2")).expect("dir");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::write(photos.join(name), name.as_bytes()).expect("write");
+        }
+        std::fs::write(photos.join("day2/d.jpg"), b"dddd").expect("write");
+        call(
+            &mut server,
+            "tools/call",
+            json!({ "name": "library.addFolder", "arguments": { "path": photos.to_string_lossy() } }),
+        );
+        for _ in 0..400 {
+            if server.engine().poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        // Some examples need state another example creates; the table is ordered for that. These two
+        // need a path only the caller can choose, so they are set up here instead.
+        let archive = temp.0.join("library.backup");
+        let restored = temp.0.join("restored");
+        let moved = temp.0.join("moved");
+        std::fs::create_dir_all(&restored).expect("dir");
+        std::fs::create_dir_all(&moved).expect("dir");
+
+        let mut failures = Vec::new();
+        for example in examples::EXAMPLES {
+            let mut args: Value = serde_json::from_str(example.args).expect("json");
+            if example.command == "library.restoreBackup" {
+                call(
+                    &mut server,
+                    "tools/call",
+                    json!({
+                        "name": "library.backup",
+                        "arguments": { "file": archive.to_string_lossy() },
+                    }),
+                );
+                args = json!({
+                    "file": archive.to_string_lossy(),
+                    "dest": restored.to_string_lossy(),
+                });
+            }
+            if example.command == "edit.movePicks" {
+                args = json!({ "dest": moved.to_string_lossy(), "ids": [3] });
+            }
+            if example.command == "library.subfolders" {
+                args = json!({ "root": photos.to_string_lossy(), "prefix": "" });
+            }
+            // Two examples refer to state an earlier example would have to create, so they are
+            // created here and the id is read back rather than guessed.
+            if example.command == "edit.undoMove" {
+                let receipt = call(
+                    &mut server,
+                    "tools/call",
+                    json!({
+                        "name": "edit.movePicks",
+                        "arguments": { "dest": moved.to_string_lossy(), "ids": [3] },
+                    }),
+                );
+                let text = receipt["result"]["content"][0]["text"].as_str().unwrap_or_default();
+                let id = serde_json::from_str::<Value>(text)
+                    .ok()
+                    .and_then(|value| value["receipt"].as_u64())
+                    .unwrap_or(1);
+                args = json!({ "id": id });
+            }
+            // Each of these needs a batch of its own: one is restored and one is forgotten, and a
+            // shared batch would let the second call pass by accident.
+            if example.command == "library.restoreBatch" {
+                args = json!({ "id": applied_batch(&mut server, 1) });
+            }
+            if example.command == "library.forgetBatch" {
+                args = json!({ "id": applied_batch(&mut server, 2) });
+            }
+            let result = call(&mut server, "tools/call", json!({ "name": example.command, "arguments": args }));
+            if result["result"]["isError"] == true {
+                let reason = result["result"]["content"][0]["text"].as_str().unwrap_or_default();
+                failures.push(format!("{}: {reason}", example.command));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} published example(s) do not run:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+
+        // The commands that need a caller are documented with the argument they need rather than
+        // silently absent, and their published description carries that note.
+        let listed = call(&mut server, "tools/list", json!({}));
+        let tools = listed["result"]["tools"].as_array().expect("tools");
+        for (id, note) in examples::NEEDS_CALLER {
+            assert!(!note.is_empty(), "{id} has no note");
+            let tool = tools
+                .iter()
+                .find(|tool| tool["name"] == *id)
+                .unwrap_or_else(|| panic!("{id} is not in the tool list"));
+            let description = tool["description"].as_str().expect("description");
+            assert!(description.contains(note), "{id} does not publish its argument note: {description}");
+        }
+    }
+
+    /// Stage and apply one reject on `photo` so the bin really has a batch, and return the newest
+    /// batch id. It reads the id back rather than assuming one: an earlier example may have applied
+    /// a batch already, and a guessed id would make the test lie about what it verified.
+    fn applied_batch(server: &mut Mcp, photo: u64) -> u64 {
+        for (name, args) in [
+            ("cull.clear", json!({})),
+            ("cull.start", json!({ "ids": [photo] })),
+            ("cull.decide", json!({ "decision": "reject" })),
+            ("cull.apply", json!({ "mode": "tag" })),
+        ] {
+            let result = call(server, "tools/call", json!({ "name": name, "arguments": args }));
+            assert_ne!(
+                result["result"]["isError"],
+                true,
+                "{name} failed: {}",
+                result["result"]["content"][0]["text"].as_str().unwrap_or_default()
+            );
+        }
+        let deleted = call(server, "tools/call", json!({ "name": "library.deleted", "arguments": {} }));
+        let text = deleted["result"]["content"][0]["text"].as_str().unwrap_or_default();
+        serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|value| {
+                value["batches"]
+                    .as_array()
+                    .and_then(|batches| batches.iter().filter_map(|batch| batch["id"].as_u64()).max())
+            })
+            .expect("a batch id after applying")
     }
 
     #[test]
