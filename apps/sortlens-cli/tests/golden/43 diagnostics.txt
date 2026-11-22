@@ -18,7 +18,7 @@ roots = 2
 photos = 6
 missing = 0
 rated = 2
-picks = 0
+picks = 1
 rejects = 0
 tagged = 2
 bytes = 1950
@@ -34,6 +34,13 @@ changed = 0
 none installed
 
 [recent changes]
+23 tagged · Keyworded 1 photo
+22 label · Labelled 1 photo
+21 label · Labelled 1 photo
+20 flag · Flagged 1 photo
+19 group · Keyworded 1 photo (+1 more change(s))
+18 tagged · Keyworded 1 photo
+17 rate · Rated 2 photos
 16 tagged · Keyworded 1 photo
 
 [roots]

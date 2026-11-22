@@ -1283,18 +1283,27 @@ impl Engine {
 
     /// Set stars on a selection, clamped to 0–5.
     pub fn rate(&mut self, ids: &[PhotoId], stars: u8) -> Result<usize> {
-        let changed = self.mutate(Op::Rate {
-            changes: ids.iter().map(|id| (*id, stars.min(5))).collect(),
-        })?;
+        let stars = stars.min(5);
+        // Count the photos whose rating actually moved, not the request: a script that rates a page and is
+        // told "12 changed" when eleven already had those stars cannot tell a write from a no-op.
+        let changes: Vec<(PhotoId, u8)> = ids
+            .iter()
+            .filter(|id| self.photo(**id).is_some_and(|photo| photo.rating != stars))
+            .map(|id| (*id, stars))
+            .collect();
+        let changed = self.mutate(Op::Rate { changes })?;
         self.sync_sidecars(ids);
         Ok(changed)
     }
 
     /// Set a flag on a selection.
     pub fn flag(&mut self, ids: &[PhotoId], flag: Flag) -> Result<usize> {
-        let changed = self.mutate(Op::Flag {
-            changes: ids.iter().map(|id| (*id, flag)).collect(),
-        })?;
+        let changes: Vec<(PhotoId, Flag)> = ids
+            .iter()
+            .filter(|id| self.photo(**id).is_some_and(|photo| photo.flag != flag))
+            .map(|id| (*id, flag))
+            .collect();
+        let changed = self.mutate(Op::Flag { changes })?;
         self.sync_sidecars(ids);
         Ok(changed)
     }
@@ -1393,7 +1402,14 @@ impl Engine {
     /// until it is corrected. Sidecars are written so the correction is not undone by the next read.
     pub fn set_captured(&mut self, changes: &[(PhotoId, Option<i64>)]) -> Result<usize> {
         let ids: Vec<PhotoId> = changes.iter().map(|(id, _)| *id).collect();
-        let changed = self.mutate(Op::Captured { changes: changes.to_vec() })?;
+        // Compare against what the catalog holds, so "the date moved" and "the date was already that" are
+        // different answers. The old count of the request made a repeat call claim a write that never happened.
+        let moved: Vec<(PhotoId, Option<i64>)> = changes
+            .iter()
+            .copied()
+            .filter(|(id, captured)| self.photo(*id).is_some_and(|photo| photo.captured != *captured))
+            .collect();
+        let changed = self.mutate(Op::Captured { changes: moved })?;
         self.sync_sidecars(&ids);
         Ok(changed)
     }
@@ -2329,9 +2345,12 @@ impl Engine {
 
     /// Set a colour label on a selection.
     pub fn label(&mut self, ids: &[PhotoId], label: Option<ColorLabel>) -> Result<usize> {
-        let changed = self.mutate(Op::Label {
-            changes: ids.iter().map(|id| (*id, label)).collect(),
-        })?;
+        let changes: Vec<(PhotoId, Option<ColorLabel>)> = ids
+            .iter()
+            .filter(|id| self.photo(**id).is_some_and(|photo| photo.label != label))
+            .map(|id| (*id, label))
+            .collect();
+        let changed = self.mutate(Op::Label { changes })?;
         self.sync_sidecars(ids);
         Ok(changed)
     }
@@ -2362,13 +2381,13 @@ impl Engine {
 
     fn mutate(&mut self, op: Op) -> Result<usize> {
         let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        // The caller has already narrowed `changes` to what actually differs, so this count is "photos the
+        // write touched" rather than "photos the caller named".
         let count = match &op {
             Op::Rate { changes } => changes.len(),
             Op::Flag { changes } => changes.len(),
             Op::Label { changes } => changes.len(),
             Op::Tagged { changes } => changes.len(),
-            // Counting the *request* is right here: `commit` drops ops that changed nothing, and a
-            // caller that reported "no change" after the date had in fact moved was a real bug.
             Op::Captured { changes } => changes.len(),
             Op::Group { ops } => ops.len(),
             _ => 0,
@@ -3464,6 +3483,35 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("scan did not finish");
+    }
+
+    /// A write reports the photos it changed, not the photos it was given.
+    ///
+    /// A script that rates a page and is told "12 changed" when eleven already had those stars cannot tell a
+    /// write from a no-op, and the JSON face of these commands is exactly what a script reads.
+    #[test]
+    fn a_repeat_write_reports_no_change() {
+        let (_cache, _photos, mut engine) = library_with_images("repeat-write", 3);
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        assert_eq!(engine.rate(&ids, 4).expect("rate"), 3);
+        assert_eq!(engine.rate(&ids, 4).expect("rate again"), 0, "nothing moved the second time");
+        assert_eq!(engine.rate(&ids[..1], 5).expect("one"), 1);
+
+        assert_eq!(engine.flag(&ids, Flag::Pick).expect("flag"), 3);
+        assert_eq!(engine.flag(&ids, Flag::Pick).expect("flag again"), 0);
+
+        assert_eq!(engine.label(&ids, Some(ColorLabel::Red)).expect("label"), 3);
+        assert_eq!(engine.label(&ids, Some(ColorLabel::Red)).expect("label again"), 0);
+        assert_eq!(engine.label(&ids, None).expect("clear"), 3);
+
+        let day = 1_700_000_000;
+        assert_eq!(engine.set_captured(&[(ids[0], Some(day))]).expect("date"), 1);
+        assert_eq!(engine.set_captured(&[(ids[0], Some(day))]).expect("date again"), 0);
+        assert_eq!(
+            engine.photo(ids[0]).expect("photo").captured,
+            Some(day),
+            "and it really is that date"
+        );
     }
 
     /// The second photo of a look: one keyword typed once, then the rest of the selection gets it by key.

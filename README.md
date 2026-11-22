@@ -48,6 +48,7 @@ scripts and AI agents.
 | [`docs/BEHAVIOUR.md`](docs/BEHAVIOUR.md) | Normative contracts: cull states, delete modes, XMP, scan identity, previews, crash safety |
 | [`docs/PACKS.md`](docs/PACKS.md) | The keyword pack format: what a rule may match, what is refused, and why |
 | [`docs/RELEASE.md`](docs/RELEASE.md) | How a release is cut, what the artefacts are, and what this version deliberately lacks |
+| [`docs/CLI.md`](docs/CLI.md) | The `--json` contract: what a script may rely on, what may change, and every verb that has a schema |
 | [`docs/PERF.md`](docs/PERF.md) | Measured numbers with the machine and command that produced them, the defect they exposed, and the budgets that cannot be measured here |
 
 ## What it will do

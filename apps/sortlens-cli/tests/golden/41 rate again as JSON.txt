@@ -1,0 +1,6 @@
+exit 0
+--- stdout
+{
+  "changed": 0
+}
+--- stderr

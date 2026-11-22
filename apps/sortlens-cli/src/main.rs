@@ -14,6 +14,7 @@ use std::process::ExitCode;
 const USAGE: &str = "\
 sortlens-cli [--library DIR] <command> [--json]
 sortlens-cli --version | --help
+sortlens-cli --json schemas        every verb with a JSON schema, and its contract
 
 Commands:
   add <folder>              index a folder
@@ -22,7 +23,7 @@ Commands:
   list [--limit N]          list photos (default 20)
   stats                     library counters
   insights                  counters, cameras, lenses, keywords and years
-  rate <id> <0-5>           set stars
+  rate <id[,id...]> <0-5>   set stars
   flag <id> pick|reject|none
   date <id> <YYYY-MM-DD|->  set (or clear, with -) the capture date
   tag <id> <keyword>        add a keyword
@@ -345,35 +346,273 @@ fn export(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
     Err("the export did not finish".into())
 }
 
-/// The engine command that answers each CLI verb when `--json` is asked for.
+/// Whether a schema's verb changes the library or only reports on it.
 ///
-/// A table rather than a guess, because "some verbs have a schema and some do not" is exactly the kind
-/// of thing a script must be able to find out before it relies on it.
-const JSON_VERBS: &[(&str, &str)] = &[
-    ("roots", "library.roots"),
-    ("keywords", "tag.keywords"),
-    ("stats", "library.stats"),
-    ("list", "library.page"),
-    ("folders", "library.subfolders"),
-    ("check", "library.health"),
-    ("moves", "edit.moves"),
-    ("changed", "library.changed"),
-    ("history", "library.history"),
-    ("audit", "library.audit"),
-    ("memories", "memories.list"),
-    ("shortcuts", "app.shortcuts"),
-    ("registry", "tag.registry"),
-    ("packs", "packs.list"),
-    ("jobs", "library.jobs"),
+/// Written down rather than inferred, because a script that pipes `--json` into a decision needs to know
+/// whether running it twice is safe, and "it looks like a read" is not a contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// Reports; writes nothing.
+    Read,
+    /// Changes the library. Running it twice is not the same as running it once.
+    Write,
+}
+
+/// One published JSON schema: the CLI verb, the command that answers it, and what a script may rely on.
+struct Schema {
+    verb: &'static str,
+    command: &'static str,
+    kind: Kind,
+    /// The compatibility promise for this object, in one sentence.
+    ///
+    /// The general promise lives in `docs/CLI.md`; this says what is *specific* to the verb — which field is
+    /// the answer, what a count means, and what may be added later.
+    note: &'static str,
+}
+
+/// Every CLI verb that answers `--json`, and the engine command behind it.
+///
+/// A table rather than a guess, because "some verbs have a schema and some do not" is exactly the kind of
+/// thing a script must be able to find out before it relies on it: a verb that is absent here refuses and
+/// names the ones that are present, and `--JSON --schemas` prints this table for a machine to read.
+const SCHEMAS: &[Schema] = &[
+    Schema {
+        verb: "roots",
+        command: "library.roots",
+        kind: Kind::Read,
+        note: "`roots`: an array of `{root, photos}`; more keys may be added to an entry",
+    },
+    Schema {
+        verb: "keywords",
+        command: "tag.keywords",
+        kind: Kind::Read,
+        note: "keyword rows with counts; `count` is photos, never edges",
+    },
+    Schema {
+        verb: "stats",
+        command: "library.stats",
+        kind: Kind::Read,
+        note: "library counters; `total` is every indexed photo, including missing ones",
+    },
+    Schema {
+        verb: "list",
+        command: "library.page",
+        kind: Kind::Read,
+        note: "a page of photos with the ids that `rate` and `flag` accept; `total` is the filtered total",
+    },
+    Schema {
+        verb: "folders",
+        command: "library.subfolders",
+        kind: Kind::Read,
+        note: "subfolders under a root or prefix, with recursive counts",
+    },
+    Schema {
+        verb: "check",
+        command: "library.health",
+        kind: Kind::Read,
+        note: "missing files and unreadable ones, with the reason the catalog recorded",
+    },
+    Schema {
+        verb: "moves",
+        command: "edit.moves",
+        kind: Kind::Read,
+        note: "move receipts, newest last; `count` is files, not bytes",
+    },
+    Schema {
+        verb: "changed",
+        command: "library.changed",
+        kind: Kind::Read,
+        note: "files whose size or modification time disagrees with the catalog",
+    },
+    Schema {
+        verb: "history",
+        command: "library.history",
+        kind: Kind::Read,
+        note: "recent ops, newest first; the shape of a change is the op that made it",
+    },
+    Schema {
+        verb: "audit",
+        command: "library.audit",
+        kind: Kind::Read,
+        note: "the replay audit; `clean` is the verdict, the rest is evidence",
+    },
+    Schema {
+        verb: "memories",
+        command: "memories.list",
+        kind: Kind::Read,
+        note: "resurfacing cards for one day; `--today YYYY-MM-DD` fixes the date, absent means today",
+    },
+    Schema {
+        verb: "shortcuts",
+        command: "app.shortcuts",
+        kind: Kind::Read,
+        note: "bound commands: key, context, label and command id",
+    },
+    Schema {
+        verb: "registry",
+        command: "tag.registry",
+        kind: Kind::Read,
+        note: "keywords, the names they swallowed, and orphaned aliases",
+    },
+    Schema {
+        verb: "packs",
+        command: "packs.list",
+        kind: Kind::Read,
+        note: "keyword packs with their rules and whether each is on",
+    },
+    Schema {
+        verb: "jobs",
+        command: "library.jobs",
+        kind: Kind::Read,
+        note: "long-running work with its progress; a finished job keeps its last report",
+    },
+    Schema {
+        verb: "suggest",
+        command: "suggest.list",
+        kind: Kind::Read,
+        note: "proposals for one photo: keyword, source, confidence. Nothing is written until `accept`",
+    },
+    Schema {
+        verb: "rate",
+        command: "photo.rate",
+        kind: Kind::Write,
+        note: "`changed` is how many photos took the new rating; a photo that already had it is not counted",
+    },
+    Schema {
+        verb: "flag",
+        command: "photo.flag",
+        kind: Kind::Write,
+        note: "`changed` is photos written, and a second identical run reports 0",
+    },
+    Schema {
+        verb: "label",
+        command: "photo.label",
+        kind: Kind::Write,
+        note: "`changed` is photos written; the request key is `label`, and null clears it",
+    },
+    Schema {
+        verb: "tag",
+        command: "photo.keyword",
+        kind: Kind::Write,
+        note: "`changed` is photos that gained the keyword; adding it twice reports 0",
+    },
+    Schema {
+        verb: "untag",
+        command: "photo.keyword",
+        kind: Kind::Write,
+        note: "the same object as `tag` with `add: false`; `changed` is photos that lost it",
+    },
+    Schema {
+        verb: "date",
+        command: "photo.setCaptured",
+        kind: Kind::Write,
+        note: "`changed` is photos whose capture date moved; the request is a list of `{id, captured}`",
+    },
+    Schema {
+        verb: "rename",
+        command: "tag.rename",
+        kind: Kind::Write,
+        note: "`changed` is photos moved to the new name; a merge into an existing keyword counts them too",
+    },
+    Schema {
+        verb: "alias",
+        command: "tag.alias",
+        kind: Kind::Write,
+        note: "`changed` is 1 when the link was stored or forgotten, 0 when it already said that",
+    },
+    Schema {
+        verb: "accept",
+        command: "suggest.accept",
+        kind: Kind::Write,
+        note: "`tagged` is 1 when the keyword was added, 0 when the photo already had it",
+    },
+    Schema {
+        verb: "pack",
+        command: "packs.set",
+        kind: Kind::Write,
+        note: "`changed` is 1 when the switch moved, 0 when the pack was already in that state",
+    },
+    Schema {
+        verb: "undo",
+        command: "edit.undo",
+        kind: Kind::Write,
+        note: "`undone` is whether there was anything to undo; false is not an error",
+    },
+    Schema {
+        verb: "retry",
+        command: "library.retryMetadata",
+        kind: Kind::Write,
+        note: "`updated` and `remaining`; a photo that still has no EXIF is counted in `remaining`",
+    },
+    Schema {
+        verb: "relocate",
+        command: "library.relocate",
+        kind: Kind::Read,
+        note: "`relocated` is files whose new location was found; nothing is moved by looking",
+    },
+    Schema {
+        verb: "remap",
+        command: "library.remapRoot",
+        kind: Kind::Write,
+        note: "`remapped` is photos repointed at the new root after the sample check passed",
+    },
+    Schema {
+        verb: "schemas",
+        command: "",
+        kind: Kind::Read,
+        note: "this table: verb, command, kind and note, for a script discovering the contract",
+    },
 ];
+
+/// The ids in `1,2,3` form, so a script can rate a page of photos in one call.
+fn parse_ids(text: &str) -> Result<Vec<sortlens_core::PhotoId>, String> {
+    text.split(',')
+        .map(|part| {
+            part.trim()
+                .parse::<u64>()
+                .map(sortlens_core::PhotoId)
+                .map_err(|_| format!("photo ids must be numbers: {part}"))
+        })
+        .collect()
+}
+
+/// Print the schema table, so a script can discover the contract instead of reading this file.
+fn print_schemas() -> Result<(), String> {
+    let rows: Vec<serde_json::Value> = SCHEMAS
+        .iter()
+        .map(|schema| {
+            serde_json::json!({
+                "verb": schema.verb,
+                "command": schema.command,
+                "kind": match schema.kind {
+                    Kind::Read => "read",
+                    Kind::Write => "write",
+                },
+                "note": schema.note,
+            })
+        })
+        .collect();
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::Value::Array(rows)).map_err(|error| error.to_string())?
+    );
+    Ok(())
+}
 
 /// Print the engine's own answer for a verb that has a schema.
 fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), String> {
-    let Some((_, command)) = JSON_VERBS.iter().find(|(name, _)| *name == verb) else {
-        let offered = JSON_VERBS.iter().map(|(name, _)| *name).collect::<Vec<&str>>().join(", ");
+    if verb == "schemas" {
+        return print_schemas();
+    }
+    let Some(schema) = SCHEMAS.iter().find(|schema| schema.verb == verb) else {
+        let offered = SCHEMAS.iter().map(|schema| schema.verb).collect::<Vec<&str>>().join(", ");
         return Err(format!("{verb} has no JSON schema yet; --json works for: {offered}"));
     };
-    let args = match verb {
+    let ids = || -> Result<Vec<u64>, String> {
+        let text = rest.first().ok_or("photo ids are required (1 or 1,2,3)")?;
+        Ok(parse_ids(text)?.iter().map(|id| id.0).collect())
+    };
+    let args = match schema.verb {
         "list" => {
             let limit = flag_value(rest, "--limit").unwrap_or(20);
             let mut args = serde_json::json!({ "offset": flag_value(rest, "--offset").unwrap_or(0), "limit": limit });
@@ -400,13 +639,78 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
             }
             args
         }
-        "suggest" => {
+        "suggest" => serde_json::json!({ "ids": [parse_id(rest.first())?.0] }),
+        "rate" => {
+            let stars: u8 = rest.get(1).ok_or("stars are required")?.parse().map_err(|_| "stars must be 0-5")?;
+            serde_json::json!({ "ids": ids()?, "stars": stars })
+        }
+        "flag" => {
+            let flag = match rest.get(1).map(String::as_str).unwrap_or("none") {
+                "pick" => "pick",
+                "reject" => "reject",
+                "none" => "none",
+                other => return Err(format!("unknown flag: {other}")),
+            };
+            serde_json::json!({ "ids": ids()?, "flag": flag })
+        }
+        "label" => {
+            let colour = match rest.get(1).map(String::as_str).unwrap_or("none") {
+                "none" => serde_json::Value::Null,
+                other => serde_json::Value::String(other.to_string()),
+            };
+            serde_json::json!({ "ids": ids()?, "label": colour })
+        }
+        "tag" | "untag" => {
+            let tag = rest.get(1).ok_or("a keyword is required")?;
+            serde_json::json!({ "ids": ids()?, "tag": tag, "add": schema.verb == "tag" })
+        }
+        "date" => {
+            let text = rest.get(1).ok_or("a date or - is required")?;
+            let captured = if text == "-" {
+                serde_json::Value::Null
+            } else {
+                serde_json::json!(parse_day(text)?)
+            };
+            let ids = ids()?;
+            let changes: Vec<serde_json::Value> = ids.iter().map(|id| serde_json::json!({ "id": id, "captured": captured })).collect();
+            serde_json::json!({ "changes": changes })
+        }
+        "rename" => {
+            let from = rest.first().ok_or("the old name is required")?;
+            let to = rest.get(1).ok_or("the new name is required")?;
+            serde_json::json!({ "from": from, "to": to })
+        }
+        "alias" => {
+            let name = rest.first().ok_or("a keyword is required")?;
+            let canonical = match rest.get(1) {
+                Some(canonical) => serde_json::Value::String(canonical.clone()),
+                None => serde_json::Value::Null,
+            };
+            serde_json::json!({ "alias": name, "canonical": canonical })
+        }
+        "accept" => {
             let id = parse_id(rest.first())?;
-            serde_json::json!({ "ids": [id.0] })
+            let tag = rest.get(1).ok_or("a keyword is required")?;
+            serde_json::json!({ "id": id.0, "tag": tag })
+        }
+        "pack" => {
+            let name = rest.first().ok_or("a pack name is required")?;
+            let on = match rest.get(1).map(String::as_str).unwrap_or("on") {
+                "on" => true,
+                "off" => false,
+                other => return Err(format!("expected on or off, not {other}")),
+            };
+            serde_json::json!({ "name": name, "on": on })
+        }
+        "retry" => serde_json::json!({ "all": rest.iter().any(|arg| arg == "--all") }),
+        "remap" => {
+            let from = rest.first().ok_or("the old root is required")?;
+            let to = rest.get(1).ok_or("the new root is required")?;
+            serde_json::json!({ "from": from, "to": to })
         }
         _ => serde_json::json!({}),
     };
-    let value = engine.run(command, &args).map_err(|error| error.to_string())?;
+    let value = engine.run(schema.command, &args).map_err(|error| error.to_string())?;
     println!("{}", serde_json::to_string_pretty(&value).map_err(|error| error.to_string())?);
     Ok(())
 }

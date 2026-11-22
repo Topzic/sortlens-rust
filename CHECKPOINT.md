@@ -1884,9 +1884,30 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   runs with `--test-threads=16`, all green; ci, wasm, deny, snapshot, docs green.
 - **Not verified by hand**: nothing new; the fade from the previous commit is still un-eyeballed.
 
+## 2026-11-22 (third) — M9 row: `--json` for the write verbs, with a written contract
+
+- The CLI's JSON table is now a table of **schemas** — verb, engine command, read/write, and a one-sentence
+  promise for the object — with thirteen mutating verbs added (`rate`, `flag`, `label`, `tag`, `untag`, `date`,
+  `rename`, `alias`, `accept`, `pack`, `undo`, `retry`, `remap`). `--json schemas` prints the table, so a script
+  discovers the contract instead of reading source.
+- `docs/CLI.md` states the promise (additive only within a major version; absent ≠ null; counts are photos
+  unless noted; a refusal is a non-zero exit with stderr, never an error object that looks like a result;
+  progress verbs like `export` deliberately have no schema because a job with a cancel is not one object). The
+  README links it, and `cargo xtask docs` enforces that reachability.
+- **The contract found a lie, which is the reason to write one.** The new goldens showed `rate 1,2 4` answering
+  `{"changed": 2}` for photos that already had four stars: `rate`, `flag`, `label` and `setCaptured` counted the
+  *request*. They now compare against the catalog first, so a repeat answers `0`. `a_repeat_write_reports_no_change`
+  pins it, and the goldens show `2` then `0`.
+- Gate: `every_write_verb_has_a_json_schema_and_a_stated_contract` — every mutating verb must answer, every note
+  must be a sentence, and the table must mark writes as writes. Proved to bite by renaming `pack` in the table.
+- A self-inflicted mess worth recording: replacing a block of the golden step list by index silently swallowed
+  four existing steps (`keywords as JSON`, the old `no schema says so`, `diagnostics`, `version`). The golden
+  harness said so — "no step records this golden any more" — which is exactly why it tracks orphans; the steps
+  were restored, and the four goldens are unchanged.
+- 495 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: nothing new on screen.
+
 ## Next
 
-M3–M7 pass, then M9's `--json` write verbs. Candidates in order: `--json` write verbs (needs a written
-per-schema compatibility note, which is why it is its own run), collections' range-select/select-all, and the
-remaining M4 detail-view rows. Video posters, the map, AI inference, i18n and the keymap editor stay named
+M3–M7 pass. Next candidates: collections' range-select/select-all (B), the remaining M4 detail-view rows, and
+`Offline/missing` is now closed. Video posters, the map, AI inference, i18n and the keymap editor stay named
 absent with their blockers.

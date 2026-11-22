@@ -496,8 +496,25 @@ below with what would unblock it; i18n and the keymap editor remain.
   prints the engine's own answer, a verb without a schema says so and lists the ones that have one
   instead of printing prose, and the golden files pin five of the schemas plus the refusal (E)
   — SL-K03/K06
-- [ ] `--json` for the remaining verbs, and a written compatibility note per schema — the write verbs
-  need a defined result shape before they can be called from a script safely (E)
+- [x] `--json` for the write verbs, and a written compatibility note per schema (E)
+  - The table stopped being a list of names and became a list of **schemas**: verb, command, read or write, and
+    a one-sentence contract for the object. Thirteen mutating verbs answer `--json` now (`rate`, `flag`,
+    `label`, `tag`, `untag`, `date`, `rename`, `alias`, `accept`, `pack`, `undo`, `retry`, `remap`), and
+    `--json schemas` prints the whole table for a script to discover rather than hoping.
+  - `docs/CLI.md` is the promise: additive-only within a major version, absent ≠ null, counts are photos unless
+    the note says otherwise, a refusal is a non-zero exit with stderr rather than an error object dressed as a
+    result, and progress verbs (`export`) deliberately have no schema because a job with a cancel is not one
+    object.
+  - **The contract found a lie.** Reading the new goldens showed `rate 1,2 4` answering `{"changed": 2}` when
+    both photos already had four stars: `rate`, `flag`, `label` and `setCaptured` all counted the *request*, not
+    the write. They now compare against the catalog first, so a repeat answers `0` — which is what "a write
+    reports what it changed" has to mean if a script is to tell a write from a no-op. Pinned by
+    `a_repeat_write_reports_no_change`; the goldens `40`/`41` show `2` then `0`.
+  - Ids take `1` or `1,2,3` in both the JSON and the plain form, so a page of photos is one call and one count.
+  - Gated: `every_write_verb_has_a_json_schema_and_a_stated_contract` checks that every mutating verb answers
+    instead of refusing, that every note is a sentence rather than a placeholder, and that the table marks
+    writes as writes — **proved to bite** by renaming `pack` in the table (it fails naming the verb and quoting
+    the refusal).
 - [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07
 - [ ] Localised numbers/dates (B) — SL-L08
 - [ ] `craft-keymap` editor + import/export (B) — SL-I09

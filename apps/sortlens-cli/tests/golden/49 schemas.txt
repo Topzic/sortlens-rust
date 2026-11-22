@@ -1,0 +1,191 @@
+exit 0
+--- stdout
+[
+  {
+    "command": "library.roots",
+    "kind": "read",
+    "note": "`roots`: an array of `{root, photos}`; more keys may be added to an entry",
+    "verb": "roots"
+  },
+  {
+    "command": "tag.keywords",
+    "kind": "read",
+    "note": "keyword rows with counts; `count` is photos, never edges",
+    "verb": "keywords"
+  },
+  {
+    "command": "library.stats",
+    "kind": "read",
+    "note": "library counters; `total` is every indexed photo, including missing ones",
+    "verb": "stats"
+  },
+  {
+    "command": "library.page",
+    "kind": "read",
+    "note": "a page of photos with the ids that `rate` and `flag` accept; `total` is the filtered total",
+    "verb": "list"
+  },
+  {
+    "command": "library.subfolders",
+    "kind": "read",
+    "note": "subfolders under a root or prefix, with recursive counts",
+    "verb": "folders"
+  },
+  {
+    "command": "library.health",
+    "kind": "read",
+    "note": "missing files and unreadable ones, with the reason the catalog recorded",
+    "verb": "check"
+  },
+  {
+    "command": "edit.moves",
+    "kind": "read",
+    "note": "move receipts, newest last; `count` is files, not bytes",
+    "verb": "moves"
+  },
+  {
+    "command": "library.changed",
+    "kind": "read",
+    "note": "files whose size or modification time disagrees with the catalog",
+    "verb": "changed"
+  },
+  {
+    "command": "library.history",
+    "kind": "read",
+    "note": "recent ops, newest first; the shape of a change is the op that made it",
+    "verb": "history"
+  },
+  {
+    "command": "library.audit",
+    "kind": "read",
+    "note": "the replay audit; `clean` is the verdict, the rest is evidence",
+    "verb": "audit"
+  },
+  {
+    "command": "memories.list",
+    "kind": "read",
+    "note": "resurfacing cards for one day; `--today YYYY-MM-DD` fixes the date, absent means today",
+    "verb": "memories"
+  },
+  {
+    "command": "app.shortcuts",
+    "kind": "read",
+    "note": "bound commands: key, context, label and command id",
+    "verb": "shortcuts"
+  },
+  {
+    "command": "tag.registry",
+    "kind": "read",
+    "note": "keywords, the names they swallowed, and orphaned aliases",
+    "verb": "registry"
+  },
+  {
+    "command": "packs.list",
+    "kind": "read",
+    "note": "keyword packs with their rules and whether each is on",
+    "verb": "packs"
+  },
+  {
+    "command": "library.jobs",
+    "kind": "read",
+    "note": "long-running work with its progress; a finished job keeps its last report",
+    "verb": "jobs"
+  },
+  {
+    "command": "suggest.list",
+    "kind": "read",
+    "note": "proposals for one photo: keyword, source, confidence. Nothing is written until `accept`",
+    "verb": "suggest"
+  },
+  {
+    "command": "photo.rate",
+    "kind": "write",
+    "note": "`changed` is how many photos took the new rating; a photo that already had it is not counted",
+    "verb": "rate"
+  },
+  {
+    "command": "photo.flag",
+    "kind": "write",
+    "note": "`changed` is photos written, and a second identical run reports 0",
+    "verb": "flag"
+  },
+  {
+    "command": "photo.label",
+    "kind": "write",
+    "note": "`changed` is photos written; the request key is `label`, and null clears it",
+    "verb": "label"
+  },
+  {
+    "command": "photo.keyword",
+    "kind": "write",
+    "note": "`changed` is photos that gained the keyword; adding it twice reports 0",
+    "verb": "tag"
+  },
+  {
+    "command": "photo.keyword",
+    "kind": "write",
+    "note": "the same object as `tag` with `add: false`; `changed` is photos that lost it",
+    "verb": "untag"
+  },
+  {
+    "command": "photo.setCaptured",
+    "kind": "write",
+    "note": "`changed` is photos whose capture date moved; the request is a list of `{id, captured}`",
+    "verb": "date"
+  },
+  {
+    "command": "tag.rename",
+    "kind": "write",
+    "note": "`changed` is photos moved to the new name; a merge into an existing keyword counts them too",
+    "verb": "rename"
+  },
+  {
+    "command": "tag.alias",
+    "kind": "write",
+    "note": "`changed` is 1 when the link was stored or forgotten, 0 when it already said that",
+    "verb": "alias"
+  },
+  {
+    "command": "suggest.accept",
+    "kind": "write",
+    "note": "`tagged` is 1 when the keyword was added, 0 when the photo already had it",
+    "verb": "accept"
+  },
+  {
+    "command": "packs.set",
+    "kind": "write",
+    "note": "`changed` is 1 when the switch moved, 0 when the pack was already in that state",
+    "verb": "pack"
+  },
+  {
+    "command": "edit.undo",
+    "kind": "write",
+    "note": "`undone` is whether there was anything to undo; false is not an error",
+    "verb": "undo"
+  },
+  {
+    "command": "library.retryMetadata",
+    "kind": "write",
+    "note": "`updated` and `remaining`; a photo that still has no EXIF is counted in `remaining`",
+    "verb": "retry"
+  },
+  {
+    "command": "library.relocate",
+    "kind": "read",
+    "note": "`relocated` is files whose new location was found; nothing is moved by looking",
+    "verb": "relocate"
+  },
+  {
+    "command": "library.remapRoot",
+    "kind": "write",
+    "note": "`remapped` is photos repointed at the new root after the sample check passed",
+    "verb": "remap"
+  },
+  {
+    "command": "",
+    "kind": "read",
+    "note": "this table: verb, command, kind and note, for a script discovering the contract",
+    "verb": "schemas"
+  }
+]
+--- stderr

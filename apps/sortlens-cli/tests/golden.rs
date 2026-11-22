@@ -236,12 +236,57 @@ const STEPS: &[Step] = &[
     },
     Step {
         name: "39 list as JSON",
-        args: &["--json", "list", "--limit", "2"],
+        args: &["--json", "list", "--limit", "3"],
         file: None,
     },
     Step {
-        name: "40 roots as JSON",
-        args: &["roots", "--json"],
+        name: "40 rate as JSON",
+        args: &["--json", "rate", "1,2", "4"],
+        file: None,
+    },
+    Step {
+        name: "41 rate again as JSON",
+        args: &["--json", "rate", "1,2", "4"],
+        file: None,
+    },
+    Step {
+        name: "42 tag as JSON",
+        args: &["--json", "tag", "1", "golden"],
+        file: None,
+    },
+    Step {
+        name: "43 rename as JSON",
+        args: &["--json", "rename", "golden", "gilded"],
+        file: None,
+    },
+    Step {
+        name: "44 flag as JSON",
+        args: &["--json", "flag", "2", "pick"],
+        file: None,
+    },
+    Step {
+        name: "45 label as JSON",
+        args: &["--json", "label", "2", "red"],
+        file: None,
+    },
+    Step {
+        name: "46 undo as JSON",
+        args: &["--json", "undo"],
+        file: None,
+    },
+    Step {
+        name: "47 untag as JSON",
+        args: &["--json", "untag", "1", "gilded"],
+        file: None,
+    },
+    Step {
+        name: "48 a verb without a schema",
+        args: &["--json", "notacommand"],
+        file: None,
+    },
+    Step {
+        name: "49 schemas",
+        args: &["--json", "schemas"],
         file: None,
     },
     Step {
@@ -259,11 +304,6 @@ const STEPS: &[Step] = &[
     Step {
         name: "43 diagnostics",
         args: &["diagnostics"],
-        file: None,
-    },
-    Step {
-        name: "42 a verb with no schema says so",
-        args: &["undo", "--json"],
         file: None,
     },
 ];
@@ -514,4 +554,56 @@ fn every_published_output_is_unchanged() {
         failures.len(),
         failures.join("")
     );
+}
+
+/// Every mutating CLI verb has a JSON schema, and every schema says something true and specific.
+///
+/// The failure this guards against is silent: a new write verb ships, `--json` falls through to "no schema
+/// yet", and a script that had been parsing text learns about it in production. So the list of mutating verbs
+/// the CLI offers is written down here, and each must have a schema whose note is a sentence rather than a
+/// placeholder.
+#[test]
+fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
+    // The mutating verbs the CLI accepts. A read verb can be added without ceremony; a write one cannot.
+    let write_verbs = [
+        "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap",
+    ];
+    // A throwaway library: the point is which verbs answer, not what they answer.
+    let library = std::env::temp_dir().join(format!("sortlens-cli-schemas-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&library);
+    let mut found = 0;
+    for verb in write_verbs {
+        let output = Command::new(binary())
+            .args(["--json", "--library", &library.display().to_string(), verb])
+            .output()
+            .expect("run");
+        let text = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !text.contains("has no JSON schema yet"),
+            "{verb} writes to the library but has no JSON schema: {text}"
+        );
+        found += 1;
+    }
+    assert_eq!(found, 13, "the list above is the list: no verb was skipped by accident");
+    let _ = fs::remove_dir_all(&library);
+
+    // And the table itself is public, machine-readable, and honest about which verbs write.
+    let output = Command::new(binary())
+        .args(["--json", "--library", &library.display().to_string(), "schemas"])
+        .output()
+        .expect("run");
+    let table: serde_json::Value = serde_json::from_slice(&output.stdout).expect("the table is JSON");
+    let rows = table.as_array().expect("an array of schemas");
+    assert!(rows.len() >= 30, "every schema is listed, got {}", rows.len());
+    for row in rows {
+        let verb = row["verb"].as_str().expect("a verb");
+        let note = row["note"].as_str().expect("a note");
+        let kind = row["kind"].as_str().expect("a kind");
+        assert!(kind == "read" || kind == "write", "{verb}: kind is {kind}");
+        assert!(note.len() >= 30, "{verb}: the note is a placeholder, not a contract: {note}");
+        if write_verbs.contains(&verb) {
+            assert_eq!(kind, "write", "{verb} writes but the table calls it a read");
+            assert!(!row["command"].as_str().unwrap_or_default().is_empty(), "{verb}: no command");
+        }
+    }
 }

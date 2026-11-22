@@ -1,4 +1,0 @@
-exit 1
---- stdout
---- stderr
-sortlens-cli: undo has no JSON schema yet; --json works for: roots, keywords, stats, list, folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs, jobs
