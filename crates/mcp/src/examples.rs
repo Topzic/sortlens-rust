@@ -309,6 +309,16 @@ pub const EXAMPLES: &[Example] = &[
         note: "Counts the library on a worker; poll insights.progress.",
     },
     Example {
+        command: "photo.sharpness",
+        args: "{}",
+        note: "Measures every photo that has no score from the current algorithm; poll photo.sharpnessProgress.",
+    },
+    Example {
+        command: "photo.sharpnessProgress",
+        args: "{}",
+        note: "How far the sharpness pass has come, and how many frames could not be judged (left unscored).",
+    },
+    Example {
         command: "insights.progress",
         args: "{}",
         note: "How far the count has come.",

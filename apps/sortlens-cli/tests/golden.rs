@@ -290,6 +290,16 @@ const STEPS: &[Step] = &[
         file: None,
     },
     Step {
+        name: "50 sharpen",
+        args: &["sharpen"],
+        file: None,
+    },
+    Step {
+        name: "51 sharpen again",
+        args: &["sharpen"],
+        file: None,
+    },
+    Step {
         name: "41 keywords as JSON",
         args: &["keywords", "--json"],
         file: None,
@@ -568,6 +578,10 @@ fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
     let write_verbs = [
         "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap", "mark",
     ];
+    // Writes that are passes rather than single changes: each starts a job, reports progress and can be cancelled, so
+    // there is no single object for `--json` to return. They are named here — and required to *refuse* `--json` — so
+    // that "no schema" stays a decision someone made instead of an omission nobody noticed.
+    let progress_verbs = ["export", "sharpen"];
     // A throwaway library: the point is which verbs answer, not what they answer.
     let library = std::env::temp_dir().join(format!("sortlens-cli-schemas-{}", std::process::id()));
     let _ = fs::remove_dir_all(&library);
@@ -585,6 +599,18 @@ fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
         found += 1;
     }
     assert_eq!(found, 14, "the list above is the list: no verb was skipped by accident");
+    for verb in progress_verbs {
+        let output = Command::new(binary())
+            .args(["--json", "--library", &library.display().to_string(), verb])
+            .output()
+            .expect("run");
+        let text = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            text.contains("has no JSON schema yet"),
+            "{verb} is a progress verb, so --json must refuse it and say why: {text}"
+        );
+        assert!(!output.status.success(), "{verb} must not exit 0 after refusing --json");
+    }
     let _ = fs::remove_dir_all(&library);
 
     // And the table itself is public, machine-readable, and honest about which verbs write.

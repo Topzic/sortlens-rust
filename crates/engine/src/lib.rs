@@ -90,6 +90,34 @@ struct PendingBatch {
     cancel: Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// A sharpness pass in flight.
+///
+/// A score is a self-contained statement about one photograph, so a cancelled pass still commits what it measured —
+/// unlike a cancelled scan, which commits nothing because a half-scanned folder would leave the catalog describing
+/// a disk that is not there.
+struct PendingSharpness {
+    job: u64,
+    rx: Receiver<Vec<(PhotoId, sortlens_quality::Score)>>,
+    total: usize,
+    done: Arc<std::sync::atomic::AtomicUsize>,
+    unjudged: Arc<std::sync::atomic::AtomicUsize>,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// What a finished sharpness pass measured.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SharpnessReport {
+    /// Photos whose pixels could be measured, and whose score was stored (or already matched).
+    pub measured: usize,
+    /// Photos that were measured but could not be judged — too dark, or a file this build cannot decode.
+    ///
+    /// They are reported rather than scored: a near-black frame has no detail to measure, and calling it sharp or
+    /// blurry on the strength of its noise would be a wrong answer rather than a missing one.
+    pub unjudged: usize,
+    /// Photos the pass did not get to, because it was cancelled.
+    pub remaining: usize,
+}
+
 struct PendingHash {
     job: u64,
     rx: Receiver<Vec<SimilarMember>>,
@@ -146,6 +174,7 @@ pub struct Engine {
     pending_export: Option<PendingExport>,
     last_export: Option<sortlens_export::Report>,
     pending_hash: Option<PendingHash>,
+    pending_sharpness: Option<PendingSharpness>,
     hashes: std::collections::HashMap<u64, (sortlens_hash::Hash, sortlens_hash::Colour)>,
     pending_insights: Option<PendingInsights>,
     pending_batch: Option<PendingBatch>,
@@ -183,6 +212,7 @@ impl Engine {
             pending_export: None,
             last_export: None,
             pending_hash: None,
+            pending_sharpness: None,
             hashes: std::collections::HashMap::new(),
             pending_insights: None,
             pending_batch: None,
@@ -1954,6 +1984,147 @@ impl Engine {
     ///
     /// Returns the number of photos that still need a hash: zero means the groups are already
     /// up to date and no job was started.
+    /// Measure sharpness across the library, on a worker.
+    ///
+    /// Only photos that need it are queued: a photo with no score, a photo whose score came from another
+    /// `SCORE_VERSION`, or a photo whose stored score is not a number. That predicate lives in `sortlens-quality`, so
+    /// bumping the version re-measures the library instead of mixing two scales in one sort — and re-running a scan
+    /// over an unchanged library queues nothing and writes nothing.
+    ///
+    /// Returns how many photos the pass will look at.
+    pub fn begin_sharpness(&mut self) -> Result<usize> {
+        if self.catalog.is_none() {
+            return Err(Error::Invalid("no library is open".into()));
+        }
+        if self.pending_sharpness.is_some() {
+            return Err(Error::Invalid("a sharpness pass is already running".into()));
+        }
+        let mut todo: Vec<(PhotoId, String)> = Vec::new();
+        for photo in self.all_photos() {
+            if photo.missing || !sortlens_quality::needs_rescore(photo.sharpness.as_ref()) {
+                continue;
+            }
+            todo.push((photo.id, photo.path()));
+        }
+        if todo.is_empty() {
+            return Ok(0);
+        }
+
+        let (tx, rx) = channel();
+        let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let unjudged = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let worker_done = Arc::clone(&done);
+        let worker_unjudged = Arc::clone(&unjudged);
+        let worker_cancel = Arc::clone(&cancel);
+        let total = todo.len();
+        std::thread::Builder::new()
+            .name("sortlens-sharpness".into())
+            .spawn(move || {
+                let mut measured = Vec::with_capacity(todo.len());
+                for (id, path) in todo {
+                    if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
+                    let score = sortlens_thumbs::decode_file(std::path::Path::new(&path), sortlens_thumbs::LARGE)
+                        .ok()
+                        .and_then(|thumbnail| sortlens_quality::sharpness(&thumbnail.rgba, thumbnail.width, thumbnail.height));
+                    match score {
+                        Some(score) => measured.push((id, score)),
+                        // A file this build cannot decode, or a frame too dark to judge: counted, never scored.
+                        None => {
+                            worker_unjudged.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    }
+                    worker_done.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                let _ = tx.send(measured);
+            })
+            .map_err(|error| Error::Invalid(format!("could not start the sharpness worker: {error}")))?;
+
+        let job = self.start_job(JobKind::Sharpness, format!("{total} photos"));
+        self.pending_sharpness = Some(PendingSharpness {
+            job,
+            rx,
+            total,
+            done,
+            unjudged,
+            cancel,
+        });
+        Ok(total)
+    }
+
+    /// How far a running sharpness pass has come: how many photos it has looked at, and how many it will look at.
+    pub fn sharpness_progress(&self) -> Option<(usize, usize)> {
+        self.pending_sharpness
+            .as_ref()
+            .map(|pending| (pending.done.load(std::sync::atomic::Ordering::Relaxed), pending.total))
+    }
+
+    /// Stop the running sharpness pass. What it already measured is still committed, because each score is true on
+    /// its own; only the photographs it never reached stay unmeasured.
+    pub fn cancel_sharpness(&mut self) {
+        if let Some(pending) = &self.pending_sharpness {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Collect a finished sharpness pass, storing every score as one undoable op.
+    pub fn poll_sharpness(&mut self) -> Option<SharpnessReport> {
+        let pending = self.pending_sharpness.as_ref()?;
+        let measured = match pending.rx.try_recv() {
+            Ok(measured) => measured,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                let job = self.pending_sharpness.take().map(|pending| pending.job);
+                if let Some(job) = job {
+                    self.finish_job(job, JobStatus::Failed, 0, 0, 0, Some("the pass ended early".into()));
+                }
+                return None;
+            }
+        };
+        let pending = self.pending_sharpness.take()?;
+        let unjudged = pending.unjudged.load(std::sync::atomic::Ordering::Relaxed);
+        let looked_at = pending.done.load(std::sync::atomic::Ordering::Relaxed);
+        let remaining = pending.total.saturating_sub(looked_at);
+        let stored = match self.catalog.as_mut() {
+            Some(catalog) => catalog.set_scores(&measured).unwrap_or(0),
+            None => 0,
+        };
+        if remaining > 0 {
+            let message = format!("cancelled after {looked_at} of {} photos", pending.total);
+            self.finish_job(pending.job, JobStatus::Cancelled, looked_at, 0, unjudged, Some(message));
+        } else {
+            self.finish_job(pending.job, JobStatus::Done, looked_at, 0, unjudged, None);
+        }
+        Some(SharpnessReport {
+            measured: stored,
+            unjudged,
+            remaining,
+        })
+    }
+
+    /// A photo's stored sharpness, if it has been measured with the current algorithm.
+    pub fn sharpness(&self, id: PhotoId) -> Option<sortlens_quality::Score> {
+        self.catalog.as_ref()?.sharpness(id)
+    }
+
+    /// Store measured scores directly. Used by the CLI and by tests; the window goes through the worker.
+    pub fn set_scores(&mut self, measured: &[(PhotoId, sortlens_quality::Score)]) -> Result<usize> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .set_scores(measured)
+    }
+
+    /// Forget every stored score, as one undoable op.
+    pub fn clear_scores(&mut self) -> Result<usize> {
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .clear_scores()
+    }
+
     pub fn begin_similar(&mut self, threshold: u32) -> Result<usize> {
         if self.catalog.is_none() {
             return Err(Error::Invalid("no library is open".into()));
@@ -3066,6 +3237,18 @@ impl Engine {
                     .collect();
                 Ok(json!({ "moves": receipts }))
             }
+            "photo.sharpness" => Ok(json!({ "queued": self.begin_sharpness()? })),
+            "photo.sharpnessProgress" => {
+                let progress = self.sharpness_progress();
+                let report = self.poll_sharpness();
+                Ok(json!({
+                    "running": progress.is_some(),
+                    "done": progress.map(|(done, _)| done).unwrap_or(0),
+                    "total": progress.map(|(_, total)| total).unwrap_or(0),
+                    "measured": report.map(|report| report.measured),
+                    "unjudged": report.map(|report| report.unjudged),
+                }))
+            }
             "insights.start" => Ok(json!({ "queued": self.begin_insights()? })),
             "insights.progress" => {
                 let progress = self.insights_progress();
@@ -3666,6 +3849,89 @@ mod tests {
         panic!("scan did not finish");
     }
 
+    /// Walk the sharpness pass to its end.
+    fn wait_for_sharpness(engine: &mut Engine) -> SharpnessReport {
+        for _ in 0..600 {
+            if let Some(report) = engine.poll_sharpness() {
+                return report;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("the sharpness pass did not finish");
+    }
+
+    /// Measuring the library stores one score per photo, as a single undoable change.
+    #[test]
+    fn measuring_the_library_scores_every_photo_in_one_undoable_step() {
+        let (_cache, _photos, mut engine) = library_with_images("sharpness", 3);
+        let ids: Vec<PhotoId> = engine.all_photos().into_iter().map(|photo| photo.id).collect();
+        assert_eq!(ids.len(), 3);
+        assert!(ids.iter().all(|id| engine.sharpness(*id).is_none()), "nothing measured yet");
+
+        assert_eq!(engine.begin_sharpness().expect("begin"), 3, "three photos to measure");
+        let report = wait_for_sharpness(&mut engine);
+        assert_eq!(report.measured, 3);
+        assert_eq!(report.unjudged, 0, "flat colour JPEGs are measurable");
+        assert_eq!(report.remaining, 0);
+        for id in &ids {
+            let score = engine.sharpness(*id).expect("a score");
+            assert_eq!(score.version, sortlens_quality::SCORE_VERSION);
+            assert!(score.value.is_finite() && score.value >= 0.0);
+        }
+
+        // A second pass over an unchanged library has nothing to do and writes nothing.
+        assert_eq!(engine.begin_sharpness().expect("again"), 0, "everything is current");
+
+        // One undo takes back the whole measurement, not one photo of it.
+        assert!(engine.undo().expect("undo"));
+        assert!(ids.iter().all(|id| engine.sharpness(*id).is_none()), "the whole pass undid");
+        assert_eq!(engine.all_photos().len(), 3, "the photos are still there");
+    }
+
+    /// An older algorithm's score is re-measured rather than compared with today's.
+    #[test]
+    fn a_score_from_another_version_is_queued_again() {
+        let (_cache, _photos, mut engine) = library_with_images("sharpness-version", 1);
+        let id = engine.all_photos().first().map(|photo| photo.id).expect("a photo");
+        engine
+            .set_scores(&[(id, sortlens_quality::Score { value: 9.0, version: 0 })])
+            .expect("store an old score");
+        assert_eq!(engine.begin_sharpness().expect("begin"), 1, "the old score is not comparable");
+        let report = wait_for_sharpness(&mut engine);
+        assert_eq!(report.measured, 1);
+        assert_eq!(
+            engine.sharpness(id).map(|score| score.version),
+            Some(sortlens_quality::SCORE_VERSION)
+        );
+    }
+
+    /// A file that cannot be decoded is counted as unjudged, never stored as a score — "cannot tell" is not
+    /// "blurry", and it is certainly not "sharp".
+    #[test]
+    fn a_file_that_cannot_be_decoded_is_counted_rather_than_scored() {
+        let (cache, photos, mut engine) = library_with_images("sharpness-unjudged", 1);
+        // A file with a .jpg name and no image inside it: the scan indexes it by extension, the decoder refuses it.
+        std::fs::write(photos.0.join("broken.jpg"), b"not an image").expect("write");
+        engine.begin_scan(photos.0.to_string_lossy().to_string()).expect("rescan");
+        wait_for_scan(&mut engine);
+        let _ = cache;
+
+        let report = {
+            engine.begin_sharpness().expect("begin");
+            wait_for_sharpness(&mut engine)
+        };
+        assert_eq!(report.measured, 1, "the real photo was measured");
+        assert_eq!(report.unjudged, 1, "the broken file was counted, not scored");
+        assert_eq!(report.remaining, 0);
+        let broken = engine
+            .all_photos()
+            .into_iter()
+            .find(|photo| photo.rel == "broken.jpg")
+            .map(|photo| photo.id)
+            .expect("the broken file is indexed");
+        assert_eq!(engine.sharpness(broken), None, "an undecodable file has no score");
+    }
+
     /// A folder's pin and colour survive a restart, undo as one change, and never become two marks for one folder
     /// spelled two ways.
     #[test]
@@ -3896,6 +4162,7 @@ mod tests {
             tags: tags.iter().map(|tag| tag.to_string()).collect(),
             edited: false,
             retry: false,
+            sharpness: None,
         };
         photo.tags.sort_unstable();
         photo

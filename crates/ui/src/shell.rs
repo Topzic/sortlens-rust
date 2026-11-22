@@ -6192,6 +6192,7 @@ mod tests {
             tags: Vec::new(),
             edited: false,
             retry: false,
+            sharpness: None,
         };
         assert_eq!(cell_badge(&photo, None), None, "a decoded cell needs no badge");
         assert_eq!(cell_badge(&photo, Some("bad jpeg")), Some(CellBadge::Unreadable));
@@ -6242,6 +6243,7 @@ mod tests {
             tags: Vec::new(),
             edited: false,
             retry: false,
+            sharpness: None,
         };
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -6683,6 +6685,7 @@ mod tests {
             tags: Vec::new(),
             edited: false,
             retry: false,
+            sharpness: None,
         };
         let present = photo(false);
         let gone = photo(true);

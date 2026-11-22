@@ -361,6 +361,7 @@ fn photo_with_exif(id: sortlens_core::PhotoId, index: usize) -> sortlens_engine:
         tags: Vec::new(),
         edited: false,
         retry: false,
+        sharpness: None,
     }
 }
 

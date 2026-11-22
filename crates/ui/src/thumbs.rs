@@ -278,6 +278,7 @@ mod tests {
             tags: Vec::new(),
             edited: false,
             retry: false,
+            sharpness: None,
         }
     }
 }

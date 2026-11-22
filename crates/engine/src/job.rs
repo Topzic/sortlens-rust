@@ -22,6 +22,8 @@ pub enum JobKind {
     Insights,
     /// Proposing keywords for the whole library.
     Suggest,
+    /// Measuring how much fine detail each photograph has.
+    Sharpness,
 }
 
 impl JobKind {
@@ -35,6 +37,7 @@ impl JobKind {
             Self::Hash => "Similar",
             Self::Insights => "Insights",
             Self::Suggest => "Suggestions",
+            Self::Sharpness => "Sharpness",
         }
     }
 }

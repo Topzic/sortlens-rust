@@ -70,6 +70,14 @@ pub enum Op {
     /// would then be the only place that knows the other one's value. An empty mark removes the entry, so a
     /// folder with nothing set costs no space in the snapshot.
     SetFolderMark { key: String, mark: crate::folder::FolderMark },
+    /// Sharpness scores were measured. `None` clears a score, which is how a re-measure at a new `SCORE_VERSION`
+    /// and a clear-out both travel through the log.
+    ///
+    /// The whole batch is one op, so measuring a library is one undo step rather than one per photograph — the same
+    /// reason a cull batch is a `Group`. It also keeps the log small: a 5 000-photo scan is a single entry.
+    Scores {
+        changes: Vec<(PhotoId, Option<sortlens_quality::Score>)>,
+    },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -102,6 +110,7 @@ impl Op {
             Self::SetCollectionSearch { .. } => "setCollectionSearch",
             Self::SetPack { .. } => "setPack",
             Self::SetFolderMark { .. } => "setFolderMark",
+            Self::Scores { .. } => "scores",
             Self::Group { .. } => "group",
         }
     }
@@ -129,6 +138,7 @@ impl Op {
             | Self::SetFolderMark { .. }
             | Self::SetPack { .. } => false,
             Self::Rate { changes } => changes.is_empty(),
+            Self::Scores { changes } => changes.is_empty(),
             Self::Flag { changes } => changes.is_empty(),
             Self::Captured { changes } => changes.is_empty(),
             Self::Label { changes } => changes.is_empty(),
@@ -147,6 +157,7 @@ impl Op {
             Self::AddPhoto { .. } | Self::RemovePhoto { .. } => 1,
             Self::Missing { .. } => 1,
             Self::Rate { changes } => changes.len(),
+            Self::Scores { changes } => changes.len(),
             Self::Flag { changes } => changes.len(),
             Self::Label { changes } => changes.len(),
             Self::Captured { changes } => changes.len(),
@@ -203,6 +214,10 @@ impl Op {
             Self::SetCollectionSearch { .. } => "Changed a collection's search".to_string(),
             Self::SetPack { name, on: true } => format!("Switched on the “{name}” keyword pack"),
             Self::SetPack { name, on: false } => format!("Switched off the “{name}” keyword pack"),
+            Self::Scores { changes } => match changes.len() {
+                1 => "Measured the sharpness of 1 photo".to_string(),
+                count => format!("Measured the sharpness of {count} photos"),
+            },
             Self::SetFolderMark { key, mark } => match (mark.favourite, mark.colour) {
                 (true, Some(colour)) => format!("Pinned {key} and set it to {colour:?}"),
                 (true, None) => format!("Pinned {key}"),

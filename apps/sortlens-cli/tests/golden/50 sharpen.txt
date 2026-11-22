@@ -1,0 +1,5 @@
+exit 0
+--- stdout
+measuring 6 photo(s)…
+stored 6 score(s)
+--- stderr

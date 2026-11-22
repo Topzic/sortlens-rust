@@ -381,6 +381,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "photo.sharpness",
+                    label: "Measure Sharpness",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Measure Sharpness",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "photo.sharpnessProgress",
+                    label: "Sharpness Progress",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Sharpness Progress",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "insights.start",
                     label: "Count the Library",
                     group: Group::View,

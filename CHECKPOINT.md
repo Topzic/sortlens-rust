@@ -2035,9 +2035,38 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand**: none of it is reachable from the UI yet — the scan job is part 2, so there is no
   screen to look at and no threshold to judge. The threshold deliberately does not live in this crate.
 
+## 2026-11-22 (ninth) — blur scan part 2: scores stored, as one undoable pass
+
+- `Op::Scores { changes }` carries a whole measurement batch, so a 5 000-photo pass is **one log entry and one ⌘Z**,
+  and its inverse is the previous scores — a re-measure at a new `SCORE_VERSION` undoes back to the old numbers.
+- **The score lives on the `Photo` record, and the test found why that matters.** A scan that replaces a record
+  because the bytes changed used to clone the previous one and keep every annotation; with `sharpness` on the record
+  that meant a changed file kept a score about pixels that were gone. Stars survive a re-encode; a sharpness score
+  does not, because it is a statement about pixels, so the update path now clears it. The first version of the test
+  asserted exactly this and failed, which is the point of writing it before believing the design.
+- `Engine::begin_sharpness` queues only what `sortlens_quality::needs_rescore` says needs it (never measured, another
+  version, or not a number), decodes at `LARGE` on a worker, and `poll_sharpness` reports
+  `{ measured, unjudged, remaining }`. **`unjudged` is first-class**: an undecodable file and a near-black frame are
+  counted and left unscored, never stored as a number. `at_least_one_measurement_survived_the_undo_above` and
+  `a_file_that_cannot_be_decoded_is_counted_rather_than_scored` pin the two halves of that.
+- A cancelled pass still commits what it measured, because each score is true on its own — unlike a cancelled scan,
+  which commits nothing because a half-scanned folder describes a disk that is not there. Recorded in the struct doc.
+- `photo.sharpness` / `photo.sharpnessProgress` in the registry, MCP examples, and a CLI `sharpen` pass (goldens 50/51:
+  six scores stored, then "every photo has a current score").
+- **`sharpen` deliberately has no `--json` schema, like `export`, and the gate now proves it refuses.** The first
+  version *did* have a schema, and the golden exposed the bug: `--json` routes to a single `engine.run` call, so it
+  answered `{"queued":6}` and stored nothing. A pass has no single object to return, so it is a named progress verb,
+  and `every_write_verb_has_a_json_schema_and_a_stated_contract` now requires each named progress verb to refuse.
+- The complexity gate fired on `Catalog::apply` at 31/30 and the arm became `apply_scores` — split because the gate
+  said so, not silenced.
+- 529 tests; ci (exit 0), wasm, deny, snapshot, docs, layers, roots, attribution green.
+- **Not verified by hand, and not reachable from the window yet**: the UI does not start the pass or show a score.
+  That is part 3, and there is nothing to look at until it exists.
+
 ## Next
 
-Blur scan part 2: store `Score` beside the photo in the op log (an `Op` so it survives a rescan and undoes like
-everything else), walk the catalog measuring at `LARGE`, then a review surface — a threshold picked against a real
-library, a histogram, and batch select of what falls below it. The crate's `needs_rescore` is the predicate the
-scan uses, so bumping `SCORE_VERSION` re-measures the library rather than mixing two scales.
+Blur scan part 3 — the review surface: a histogram of stored scores, a threshold chosen against a real library
+rather than a guess, batch select of everything below it, and the menu item that starts the pass. The crate has no
+threshold on purpose: a cut-off belongs to the scan that proposes it. Everything the surface needs is now in place
+(`Engine::sharpness`, `begin_sharpness`, `poll_sharpness`, `SharpnessReport`), so this is UI-only work with a
+headless paint test.

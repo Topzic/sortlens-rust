@@ -33,6 +33,7 @@ Commands:
   packs                     keyword packs found in the library
   pack <name> on|off        switch a pack on or off
   batchsuggest             propose keywords for the whole library (writes nothing)
+  sharpen                  measure how sharp every photo is; unscored photos only
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
   mcp                       serve the command registry over MCP on stdio, then exit
@@ -111,6 +112,38 @@ fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(),
 }
 
 /// Propose keywords for the whole library. Prints the proposals; writes none of them.
+/// Measure sharpness for every photo that has no current score, and say what could not be judged.
+///
+/// A progress verb, like `export`: it starts a pass, waits for it and reports counts, and it deliberately has no
+/// `--json` schema, because a job with progress and a cancel is not one object and dressing it as one would hide
+/// the cancel. `--json sharpen` refuses and says so.
+fn sharpen(engine: &mut Engine) -> Result<(), String> {
+    let queued = engine.begin_sharpness().map_err(|error| error.to_string())?;
+    if queued == 0 {
+        println!("every photo has a current score");
+        return Ok(());
+    }
+    println!("measuring {queued} photo(s)…");
+    let mut report = None;
+    for _ in 0..12_000 {
+        if let Some(done) = engine.poll_sharpness() {
+            report = Some(done);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let Some(report) = report else {
+        return Err("the sharpness pass did not finish".into());
+    };
+    println!("stored {} score(s)", report.measured);
+    if report.unjudged > 0 {
+        // Named rather than hidden: an unjudged frame is not a blurry one, and the count is how you notice that a
+        // folder of night shots was skipped instead of measured.
+        println!("{} photo(s) could not be judged and were left unscored", report.unjudged);
+    }
+    Ok(())
+}
+
 fn batch_suggest(engine: &mut Engine) -> Result<(), String> {
     let planned = engine.begin_batch_suggest().map_err(|error| error.to_string())?;
     println!("looking at {planned} photo(s)…");
@@ -901,6 +934,7 @@ fn run() -> Result<(), String> {
         "suggest" | "accept" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
         "batchsuggest" => batch_suggest(&mut engine),
+        "sharpen" => sharpen(&mut engine),
         "diagnostics" => {
             let text = engine.diagnostics().map_err(|error| error.to_string())?;
             match text_value(rest, "--out") {

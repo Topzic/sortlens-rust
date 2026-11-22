@@ -84,6 +84,14 @@ pub struct Photo {
     /// The metadata read failed when this photo was indexed, so it is queued for a retry.
     #[serde(default)]
     pub retry: bool,
+    /// How much fine detail the pixels have, and which algorithm measured it.
+    ///
+    /// Stored on the photo rather than in a side map because a score belongs to *this file*: a scan that replaces
+    /// the record because the file changed drops the score with it, which is right — the pixels changed, so the old
+    /// measurement is about a photograph that is no longer there. `None` means it has never been judged, which is
+    /// not the same as "blurry" and must never be shown as if it were.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sharpness: Option<sortlens_quality::Score>,
 }
 
 /// A duration in milliseconds as `0:12` or `1:02:03`.
@@ -132,6 +140,7 @@ impl Photo {
             retry: false,
             tags: Vec::new(),
             edited: false,
+            sharpness: None,
         }
     }
 

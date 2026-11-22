@@ -638,6 +638,50 @@ impl Catalog {
         &self.folders
     }
 
+    /// Record measured sharpness for a batch, as one undoable op.
+    ///
+    /// Only what actually changed is written: a photo already carrying a score from the same algorithm is left
+    /// alone, so re-running a scan over an unchanged library is not a write and does not spend the undo level.
+    /// Returns how many photos were changed.
+    pub fn set_scores(&mut self, measured: &[(PhotoId, sortlens_quality::Score)]) -> Result<usize> {
+        let mut changes = Vec::new();
+        for (id, score) in measured {
+            let photo = self.photos.get(id).ok_or(Error::NoSuchPhoto(*id))?;
+            if photo.sharpness.as_ref().is_some_and(|stored| stored == score) {
+                continue;
+            }
+            changes.push((*id, Some(*score)));
+        }
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        let changed = changes.len();
+        self.commit(Op::Scores { changes })?;
+        Ok(changed)
+    }
+
+    /// Forget every score, as one undoable op. Used when the algorithm changes and the old numbers must not be
+    /// compared with the new ones — see `sortlens_quality::SCORE_VERSION`.
+    pub fn clear_scores(&mut self) -> Result<usize> {
+        let changes: Vec<(PhotoId, Option<sortlens_quality::Score>)> = self
+            .photos
+            .values()
+            .filter(|photo| photo.sharpness.is_some())
+            .map(|photo| (photo.id, None))
+            .collect();
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        let changed = changes.len();
+        self.commit(Op::Scores { changes })?;
+        Ok(changed)
+    }
+
+    /// A photo's stored sharpness, if it has ever been measured.
+    pub fn sharpness(&self, id: PhotoId) -> Option<sortlens_quality::Score> {
+        self.photos.get(&id).and_then(|photo| photo.sharpness)
+    }
+
     /// The keyword packs this library has switched on.
     pub fn enabled_packs(&self) -> &BTreeSet<String> {
         &self.packs
@@ -800,6 +844,20 @@ impl Catalog {
     /// The inverse is the whole previous mark, or its absence — which is why the op records the whole mark rather
     /// than the field that moved. An empty mark *removes* the entry, so replaying a clear leaves the map exactly
     /// as applying it did.
+    /// Apply a batch of scores, returning the previous values so the whole batch undoes as one step.
+    ///
+    /// Split out of [`Catalog::apply`] because the complexity gate said so, not to silence it: the match arm was one
+    /// case too many for one function to hold clearly.
+    fn apply_scores(&mut self, changes: &[(PhotoId, Option<sortlens_quality::Score>)]) -> Result<Op> {
+        let mut previous = Vec::with_capacity(changes.len());
+        for (id, score) in changes {
+            let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+            previous.push((*id, photo.sharpness));
+            photo.sharpness = *score;
+        }
+        Ok(Op::Scores { changes: previous })
+    }
+
     fn apply_folder_mark(&mut self, key: &str, mark: crate::folder::FolderMark) -> Result<Op> {
         if key.is_empty() {
             return Err(Error::Invalid("a folder mark needs a path".into()));
@@ -1038,6 +1096,7 @@ impl Catalog {
                 collection.sort = sort.clone();
                 Ok(Op::SetCollectionSort { id: *id, sort: previous })
             }
+            Op::Scores { changes } => self.apply_scores(changes),
             Op::SetFolderMark { key, mark } => self.apply_folder_mark(key, mark.clone()),
             Op::SetPack { name, on } => {
                 let previous = self.packs.contains(name);
@@ -1206,6 +1265,10 @@ impl Catalog {
                     updated.apply_meta(&seed.meta);
                     updated.edited = seed.edited;
                     updated.retry = seed.meta_unreadable;
+                    // The bytes on disk changed, so a measurement of the old ones describes a photograph that is
+                    // no longer there. Annotations like stars survive a re-encode; a sharpness score does not,
+                    // because it is a statement about pixels.
+                    updated.sharpness = None;
                     self.commit(Op::AddPhoto { photo: Box::new(updated) })?;
                     outcome.updated += 1;
                 }
@@ -1418,8 +1481,9 @@ mod tests {
     use super::*;
     use crate::query::{Filter, TagMode};
     use sortlens_core::ColorLabel;
+    use sortlens_quality::Score;
 
-    struct TempCatalog(PathBuf);
+    pub struct TempCatalog(PathBuf);
 
     impl TempCatalog {
         fn new(name: &str) -> Self {
@@ -2482,5 +2546,157 @@ mod tests {
         assert_eq!(catalog.remove_root("/photos").expect("remove"), 1);
         assert_eq!(catalog.len(), 1);
         assert_eq!(catalog.roots(), &["/other".to_string()]);
+    }
+
+    fn score(value: f32) -> Score {
+        Score {
+            value,
+            version: sortlens_quality::SCORE_VERSION,
+        }
+    }
+
+    /// A temp library with two photos, and their ids in scan order.
+    fn two_photos(name: &str) -> (TempCatalog, Catalog, PhotoId, PhotoId) {
+        let temp = TempCatalog::new(name);
+        let (mut catalog, _) = temp.open();
+        catalog
+            .sync_root(
+                "/p",
+                vec![
+                    Seed {
+                        rel: "a.jpg".into(),
+                        size: 10,
+                        modified: Some(5),
+                        kind: MediaKind::Image,
+                        key: 1,
+                        meta: Default::default(),
+                        review: None,
+                        edited: false,
+                        meta_unreadable: false,
+                    },
+                    Seed {
+                        rel: "b.jpg".into(),
+                        size: 11,
+                        modified: Some(6),
+                        kind: MediaKind::Image,
+                        key: 2,
+                        meta: Default::default(),
+                        review: None,
+                        edited: false,
+                        meta_unreadable: false,
+                    },
+                ],
+            )
+            .expect("sync");
+        let ids: Vec<PhotoId> = catalog.photos().map(|photo| photo.id).collect();
+        assert_eq!(ids.len(), 2, "two photos were indexed");
+        (temp, catalog, ids[0], ids[1])
+    }
+
+    #[test]
+    fn a_measured_batch_is_one_undo_step() {
+        let (_temp, mut catalog, first, second) = two_photos("score-undo");
+        let changed = catalog.set_scores(&[(first, score(1.5)), (second, score(0.25))]).expect("set");
+        assert_eq!(changed, 2, "both photos were measured");
+        assert_eq!(catalog.sharpness(first).map(|s| s.value), Some(1.5));
+        assert_eq!(catalog.sharpness(second).map(|s| s.value), Some(0.25));
+
+        // One undo takes both back: a scan is one step, not one step per photograph. It must not reach past itself
+        // either — undoing again would take back the scan that added the photos, which is a different thing.
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(catalog.sharpness(first), None);
+        assert_eq!(catalog.sharpness(second), None);
+        assert_eq!(catalog.photos().count(), 2, "the photos are still indexed");
+    }
+
+    #[test]
+    fn a_re_measure_that_changes_nothing_is_not_a_write() {
+        let (_temp, mut catalog, first, _) = two_photos("score-noop");
+        assert_eq!(catalog.set_scores(&[(first, score(2.0))]).expect("set"), 1);
+        assert_eq!(
+            catalog.set_scores(&[(first, score(2.0))]).expect("again"),
+            0,
+            "the same score is not a change"
+        );
+        // A different version is a different score, even at the same value: it is not comparable with the old one.
+        let newer = Score {
+            value: 2.0,
+            version: sortlens_quality::SCORE_VERSION + 1,
+        };
+        assert_eq!(catalog.set_scores(&[(first, newer)]).expect("new version"), 1);
+        assert_eq!(catalog.sharpness(first), Some(newer));
+    }
+
+    #[test]
+    fn clearing_scores_is_one_undoable_op() {
+        let (_temp, mut catalog, first, second) = two_photos("score-clear");
+        catalog.set_scores(&[(first, score(1.0)), (second, score(2.0))]).expect("set");
+        assert_eq!(catalog.clear_scores().expect("clear"), 2);
+        assert!(catalog.sharpness(first).is_none());
+        assert!(catalog.sharpness(second).is_none());
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(
+            catalog.sharpness(first).map(|s| s.value),
+            Some(1.0),
+            "the clearing undoes as one step"
+        );
+        assert_eq!(catalog.sharpness(second).map(|s| s.value), Some(2.0));
+    }
+
+    #[test]
+    fn a_replaced_record_drops_a_score_about_pixels_that_are_gone() {
+        let (_temp, mut catalog, first, _) = two_photos("score-replace");
+        catalog.set_scores(&[(first, score(3.0))]).expect("set");
+        // The file changed on disk, so the scan replaces the record: the score described the old bytes.
+        let rel = catalog.photo(first).map(|photo| photo.rel.clone()).expect("photo");
+        catalog
+            .sync_root(
+                "/p",
+                vec![Seed {
+                    rel,
+                    size: 999,
+                    modified: Some(900),
+                    kind: MediaKind::Image,
+                    key: 77,
+                    meta: Default::default(),
+                    review: None,
+                    edited: false,
+                    meta_unreadable: false,
+                }],
+            )
+            .expect("resync");
+        assert_eq!(catalog.sharpness(first), None, "a changed file has not been measured");
+        assert_eq!(catalog.photos().count(), 2, "resync did not delete the other photo");
+    }
+
+    #[test]
+    fn a_score_survives_a_snapshot() {
+        let temp = TempCatalog::new("score-snapshot");
+        let id;
+        {
+            let (mut catalog, _) = temp.open();
+            catalog
+                .sync_root(
+                    "/p",
+                    vec![Seed {
+                        rel: "a.jpg".into(),
+                        size: 10,
+                        modified: Some(5),
+                        kind: MediaKind::Image,
+                        key: 1,
+                        meta: Default::default(),
+                        review: None,
+                        edited: false,
+                        meta_unreadable: false,
+                    }],
+                )
+                .expect("sync");
+            id = catalog.photos().next().map(|photo| photo.id).expect("a photo");
+            catalog.set_scores(&[(id, score(4.5))]).expect("set");
+            catalog.close().expect("close");
+        }
+        let (reopened, _) = temp.open();
+        assert_eq!(reopened.sharpness(id).map(|s| s.value), Some(4.5));
+        assert_eq!(reopened.sharpness(id).map(|s| s.version), Some(sortlens_quality::SCORE_VERSION));
     }
 }

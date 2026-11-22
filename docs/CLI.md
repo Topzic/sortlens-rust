@@ -32,9 +32,10 @@ it with a note that is a sentence rather than a placeholder.
   depended on indentation would break the day it changed.
 - **Timings, paths and versions** are included where they are useful (`roots`, `stats`) but are values, not
   schema: the `root` string is whatever the library was opened with.
-- **Progress.** Long work (`export`, `relocate`, a scan) reports through `jobs`, not by streaming JSON. There
-  is no `--json` for `export`: it is a job with progress and a cancel, and pretending a job is one object
-  would hide the cancel.
+- **Progress.** Long work (`export`, `sharpen`, `relocate`, a scan) reports through `jobs`, not by streaming
+  JSON. There is no `--json` for `export` or `sharpen`: each is a job with progress and a cancel, and pretending a
+  job is one object would hide the cancel. Both refuse `--json` and name the verbs that have a schema; the golden
+  harness pins that refusal so "no schema" stays a decision rather than an oversight.
 
 ## The verbs
 
@@ -43,6 +44,10 @@ Read: `roots`, `keywords`, `stats`, `list`, `folders`, `check`, `moves`, `change
 
 Write: `rate`, `flag`, `label`, `tag`, `untag`, `date`, `rename`, `alias`, `accept`, `pack`, `undo`, `retry`,
 `remap`.
+
+Passes (no `--json`): `export`, `sharpen`. `sharpen` measures every photo whose score is missing or came from
+another `SCORE_VERSION`, stores them as one undoable change, and prints how many frames could not be judged —
+an undecodable or near-black frame is left unscored rather than called sharp.
 
 Once a verb has a schema it keeps one. A verb that is added later and has none refuses and names the ones
 that do, which is the difference between "this build cannot do that" and "this build silently printed text".

@@ -484,10 +484,26 @@ remap a moved drive; run the wizard on a clean machine.
   - **Stated limit**: the fixed edge makes copies related by a whole-number ratio measure alike; a fractional
     reduction is averaged differently by the box filter and can shift the score somewhat. Correcting that means
     measuring at several edges, which is precision this ranking does not need.
-- [ ] Blur scan job + threshold review + batch select (D,B) — SL-E01/E02 **part 2**: walk the catalog, measure at
-  `LARGE`, store `Score` beside the photo in the op log so it survives a rescan, and review the threshold against
-  a real library before anything is called blurred. The crate deliberately has no threshold: a cut-off belongs to
-  the scan that proposes, not to the measure that reports.
+- [x] Blur scan **part 2 of 3**: the score is stored, one undoable op per pass
+  - `Op::Scores { changes }` carries the batch, so measuring a 5 000-photo library is **one log entry and one ⌘Z**,
+    and the inverse is the previous scores — a re-measure at a new `SCORE_VERSION` undoes back to the old numbers.
+  - The score lives on the `Photo` record, not in a side map, because it is a statement about *this file*: a scan
+    that replaces the record because the bytes changed clears it, which the test found (the update path cloned the
+    old record and kept every annotation, so a changed file kept a score about pixels that were gone — annotations
+    like stars survive a re-encode, a sharpness score does not).
+  - `Engine::begin_sharpness` queues only the photos `needs_rescore` says need it, decodes at `LARGE` on a worker,
+    and `poll_sharpness` reports `{ measured, unjudged, remaining }`. **`unjudged` is a first-class count**: a file
+    this build cannot decode and a frame too dark to judge are counted and left unscored, never stored as a number.
+    A cancelled pass still commits what it measured, because each score is true on its own — unlike a cancelled
+    scan, which commits nothing because a half-scanned folder describes a disk that is not there.
+  - `photo.sharpness` / `photo.sharpnessProgress` in the registry, MCP examples, and a CLI `sharpen` pass. Goldens
+    pin that the first run stores six scores and the second says "every photo has a current score".
+  - **`sharpen` deliberately has no `--json` schema**, like `export`: a job with progress and a cancel is not one
+    object. The schema gate now names the progress verbs and requires each to *refuse* `--json`, so the absence is
+    a decision the harness checks rather than a hole.
+- [ ] Blur scan **part 3**: threshold review and batch select in the window — a histogram of stored scores, a
+  threshold picked against a real library rather than a guess, and selecting everything below it. The crate has no
+  threshold on purpose: a cut-off belongs to the scan that proposes it, not to the measure that reports.
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
 - [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03
