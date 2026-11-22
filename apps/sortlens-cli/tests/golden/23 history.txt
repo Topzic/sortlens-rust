@@ -1,0 +1,11 @@
+exit 0
+--- stdout
+#14     captured         Set the capture date on 1 photo
+#13     captured         Set the capture date on 1 photo
+#12     captured         Set the capture date on 1 photo
+#11     aliased          Linked 1 keyword alias(es)
+#10     group            Keyworded 1 photo (+1 more change(s))
+#9      tagged           Keyworded 1 photo
+#8      rate             Rated 1 photo
+#7      addPhoto         Added e.jpg
+--- stderr

@@ -1,0 +1,9 @@
+exit 0
+--- stdout
+     1  -   0★    none          -      322 B  Studio/d.jpg
+     2  -   3★    none          -      328 B  Trip/a.jpg
+     3  -   0★    none          -      328 B  Trip/b.jpg
+     4  -   0★    none          -      333 B  Trip/Day2/c.jpg
+     5  -   0★    none          -      311 B  e.jpg
+5 photos
+--- stderr

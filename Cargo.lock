@@ -3555,6 +3555,7 @@ dependencies = [
  "sortlens-engine",
  "sortlens-mcp",
  "sortlens-memories",
+ "sortlens-testkit",
 ]
 
 [[package]]
@@ -3705,6 +3706,7 @@ dependencies = [
 name = "sortlens-testkit"
 version = "0.1.0"
 dependencies = [
+ "craft-jpeg",
  "sortlens-core",
 ]
 

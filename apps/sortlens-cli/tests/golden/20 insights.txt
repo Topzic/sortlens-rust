@@ -1,0 +1,19 @@
+exit 0
+--- stdout
+photos    5
+bytes     1.6 kB
+rated     40%
+keyworded 40%
+picks     0
+rejects   0
+keywords
+       1  beach
+       1  harbour
+years
+       1  2023
+       1  2024
+months
+       2  June
+busiest month      June — 2 photo(s) · mostly Summer
+no capture date    3 photo(s), 60% of the library
+--- stderr

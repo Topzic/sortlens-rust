@@ -1,0 +1,6 @@
+exit 0
+--- stdout
+2 keyword(s) · 1 renamed into another
+       1  beach  <- coast
+       1  harbour
+--- stderr

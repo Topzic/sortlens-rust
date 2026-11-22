@@ -1,0 +1,7 @@
+exit 0
+--- stdout
+2 keyword(s) · 1 renamed into another · 1 alias(es) pointing nowhere
+       1  beach  <- coast
+       1  harbour
+  orphan: beach -> shore
+--- stderr

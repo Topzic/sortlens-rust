@@ -51,7 +51,13 @@ cargo run -p sortlens     # the application
 cargo xtask ci            # fmt, clippy, tests, layer rules, lint headers, provenance, fonts
 cargo xtask wasm          # wasm-safe crates
 cargo xtask deny          # licences, advisories, bans, sources (needs cargo-deny)
+cargo xtask snapshot      # diff the recorded CLI output
 ```
+
+If `xtask snapshot` fails, it is either a bug or an intended change. Read the diff: an intended one
+is `cargo xtask snapshot --update` plus a sentence in the commit body saying what the output now says
+and why. Regenerating to make it green without reading it is how a golden file stops meaning
+anything.
 
 A dependency change is a licence change. `deny.toml` is the allow-list; adding a crate that needs a
 new licence is a decision to argue for in the PR, not a line to add quietly.

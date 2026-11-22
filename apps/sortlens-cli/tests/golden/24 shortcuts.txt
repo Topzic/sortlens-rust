@@ -1,0 +1,21 @@
+exit 0
+--- stdout
+17 bound command(s)
+  Ctrl+O         Library    Add Folder…
+  Ctrl+Shift+R   Library    Rescan Folder
+  0–5            Review     Set Rating
+  P / X          Review     Pick or Reject
+  6–9            Review     Colour Label
+  Ctrl+Z         Review     Undo
+  K              Organise   Add Keyword…
+  Ctrl+Shift+N   Organise   New Collection…
+  C              Review     Start Cull
+  ←              Review     Previous Photo
+  Ctrl+Enter     Review     Apply Rejects
+  D              View       Detail
+  S              View       Similar Photos
+  I              View       Insights
+  Ctrl+,         App        Settings…
+  ?              Help       Keyboard Shortcuts
+  Ctrl+Q         App        Quit Sortlens
+--- stderr

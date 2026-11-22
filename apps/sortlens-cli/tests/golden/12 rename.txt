@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+renamed coast to beach on 1 photo(s)
+--- stderr

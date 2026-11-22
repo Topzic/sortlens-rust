@@ -516,6 +516,19 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
 
 Fixture strategy: a synthetic library generator (`sortlens-testkit`) writes JPEG/TIFF/PNG
 files with controlled EXIF, GPS, blur, near-duplicate transforms and known capture dates.
+What exists today: `Fixture` writes solid-colour JPEGs through the real encoder (so a fixture
+photo decodes, hashes and has a resolution), sidecars under the `docs/BEHAVIOUR.md` §4 naming
+rule, and removes its folder on drop. The same bytes every run is the property that makes the
+golden job below possible.
+
+**Golden outputs** (`apps/sortlens-cli/tests/golden`, run by `cargo xtask snapshot`): 30 recorded
+invocations of the real binary against a fixture library — `add`, `stats`, `list`, `keywords`,
+`folders`, `insights`, `page`, `registry`, `memories`, a move and its undo, `audit`, `compact`, and
+the `snapshot.json` of the catalog itself. Only three things are normalised (the fixture path, the
+scan's elapsed time, a file's mtime), so a renamed JSON field or a reworded summary is a diff. The
+job is read-only in CI: `--update` exists for a person making an intended change, and the diff is
+the review. Both directions are checked, so a golden whose step was deleted fails rather than
+passing forever.
 That covers 95% of behaviour without shipping anyone's photos, and it makes performance
 tests deterministic. Public-domain photographs (NASA, Library of Congress) are used only for
 visual checks, with provenance in `docs/ATTRIBUTION.md`.

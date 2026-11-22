@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 sortlens-core = { workspace = true }
+craft-jpeg = { workspace = true }
 
 [lints]
 workspace = true

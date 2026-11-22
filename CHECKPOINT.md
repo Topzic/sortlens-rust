@@ -1075,11 +1075,39 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - `deny.toml`, `xtask deny`, README, TOOLING and CONTRIBUTING (including "a dependency change is a
   licence change") record the policy where a contributor will read it.
 
+## 2026-11-21 — M0 debt: golden outputs, and a testkit to feed them
+
+- `sortlens-testkit` is real instead of a scaffold: `Fixture` writes solid-colour JPEGs through the
+  **real encoder** (so a fixture photo decodes, hashes and has a resolution), writes sidecars under
+  the `docs/BEHAVIOUR.md` §4 naming rule, and removes its folder on drop. The same bytes every run is
+  the property the golden job depends on, and `the_same_fixture_writes_the_same_bytes_twice` pins it.
+  The sidecar helper's first version wrote `a.jpg.xmp`; the golden run showed no keyword imported,
+  which is how the convention (`a.xmp`) got enforced in the helper instead of in a comment.
+- `apps/sortlens-cli/tests/golden.rs` records **30 invocations of the real binary**
+  (`CARGO_BIN_EXE_sortlens-cli`) against a fixture library: add ×2, roots, stats, list, keywords,
+  folders, check, changed, rate, tag, rename, registry ×2, alias, untag-through-the-alias, date ×2,
+  memories, insights, page, undo, history, shortcuts, move, moves, unmove, audit, compact, and the
+  catalog's own `snapshot.json`.
+- only three things are normalised — the fixture path, `in <elapsed>s`, and `"modified":<mtime>` — so
+  a renamed field or a reworded summary is a visible diff. `page`'s JSON is checked verbatim
+  otherwise, keys and content hashes included.
+- both directions are checked: a missing golden fails, and so does a golden whose step no longer
+  exists, because otherwise a deleted step leaves a claim passing forever.
+- `cargo xtask snapshot` is **read-only**; `--update` sets `SORTLENS_UPDATE_GOLDEN=1` and prints a
+  reminder to read `git diff`. A check that can update its own expectation checks nothing.
+- CI: its own `snapshot` job on ubuntu. The fixture bytes and normalised output are
+  machine-independent, so a second OS would only add noise.
+- **proved to bite, twice**: editing one digit in `04 stats.txt` fails with the expected/actual diff,
+  and dropping a `99 orphan.txt` into the folder fails with "no step records this golden any more".
+  Both were reverted. The suite is deterministic across repeated runs (three consecutive read-only
+  runs green).
+- CONTRIBUTING says what to do when it fails: read the diff, `--update`, and say in the commit body
+  what the output now says. Regenerating to get green is how a golden stops meaning anything.
+
 ## Next
 
-M0 debt: the **snapshot CI job** (ROADMAP "CI: 3 OSes + wasm check + snapshot job" is the last
-unchecked box on that row). There is no insta/expect-test in the tree, so the cheapest honest version
-is a committed golden-output job: drive the CLI and the MCP server against a fixture library built by
-`sortlens-testkit`, write the JSON to `tests/golden/`, and diff it — which catches a renamed serde
-field or a reworded summary that no unit test asserts. Design the fixture first, then the diff step;
-`cargo xtask snapshot` writing `--update` and CI running it read-only.
+M7 is fully checked, so take the **one-time reconciliation pass** the loop keeps deferring: README's
+status badge still says "M0 scaffold" and its status section predates M1–M7; `docs/PLAN.md` §12 still
+lists M0 next steps; and `docs/ROADMAP.md` has stale "State:" lines plus duplicated rows (Priority
+scheduler, scan cancellation, catalog ops) that contradict their own checkboxes. Fix all three so the
+next run does not have to distrust the docs. Then M8 (AI + export).

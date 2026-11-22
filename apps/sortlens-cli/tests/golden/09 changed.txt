@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+5 checked, 5 present, 0 missing, 0 changed
+--- stderr

@@ -282,6 +282,10 @@ Notes and gotchas:
   `epaint_default_fonts`. Denied by omission: GPL, AGPL, LGPL, CC-BY-NC. Advisories, yanked crates,
   wildcard version requirements and unknown git sources fail the same job. Install with
   `cargo install cargo-deny --locked`; the task says so rather than passing silently.
+- **Golden outputs** rather than a snapshot crate: `cargo xtask snapshot` diffs
+  `apps/sortlens-cli/tests/golden/*.txt` (read-only in CI, `--update` for an intended change). No
+  `insta` dependency, because the recorded artifact is the tool's published output, not an internal
+  value, and a plain text file in the tree is reviewable in a diff.
 - **`cargo-nextest`** for the suite's test profile; `cargo test` remains supported.
 - **`cargo-mutants`** on `sortlens-catalog` and `sortlens-cull` only, nightly job.
 - **No `sccache` in release builds** (LTO + one codegen unit); it helps dev loops only.

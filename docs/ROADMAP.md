@@ -45,7 +45,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [x] Commands: `app.about`, `app.settings`, `app.quit`, `app.supportReport`; 17 planned commands carry their milestone (A,B)
 - [x] `app.shortcuts` — the keymap table, the searchable overlay, and every command shortcut wired (A,B)
 - [x] Empty-library state (B)
-- [ ] CI: 3 OSes + wasm check + snapshot job (E) — 3 OSes and wasm are in; no snapshot job
+- [x] CI: 3 OSes + wasm check + snapshot job (E) — `cargo xtask snapshot` diffs 30 recorded CLI outputs in its own job
 
 **Demo:** launch → switch theme → open settings → quit → relaunch with the theme preserved;
 `cargo xtask ci` green.
@@ -75,7 +75,7 @@ thumbnails move to M2 because the grid renders before it has pixels to draw.
 - [ ] Sources: All / Recently Added / Picks / Rated (B) — SL-A14
 - [ ] Folder tree with counts (B) — SL-A03/A04
 - [ ] Skeleton thumbs + failure badge (B) — SL-M10
-- [ ] Synthetic library generator + delta-scan truth table (testkit)
+- [x] Synthetic library generator (`sortlens-testkit`: deterministic JPEGs from a real encoder, sidecars by convention, self-cleaning folders) + delta-scan truth table
 
 **Demo:** add 5k folder → grid fills → counts correct → relaunch instant → rescan adds only new
 files → rename a subfolder → no duplicate rows.

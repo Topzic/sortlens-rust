@@ -1,0 +1,4 @@
+exit 1
+--- stdout
+--- stderr
+sortlens-cli: the destination must be an absolute folder

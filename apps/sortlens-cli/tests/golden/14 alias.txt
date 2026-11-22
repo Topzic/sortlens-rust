@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+beach now means shore
+--- stderr

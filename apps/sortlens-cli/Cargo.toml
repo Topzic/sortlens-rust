@@ -8,6 +8,9 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 
+[dev-dependencies]
+sortlens-testkit = { workspace = true }
+
 [dependencies]
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }

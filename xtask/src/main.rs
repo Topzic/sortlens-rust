@@ -53,6 +53,7 @@ fn main() -> ExitCode {
         "assets" => assets(),
         "fonts" => fonts(),
         "deny" => deny(),
+        "snapshot" => snapshot(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -80,7 +81,8 @@ fn help() {
   roots    enforce the crate-level lint header
   assets   enforce that every asset has a provenance entry
   fonts    report the embedded face set and refuse to ship one that covers no Latin text
-  deny     check licences, advisories, bans and sources against deny.toml"
+  deny     check licences, advisories, bans and sources against deny.toml
+  snapshot golden CLI output; --update rewrites the goldens, then read the diff"
     );
 }
 
@@ -253,6 +255,27 @@ fn fonts() -> Result<(), String> {
     }
     println!("xtask fonts: ok ({} note(s))", report.len());
     Ok(())
+}
+
+/// Diff (or rewrite) the golden outputs in `apps/sortlens-cli/tests/golden`.
+///
+/// Read-only by default, because that is what CI runs: the goldens are a claim about what the tool
+/// says, and a check that can update its own expectation checks nothing. `--update` exists for the
+/// person making an intended change, and printing the diff is left to `git diff`.
+fn snapshot() -> Result<(), String> {
+    if std::env::args().any(|arg| arg == "--update") {
+        println!("xtask snapshot: rewriting goldens — read `git diff` before committing");
+        let status = Command::new("cargo")
+            .args(["test", "-p", "sortlens-cli", "--test", "golden"])
+            .env("SORTLENS_UPDATE_GOLDEN", "1")
+            .status()
+            .map_err(|error| format!("could not run cargo: {error}"))?;
+        if !status.success() {
+            return Err("rewriting the goldens failed".to_string());
+        }
+        return Ok(());
+    }
+    run("cargo", &["test", "-p", "sortlens-cli", "--test", "golden"])
 }
 
 /// Run cargo-deny against the allow-list in `deny.toml`.

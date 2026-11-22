@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+1: captured 1685577600
+--- stderr

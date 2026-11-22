@@ -1,0 +1,8 @@
+exit 0
+--- stdout
+2 card(s): On this day, This week in past years
+  June 1  (1 photo · since 2023; 1 matched)
+    1
+  This week in past years  (1 photo · since 2023; 1 matched)
+    1
+--- stderr
