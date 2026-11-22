@@ -751,6 +751,30 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   captured; three subsequent workspace runs, three engine-only runs and the next CI run were all green,
   so it is recorded as an unexplained flake rather than dismissed
 
+## 2026-11-21 — M7: move picks
+
+- engine: new `moves` module — `MoveItem { old, new, sidecar }`, `MoveReceipt { id, dest, at, items }`,
+  `moved_record` (only the place changes: size, key and every review field carry over), `put_back`,
+  `take_sidecar`, `prepare_dest` (absolute paths only)
+- engine: `move_picks(dest, ids)` reuses `sortlens_cull::trash` for the filesystem half, so the batch
+  is audited as a whole and a cross-volume move is copied, size-verified and only then removed. The
+  catalog then follows the files in one `Op::Group` of `RemovePhoto`/`AddPhoto` pairs plus `AddRoot`,
+  so the move is a single undo step
+- engine: `undo_move(id)` puts files back **and** restores the records from the receipt, which is
+  independent of the one-level undo — a move can be reversed tomorrow. Receipts persist in
+  `moves.json`, alongside the rejects bin
+- Fixed while testing by hand: the XMP sidecar was left behind, orphaning the review state it holds.
+  It now travels with the photo and back again, and the receipt remembers whether it did
+- commands `edit.movePicks`, `edit.undoMove`, `edit.moves` under Organise; ui: a "Move picks…" button
+  beside Apply rejects (enabled by the pick count) and a "Moved" dialog with "Put them back"; cli:
+  `move <dest> <ids…>`, `moves`, `unmove <id>`
+- tests: the moved record keeps every fact but its place; putting a photo back creates the folders;
+  a relative destination is refused; engine round trip with rating and keyword intact, the
+  destination becoming an indexed root, a receipt surviving a lookup, the undo restoring file and
+  record, an empty selection and a relative destination refused, and the sidecar check
+- 247 tests, CI and wasm green. Verified by hand over the CLI including the sidecar travelling both
+  ways
+
 ## Next
 
-M7: batch move of picks into a destination folder, verified then undoable.
+M7: side-by-side compare of two photos, with the same viewport for both.

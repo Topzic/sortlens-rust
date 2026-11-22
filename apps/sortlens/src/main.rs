@@ -151,6 +151,29 @@ impl App {
                     }
                 }
             }
+            Action::MovePicks(ids) => {
+                if ids.is_empty() {
+                    self.ui.notice("Pick a photo first");
+                    return;
+                }
+                if let Some(folder) = rfd::FileDialog::new().set_title("Move the picks into…").pick_folder() {
+                    let dest = folder.to_string_lossy().to_string();
+                    match self.engine.move_picks(&dest, &ids) {
+                        Ok(count) => {
+                            self.ui.move_receipt = self.engine.move_receipts().last().map(|receipt| receipt.id);
+                            self.ui.notice(format!("Moved {count} photo(s) to {}", folder_name(&dest)))
+                        }
+                        Err(error) => self.ui.notice(error.to_string()),
+                    }
+                }
+            }
+            Action::UndoMove(id) => match self.engine.undo_move(id) {
+                Ok(count) => {
+                    self.ui.move_receipt = None;
+                    self.ui.notice(format!("Put {count} photo(s) back"));
+                }
+                Err(error) => self.ui.notice(error.to_string()),
+            },
             Action::ExportHistory => {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_title("Save the change report")

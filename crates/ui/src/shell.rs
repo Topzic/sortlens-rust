@@ -114,6 +114,10 @@ pub enum Action {
     RemapRoot(String),
     /// Write the change report somewhere the host chooses.
     ExportHistory,
+    /// Move these photos into a folder the host chooses.
+    MovePicks(Vec<PhotoId>),
+    /// Put a moved batch back.
+    UndoMove(u64),
 }
 
 /// What Apply does with rejected photos.
@@ -208,6 +212,8 @@ pub struct UiState {
     pub history_open: bool,
     /// How many files the last health check found changed on disk.
     pub health_modified: usize,
+    /// A move receipt that is waiting to be acknowledged.
+    pub move_receipt: Option<u64>,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -294,6 +300,7 @@ impl UiState {
             audit: None,
             history_open: false,
             health_modified: 0,
+            move_receipt: None,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -492,6 +499,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.history_open {
         history_dialog(ui, state, &t, engine, &mut actions);
+    }
+    if state.move_receipt.is_some() {
+        move_receipt_dialog(ui, state, &t, engine, &mut actions);
     }
     if state.rename_target.is_some() {
         rename_dialog(ui, state, &t, engine);
@@ -1057,7 +1067,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         grid(ui, t, state, engine, thumbs, &filter);
                     }
                 }
-                View::Cull => cull_view(ui, t, state, engine, thumbs),
+                View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
                 View::Insights => insights_view(ui, t, engine),
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
                 other => planned_view(ui, t, other),
@@ -1897,7 +1907,7 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
     true
 }
 
-fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
+fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     let snapshot = engine.cull().map(|session| {
         let queue = session.queue().to_vec();
         let cursor = session.cursor();
@@ -2128,6 +2138,15 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 .clicked()
             {
                 state.apply_open = true;
+            }
+            if ui
+                .add_enabled(summary.picks > 0, Button::new(RichText::new("Move picks…").size(11.5)))
+                .on_disabled_hover_text("Pick a photo first")
+                .on_hover_text("Move the picks into a folder; keeps every rating and keyword")
+                .clicked()
+            {
+                let picks = engine.cull().map(|session| session.picks()).unwrap_or_default();
+                actions.push(Action::MovePicks(picks));
             }
             if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
                 engine.cull_back();
@@ -2904,6 +2923,65 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             );
         });
     state.health_open = open;
+}
+
+/// A move just happened: say where the files went, and offer the one thing a photographer wants
+/// next — putting them back.
+fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
+    let Some(id) = state.move_receipt else {
+        return;
+    };
+    let Some(receipt) = engine.move_receipts().iter().find(|receipt| receipt.id == id) else {
+        state.move_receipt = None;
+        return;
+    };
+    let mut open = true;
+    let mut put_back = false;
+    let mut done = false;
+    egui::Window::new("Moved")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(360.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(receipt.headline()).size(13.0).strong());
+            ui.label(
+                RichText::new("Ratings, labels and keywords travelled with the files.")
+                    .size(10.5)
+                    .color(t.text_muted),
+            );
+            ui.add_space(8.0);
+            for item in receipt.items.iter().take(4) {
+                ui.label(
+                    RichText::new(format!("{} → {}", item.old.rel, item.new.rel))
+                        .size(10.0)
+                        .color(t.text_faint),
+                );
+            }
+            if receipt.items.len() > 4 {
+                ui.label(
+                    RichText::new(format!("and {} more", receipt.items.len() - 4))
+                        .size(10.0)
+                        .color(t.text_faint),
+                );
+            }
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("Put them back").size(12.0)).clicked() {
+                    put_back = true;
+                }
+                if ui.button(RichText::new("Done").size(12.0)).clicked() {
+                    done = true;
+                }
+            });
+        });
+    if put_back {
+        actions.push(Action::UndoMove(id));
+        done = true;
+    }
+    if done || !open {
+        state.move_receipt = None;
+    }
 }
 
 /// What happened recently, read from the op log.

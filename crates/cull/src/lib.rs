@@ -301,6 +301,15 @@ impl Session {
             .collect()
     }
 
+    /// Photos staged as picks, in queue order — what "Move picks" acts on.
+    pub fn picks(&self) -> Vec<PhotoId> {
+        self.changed()
+            .into_iter()
+            .filter(|(_, decision)| *decision == Decision::Pick)
+            .map(|(id, _)| id)
+            .collect()
+    }
+
     /// The summary the action bar shows.
     pub fn summary(&self) -> Summary {
         let mut summary = Summary {

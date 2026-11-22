@@ -35,6 +35,9 @@ Commands:
   remap <old> <new>         repoint a moved or renamed root, sample checked
   history [--limit N]       recent changes, newest first
   retry [--all]             re-read metadata for photos that failed, or for all without EXIF
+  move <dest> <id...>       move photos into a folder, keeping their review state
+  moves                     list recent moves with their ids
+  unmove <id>               put a moved batch back where it came from
   changed                   list files whose size or time no longer matches the index
   refresh                   re-read exactly the changed files
   audit                     check the catalog files read back cleanly
@@ -245,6 +248,36 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "move" => {
+            let dest = rest.first().ok_or("a destination folder is required")?;
+            let ids: Vec<sortlens_core::PhotoId> = rest
+                .iter()
+                .skip(1)
+                .filter_map(|value| value.parse::<u64>().ok())
+                .map(sortlens_core::PhotoId)
+                .collect();
+            let count = engine.move_picks(dest, &ids).map_err(|error| error.to_string())?;
+            println!("moved {count} photo(s) to {dest}");
+            Ok(())
+        }
+        "moves" => {
+            if engine.move_receipts().is_empty() {
+                println!("no moves recorded");
+            }
+            for receipt in engine.move_receipts() {
+                println!("#{:<4} {:<40} {}", receipt.id, receipt.headline(), receipt.dest);
+            }
+            Ok(())
+        }
+        "unmove" => {
+            let id = rest
+                .first()
+                .and_then(|value| value.parse::<u64>().ok())
+                .ok_or("a move id is required")?;
+            let count = engine.undo_move(id).map_err(|error| error.to_string())?;
+            println!("put {count} photo(s) back");
             Ok(())
         }
         "changed" => {

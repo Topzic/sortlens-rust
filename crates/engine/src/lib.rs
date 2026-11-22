@@ -9,6 +9,7 @@
 
 pub mod command;
 pub mod job;
+pub mod moves;
 
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
@@ -96,6 +97,8 @@ pub struct Engine {
     cull: Option<sortlens_cull::Session>,
     deleted: Vec<sortlens_cull::trash::DeletedBatch>,
     next_batch: u64,
+    moves: Vec<crate::moves::MoveReceipt>,
+    next_move: u64,
     jobs: Vec<Job>,
     next_job: u64,
     write_sidecars: bool,
@@ -119,6 +122,8 @@ impl Engine {
             cull: None,
             deleted: Vec::new(),
             next_batch: 1,
+            moves: Vec::new(),
+            next_move: 1,
             jobs: Vec::new(),
             next_job: 1,
             write_sidecars: true,
@@ -138,6 +143,7 @@ impl Engine {
         };
         engine.restore_cull();
         engine.load_deleted();
+        engine.load_moves();
         Ok(engine)
     }
 
@@ -429,6 +435,165 @@ impl Engine {
         }
         let remaining = self.retry_count();
         Ok((recovered, remaining))
+    }
+
+    /// Moves that happened, newest last, so any of them can be put back.
+    pub fn move_receipts(&self) -> &[crate::moves::MoveReceipt] {
+        &self.moves
+    }
+
+    /// Move photos the user picked into a destination folder, verified as a batch.
+    ///
+    /// Nothing is touched unless the whole batch passes the audit — the same rule Apply uses, because
+    /// half a move is worse than none. Every moved photo keeps its review state and its content key;
+    /// only where the file lives changes, and the receipt can put them all back.
+    pub fn move_picks(&mut self, dest: &str, ids: &[PhotoId]) -> Result<usize> {
+        if self.read_only() {
+            return Err(Error::Invalid(
+                "this library is open read-only because another window is using it".into(),
+            ));
+        }
+        if ids.is_empty() {
+            return Err(Error::Invalid("nothing is selected".into()));
+        }
+        let dest = crate::moves::prepare_dest(Path::new(dest))?;
+        let dest_text = dest.to_string_lossy().to_string();
+        if self.roots().iter().any(|root| root.trim_end_matches('/') == dest_text) {
+            return Err(Error::Invalid(format!("{dest_text} is already an indexed folder")));
+        }
+
+        let mut candidates = Vec::new();
+        for id in ids {
+            let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            let path = Path::new(&photo.root).join(&photo.rel);
+            if prop_is_inside(&path, &dest) {
+                return Err(Error::Invalid(format!("{} is already in {dest_text}", photo.name)));
+            }
+            candidates.push(sortlens_cull::trash::Candidate {
+                id: *id,
+                path,
+                root: PathBuf::from(&photo.root),
+                size: photo.size,
+                modified: photo.modified,
+            });
+        }
+        let batch = sortlens_cull::trash::Batch {
+            mode: sortlens_cull::trash::Mode::Move(dest.clone()),
+            candidates,
+        };
+        let report = sortlens_cull::trash::apply_checked(&batch)?;
+
+        let mut items = Vec::new();
+        let mut ops = vec![Op::AddRoot { path: dest_text.clone() }];
+        for applied in &report.applied {
+            let sortlens_cull::trash::Location::Moved(location) = &applied.location else {
+                continue;
+            };
+            let Some(old) = self.photo(applied.id) else {
+                continue;
+            };
+            let Ok(rel) = location.strip_prefix(&dest) else {
+                continue;
+            };
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            let new = crate::moves::moved_record(old, &dest_text, &rel);
+            ops.push(Op::RemovePhoto {
+                photo: Box::new(old.clone()),
+            });
+            ops.push(Op::AddPhoto {
+                photo: Box::new(new.clone()),
+            });
+            let sidecar = crate::moves::take_sidecar(&applied.from, location);
+            items.push(crate::moves::MoveItem {
+                old: old.clone(),
+                new,
+                sidecar,
+            });
+        }
+        if items.is_empty() {
+            return Err(Error::Invalid("no photo could be moved".into()));
+        }
+        self.mutate(Op::Group { ops })?;
+
+        let receipt = crate::moves::MoveReceipt {
+            id: self.next_move,
+            dest: dest_text,
+            at: sortlens_catalog::store::now_seconds(),
+            items,
+        };
+        self.next_move += 1;
+        let count = receipt.len();
+        self.moves.push(receipt);
+        self.persist_moves();
+        Ok(count)
+    }
+
+    /// Put a moved batch back where it came from, files and records together.
+    ///
+    /// A file that cannot be moved back stops the undo and is named: the receipt stays, so the rest
+    /// can be tried again once the problem is gone.
+    pub fn undo_move(&mut self, id: u64) -> Result<usize> {
+        if self.read_only() {
+            return Err(Error::Invalid(
+                "this library is open read-only because another window is using it".into(),
+            ));
+        }
+        let index = self
+            .moves
+            .iter()
+            .position(|receipt| receipt.id == id)
+            .ok_or_else(|| Error::Invalid(format!("no move {id}")))?;
+        let receipt = self.moves[index].clone();
+        let mut ops = Vec::new();
+        for item in receipt.items.iter().rev() {
+            crate::moves::put_back(item)?;
+            ops.push(Op::RemovePhoto {
+                photo: Box::new(item.new.clone()),
+            });
+            ops.push(Op::AddPhoto {
+                photo: Box::new(item.old.clone()),
+            });
+        }
+        self.mutate(Op::Group { ops })?;
+        self.moves.remove(index);
+        self.persist_moves();
+        Ok(receipt.len())
+    }
+
+    /// Where the move receipts are saved.
+    fn moves_path(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join("moves.json"))
+    }
+
+    fn persist_moves(&mut self) {
+        if self.read_only() {
+            return;
+        }
+        let Some(path) = self.moves_path() else {
+            return;
+        };
+        let result = serde_json::to_vec_pretty(&self.moves)
+            .map_err(|error| Error::Invalid(format!("moves: {error}")))
+            .and_then(|bytes| write_atomic(&path, &bytes));
+        if let Err(error) = result {
+            self.warnings.push(format!("could not save the move receipts: {error}"));
+        }
+    }
+
+    fn load_moves(&mut self) {
+        let Some(path) = self.moves_path() else {
+            return;
+        };
+        let Ok(text) = std::fs::read(&path) else {
+            return;
+        };
+        match serde_json::from_slice::<Vec<crate::moves::MoveReceipt>>(&text) {
+            Ok(receipts) => {
+                self.next_move = receipts.iter().map(|receipt| receipt.id).max().unwrap_or(0) + 1;
+                self.moves = receipts;
+            }
+            Err(_) => self.warnings.push("ignored unreadable move receipts".into()),
+        }
     }
 
     /// Whether the library is open read-only because another window is writing it.
@@ -1846,6 +2011,42 @@ impl Engine {
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
             "library.readOnly" => Ok(json!({ "readOnly": self.read_only() })),
+            "edit.movePicks" => {
+                let dest = args
+                    .get("dest")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a destination folder is required".into()))?;
+                let ids: Vec<PhotoId> = args
+                    .get("ids")
+                    .and_then(Value::as_array)
+                    .map(|values| values.iter().filter_map(Value::as_u64).map(PhotoId).collect())
+                    .unwrap_or_default();
+                Ok(json!({ "moved": self.move_picks(dest, &ids)? }))
+            }
+            "edit.undoMove" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| Error::Invalid("a move id is required".into()))?;
+                Ok(json!({ "restored": self.undo_move(id)? }))
+            }
+            "edit.moves" => {
+                let receipts: Vec<Value> = self
+                    .moves
+                    .iter()
+                    .rev()
+                    .map(|receipt| {
+                        json!({
+                            "id": receipt.id,
+                            "dest": receipt.dest,
+                            "at": receipt.at,
+                            "count": receipt.len(),
+                            "headline": receipt.headline(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "moves": receipts }))
+            }
             "library.changed" => {
                 let health = self.check_health()?;
                 Ok(json!({
@@ -2129,6 +2330,11 @@ impl Default for Engine {
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Whether `path` already sits inside `folder`.
+fn prop_is_inside(path: &Path, folder: &Path) -> bool {
+    path.parent().is_some_and(|parent| parent.starts_with(folder))
+}
 
 /// Seconds of modification-time drift treated as "the file did not change".
 pub const MODIFIED_TOLERANCE: i64 = 2;
@@ -2553,6 +2759,73 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn picks_move_to_a_folder_and_come_back_again() {
+        let folder = Temp::new("move-photos");
+        std::fs::create_dir_all(folder.0.join("day one")).expect("dir");
+        std::fs::write(folder.0.join("day one/a.jpg"), b"aaaa").expect("write");
+        std::fs::write(folder.0.join("day one/b.jpg"), b"bbbb").expect("write");
+        let (_lib, mut engine) = library("lib-move");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.rate(&[ids[0]], 5).expect("rate");
+        engine.set_tag(&[ids[0]], "keeper", true).expect("tag");
+
+        let dest = Temp::new("move-dest");
+        let dest_text = dest.0.to_string_lossy().to_string();
+        let moved = engine
+            .run("edit.movePicks", &json!({ "dest": dest_text, "ids": [ids[0]] }))
+            .expect("move");
+        assert_eq!(moved["moved"], 1);
+        assert!(dest.0.join("day one/a.jpg").exists(), "the file moved, keeping its layout");
+        assert!(!folder.0.join("day one/a.jpg").exists());
+
+        // The record follows the file, with its review state intact.
+        let photo = engine.photo(ids[0]).expect("photo");
+        assert_eq!(photo.root, dest_text);
+        assert_eq!(photo.rel, "day one/a.jpg");
+        assert_eq!(photo.rating, 5);
+        assert!(photo.has_tag("keeper"));
+        assert!(engine.roots().iter().any(|root| root == &dest_text), "the destination is indexed");
+
+        // A receipt survives a restart, so a move can be undone tomorrow.
+        let value = engine.run("edit.moves", &json!({})).expect("moves");
+        let receipt_id = value["moves"][0]["id"].as_u64().expect("id");
+        assert_eq!(value["moves"][0]["count"], 1);
+
+        let restored = engine.run("edit.undoMove", &json!({ "id": receipt_id })).expect("undo");
+        assert_eq!(restored["restored"], 1);
+        assert!(folder.0.join("day one/a.jpg").exists(), "the file came home");
+        assert!(!dest.0.join("day one/a.jpg").exists());
+        assert_eq!(engine.photo(ids[0]).expect("photo").root, folder.0.to_string_lossy());
+        // A sidecar the review state wrote travels with the photo, in both directions.
+        assert!(!dest.0.join("day one/a.xmp").exists(), "the sidecar came home with the file");
+        assert!(
+            engine.run("edit.moves", &json!({})).expect("moves")["moves"]
+                .as_array()
+                .expect("list")
+                .is_empty()
+        );
+
+        // And a move that cannot be made is refused before anything is touched.
+        assert!(
+            engine.run("edit.movePicks", &json!({ "dest": dest_text, "ids": [] })).is_err(),
+            "nothing selected is an error, not a no-op"
+        );
+        assert!(
+            engine
+                .run("edit.movePicks", &json!({ "dest": "relative", "ids": [ids[1]] }))
+                .is_err(),
+            "a relative destination is refused"
+        );
     }
 
     #[test]
