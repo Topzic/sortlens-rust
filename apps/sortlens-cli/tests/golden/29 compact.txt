@@ -1,4 +1,4 @@
 exit 0
 --- stdout
-compacted · 6.1 kB reclaimed
+compacted · 6.7 kB reclaimed
 --- stderr

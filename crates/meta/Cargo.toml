@@ -14,10 +14,14 @@ craft-metadata = { workspace = true }
 craft-tiff = { workspace = true }
 # Container-only probe (`ispe`, `irot`, `clap`) for HEIF sizes: no decode, no feature.
 craft-heif = { workspace = true, features = ["decode"] }
+# Container probing for video length, frame rate and codec (isobmff is on by default).
+craft-media = { workspace = true, features = ["isobmff"] }
 serde = { workspace = true }
 
 [dev-dependencies]
 craft-heif = { workspace = true, features = ["test-support"] }
+# The MP4 writer, so a video fixture is built in the test rather than committed as a blob.
+craft-media = { workspace = true, features = ["isobmff"] }
 
 [lints]
 workspace = true

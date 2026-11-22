@@ -169,7 +169,8 @@ only signal.
   (104 / 132 / 184 pt); in justified mode it is the **target row height** instead, so the setting means the
   same thing in both layouts.
 - Thumbnail anatomy: image, selection ring, rating stars (only if > 0), flag, label stripe,
-  video badge + duration, offline badge, AI-suggestion dot (if unaccepted suggestions exist),
+  video badge + duration pill (`0:42`, from the container), offline badge, AI-suggestion dot (if unaccepted
+  suggestions exist),
   filename on hover and in captions mode.
 - Skeleton shimmer while a thumbnail is decoding; never a blank cell.
 - Selection: click, ⌘/Ctrl-click, Shift-click, drag-marquee, ⌘A, ⌘D. Focus ring distinct from

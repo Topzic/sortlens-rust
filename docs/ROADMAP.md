@@ -154,8 +154,8 @@ files → rename a subfolder → no duplicate rows.
 **Goal:** 50k photos, 60 fps, bounded memory, visible activity.
 **State:** JPEG, PNG/TIFF/WebP/GIF/BMP, RAW-preview and **HEIC** thumbnails are in, behind the
 content-addressed cache, the priority-ordered and bounded decode service and the activity stack; metadata is
-read during the scan, including HEIF sizes from the container. Video posters and blur-up tier transitions
-remain, and are named below with what they need.
+read during the scan, including HEIF sizes and video length/rate/codec from their containers. Video **posters**
+and blur-up tier transitions remain, and are named below with what each needs.
 
 - [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
 - [x] Cooperative cancellation + live file/folder counters during a scan (C)
@@ -191,7 +191,29 @@ remain, and are named below with what they need.
     case then fails with "not a JPEG stream").
   - **Not measured**: HEIC decode rate appears nowhere in `docs/PERF.md`; the fixtures there are JPEG.
 - [x] RAW embedded previews (`craft-raw`) (C) — SL-B18
-- [ ] Video poster + duration/fps/codec (C) — SL-B11
+- [x] Video duration, frame rate, size and codec — **part 1** (C) — SL-B11 part 1
+  - Read from the container (`craft-media`'s isobmff demuxer, `moov` only, no pixel decoded) during the scan:
+    length from the video track's own timescale, frame rate as **sample count over duration** (so a 29.97 fps
+    clip reads 29.97 and a variable-rate clip reads its average), size from the track or the sample entry, and
+    the codec from `CodecId::name`. MP4, MOV and M4V; a file that is not a container, or whose video track
+    declares no usable length, answers nothing rather than a zero-length clip.
+  - Surfaced where it is used: a **duration pill** on video cells, "1:12" in the spoken description after the
+    facts that decide a cull, and a length row in the compare facts. `format_duration` is one pure function, so
+    the cell, the inspector and the screen reader cannot disagree about how long a clip is.
+  - Tested with a video **muxed by the suite's own writer** in the test — 24 samples of 25 ticks at 600 Hz is
+    one second at 24 fps — plus the same file truncated (refused), a JPEG (not a video) and the clock-format
+    table. No video blob is committed.
+- [ ] Video poster frame — **part 2**, absent by design with a named blocker (C) — SL-B11 part 2
+  - Why not now: a poster needs `craft-video`'s H.264 (or HEVC) decoder **and** a YUV→RGB conversion honouring
+    the frame's `ColorTags` — matrix, range and primaries. `VideoFrame` deliberately carries planes and tags
+    with no conversion, because getting that wrong is a colour bug that looks like a decode bug. The container
+    half is done, so this is now a decoder-side piece of work rather than a research question.
+  - Unblocker: a poster decoder that reads the first sync sample, decodes it with `h264-decode`/`hevc-decode`
+    and converts with the frame's own colour tags, with a test whose fixture is muxed by the same writer the
+    metadata test uses. Until then a video cell shows its type, its length and its filename — never a blank
+    cell pretending to be a photo.
+  - Matroska (MKV/WebM) and AVI are not probed either: `craft-media`'s `matroska` and `avi` features are off, and
+    reporting their clips with no length would be worse than reporting nothing.
 - [x] Placeholder cell while decoding, no spinner (B)
 - [ ] Blur-up tier transitions (B)
 - [x] Activity stack: job list, statuses, elapsed, per-item errors, cancel (B) — SL-A18

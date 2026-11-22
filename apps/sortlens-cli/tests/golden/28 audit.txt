@@ -1,5 +1,5 @@
 exit 0
 --- stdout
 Clean · 6 photos · seq 15
-snapshot at seq 8, 7 record(s) replayed, 8 already covered, 6111 log bytes
+snapshot at seq 8, 7 record(s) replayed, 8 already covered, 6699 log bytes
 --- stderr

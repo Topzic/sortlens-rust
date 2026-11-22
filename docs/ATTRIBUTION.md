@@ -72,8 +72,8 @@ this table is a promise about versions, not a claim about features.
 | `craft-heif` | MIT OR Apache-2.0 | HEIC decoding, including container sizes during the scan |
 | `craft-webp` | MIT OR Apache-2.0 | WebP decoding and export, neither built |
 | `craft-gainmap` | MIT OR Apache-2.0 | HDR gain maps, not built |
-| `craft-video` | MIT OR Apache-2.0 | Video posters, not built |
-| `craft-media` | MIT OR Apache-2.0 | Reserved; `sortlens-core::media` covers the extension table |
+| `craft-video` | MIT OR Apache-2.0 | Video posters, not built (the container half of video metadata is `craft-media`) |
+| `craft-media` | MIT OR Apache-2.0 | The isobmff demuxer behind a video's length, frame rate and codec; `sortlens-core::media` still covers the extension table |
 | `craft-crs` | MIT OR Apache-2.0 | Develop-setting detection for "edited" state |
 | `craft-sniff` | MIT OR Apache-2.0 | Magic-byte sniffing, which is not built |
 | `craft-zip` | MIT OR Apache-2.0 | A zip-based diagnostics bundle; the bundle is plain text |

@@ -7,9 +7,11 @@ exit 0
       "aperture": null,
       "camera": "",
       "captured": 1685577600,
+      "duration_ms": null,
       "edited": false,
       "flag": "none",
       "focal": null,
+      "fps": null,
       "height": 0,
       "id": 1,
       "iso": null,
@@ -30,15 +32,18 @@ exit 0
         "beach",
         "low light"
       ],
+      "video_codec": null,
       "width": 0
     },
     {
       "aperture": null,
       "camera": "",
       "captured": null,
+      "duration_ms": null,
       "edited": false,
       "flag": "none",
       "focal": null,
+      "fps": null,
       "height": 0,
       "id": 2,
       "iso": null,
@@ -58,6 +63,7 @@ exit 0
       "tags": [
         "harbour"
       ],
+      "video_codec": null,
       "width": 0
     }
   ],

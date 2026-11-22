@@ -2147,6 +2147,16 @@ fn photo_cell_sized(
         }
     }
 
+    // A video's length, on the cell: "VID" says what it is, the duration says whether to open it.
+    if photo.kind == MediaKind::Video && !photo.duration_label().is_empty() {
+        let label = photo.duration_label();
+        let corner = image.left_bottom() + vec2(5.0, -5.0);
+        let width = 6.5 * label.len() as f32 + 8.0;
+        let pill = Rect::from_min_size(pos2(corner.x, corner.y - 14.0), vec2(width, 14.0));
+        painter.rect_filled(pill, 3.0, Color32::from_black_alpha(160));
+        painter.text(pill.center(), Align2::CENTER_CENTER, label, t.font(9.5), Color32::WHITE);
+    }
+
     if photo.flag != Flag::None {
         let colour = t.flag(photo.flag);
         let badge = Rect::from_min_size(image.min + vec2(5.0, 5.0), vec2(7.0, 7.0));
@@ -2832,6 +2842,24 @@ fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
     ));
     if left.exposure() != right.exposure() {
         facts.push(("exposure", format!("{} vs {}", left.exposure(), right.exposure())));
+    }
+    if !left.duration_label().is_empty() || !right.duration_label().is_empty() {
+        facts.push((
+            "length",
+            format!(
+                "{} vs {}",
+                if left.duration_label().is_empty() {
+                    "—".to_string()
+                } else {
+                    left.duration_label()
+                },
+                if right.duration_label().is_empty() {
+                    "—".to_string()
+                } else {
+                    right.duration_label()
+                }
+            ),
+        ));
     }
     if left.size != right.size {
         facts.push((
@@ -5681,6 +5709,9 @@ mod tests {
             flag: Flag::None,
             label: None,
             missing: false,
+            duration_ms: None,
+            fps: None,
+            video_codec: None,
             width: 0,
             height: 0,
             captured: None,
@@ -5728,6 +5759,9 @@ mod tests {
             flag: Flag::Pick,
             label: None,
             missing: true,
+            duration_ms: None,
+            fps: None,
+            video_codec: None,
             width: 0,
             height: 0,
             captured: None,

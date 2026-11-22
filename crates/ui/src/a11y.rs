@@ -109,6 +109,9 @@ pub fn describe_photo(photo: &sortlens_engine::Photo) -> String {
     if photo.missing {
         parts.push("file missing".to_string());
     }
+    if !photo.duration_label().is_empty() {
+        parts.push(photo.duration_label());
+    }
     if !photo.tags.is_empty() {
         parts.push(photo.tags.join(", "));
     }
@@ -197,6 +200,18 @@ mod tests {
         photo.tags.clear();
         photo.label = Some(sortlens_core::ColorLabel::Green);
         assert!(describe_photo(&photo).contains("label"));
+
+        // A clip says how long it is, after the facts that decide a cull and before its tags.
+        photo.label = None;
+        photo.missing = false;
+        photo.kind = sortlens_core::MediaKind::Video;
+        photo.duration_ms = Some(72_000);
+        assert_eq!(describe_photo(&photo), "DSC_0001.jpg, 1:12");
+        photo.tags = vec!["harbour".to_string()];
+        assert_eq!(describe_photo(&photo), "DSC_0001.jpg, 1:12, harbour");
+        photo.tags.clear();
+        photo.duration_ms = None;
+        assert_eq!(describe_photo(&photo), "DSC_0001.jpg", "a clip with no known length says nothing");
     }
 
     fn test_photo(name: &str) -> sortlens_engine::Photo {
@@ -208,6 +223,9 @@ mod tests {
             size: 1,
             modified: None,
             kind: sortlens_core::MediaKind::Image,
+            duration_ms: None,
+            fps: None,
+            video_codec: None,
             key: 1,
             rating: 0,
             flag: sortlens_core::Flag::None,

@@ -38,12 +38,18 @@ pub struct PhotoMeta {
     pub shutter: Option<f64>,
     /// Focal length in millimetres.
     pub focal: Option<f64>,
+    /// Video length in milliseconds.
+    pub duration_ms: Option<u32>,
+    /// Video frame rate, as the container declares it.
+    pub fps: Option<f32>,
+    /// Video codec name, e.g. `H.264`.
+    pub video_codec: Option<String>,
 }
 
 impl PhotoMeta {
     /// Whether anything at all was found.
     pub fn is_empty(&self) -> bool {
-        self.width == 0 && self.height == 0 && self.captured.is_none() && self.camera.is_empty()
+        self.width == 0 && self.height == 0 && self.captured.is_none() && self.camera.is_empty() && self.duration_ms.is_none()
     }
 
     /// Megapixels, rounded to one decimal, for the details panel.
@@ -109,6 +115,20 @@ pub fn read(path: &Path) -> PhotoMeta {
 
 /// Read metadata, distinguishing an unreadable file from an empty one.
 pub fn read_outcome(path: &Path) -> ReadOutcome {
+    // A video's length, frame rate and codec live in the container, not in an EXIF block, so the byte reader
+    // below can never find them. Ask the demuxer instead — and only ever for a file whose name says video, so
+    // a still photo pays nothing.
+    if is_video_name(path)
+        && let Some(video) = video_info(path)
+    {
+        let mut meta = parse_fast(path);
+        meta.width = video.width;
+        meta.height = video.height;
+        meta.duration_ms = Some(video.duration_ms);
+        meta.fps = video.fps;
+        meta.video_codec = Some(video.codec);
+        return ReadOutcome::Parsed(meta);
+    }
     let mut buffer = Vec::new();
     let file = match File::open(path) {
         Ok(file) => file,
@@ -118,6 +138,108 @@ pub fn read_outcome(path: &Path) -> ReadOutcome {
         return ReadOutcome::Unreadable(error.to_string());
     }
     ReadOutcome::Parsed(parse(&buffer))
+}
+
+/// Whether this path is named as a video. Only ISO base-media video is probed (MP4, MOV, M4V): Matroska and AVI
+/// need container features this crate does not enable, and pretending to read them would report a clip with no
+/// length as a clip of length zero.
+fn is_video_name(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("mp4" | "mov" | "m4v")
+    )
+}
+
+/// What a video container declares about itself.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoInfo {
+    /// Length in milliseconds, floored.
+    pub duration_ms: u32,
+    /// Coded picture width.
+    pub width: u32,
+    /// Coded picture height.
+    pub height: u32,
+    /// Frames per second, rounded to two decimals — the container's sample count over its own duration rather
+    /// than a nominal figure, so a 29.97 fps clip reads as 29.97 and a variable-rate clip reads as its average.
+    pub fps: Option<f32>,
+    /// Codec name, e.g. `H.264`.
+    pub codec: String,
+}
+
+/// Read a video's declared length, size, rate and codec from its container.
+///
+/// No pixel is decoded: this is the demuxer reading `moov`, which is what makes it cheap enough to run during a
+/// scan. A file that is not ISO base media, or whose video track declares nothing usable, answers `None` rather
+/// than a zero-length clip.
+pub fn video_info(path: &Path) -> Option<VideoInfo> {
+    // Reading a container needs a seekable file, and the demuxer's file reader is native-only: a wasm build has
+    // no filesystem to open one from. A clip simply has no length there, which the UI already handles.
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        read_video_info(path)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = path;
+        None
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_video_info(path: &Path) -> Option<VideoInfo> {
+    let file = craft_media::isobmff::open(craft_media::FileReader::open(path).ok()?).ok()?;
+    let track = file
+        .tracks
+        .iter()
+        .find(|track| track.kind == craft_media::isobmff::TrackKind::Video)?;
+    let seconds = if track.timescale > 0 {
+        track.duration as f64 / f64::from(track.timescale)
+    } else if file.timescale > 0 {
+        file.duration as f64 / f64::from(file.timescale)
+    } else {
+        0.0
+    };
+    let duration_ms = (seconds * 1000.0).round().max(0.0) as u32;
+    if duration_ms == 0 {
+        return None;
+    }
+    let samples = track.samples.len();
+    let fps = if samples > 1 && seconds > 0.0 {
+        let rate = samples as f64 / seconds;
+        Some((rate * 100.0).round() as f32 / 100.0)
+    } else {
+        None
+    };
+    let params = track.codec_params();
+    let width = params.width.unwrap_or(track.width);
+    let height = params.height.unwrap_or(track.height);
+    Some(VideoInfo {
+        duration_ms,
+        width,
+        height,
+        fps,
+        codec: params.codec.name().to_string(),
+    })
+}
+
+/// Parse metadata out of a byte buffer that starts at the beginning of a file.
+///
+/// Used for a video, where the container has already answered the questions worth asking: this only picks up an
+/// embedded creation time if the file carries one.
+fn parse_fast(path: &Path) -> PhotoMeta {
+    let mut buffer = Vec::new();
+    match File::open(path) {
+        Ok(file) => {
+            if file.take(64 * 1024).read_to_end(&mut buffer).is_err() {
+                return PhotoMeta::default();
+            }
+        }
+        Err(_) => return PhotoMeta::default(),
+    }
+    parse(&buffer)
 }
 
 /// Parse metadata out of a byte buffer that starts at the beginning of a file.
@@ -140,6 +262,9 @@ pub fn parse(bytes: &[u8]) -> PhotoMeta {
     let (width, height) = heif.unwrap_or((metadata.width.unwrap_or(0), metadata.height.unwrap_or(0)));
 
     PhotoMeta {
+        duration_ms: None,
+        fps: None,
+        video_codec: None,
         width,
         height,
         captured: metadata.capture_time.as_ref().and_then(epoch_seconds),
@@ -241,6 +366,77 @@ fn a_heif_size_comes_from_its_container_and_honours_rotation() {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
+    /// A video's length, rate, size and codec come from its container, and a file that says nothing usable is
+    /// refused rather than reported as a zero-length clip.
+    ///
+    /// The fixture is muxed by the suite's own writer, so no video blob is committed: 24 samples of 25 ticks at a
+    /// 600 Hz media timescale is one second at 24 fps, and that is exactly what the probe must say.
+    #[test]
+    fn a_video_length_and_rate_come_from_its_container() {
+        use craft_media::isobmff::{
+            AvcConfig, Brand, CodecConfig, FourCc, Mp4Writer, SampleEntry, TrackConfig, WriteSample, WriterOptions,
+        };
+
+        let dir = std::env::temp_dir().join(format!("sortlens-video-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+
+        let avc = AvcConfig {
+            profile: 0x64,
+            compatibility: 0,
+            level: 0x1f,
+            length_size: 4,
+            // Parameter sets this crate never parses: the probe reads the table, not the bitstream.
+            sps: vec![vec![0x67, 0x64, 0x00, 0x1f]],
+            pps: vec![vec![0x68, 0xee, 0x3c, 0x80]],
+            ext: Vec::new(),
+        };
+        let entry = SampleEntry::video(FourCc(*b"avc1"), CodecConfig::Avc(avc), 1920, 1080);
+        // A cursor over a slice satisfies the writer's `Read + Write + Seek`; a `Vec` is not seekable.
+        let sink = std::io::Cursor::new(Vec::new());
+        let mut writer = Mp4Writer::new(sink, WriterOptions::new(Brand::Mp4)).expect("writer");
+        let track = writer.add_track(TrackConfig::new(entry, 600)).expect("track");
+        for _ in 0..24 {
+            writer
+                .write_sample(
+                    track,
+                    WriteSample {
+                        data: &[0, 0, 0, 2, 0x65, 0x88],
+                        duration: 25,
+                        composition_offset: 0,
+                        is_sync: true,
+                    },
+                )
+                .expect("sample");
+        }
+        let bytes = writer.finish().expect("finish").into_inner();
+        let path = dir.join("clip.mp4");
+        std::fs::write(&path, &bytes).expect("write");
+
+        let info = video_info(&path).expect("probe");
+        assert_eq!(info.duration_ms, 1_000, "24 samples of 25 ticks at 600 Hz");
+        assert_eq!((info.width, info.height), (1920, 1080));
+        assert_eq!(info.codec, "H.264");
+        assert_eq!(info.fps, Some(24.0));
+
+        // And it reaches the photo through the ordinary read path, so the scan needs no special case.
+        let meta = read(&path);
+        assert_eq!(meta.duration_ms, Some(1_000));
+        assert_eq!(meta.fps, Some(24.0));
+        assert_eq!(meta.video_codec.as_deref(), Some("H.264"));
+        assert_eq!((meta.width, meta.height), (1920, 1080));
+
+        // A file that is not a container, and a container with no video track, answer nothing rather than zero.
+        let still = dir.join("still.jpg");
+        std::fs::write(&still, b"\xff\xd8\xff\xd9").expect("write");
+        assert!(video_info(&still).is_none(), "a JPEG is not a video");
+        std::fs::write(&still, &bytes).expect("write");
+        let truncated = dir.join("cut.mp4");
+        std::fs::write(&truncated, &bytes[..bytes.len() / 2]).expect("write");
+        assert!(video_info(&truncated).is_none(), "half a file is not a movie");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     #[test]

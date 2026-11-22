@@ -1772,7 +1772,32 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   the decoder is exercised on synthetic files it was designed against, and performance is unmeasured (the perf
   fixtures are JPEG, and `docs/ROADMAP.md` says so).
 
+## 2026-11-21 — M2 row: a video's length, rate and codec, from its container
+
+- **Metadata first, pixels later, and said so**: the row is split. Part 1 (this commit) reads `moov` through
+  `craft-media`'s isobmff demuxer during the scan — length from the video track's own timescale, frame rate as
+  **sample count over duration** (29.97 reads 29.97, a variable-rate clip reads its average), size from the
+  track or the sample entry, codec from `CodecId::name`. Part 2 (the poster) is a ROADMAP row with its blocker
+  named: `craft-video`'s decoder **plus** a YUV→RGB conversion honouring `ColorTags`, which nothing in the suite
+  provides because a wrong matrix is a colour bug that looks like a decode bug.
+- `Photo` gained `duration_ms`, `fps`, `video_codec` (all `#[serde(default)]`, so an older log still replays),
+  `PhotoMeta` carries them through `apply_meta`, and `format_duration` lives once in the catalog so the cell,
+  the inspector and the screen reader cannot disagree: a duration pill on video cells, "1:12" in the spoken
+  description after the cull facts, and a length row in the compare facts.
+- **Boundaries it refuses to fudge**: a file that is not a container, or a container whose video track declares
+  no length, answers `None` rather than a zero-length clip; MKV/AVI are not probed because their container
+  features are off, and reporting them with no length would be worse than reporting nothing. On wasm there is no
+  filesystem to open, so a clip has no length there — named in the code, not silently zero.
+- **Fixture without a blob**: the test muxes a real MP4 with the suite's own writer — 24 samples of 25 ticks at
+  600 Hz is one second at 24 fps — and asserts duration, size, codec and rate, then truncates the same bytes and
+  asserts the probe refuses half a file, and points it at a JPEG and asserts it is not a video.
+- Goldens changed by exactly the three new JSON keys plus the log byte counts; the diff was read before the
+  update, not accepted blind.
+- 484 tests; ci (exit 0), wasm, deny, docs, snapshot, attribution green. **Not verified by hand**: a real camera
+  clip — the fixture is muxed by the same suite, so it exercises the demuxer, not a phone's peculiar `moov`.
+
 ## Next
 
-Continue in milestone order. Next: video posters + duration/fps/codec (SL-B11), which needs `craft-video` and a
-decision about which frames to extract; then blur-up tier transitions (needs the 384 tier wired to the grid).
+Continue in milestone order. Next: blur-up tier transitions (the 384 tier exists in the cache; the grid must ask
+for it and paint a small blur until the sharp one arrives). Then the M2 absent-by-design table for video posters
+and the remaining M3–M7 rows.

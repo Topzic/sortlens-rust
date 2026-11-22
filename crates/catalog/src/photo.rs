@@ -45,6 +45,15 @@ pub struct Photo {
     /// Pixel height, once metadata has been read.
     #[serde(default)]
     pub height: u32,
+    /// Duration of a video, in milliseconds. `None` for a still or a container this build cannot read.
+    #[serde(default)]
+    pub duration_ms: Option<u32>,
+    /// Frames per second of a video, as the container declares it.
+    #[serde(default)]
+    pub fps: Option<f32>,
+    /// Video codec, e.g. `H.264` — the container's answer, not a decoder's guess.
+    #[serde(default)]
+    pub video_codec: Option<String>,
     /// Capture time, seconds since the Unix epoch, from EXIF when available.
     #[serde(default)]
     pub captured: Option<i64>,
@@ -77,6 +86,20 @@ pub struct Photo {
     pub retry: bool,
 }
 
+/// A duration in milliseconds as `0:12` or `1:02:03`.
+///
+/// Seconds are floored and the minutes are padded, which is what a clock does: a 59.9-second clip reads `0:59`,
+/// not `1:00`, and no clip reads `0:5`.
+pub fn format_duration(ms: u32) -> String {
+    let total = ms / 1000;
+    let (hours, minutes, seconds) = (total / 3_600, (total / 60) % 60, total % 60);
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes}:{seconds:02}")
+    }
+}
+
 impl Photo {
     /// Build a record from what the walker knows.
     pub fn from_scan(id: PhotoId, root: &str, rel: &str, size: u64, modified: Option<i64>, kind: MediaKind, key: u64) -> Self {
@@ -94,6 +117,9 @@ impl Photo {
             flag: Flag::None,
             label: None,
             missing: false,
+            duration_ms: None,
+            fps: None,
+            video_codec: None,
             width: 0,
             height: 0,
             captured: None,
@@ -120,6 +146,20 @@ impl Photo {
         self.aperture = meta.aperture;
         self.shutter = meta.shutter;
         self.focal = meta.focal;
+        self.duration_ms = meta.duration_ms;
+        self.fps = meta.fps;
+        self.video_codec = meta.video_codec.clone();
+    }
+
+    /// A video's length as `0:12` or `1:02:03`, and an empty string for a still.
+    ///
+    /// Pure and shared by the cell, the detail view and the spoken description, so a cell cannot disagree with
+    /// the inspector about how long a clip is.
+    pub fn duration_label(&self) -> String {
+        match self.duration_ms {
+            Some(ms) => format_duration(ms),
+            None => String::new(),
+        }
     }
 
     /// Exposure summary for the details panel.
@@ -193,6 +233,18 @@ pub struct Stats {
     pub tagged: usize,
     pub missing: usize,
     pub bytes: u64,
+}
+
+/// Durations read like a clock: minutes and seconds, hours only when there are hours.
+#[test]
+fn a_duration_reads_like_a_clock() {
+    assert_eq!(format_duration(0), "0:00");
+    assert_eq!(format_duration(999), "0:00");
+    assert_eq!(format_duration(5_000), "0:05");
+    assert_eq!(format_duration(59_900), "0:59", "floored, not rounded up into the next minute");
+    assert_eq!(format_duration(60_000), "1:00");
+    assert_eq!(format_duration(3_723_000), "1:02:03");
+    assert_eq!(format_duration(3_600_000), "1:00:00", "an hour is not `60:00`");
 }
 
 #[cfg(test)]
