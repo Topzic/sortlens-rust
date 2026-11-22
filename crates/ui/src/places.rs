@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// The zoom a map opens at: a country and its neighbours, which is the scale a photo library's spread is legible at.
 pub const DEFAULT_ZOOM: u8 = 5;
@@ -27,6 +28,13 @@ pub const MAX_DOT: f32 = 26.0;
 /// A viewport of 1920×1080 at 256-pixel tiles holds about forty; eight screens' worth is enough to pan back and forth
 /// without decoding again, and small enough that a long session does not grow a texture atlas without end.
 pub const CACHE_LIMIT: usize = 512;
+
+/// How far a dot may be from a named place and still borrow its name.
+///
+/// Thirty kilometres is a city and its surroundings: near enough that "Brighton" is the honest answer for a photograph
+/// taken on the South Downs, far enough that a village must be the village the photographs are actually in. The
+/// gazetteer file decides what exists; this decides how much slack a match is given.
+pub const LABEL_KM: f64 = 30.0;
 
 /// A tile larger than this is not a tile. The bound is read before the file is, so a stray archive in the tiles folder
 /// cannot be decoded into memory on a frame.
@@ -93,6 +101,113 @@ pub fn dot_at(dots: &[Dot], at: (f32, f32)) -> Option<usize> {
         }
     }
     best.map(|(index, _)| index)
+}
+
+/// The name to print beside a dot, if the gazetteer has one near enough.
+///
+/// `None` means "no place recorded near here", which is *not* the middle of the ocean and not an unknown name: the
+/// dot then says its coordinates, because a coordinate is a true answer and an invented place name is not.
+pub fn place_label(gazetteer: &sortlens_geo::Gazetteer, at: sortlens_geo::LatLon) -> Option<&sortlens_geo::Place> {
+    gazetteer.nearest(at, LABEL_KM)
+}
+
+/// What the notice says when a dot is clicked.
+///
+/// Written as one function so the two forms cannot drift: a named dot says where it is by name and a coordinate, an
+/// unnamed one says the coordinate alone rather than pretending to know a place.
+#[must_use]
+pub fn selection_notice(count: usize, at: sortlens_geo::LatLon, name: Option<&str>) -> String {
+    let coordinates = format!(
+        "{:.2}{} {:.2}{}",
+        at.lat.abs(),
+        if at.lat >= 0.0 { 'N' } else { 'S' },
+        at.lon.abs(),
+        if at.lon >= 0.0 { 'E' } else { 'W' }
+    );
+    match name {
+        Some(name) => format!("Selected {count} photo(s) near {name} ({coordinates})"),
+        None => format!("Selected {count} photo(s) at {coordinates}"),
+    }
+}
+
+/// A gazetteer held between frames, with the file's stamp so a changed file is re-read.
+///
+/// The stamp is size and modification time: a file edited with the same length in the same nanosecond is not a case
+/// worth a checksum on every frame, and reading tens of megabytes per frame to notice is not a case worth anything.
+#[derive(Default)]
+pub struct Names {
+    loaded: Option<sortlens_geo::Gazetteer>,
+    stamp: Option<(u64, Option<SystemTime>)>,
+    error: Option<String>,
+}
+
+impl std::fmt::Debug for Names {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Names")
+            .field("places", &self.loaded.as_ref().map(sortlens_geo::Gazetteer::len))
+            .field("error", &self.error)
+            .finish()
+    }
+}
+
+impl Clone for Names {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl Names {
+    /// An empty naming table.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The gazetteer for a file, reloading it when the file has changed.
+    ///
+    /// `None` when there is no file at all. When the file exists but cannot be read, the reason is kept — the view
+    /// shows it, because a places file that silently does nothing is worse than no places file.
+    pub fn for_file(&mut self, path: Option<&Path>) -> Option<&sortlens_geo::Gazetteer> {
+        let Some(path) = path else {
+            self.loaded = None;
+            self.stamp = None;
+            self.error = None;
+            return None;
+        };
+        let stamp = std::fs::metadata(path)
+            .ok()
+            .map(|metadata| (metadata.len(), metadata.modified().ok()));
+        if stamp != self.stamp {
+            self.stamp = stamp;
+            self.error = None;
+            match sortlens_geo::Gazetteer::load(path) {
+                Ok(gazetteer) => self.loaded = Some(gazetteer),
+                // A file that is not there is not a fault: most libraries have no places file, and a red line saying
+                // so would teach the person to ignore the red line. The states worth reporting are a file that is
+                // present and cannot be used.
+                Err(sortlens_geo::GazetteerError::Missing(_)) => self.loaded = None,
+                Err(error) => {
+                    self.loaded = None;
+                    self.error = Some(error.message());
+                }
+            }
+        }
+        self.loaded.as_ref()
+    }
+
+    /// Why the file could not be read, if it could not.
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
+    /// How many place names are held.
+    pub fn len(&self) -> usize {
+        self.loaded.as_ref().map_or(0, sortlens_geo::Gazetteer::len)
+    }
+
+    /// Whether no name is held.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// A zoom to actually use, given the set's range.
@@ -302,6 +417,80 @@ mod tests {
         assert_eq!(clamp_zoom(0, (2, 12)), 2);
         // A set with one zoom is one zoom, and zoom 0 means the world in a single tile: usable, so kept.
         assert_eq!(clamp_zoom(9, (0, 0)), 1);
+    }
+
+    /// A dot borrows a name when the gazetteer has one near enough, and says its coordinate when it does not.
+    #[test]
+    fn a_name_is_borrowed_only_when_there_is_one_near_enough() {
+        let gazetteer = sortlens_geo::Gazetteer::parse("Brighton\t51\t0\tGB\nLima\t-12\t-77\n");
+        assert_eq!(gazetteer.len(), 2);
+        let brighton = sortlens_geo::LatLon::new(50.8225, -0.1372).expect("a place");
+        let named = place_label(&gazetteer, brighton).expect("Brighton is 20 km away");
+        assert_eq!(named.name, "Brighton");
+
+        // The middle of the Atlantic: no name, and no invented one.
+        let ocean = sortlens_geo::LatLon::new(25.0, -40.0).expect("a place");
+        assert_eq!(place_label(&gazetteer, ocean), None);
+
+        // The notice has two forms and neither of them lies: a named dot says the name *and* the coordinate, so the
+        // name cannot be mistaken for a finer resolution than the file has.
+        assert_eq!(
+            selection_notice(42, brighton, Some(&named.name)),
+            "Selected 42 photo(s) near Brighton (50.82N 0.14W)"
+        );
+        assert_eq!(selection_notice(1, ocean, None), "Selected 1 photo(s) at 25.00N 40.00W");
+        // The southern and western halves of the world keep their signs on the label.
+        let sydney = sortlens_geo::LatLon::new(-33.8688, 151.2093).expect("a place");
+        assert_eq!(selection_notice(3, sydney, None), "Selected 3 photo(s) at 33.87S 151.21E");
+    }
+
+    /// A gazetteer is parsed once and re-parsed only when the file changes.
+    #[test]
+    fn a_names_table_reloads_when_the_file_changes() {
+        let dir = std::env::temp_dir().join(format!("sortlens-names-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("places.txt");
+
+        let mut names = Names::new();
+        assert!(names.for_file(None).is_none(), "no file, no names");
+        assert!(names.is_empty());
+
+        std::fs::write(&path, "Brighton\t51\t0\n").expect("write");
+        assert_eq!(names.for_file(Some(&path)).map(sortlens_geo::Gazetteer::len), Some(1));
+        assert_eq!(names.len(), 1);
+        assert!(names.error().is_none());
+
+        // A second call with an unchanged file is a `metadata` call, not a re-read: the count stays the same and the
+        // parse is not repeated (a re-parse is not observable, but an unchanged *stamp* is, and the file is larger
+        // after the next write, which is what forces the reload).
+        assert_eq!(names.for_file(Some(&path)).map(sortlens_geo::Gazetteer::len), Some(1));
+
+        std::fs::write(&path, "Brighton\t51\t0\nLima\t-12\t-77\nHove\t51\t0\n").expect("write");
+        assert_eq!(
+            names.for_file(Some(&path)).map(sortlens_geo::Gazetteer::len),
+            Some(3),
+            "the changed file is re-read"
+        );
+
+        // A file that disappears stops naming anything rather than keeping the last names it had: a place list that
+        // outlives its file would put names on a map the person deleted the authority for. And its absence is not an
+        // error, because having no places file is the normal state of a library.
+        std::fs::remove_file(&path).expect("remove");
+        assert!(names.for_file(Some(&path)).is_none());
+        assert!(names.is_empty());
+        assert_eq!(names.error(), None, "no file is not a fault");
+
+        // An unreadable file keeps its reason for the view to show.
+        let directory_instead = dir.join("places.txt");
+        std::fs::create_dir_all(&directory_instead).expect("dir");
+        names.for_file(Some(&directory_instead));
+        assert!(
+            names.error().is_some(),
+            "a places path that is a directory is reported, not ignored"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A cache decodes a tile once, remembers a bad tile, and does not grow without end.

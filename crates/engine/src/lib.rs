@@ -2104,6 +2104,24 @@ impl Engine {
         })
     }
 
+    /// The gazetteer file, whether or not it exists.
+    ///
+    /// `places.txt` beside the catalog, in the same spirit as the tile folder: a file the person supplies, parsed by a
+    /// documented format, with nothing shipped and nothing fetched. It is *not* loaded here — a gazetteer can be tens
+    /// of megabytes and a view must not parse it to draw a frame.
+    pub fn places_file(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join("places.txt"))
+    }
+
+    /// Read the gazetteer, if the library has one.
+    pub fn load_gazetteer(&self) -> Option<Result<sortlens_geo::Gazetteer, sortlens_geo::GazetteerError>> {
+        let path = self.places_file()?;
+        if !path.exists() {
+            return None;
+        }
+        Some(sortlens_geo::Gazetteer::load(&path))
+    }
+
     /// The basemap, if the library has one.
     ///
     /// The tile folder is `tiles/` beside the catalog, so a basemap is part of the library rather than a global setting:

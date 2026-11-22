@@ -2215,11 +2215,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   click resolves and the credit is the folder's own; they cannot say the coastline sits in the right place, because
   there is no tile set in the repository to compare against. That needs a real archive and eyes.
 
+## 2026-11-22 (sixteenth) — Places part 4: dots borrow a name from a gazetteer the person supplies
+
+- `Gazetteer::load` reads a file with the size checked **before** the bytes (`MAX_GAZETTEER_BYTES` = 64 MB, enough for
+  a four-million-place world list, small enough that pointing the app at a disk image is refused); `GazetteerError`
+  carries a sentence naming the file. **A file with no places is not an error** — `is_empty`/`skipped` report it, and
+  a line of tabs is blank rather than malformed. My test asserted two skipped lines where the code counted one; the
+  code was right and the test changed.
+- `Engine::places_file`/`load_gazetteer` hand back the path and a loader and deliberately do **not** cache: the thing
+  that must never happen is a view parsing tens of megabytes to draw a frame.
+- `places::Names` is the cache — size plus modification time as the stamp, re-read only when it changes. **A deleted
+  file stops naming anything** (a place list outliving its file puts names on a map whose authority was deleted) and
+  **a missing file is not a fault** (most libraries have none; a red line for that teaches people to ignore red lines).
+  Found while wiring the footer: without that distinction the view reported "there is no gazetteer at …" in red for a
+  library that simply had no places file.
+- `LABEL_KM` = 30, `place_label` returns `None` rather than guessing, and `selection_notice` is one function with two
+  forms so the named and unnamed cases cannot drift: "Selected 42 photo(s) near Brighton (50.82N 0.14W)" and
+  "Selected 1 photo(s) at 25.00N 40.00W". Both state the coordinate, so a name is never mistaken for the file's
+  resolution.
+- A named dot prints its name beneath it; the footer says whether names are in use or why they are not.
+- Deduplicated ROADMAP: the `sortlens-geo` part-1 block appeared twice, and the second copy was followed by a stale
+  "part 2: the map view" bullet claiming GPS was not parsed — it has been since `f8f6a34`. Both removed.
+- 576 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: how a dense gazetteer looks — overlapping labels are the file's density problem and there
+  is no declutter pass (named as absent in UX.md) — and how a real GeoNames export performs on load.
+
 ## Next
 
-Naming dots from the gazetteer — the last piece of the map that is already half-built: `Gazetteer::nearest` exists and
-ships no data, `Tileset` is the precedent for "a file the person supplies", so a `places.txt` beside the catalog that
-the app parses into a `Gazetteer` and uses to label each cluster and the selection notice ("Selected 42 photo(s) near
-Brighton"). Keep the same discipline as the credit: no data ships, no network, and an unnamed dot says its coordinate
-rather than inventing a name. If that lands cleanly, then take the named-absent tail — registry delete-everywhere,
-20-step undo history, inline tagging in cull, video posters part 2 — one row at a time.
+The map is complete enough to leave alone for a while; take the named-absent tail, one row per run, starting with
+**registry delete-everywhere**: deleting a keyword or collection is a command, but nothing offers it in the UI, so a
+registry entry exists with no surface. Check `crates/engine/src/command.rs` first — the rule is that a command without
+a caller is either wired up or removed, never left on a list. Then, in order: 20-step undo history (the log keeps
+everything; the UI shows one step), inline tagging in the cull stage, and video posters part 2 (needs a poster file to
+be written beside the video, which is the same "files first, then UI" shape as GPS). Keep the same discipline: prove
+the new path with a test that would fail if the behaviour were absent, and tick the ROADMAP row in the same commit.

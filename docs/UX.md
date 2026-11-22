@@ -308,10 +308,17 @@ will not decode is painted as background: a hole in a tile set is a hole, not a 
 The footer states what is on the map — "4,182 photo(s) with a location · 96 dot(s) · click a dot
 to select it" — and the state of the basemap: absent, refused (with the reason), or fine.
 
+**Names come from the person's own gazetteer.** A `places.txt` beside the catalog, tab-separated
+`name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a dot within
+30 km of a listed place prints its name beneath it, and clicking it says "Selected 42 photo(s) near
+Brighton (50.82N 0.14W)". A dot with no place near enough says its coordinates — a coordinate is a
+true answer and an invented place name is not. The file is re-read when it changes and nothing is
+downloaded; the footer says whether names are in use or why they are not.
+
 **Deliberately absent here:** a vector basemap (a tile folder is what a person can legally supply),
 thumbnail fans inside a dot, a geo-bounds filter on the Library (`library.filter {geoBounds}` does
-not exist; selecting is what a dot does), and a place name on each dot — the gazetteer can name a
-coordinate, and the wiring of names to dots is not built.
+not exist; selecting is what a dot does), and label decluttering — a dense gazetteer will overlap
+its labels, and curating the file is the answer until there is a pass that hides colliding ones.
 
 ### 5.10 Insights
 

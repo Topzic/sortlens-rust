@@ -373,7 +373,81 @@ pub struct Gazetteer {
     skipped: usize,
 }
 
+/// How big a gazetteer file may be.
+///
+/// A world gazetteer of four million places is on the order of a hundred megabytes; sixty-four is enough for that and
+/// small enough that pointing the app at the wrong file (a disk image, a log) is refused instead of read into memory.
+pub const MAX_GAZETTEER_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Why a gazetteer file could not be read.
+#[derive(Debug)]
+pub enum GazetteerError {
+    /// There is no file there.
+    Missing(std::path::PathBuf),
+    /// The file is larger than [`MAX_GAZETTEER_BYTES`].
+    TooLarge { path: std::path::PathBuf, bytes: u64 },
+    /// The file could not be read.
+    Unreadable { path: std::path::PathBuf, reason: String },
+}
+
+impl GazetteerError {
+    /// What to tell the person who has to fix it.
+    pub fn message(&self) -> String {
+        match self {
+            Self::Missing(path) => format!("there is no gazetteer at {}", path.display()),
+            Self::TooLarge { path, bytes } => format!(
+                "{} is {bytes} bytes, larger than the {MAX_GAZETTEER_BYTES}-byte limit; a gazetteer is a list of \
+                 place names, not a disk image",
+                path.display()
+            ),
+            Self::Unreadable { path, reason } => format!("could not read {}: {reason}", path.display()),
+        }
+    }
+}
+
+impl std::fmt::Display for GazetteerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message())
+    }
+}
+
+impl std::error::Error for GazetteerError {}
+
 impl Gazetteer {
+    /// Read a gazetteer file from disk.
+    ///
+    /// The size is checked before the bytes are read, so a mistake in the path costs a `metadata` call rather than a
+    /// gigabyte of memory. A file that parses to nothing is *not* an error here: [`Self::is_empty`] and
+    /// [`Self::skipped`] tell the caller, because a gazetteer with three malformed lines is still a gazetteer.
+    pub fn load(path: impl AsRef<std::path::Path>) -> Result<Self, GazetteerError> {
+        let path = path.as_ref().to_path_buf();
+        let metadata = match std::fs::metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(GazetteerError::Missing(path));
+            }
+            Err(error) => {
+                return Err(GazetteerError::Unreadable {
+                    path,
+                    reason: error.to_string(),
+                });
+            }
+        };
+        if metadata.len() > MAX_GAZETTEER_BYTES {
+            return Err(GazetteerError::TooLarge {
+                path,
+                bytes: metadata.len(),
+            });
+        }
+        match std::fs::read_to_string(&path) {
+            Ok(text) => Ok(Self::parse(&text)),
+            Err(error) => Err(GazetteerError::Unreadable {
+                path,
+                reason: error.to_string(),
+            }),
+        }
+    }
+
     /// Parse a gazetteer file.
     pub fn parse(text: &str) -> Self {
         let mut gazetteer = Self::default();
@@ -581,6 +655,52 @@ mod tests {
         assert!((cluster.centre.lon - -0.118).abs() < 1e-9);
         assert_eq!(cluster.bounds, (51.504, 51.500, -0.116, -0.120));
         assert!(!cluster.is_single());
+    }
+
+    /// A gazetteer is read from a file, refused if it is missing or implausibly large, and tallied when it has holes.
+    #[test]
+    fn a_gazetteer_file_is_read_or_refused_with_a_reason() {
+        let dir = std::env::temp_dir().join(format!("sortlens-gazetteer-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+
+        let good = dir.join("places.txt");
+        std::fs::write(
+            &good,
+            "# name\tlat\tlon\tcountry\nBrighton\t51\t0\tGB\nLima\t-12\t-77\nbroken line\n\t\t\n",
+        )
+        .expect("write");
+        let gazetteer = Gazetteer::load(&good).expect("loads");
+        assert_eq!(gazetteer.len(), 2);
+        // One malformed line, counted rather than silently dropped. The whitespace-only line is *blank*, not broken:
+        // a line of tabs has no content to misread, so it belongs with the empty lines.
+        assert_eq!(gazetteer.skipped(), 1, "the broken line is counted");
+        let brighton = gazetteer
+            .nearest(LatLon::new(50.8225, -0.1372).expect("place"), 30.0)
+            .expect("Brighton is 20 km away");
+        assert_eq!(brighton.name, "Brighton");
+        assert_eq!(brighton.country.as_deref(), Some("GB"));
+
+        let missing = Gazetteer::load(dir.join("absent.txt")).expect_err("no file, no gazetteer");
+        assert!(matches!(missing, GazetteerError::Missing(_)));
+        assert!(missing.message().contains("absent.txt"));
+
+        // A file that is too large is refused before it is read: the whole point of the check is not to read it.
+        let huge = dir.join("huge.txt");
+        let file = std::fs::File::create(&huge).expect("create");
+        file.set_len(MAX_GAZETTEER_BYTES + 1).expect("sparse");
+        let error = Gazetteer::load(&huge).expect_err("too large");
+        assert!(matches!(error, GazetteerError::TooLarge { .. }));
+        assert!(error.message().contains("disk image"));
+
+        // An empty file is a gazetteer with nothing in it, which is a state the caller can report, not an error.
+        let empty = dir.join("empty.txt");
+        std::fs::write(&empty, "").expect("write");
+        let gazetteer = Gazetteer::load(&empty).expect("still a gazetteer");
+        assert!(gazetteer.is_empty());
+        assert_eq!(gazetteer.nearest(LatLon::new(0.0, 0.0).expect("place"), 100.0), None);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A viewport asks for exactly the tiles under it, in tile order, clipped to the world square.

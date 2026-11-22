@@ -239,7 +239,7 @@ stack, not silently ignored.
 | SL-E04 | Duplicate group UI | [D] | Groups with representative, select-all-dupes | Group model, per-group selection helpers | P1 | M6 |
 | SL-E05 | Find similar to this photo | [I] (LightCraft parity) | Reference photo → ranked matches | Hamming distance over hashes; embeddings later | P2 | M8 |
 | SL-E06 | Places map with clusters | [S] | Dark map, photo clusters, geotagged count, zoom | GPS → Web Mercator; offline basemap + optional tiles | P1 | M6 |
-| SL-E07 | Reverse geocoding (place names) | [I] | "Brighton", "Trent Lakes" as place memories | Offline gazetteer (GeoNames cities15000), 1° cell index | P2 | M6 |
+| SL-E07 | Reverse geocoding (place names) | [I] | "Brighton", "Trent Lakes" as place memories | Offline gazetteer the user supplies (tab-separated `name/lat/lon[country]`, 1° cell index, 30 km match); ships no data, downloads nothing | P2 | M6 |
 | SL-E08 | Dashboard overview | [S] | Total images, library size, reviewed, reviewed % | Counters maintained by the catalog | P0 | M6 |
 | SL-E09 | Review-progress breakdown | [S] | Kept / rejected / skipped with percentages and bar | Counter groups, recomputed on op apply | P0 | M6 |
 | SL-E10 | Highlights (first year, busiest month/day, top weekday) | [S] | Four highlight cards | Group-by over capture-date histogram | P1 | M6 |

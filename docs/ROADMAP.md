@@ -658,30 +658,31 @@ remap a moved drive; run the wizard on a clean machine.
     JSON. **`Mode::Trash` is not exercised by a test** — it hands the file to the operating system's trash, and a
     test that moves a real file into the real user's Trash is a test that damages the machine it runs on; the batch,
     audit and undo machinery is covered through `Mode::Move`.
-- [x] `sortlens-geo` **part 1**: projection, clusters and gazetteer — SL-E06/E07
-  - `LatLon` is the only way to hold a coordinate, so nothing downstream has to ask whether it is real; the
-    constructor refuses non-finite numbers, latitudes off the globe and longitudes outside ±180 rather than folding
-    them onto it.
-  - **Web Mercator, because tiles are Mercator** — one place for the maths, and a projection that agrees with every
-    offline basemap and MBTiles archive. `project`/`unproject` round-trip to within a millionth of a degree at zooms
-    0–18, checked at Greenwich, the antimeridian and the northern limit.
-  - **Mercator has no pole, so a polar photograph is refused, not clamped.** Clamping would draw it at the top edge
-    as if it had been taken at 85°N — a wrong statement about a real photograph instead of a missing one. Every
-    returned point is inside the world square, so callers never check.
-  - **Clustering is a 64-pixel grid and it is deterministic**: cells are sorted by count then cell, and a test feeds
-    the same forty photos in two orders and asserts the same dots in the same order. This closes the ROADMAP row
-    that was waiting for the feature ("cluster determinism waits for its feature").
-  - The gazetteer is a **tab-separated file the user supplies**, parsed with comments and malformed lines counted
-    rather than dropped silently; lookup is a one-degree cell index, nearest wins within a radius and ties break by
-    name so file order cannot decide. This crate ships no place data and makes no network call, which is why the
-    data's attribution can stay where its licence can be read.
-  - Eleven tests, including the great-circle distance (London–Paris ~344 km rather than 3.5 "degrees") and the
-    refusal cases. **Not verified by hand**: nothing draws yet — see the dependency below.
-- [ ] Places **part 2**: the map view — and it has a **blocking dependency worth naming**: `sortlens-meta` does not
-  parse GPS at all and `Photo` has no coordinate, so there is nothing to cluster *of* until EXIF GPS is read and
-  stored in the catalog. That is the real next step, and it is data first: parse GPS (degrees/minutes/seconds with
-  its reference hemisphere), put `lat`/`lon` on the record, prove it survives a snapshot and a rescan, and only then
-  paint.
+- [x] Places **part 4**: dots borrow a name from a gazetteer the person supplies — SL-E07
+  - `Gazetteer::load` reads the file with the size checked **before** the bytes are: `MAX_GAZETTEER_BYTES` is 64 MB,
+    enough for a four-million-place world list and small enough that pointing the app at a disk image is refused
+    rather than read into memory. `GazetteerError::{Missing, TooLarge, Unreadable}` each carry a sentence naming the
+    file and what to do.
+  - **A file with no places is not an error.** `is_empty`/`skipped` report it, because a gazetteer with three
+    malformed lines is still a gazetteer, and a blank line of tabs is blank rather than broken — a test asserted
+    otherwise and was wrong.
+  - `Engine::places_file`/`load_gazetteer`: `places.txt` beside the catalog, the same shape as the tile folder. The
+    engine hands back the path and a loader; it deliberately does not cache, because the thing that must not happen is
+    a view parsing tens of megabytes to draw a frame.
+  - `places::Names` is the cache: size plus modification time as the stamp, re-read only when that changes.
+    **A file that disappears stops naming anything** rather than keeping the last names it had — a place list that
+    outlives its file puts names on a map whose authority the person deleted — and a missing file is *not* reported as
+    a fault, because most libraries have none and a red line for that teaches people to ignore red lines.
+  - `places::LABEL_KM` (30 km) decides how much slack a match gets; `place_label` returns `None` rather than a guess;
+    `selection_notice` has two forms — "Selected 42 photo(s) near Brighton (50.82N 0.14W)" and "Selected 1 photo(s) at
+    25.00N 40.00W" — written as one function so the named and unnamed forms cannot drift, and both say the coordinate
+    so a name is never mistaken for a finer resolution than the file has.
+  - A dot with a name prints it below the dot; the footer states whether names are in use (`Named from places.txt ·
+    N place(s)`) or why they are not.
+  - Tests: the file reader (good, missing, too large via a sparse file, empty), the naming rule over named/unnamed and
+    both hemispheres, the cache's reload/stamp/disappearance/unreadable behaviour, and a headless run over two real
+    libraries. **Not verified by hand**: how a dense gazetteer looks — overlapping labels are the file's density
+    problem and there is no declutter pass yet — and how a real GeoNames export performs on load.
 - [x] Offline basemap + attribution (B) — SL-E06, part 3a above: a tile folder with a mandatory credit line
 - [ ] Optional MBTiles reading (B) — SL-E06: needs a SQLite reader in the tree; a tile folder covers the same ground without one
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08

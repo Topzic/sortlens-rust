@@ -569,6 +569,8 @@ pub struct UiState {
     pub places_zoom: u8,
     /// Decoded basemap tiles, so panning and repainting do not decode the same tile again.
     pub places_tiles: places::TileCache,
+    /// Place names from the library's own `places.txt`, re-read when the file changes.
+    pub places_names: places::Names,
     /// Where a marquee drag started, while the pointer is still down.
     pub marquee: Option<egui::Pos2>,
     /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
@@ -762,6 +764,7 @@ impl UiState {
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
             places_tiles: places::TileCache::new(),
+            places_names: places::Names::new(),
             similar_delete_open: false,
         }
     }
@@ -4351,28 +4354,49 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         }
     }
 
+    // Place names for the dots, from the library's own gazetteer. The borrow is resolved into owned strings here so
+    // the click handler below can touch the selection.
+    let places_file = engine.places_file();
+    let (labels, names_len, names_error) = {
+        let gazetteer = state.places_names.for_file(places_file.as_deref());
+        let labels: Vec<Option<String>> = clusters
+            .iter()
+            .map(|cluster| {
+                gazetteer
+                    .and_then(|gazetteer| places::place_label(gazetteer, cluster.centre))
+                    .map(|place| place.name.clone())
+            })
+            .collect();
+        (labels, state.places_names.len(), state.places_names.error().map(str::to_string))
+    };
+    for dot in &dots {
+        let Some(label) = labels.get(dot.cluster).and_then(Option::as_ref) else {
+            continue;
+        };
+        painter.text(
+            egui::pos2(rect.min.x + dot.at.0, rect.min.y + dot.at.1 + dot.radius + 2.0),
+            Align2::CENTER_TOP,
+            label,
+            FontId::proportional(10.0),
+            t.text,
+        );
+    }
+
     // Clicking a dot selects exactly the photos it stands for. Clicking the map itself selects nothing: a click on
     // the sea is not a way to clear a selection the person made on purpose.
-    // Clicking a dot selects exactly the photos it stands for. Clicking the map itself selects nothing: a click on
-    // the sea is not a way to clear a selection the person made on purpose.
-    let clicked_dot = response
+    let clicked_cluster = response
         .interact_pointer_pos()
         .filter(|_| response.clicked())
         // The pointer arrives in screen coordinates and the dots are relative to the map's own corner, so the origin
         // is subtracted here. Without it every click missed by the panel's margin — which is what the click test was
         // written to catch, and did.
         .and_then(|pointer| places::dot_at(&dots, (pointer.x - rect.min.x, pointer.y - rect.min.y)))
-        .map(|index| &clusters[dots[index].cluster]);
-    if let Some(cluster) = clicked_dot {
+        .map(|index| dots[index].cluster);
+    if let Some(index) = clicked_cluster {
+        let cluster = &clusters[index];
         state.selection.select_many(&cluster.members);
-        state.notice(format!(
-            "Selected {} photo(s) at {:.2}{} {:.2}{}",
-            cluster.len(),
-            cluster.centre.lat.abs(),
-            if cluster.centre.lat >= 0.0 { 'N' } else { 'S' },
-            cluster.centre.lon.abs(),
-            if cluster.centre.lon >= 0.0 { 'E' } else { 'W' }
-        ));
+        let name = labels.get(index).and_then(Option::as_deref);
+        state.notice(places::selection_notice(cluster.len(), cluster.centre, name));
     }
 
     // The zoom controls sit over the map's corner, where a map puts them.
@@ -4415,6 +4439,31 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     });
     if zoom_changed {
         ui.ctx().request_repaint();
+    }
+    match (&names_error, names_len) {
+        (Some(error), _) => {
+            ui.add_space(2.0);
+            ui.label(RichText::new(error).size(9.5).color(t.reject));
+        }
+        (None, 0) => {
+            ui.add_space(2.0);
+            ui.label(
+                RichText::new("No places.txt — dots show their coordinates")
+                    .size(9.5)
+                    .color(t.text_faint),
+            );
+        }
+        (None, named) => {
+            ui.add_space(2.0);
+            ui.label(
+                RichText::new(format!(
+                    "Named from places.txt · {named} place(s) · dots within {:.0} km borrow a name",
+                    places::LABEL_KM
+                ))
+                .size(9.5)
+                .color(t.text_faint),
+            );
+        }
     }
     basemap_status(ui, t, engine, &tileset);
 }
@@ -7102,6 +7151,96 @@ mod tests {
             },
         );
         assert_eq!(state.selection.ids(), ids, "the sea is not a way to clear a selection");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A library's own `places.txt` names its dots, and the click selects the dot's photos and names the place.
+    ///
+    /// The gazetteer ships nothing: the file is the person's, in a documented tab-separated format. Two libraries are
+    /// checked — one with the file and one without — because the interesting question is not "does a name appear" but
+    /// "does an unnamed dot still behave correctly", and the answer has to be the coordinate, not a guess.
+    #[test]
+    fn a_library_places_file_names_the_dots_it_knows() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-names-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-names");
+        for (index, factor) in [(1, 0.0_f64), (2, 0.0002)] {
+            std::fs::copy(
+                fixture.jpeg_with_location(
+                    &format!("IMG_{index:04}.jpg"),
+                    [40, 90, 160],
+                    48,
+                    32,
+                    50.8225 + factor,
+                    -0.1372 + factor,
+                ),
+                root.join(format!("IMG_{index:04}.jpg")),
+            )
+            .expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+
+        let tokens = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let paint = |state: &mut UiState| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    places_view(ui, &tokens, state, &engine);
+                });
+            });
+            output.textures_delta.clear();
+            assert!(!output.shapes.is_empty(), "the view paints");
+        };
+
+        // Without a file: no names, no error, and the view still paints.
+        assert!(engine.places_file().is_some(), "the path is always known");
+        assert!(engine.load_gazetteer().is_none(), "and there is nothing at it");
+        paint(&mut state);
+        assert!(state.places_names.is_empty());
+        assert_eq!(state.places_names.error(), None);
+
+        // Write one, and the same frame names the dot.
+        let places_file = engine.places_file().expect("a catalog directory");
+        std::fs::write(&places_file, "Brighton\t51\t0\tGB\nLima\t-12\t-77\n").expect("write");
+        let loaded = engine.load_gazetteer().expect("a file").expect("a gazetteer");
+        assert_eq!(loaded.len(), 2);
+        paint(&mut state);
+        assert_eq!(state.places_names.len(), 2, "the view read the library's own file");
+        let located = engine.located();
+        let brighton = located[0].1;
+        assert_eq!(
+            state
+                .places_names
+                .for_file(engine.places_file().as_deref())
+                .and_then(|gazetteer| places::place_label(gazetteer, brighton))
+                .map(|place| place.name.clone()),
+            Some("Brighton".to_string()),
+            "the dot's name comes from the file"
+        );
+        assert_eq!(
+            places::selection_notice(2, brighton, Some("Brighton")),
+            "Selected 2 photo(s) near Brighton (50.82N 0.14W)"
+        );
+
+        // A malformed file is reported rather than silently ignored: a places file that does nothing is worse than
+        // none at all, because the person believes their names are being used.
+        std::fs::create_dir_all(places_file.with_extension("tmp")).expect("dir");
+        std::fs::remove_file(&places_file).expect("remove");
+        std::fs::create_dir_all(&places_file).expect("a directory where the file was");
+        paint(&mut state);
+        assert!(state.places_names.error().is_some(), "the failure is visible to the view");
+        assert!(state.places_names.is_empty());
 
         let _ = std::fs::remove_dir_all(&dir);
     }
