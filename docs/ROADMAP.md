@@ -228,10 +228,16 @@ and recover; export/import a library onto a second machine and remap the volume.
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
   and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
   — SL-F01; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
-- [ ] `tract` detector session + NMS + label map (D) — SL-F03
+- [x] Non-maximum suppression per class + label map parsing, as pure functions over normalised boxes,
+  with the crowd, the empty-box and the tie-order cases tested (D) — SL-F03 part 1
+- [ ] `tract` detector session behind a feature flag — needs a pinned model in the manifest first (D)
+  — SL-F03 part 2
 - [ ] Image/text embedding sessions + precomputed pack prompts (D) — SL-F04
 - [ ] EXIF hint rules (D) — SL-F05
-- [ ] Suggestion merger + caps + UI panel + accept → tag (D,B) — SL-F06
+- [x] Suggestion merger: dedupe against existing keywords, best score wins, source rank settles ties,
+  caps at 8 per photo, deterministic order (D) — SL-F06 part 1
+- [ ] Suggestion panel + accept → tag, with `source = Ai` in the filter — needs the engine and UI half (D,B)
+  — SL-F06 part 2
 - [ ] Packs as data + counts in settings + toggles (`craft-flags`) (D,B) — SL-F07/F08
 - [ ] Batch suggest job (D) — SL-F09
 - [x] No-network assertion for `sortlens-ai`: a source scan for socket APIs and a dependency scan for

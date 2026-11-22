@@ -1197,12 +1197,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   exists and keeps the download plan clearly in the future tense.
 - 362 tests, `cargo xtask ci`, `wasm`, `deny` and `snapshot` green.
 
+## 2026-11-21 — M8 (second half, part 2): the arithmetic a detector needs, tested without a detector
+
+- `crates/ai/src/detect.rs`: `Box` in **normalised** coordinates (so a 320 px and a 640 px copy of the
+  same photo mean the same thing), `iou`, and `suppress` — NMS **per class**. Per class is the part
+  that matters: a person in front of a car overlaps it almost completely, and suppressing across
+  classes would delete one of them. A zero-area box cannot suppress anything, so a broken detector
+  emitting a thousand empty boxes cannot erase the one real one — that case is a test.
+- ties are broken by score, then class, then position, so a shuffled input produces the identical
+  output (pinned by `equal_scores_still_produce_the_same_order_every_run` and the reversed-input test
+  in `suggest`). NaN and sub-`MIN_SCORE` guesses are dropped before anything is compared.
+- `LabelMap::parse` accepts `index name`, `index: name`, bare names and `#` comments, and **refuses a
+  hole** in the indices — a map with a hole mislabels everything after it.
+- `crates/ai/src/suggest.rs`: `merge` is where a guess becomes a proposal. A keyword the photo already
+  has is never suggested again; two sources proposing the same tag become one at the higher score; a
+  camera hint wins a tie against a guess because it is not guessing; tags shorter than three characters
+  are dropped ("a", "of" are what a captioner says when it has nothing to say); the list is capped at
+  `DEFAULT_PER_PHOTO = 8`, ordered by confidence then name.
+- **nothing here writes to the catalog.** Accepting a suggestion is the only path from a proposal to a
+  keyword, and that half (panel, `source = Ai` filter, the tag write) is not built — ROADMAP's two rows
+  are split into "part 1" (ticked) and "part 2" (not) rather than left ambiguous.
+- `rustc`/clippy pushed two small corrections worth keeping: a negated float comparison became
+  `matches!(area().partial_cmp(&0.0), Some(Greater))` because that is what actually catches a NaN, and
+  a box built from corners is compared with a tolerance (0.6 − 0.2 is not exactly 0.4).
+- 385 tests, `cargo xtask ci`, `wasm`, `deny` and `snapshot` green. No new dependency: this is still a
+  crate that cannot reach the network.
+
 ## Next
 
-M8 continues with the detector path, which needs a model before a session can exist. Order that keeps
-the honesty rule: **first** the label map and non-maximum suppression as pure functions over tensors
-(testable with synthetic boxes, no model at all), **then** the `tract` session behind a feature flag so
-the default build stays dependency-light, **then** a real pinned model entry in `MANIFEST` with its
-licence and digest. Only after that: the suggestion merger with caps, and the review panel where
-accepting a suggestion is what writes a tag. If `tract` cannot be fetched or built in this environment,
-say so in the entry and ship the NMS/label half alone rather than half-wiring a session.
+M8 part 3, in this order so the honesty rule holds: **pin a real model** in `Manifest::shipped()` with
+its licence and digest (an ONNX detector small enough to run on CI-sized inputs), try `cargo add tract`
+behind a `session` feature — if it cannot be fetched or built here, say so and stop rather than
+half-wiring it — then wire `detect::suppress` and `suggest::merge` to real scores, and only then the
+engine command and the review panel. The alternative starting point, if the model cannot be pinned, is
+`EXIF hint rules` (SL-F05), which needs no model at all and feeds the same merger.

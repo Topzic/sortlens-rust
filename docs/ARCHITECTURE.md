@@ -43,7 +43,7 @@ L1  sortlens-meta        craft-metadata → neutral PhotoMeta
     sortlens-media       format routing, embedded previews, video posters
     sortlens-sidecar     XMP read/merge/write
     sortlens-geo         gazetteer, clustering, projection
-    sortlens-ai          model manifest, content-addressed store, digest verification (inference: next)
+    sortlens-ai          model manifest, digest-verified store, NMS + label map + suggestion merge (session: next)
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
     sortlens-quality     sharpness, exposure, clipping metrics
@@ -480,6 +480,20 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   to fail on a planted hit. The plan is that downloads live in `sortlens-engine`'s `model.install`
   job — the single audited place that fetches bytes — and verify the digest before the file becomes
   visible to the inference path. Neither the job nor the downloader exists yet.
+- As built, the arithmetic: `detect::Box` in **normalised** coordinates (so a 320 px and a 640 px copy
+  of the same photo produce the same boxes), `Box::iou`, and `suppress` — non-maximum suppression
+  **per class**, because a person standing in front of a car overlaps it almost completely and
+  suppressing across classes would delete one of them. Boxes below `MIN_SCORE`, with a NaN score or
+  with no area are dropped before comparison: a broken detector emitting a thousand empty boxes must
+  not erase the one real one. Ties are broken by class, then position, so the same input in any order
+  produces the same output.
+- `detect::LabelMap` parses `index name` or `index: name` with `#` comments and **refuses a hole** in the
+  indices: a map with a hole mislabels everything after it, and guessing is worse than refusing.
+- `suggest::merge` is where a guess becomes a proposal: a keyword the photo already has is never
+  suggested again, two sources proposing the same tag become one at the higher score, a camera hint
+  outranks a guess on a tie, tags shorter than three characters are dropped, and the list is capped at
+  `DEFAULT_PER_PHOTO = 8` and ordered by confidence then name. Nothing here writes to the catalog —
+  accepting a suggestion is the only path, and that half is not built.
 - As built: `manifest::Manifest` (id, kind, licence, SHA-256, size, optional input edge) parsed from
   JSON with a newer schema refused and a missing digest or licence treated as an error;
   `store::Store` names each file after its digest, verifies size then digest before anything is

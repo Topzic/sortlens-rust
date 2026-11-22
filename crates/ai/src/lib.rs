@@ -17,15 +17,19 @@
 //!
 //! There is no networking code in this crate, and a test enforces that rather than trusting review.
 
+pub mod detect;
 pub mod manifest;
 #[cfg(test)]
 mod no_network;
 pub mod sha256;
 pub mod store;
+pub mod suggest;
 
+pub use detect::{Box, Detection, LabelMap, suppress};
 pub use manifest::{Manifest, Model, ModelKind};
 pub use sha256::Digest;
 pub use store::{Install, Status, Store};
+pub use suggest::{Candidate, Caps, Suggestion, merge, summary};
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
