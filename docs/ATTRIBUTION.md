@@ -125,7 +125,10 @@ encoder: no photographs are stored, so no photograph's licence needs recording.
 
 | File | Origin | Licence |
 |---|---|---|
-| `assets/icon.svg` | Created for this project | MIT OR Apache-2.0 |
+| `assets/icon.svg` | Drawn for this project in `crates/icon/src/lib.rs`; the file is a rendering of that geometry, and a test fails when the two disagree | MIT OR Apache-2.0 |
+
+The window icon is not committed: `apps/sortlens/build.rs` renders the same drawing to RGBA in `OUT_DIR`,
+so there is no binary blob in the repository and no second copy that could disagree with the first.
 
 ## Product naming
 

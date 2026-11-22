@@ -1,0 +1,17 @@
+[package]
+name = "sortlens-icon"
+description = "The application icon, drawn in code: one geometry for the raster and the SVG"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+sortlens-thumbs.workspace = true
+
+[lints]
+workspace = true

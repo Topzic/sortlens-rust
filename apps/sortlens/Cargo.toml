@@ -20,7 +20,11 @@ craft-settings = { workspace = true }
 serde = { workspace = true }
 rfd = "0.15"
 
+[build-dependencies]
+sortlens-icon.workspace = true
+
 [dev-dependencies]
+sortlens-icon.workspace = true
 toml = "0.9"
 
 [lints]

@@ -334,9 +334,10 @@ photos live; the UI renders correctly in Arabic and Japanese.
 
 ## M10 — Release · 2.0 w · all tracks
 
-**State:** the version contract, `--version`, the release workflow and the packaging notes are in. Signing,
-installers, the a11y audit, the remaining themes/icon pass, performance budgets and the final release
-notes are not.
+**State:** the version contract, `--version`, the release workflow, the packaging notes, the measurements,
+the icon, the attribution gate and the first half of the accessibility audit are in. Signing, installers,
+the emitted accessibility tree, high contrast, reduced motion, theme import, `craft-update` and the tag are
+not — each named with its unblocker in the table at the end of this milestone.
 
 - [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
   cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
@@ -346,9 +347,16 @@ notes are not.
 - [ ] Accessibility audit, part 2 — focus order, focus-trap checks and a real tree walk: this egui version
   has no public way to read accessibility nodes back, so the emitted tree cannot be asserted here; that
   half needs a platform accessibility client (VoiceOver, Orca, NVDA) on a machine with a desktop session
-- [ ] High-contrast preset + reduced-motion toggle (B) — SL-L09/L06
+- [ ] High-contrast preset + reduced-motion toggle (B) — SL-L09/L06 — moved to the table below: not
+  attempted, and not because it is hard
 - [ ] Theme import via `craft-ext-core` palette (B) — SL-I06
-- [ ] Icon set final pass + brand assets (B) — SL-I11
+- [x] Application icon: one drawing in `crates/icon` (code, not a dropped-in binary) rendered two ways —
+  the window icon as RGBA through a build script, and `assets/icon.svg` as the committed, human-viewable
+  copy — with the SVG held to the drawing by a test that fails when either changes and rewrites it only
+  under `SORTLENS_UPDATE_ICON=1`; the app now sets `with_icon`, which it previously did not do at all, so
+  the SVG existed and nothing loaded it. Proved to bite by appending a line to the SVG. The full brand
+  pass (marketing assets, `.icns`/`.ico` packaging per platform) is in the table below, because a
+  plausible-looking icon in a window is not a brand (B) — SL-I11
 - [x] One version, declared once: `cargo xtask version` fails when a crate declares its own version or
   stops inheriting the workspace one, and `sortlens-cli --version` answers without opening (or creating)
   a library — both proved to bite, the second by a test that asserts the folder is still absent (E)
@@ -357,17 +365,33 @@ notes are not.
   run**; no tag exists yet, and the file says so
 - [x] `docs/RELEASE.md`: the single-version rule, the artefact list, the steps to cut a release, the
   checksum story and what this version deliberately does not have (E)
-- [ ] Packaging: macOS signed/notarised, Windows MSI, Linux AppImage/Flatpak (E) — needs signing
-  identities this repository does not have
+- [ ] Packaging: macOS signed/notarised, Windows MSI, Linux AppImage/Flatpak (E) — moved to the table
+  below: it needs signing identities this repository does not have
 - [x] Benchmarks recorded in `docs/PERF.md`, from `cargo xtask perf` on a named machine, including the
   snapshot defect they exposed and the budgets that cannot be measured here (see M2's row) (E)
-- [ ] `craft-update` wired to the launcher (E)
+- [ ] `craft-update` wired to the launcher (E) — moved to the table below
 - [x] `docs/ATTRIBUTION.md` complete and **enforced**: `cargo xtask attribution` (in `ci`) fails when a
   linked crate is unattributed, when a declared-but-unlinked crate is not listed as such, when a table
   names a dependency that no longer exists, when an embedded font family is missing, or when the
   "no model weights, corpora or datasets" statement is deleted — proved to bite both ways (a fake
   `serde_yaml` dependency, and a deleted font row) (E)
-- [ ] Release notes + 1.0 tag (E)
+- [ ] Release notes + 1.0 tag (E) — moved to the table below: a tag is a decision for the person who
+  owns the repository, not something a loop should push
+
+### Deliberately absent from M10
+
+Not rows with an empty box — rows that would need something this repository does not have, kept here so the
+absence is a decision rather than a gap:
+
+| Not built | Because | What would unblock it |
+| --- | --- | --- |
+| Signed and notarised macOS builds (SL-I12) | notarisation needs an Apple Developer identity and a CI secret; a workflow that pretends to sign would produce a bundle Gatekeeper rejects | an identity, `APPLE_ID`/`TEAM_ID`/app-specific password in CI secrets, and a release run to test against |
+| Windows MSI and Linux AppImage/Flatpak | each needs its own toolchain (`cargo-wix`, `linuxdeploy`, Flatpak manifests and a runtime) and, for MSI, a code-signing certificate | those toolchains in the release workflow and a signing certificate |
+| `.icns`/`.ico` generation and a brand pass | the icon is drawn and wired (`crates/icon`, `with_icon`), but the per-platform icon containers and any marketing artwork are packaging work that the absent installer work would consume | the packaging step above; the drawing itself already exists |
+| Theme import via `craft-ext-core` palettes (SL-I06) | importing someone else's palette means committing its colours and its licence; no palette has been chosen, and inventing one is not an import | a chosen palette with a licence that permits redistribution |
+| High-contrast preset and reduced-motion toggle (SL-L09/L06) | both are real design decisions — which contrast pair, which motion to drop — and the headless harness cannot show whether the result is readable or comfortable | a design pass and a person looking at it |
+| `craft-update` wired to the launcher | the crate is declared but unlinked, and an update checker is a network call this project deliberately does not make (`crates/ai` has a `no_network` source scan guarding exactly that promise) | a decision that the app may reach the network, plus a release feed to check |
+| Release notes and a 1.0 tag | a tag is the repository owner's act, and notes for a version that no one has installed yet would describe intentions rather than a release | the owner tagging, and feedback from a run of the artefacts |
 
 **Demo:** install from each artifact on a clean machine; first-run wizard; a11y tree has zero
 unnamed controls; every budget in `FEATURES.md` §M passes.

@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#dc2626"/>
-  <text x="32" y="32" dy="0.35em" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="26" font-weight="600" fill="#ffffff">SR</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Sortlens icon: dark rounded tile, three stacked prints, red lens on the front one">
+  <rect x="0.0" y="0.0" width="100.0" height="100.0" rx="22.0" fill="#1c1c1f"/>
+  <rect x="20.0" y="20.0" width="52.0" height="52.0" rx="12.1" fill="#7e7c78"/>
+  <rect x="26.0" y="26.0" width="52.0" height="52.0" rx="12.1" fill="#cecbc4"/>
+  <rect x="32.0" y="32.0" width="52.0" height="52.0" rx="12.1" fill="#f2f0eb"/>
+  <rect x="58.0" y="58.0" width="17.0" height="17.0" rx="12.1" fill="#c62e2e"/>
 </svg>

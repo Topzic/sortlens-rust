@@ -15,6 +15,7 @@ publish = false
 # One rev for every craft crate (suite rule). Move it in its own PR.
 [workspace.dependencies]
 sortlens-core = { path = "crates/core" }
+sortlens-icon = { path = "crates/icon" }
 sortlens-hash = { path = "crates/hash" }
 sortlens-quality = { path = "crates/quality" }
 sortlens-testkit = { path = "crates/testkit" }

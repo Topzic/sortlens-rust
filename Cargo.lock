@@ -3524,6 +3524,7 @@ dependencies = [
  "serde",
  "sortlens-core",
  "sortlens-engine",
+ "sortlens-icon",
  "sortlens-ui",
  "toml",
 ]
@@ -3625,6 +3626,13 @@ version = "0.1.0"
 dependencies = [
  "craft-jpeg",
  "sortlens-core",
+ "sortlens-thumbs",
+]
+
+[[package]]
+name = "sortlens-icon"
+version = "0.1.0"
+dependencies = [
  "sortlens-thumbs",
 ]
 

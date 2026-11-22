@@ -1456,10 +1456,40 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   commit touches the GUI beyond a headless frame; the frame numbers are layout and shape building, not a
   display.
 
+## 2026-11-21 — M10 (part 5): the icon that existed and nobody loaded, and the table that names the gaps
+
+- **the finding**: `assets/icon.svg` had been in the repo since M0 and **nothing loaded it** — the window
+  was created with no icon at all. An asset that looks finished in a file listing and is absent everywhere
+  a user meets the app.
+- `crates/icon` is now the one place the mark is defined, in code: `rgba()` renders it (4×4 supersampled,
+  512 px, rounded tile, three stacked prints, red lens on the front), `svg()` renders the same geometry for
+  `assets/icon.svg`, and `png()` writes an RGBA PNG through a hand-rolled stored-deflate writer plus CRC32
+  and Adler32 — no dependency, and byte-identical on every machine, which is what a generated asset needs.
+- `apps/sortlens/build.rs` renders the pixels into `OUT_DIR` and `main` sets `with_icon`, so no binary blob
+  is committed and there is no second copy to disagree with the first.
+- **Proved to bite**: the SVG is held to the drawing by
+  `the_committed_svg_is_the_drawing`; appending a line to the file failed it, and `SORTLENS_UPDATE_ICON=1`
+  rewrote it (that path is the documented way to change the mark). `the_window_icon_decodes_to_the_mark`
+  decodes the PNG with `sortlens-thumbs` (a decoder that was not written for it) and checks the transparent
+  corner, the front print's colour and the lens; `the_icon_is_square_and_rounded` checks the shape;
+  `the_window_icon_is_the_generated_mark` in the app checks what the build script actually produced.
+- **M10 closed honestly**: "Deliberately absent from M10" table added (signed/notarised macOS, MSI and
+  AppImage/Flatpak, `.icns`/`.ico` and the brand pass, theme import, high contrast and reduced motion,
+  `craft-update`, release notes and the 1.0 tag) — each with the reason and the unblocker, and the "State:"
+  line rewritten to match. The rows those replace were moved into it rather than left as empty boxes.
+- Files: `crates/icon/`, `apps/sortlens/build.rs`, `apps/sortlens/src/main.rs`, `assets/icon.svg`,
+  `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/ATTRIBUTION.md`, `docs/RELEASE.md`.
+- 432 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: how the icon looks in a
+  real window on each platform (macOS dock, Windows taskbar); checked only as pixels and as a decoded PNG,
+  plus a rendered preview of the SVG at 200/64/32 px.
+
 ## Next
 
-M10's absent-by-design table: what this release deliberately does not have — signed/notarised macOS
-builds, MSI/AppImage/Flatpak, an icon pass, theme import, `craft-update` wiring, release notes and a tag —
-each with the reason and what would unblock it, so the milestone closes by naming its gaps rather than
-leaving empty boxes. Then the accessibility part 2 row, then the final README/PLAN reconciliation and the
-M0 debt sweep.
+The accessibility part 2 row is not closable here (no public way to read egui's accessibility tree, no
+screen-reader client on this machine), so the remaining work is the **final documentation reconciliation**:
+README's status line and feature list, `PLAN.md` §12, and every stale "State:" line across the docs, so that
+what the repository says about itself matches the 432 tests and the ten milestones that shipped. That is the
+last item before the exit condition ("every ROADMAP box checked or explicitly absent, README/PLAN agree").
+
+After that the M0 debt sweep is already done (`craft-fonts` build input, `cargo deny` allow-list, snapshot
+CI job, goldens, attribution, a11y) — the exit check should confirm it rather than redo it.

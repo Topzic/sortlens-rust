@@ -56,3 +56,11 @@ shasum -a 256 sortlens-cli-0.1.0-aarch64-apple-darwin.tar.gz
 
 The hash is computed from the file that is uploaded, not from a build artefact that was renamed on the
 way, because a checksum of something else is worse than no checksum.
+
+## The icon
+
+The mark is drawn in `crates/icon`: `rgba()` is rendered by `apps/sortlens/build.rs` into the window icon and
+`svg()` is the committed `assets/icon.svg`. A test holds the file to the drawing (`SORTLENS_UPDATE_ICON=1`
+rewrites it when the mark changes on purpose). Packaging wants `.icns` and `.ico` files, which do not exist
+yet — they are itemised as absent in `docs/ROADMAP.md` under M10, together with the installer work that
+would consume them.

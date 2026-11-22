@@ -30,7 +30,7 @@ alternative it beat and the reason, so a later reader can revisit it.
 ## 2. Layers and crates
 
 ```
-L5  sortlens-ui (egui)   sortlens-mcp   apps: sortlens (desktop), -cli, -web, -server
+L5  sortlens-ui (egui)   sortlens-mcp   apps: sortlens (desktop), -cli, -web, -server, -perf
 L4  sortlens-engine      commands, session, activity, jobs, filters, export, filesystem ops
 L3  sortlens-catalog     op log + snapshot + counters + undo/audit
     sortlens-cull        session state machine
@@ -49,6 +49,7 @@ L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-quality     sharpness, exposure, clipping metrics
     sortlens-export      export planning, collision policy, copy and re-encode
     sortlens-testkit     synthetic libraries, fixtures, assertions
+    sortlens-icon        the application mark, drawn in code for the window and the committed SVG
 ```
 
 Dependency rule: a crate may depend on strictly lower layers plus `craft-*` crates.
