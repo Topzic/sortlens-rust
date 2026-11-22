@@ -96,6 +96,16 @@ struct App {
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, title_inset: f32) -> Self {
+        // Before the first frame, so no frame is drawn in a font that is about to be replaced. With
+        // no craft-fonts checkout this is a no-op and egui's own faces stay.
+        let faces = sortlens_ui::fonts::install(&cc.egui_ctx);
+        if faces > 0 {
+            eprintln!(
+                "sortlens: {} craft-font face(s) embedded ({})",
+                faces,
+                sortlens_ui::fonts::families().join(", ")
+            );
+        }
         let (store, report) = SettingsStore::<Prefs>::open(Location::Auto);
         let kind = ThemeKind::from_id(&store.get().appearance.theme);
         let saved_sort = Sort::parse(&store.get().library.sort);

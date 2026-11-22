@@ -33,6 +33,7 @@ scripts and AI agents.
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Crates and layers, op-log storage, command registry, threading, safety rails, testing, distribution |
 | [`docs/UX.md`](docs/UX.md) | The five surfaces, every screen, information architecture, keyboard map, themes, accessibility |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Checkbox tracker per milestone, acceptance demos, backlog |
+| Fonts | egui's own faces by default; craft-fonts fallbacks when `CRAFT_FONTS_DIR` is set (see below) |
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Deep audit: getartcraft.com, craft-libs, craft-fonts, craft-extensions, rustup, and the Sortlens repo |
 | [`docs/BEHAVIOUR.md`](docs/BEHAVIOUR.md) | Normative contracts: cull states, delete modes, XMP, scan identity, previews, crash safety |
 
@@ -112,3 +113,26 @@ every bundled file with its licence.
 
 Published dependencies keep their own licences. If you redistribute a build, include those notices;
 `cargo deny check licenses` (M1) enforces the allow-list in CI.
+
+## Fonts
+
+The interface runs on egui's own faces unless a craft-fonts checkout is named at build time. That is
+deliberate: the fonts live in a separate repository, and a Cargo dependency on it would make every
+build — offline, in a fork, on a mirror — fetch it.
+
+```sh
+git clone https://github.com/storytold/craft-fonts .fonts/craft-fonts
+CRAFT_FONTS_DIR=$PWD/.fonts/craft-fonts cargo build -p sortlens
+CRAFT_FONTS_DIR=$PWD/.fonts/craft-fonts cargo xtask fonts     # what is embedded
+```
+
+Native builds embed all 21 faces of the craft-fonts manifest (Japanese, Korean, Simplified Chinese,
+Hebrew, Arabic, Thai, Georgian, nine Indian scripts and two symbol faces). A wasm build keeps five —
+`BIZ UDPGothic Regular/Bold`, `NanumGothic Regular`, `Noto Sans Symbols` and `Noto Sans Symbols 2` —
+because the whole manifest is about 48 MiB. `fonts/embedded.txt` records what ships so a release can
+diff it. Release builds set `CRAFT_FONTS_REQUIRED=1` so a missing checkout fails instead of silently
+shipping without them.
+
+Craft faces are **appended** to each family, never prepended: a fallback that changes Latin text is a
+bug. `crates/ui/src/fonts.rs` names the scripts the interface itself needs — `Latn` for the text and
+`Zsym` for the `⌃ ✕ ◀ ✓` keycaps — and `coverage()` says which of them the embedded table covers.

@@ -38,7 +38,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [ ] `cargo deny` allow-list; `Cargo.lock` committed (E) — policy is written in `docs/ATTRIBUTION.md`, tool not wired
 - [x] App shell: top bar, bottom bar, left/right panels, canvas (B)
 - [x] `craft-window` title-bar policy; macOS traffic-light inset (B)
-- [ ] `craft_ui` fonts (`Inter` + craft-fonts) + `assert_covers` for `en` (B) — egui defaults are in use
+- [x] Fonts: `crates/ui/build.rs` embeds craft-fonts when `CRAFT_FONTS_DIR` is set (optional by design), `fonts::install` appends them as fallbacks after egui's own faces, `fonts::coverage` checks `Latn`/`Zsym`, and `cargo xtask fonts` reports the set (B) — egui's own faces remain the zero-config default
 - [x] Four theme presets + contrast tests (B) — widget states set on `Visuals`; `WidgetPalette` mapping still open
 - [x] `craft-settings` v1 type, damaged-file notice, unknown-key preservation (A)
 - [x] Command registry skeleton; `Engine::run` returns typed errors (A)

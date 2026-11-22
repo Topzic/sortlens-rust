@@ -407,9 +407,18 @@ token set, not a sweep through the UI.
 4. installed system fonts (optional feature);
 5. emoji/symbol faces.
 
-`craft_ui::fonts::UiFonts` builds the stack; `fonts::assert_covers` fails the build if a
-translated string needs a glyph no face draws. Web build serves faces rather than embedding
-them (`Embed::serve`).
+Implemented as `crates/ui/build.rs` + `crates/ui/src/fonts.rs`:
+
+- `build.rs` reads `CRAFT_FONTS_DIR` (unset is a supported configuration, and what CI uses) and writes
+  a `CRAFT_FONTS: &[CraftFont]` table. A wasm build keeps an explicit five-face allowlist.
+- `fonts::install(ctx)` registers them and **appends** each face to `Proportional` and `Monospace`,
+  after egui's own, so a fallback can never take over Latin text.
+- `fonts::coverage()` checks the scripts the interface itself draws (`Latn`, `Zsym`); the translated
+  scripts are listed separately, ready for when translations land.
+- `cargo xtask fonts` reports the face and family count from the checkout and refuses a manifest with
+  no Latin face. `fonts/embedded.txt` records what the last release shipped.
+- The web build embeds faces rather than serving them for now; `Embed::serve` stays the plan if the
+  wasm bundle grows past its budget.
 
 ### 8.4 Keymap and menus
 

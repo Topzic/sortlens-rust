@@ -1024,9 +1024,33 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   first. **Not verified by hand**: the palette entry for "Read a Page" (the UI does not call it; the
   grid uses `Engine::page` directly)
 
+## 2026-11-21 — M0 debt: craft-fonts, optional by design
+
+- `crates/ui/build.rs` reads `CRAFT_FONTS_DIR` and writes a `CRAFT_FONTS: &[CraftFont]` table, with
+  **unset as a supported configuration** — CI has no checkout, so the empty table is the configuration
+  under test. A wasm build keeps an explicit five-face allowlist (BIZ UDPGothic Regular/Bold,
+  NanumGothic, Noto Sans Symbols 1 and 2) because the whole manifest is ~48 MiB; a native build embeds
+  all 21 faces.
+- `crates/ui/src/fonts.rs`: `install()` registers them and **appends** each face to `Proportional` and
+  `Monospace` after egui's own, never prepended — a fallback that changes Latin text is a bug.
+  `families()`, `embedded()`, and `coverage()` over `REQUIRED_SCRIPTS = ["Latn", "Zsym"]`, because the
+  keymap draws `⌃ ✕ ◀ ✓` as text; `TRANSLATED_SCRIPTS` lists what translations will need.
+- the app installs them in `App::new` before the first frame and logs the face count, so a build with
+  fonts says so once instead of looking identical to one without.
+- `cargo xtask fonts` (now part of `xtask ci`): unset prints how to enable them and passes; a set
+  checkout reports face/family counts and script coverage, and a manifest with no Latin face fails.
+  `fonts/embedded.txt` records what shipped, so a release can diff it.
+- **verified with the real checkout**, cloned to gitignored `.fonts/craft-fonts`:
+  `CRAFT_FONTS_DIR=… CRAFT_FONTS_REQUIRED=1 cargo test -p sortlens-ui -p sortlens` passes (30 ui
+  tests, fonts installed), `cargo build -p sortlens` links, and `cargo xtask fonts` reports
+  "21 face(s) in 20 family(ies) … Latn covered · Zsym covered"
+- 307 tests, CI and wasm green in both configurations (with and without `CRAFT_FONTS_DIR`)
+- **not verified by hand**: how the text actually looks with the craft faces — no screenshot, and the
+  font stack is asserted structurally (defaults kept, first face unchanged, fallbacks appended), not
+  visually. The app's `TIM` typography also still uses egui's default sizes.
+
 ## Next
 
-M7: **`craft-fonts`** — the app still runs on egui's built-in fonts, so the ArtCraft typography in
-`docs/UX.md` is aspirational. Wire `craft-fonts` (`embed` feature, `CRAFT_FONTS_DIR`) into the app's
-`CreationContext`, add an `xtask` check that the embedded families cover what the theme asks for, and
-say in the README which families ship.
+M0 debt: **`cargo deny`** with an allow-list (`deny.toml`), so a licence or advisory regression fails
+CI instead of being noticed by a person. Then the snapshot CI job (run the suite with
+`SORTLENS_SNAPSHOT=1`, or commit the catalog fixtures the tests regenerate).

@@ -51,6 +51,7 @@ fn main() -> ExitCode {
         "layers" => layers(),
         "roots" => roots(),
         "assets" => assets(),
+        "fonts" => fonts(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -69,14 +70,15 @@ fn help() {
     println!(
         "cargo xtask <task>
 
-  ci       fmt --check, clippy, tests, layer rules, crate roots, asset provenance
+  ci       fmt --check, clippy, tests, layer rules, crate roots, asset provenance, fonts
   fmt      check formatting
   clippy   lint every target with -D warnings
   test     run the workspace tests
   wasm     check the wasm-safe crates for wasm32
   layers   enforce the dependency layering rules
   roots    enforce the crate-level lint header
-  assets   enforce that every asset has a provenance entry"
+  assets   enforce that every asset has a provenance entry
+  fonts    report the embedded face set and refuse to ship one that covers no Latin text"
     );
 }
 
@@ -87,6 +89,7 @@ fn ci() -> Result<(), String> {
     layers()?;
     roots()?;
     assets()?;
+    fonts()?;
     Ok(())
 }
 
@@ -187,6 +190,67 @@ fn roots() -> Result<(), String> {
         }
     }
     report("roots", problems)
+}
+
+/// Check the font stack: the family list, and whether the required scripts are covered.
+///
+/// The craft-fonts checkout is optional, so "not embedded" is a pass with a clear line rather than a
+/// silent success — but a build that *does* embed faces and covers none of the interface's own
+/// scripts is refused, because that is a table built from the wrong manifest.
+fn fonts() -> Result<(), String> {
+    let manifest = Path::new("fonts/embedded.txt");
+    let dir = std::env::var_os("CRAFT_FONTS_DIR").map(std::path::PathBuf::from);
+    let mut report = Vec::new();
+    match &dir {
+        None => {
+            println!("xtask fonts: not embedded (CRAFT_FONTS_DIR is unset) — egui's own faces are used");
+            println!("  to embed: git clone https://github.com/storytold/craft-fonts .fonts/craft-fonts");
+            println!("            CRAFT_FONTS_DIR=$PWD/.fonts/craft-fonts cargo xtask fonts");
+            return Ok(());
+        }
+        Some(dir) => {
+            let checkout = dir.join("fonts/manifest.txt");
+            if !checkout.exists() {
+                return Err(format!("{} is not a craft-fonts checkout", dir.display()));
+            }
+            let text = fs::read_to_string(&checkout).map_err(|error| error.to_string())?;
+            let mut families: Vec<&str> = text
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .filter_map(|line| line.split(" | ").next())
+                .collect();
+            families.sort_unstable();
+            families.dedup();
+            report.push(format!(
+                "{} face(s) in {} family(ies): {}",
+                text.lines()
+                    .map(str::trim)
+                    .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                    .count(),
+                families.len(),
+                families.join(", ")
+            ));
+            let has_latin = text.lines().any(|line| line.contains("Latn"));
+            let has_symbols = text.contains("Zsym");
+            if !has_latin {
+                return Err("the manifest lists no Latin face".to_string());
+            }
+            report.push(format!(
+                "required scripts: Latn {} · Zsym {}",
+                "covered",
+                if has_symbols { "covered" } else { "MISSING" }
+            ));
+        }
+    }
+    if let Ok(written) = fs::read_to_string(manifest) {
+        report.push(format!("last written record: {}", written.trim()));
+    }
+    for line in &report {
+        println!("  {line}");
+    }
+    println!("xtask fonts: ok ({} note(s))", report.len());
+    Ok(())
 }
 
 fn assets() -> Result<(), String> {

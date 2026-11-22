@@ -1,0 +1,9 @@
+# Faces embedded by crates/ui/build.rs, one per line: family | style | scripts.
+# Kept in the repo so a release can diff what shipped against what the manifest now offers.
+# Regenerate with: CRAFT_FONTS_DIR=$PWD/.fonts/craft-fonts cargo xtask fonts
+BIZ UDPGothic | Regular | Jpan,Latn
+BIZ UDPGothic | Bold | Jpan,Latn
+NanumGothic | Regular | Hang,Kore
+Noto Sans Symbols | Regular | Zsym
+Noto Sans Symbols 2 | Regular | Zsym
+# Native builds embed the whole manifest; the web build keeps only the five faces above.
