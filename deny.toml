@@ -1,0 +1,83 @@
+# cargo-deny: what this project will and will not ship.
+#
+# The list below is not "everything that happens to be in the tree today" — it is the set of
+# licences the project has decided it can ship under MIT OR Apache-2.0. A dependency that adds a new
+# licence fails CI, and the fix is a decision written here, not a silent widening.
+#
+# Run: cargo xtask deny   (or `cargo deny check` directly)
+
+[graph]
+# Every target is checked, because a Windows-only or wasm-only dependency still ships.
+all-features = true
+
+[advisories]
+version = 2
+# An unmaintained crate is reported; a vulnerable one fails. Both are decisions for a person, so the
+# registry stays live rather than pinning a snapshot: an advisory published tomorrow should matter
+# tomorrow.
+yanked = "deny"
+ignore = [
+    # rfd → ashpd → zbus 5: the whole tree is maintained; nothing here is ignored today. Listed so the
+    # first real exception has somewhere to go with a reason beside it.
+]
+
+[licenses]
+version = 2
+# Permissive, and one weak-copyleft licence for a crate we do not modify (option-ext, via rfd).
+# Anything stronger needs a discussion, which is the point of the allow-list.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "IJG",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+# Two entries above are deliberately *not* listed even though crates in the graph carry them:
+# ryu is "Apache-2.0 OR BSL-1.0" (Apache-2.0 is on the list, so BSL never has to be chosen) and
+# epaint_default_fonts is covered by the exception below. Listing them would only produce
+# "licence not encountered" noise.
+#
+# The Unicode tables are Unicode-3.0; libjpeg's independent-JPEG-group licence (IJG) covers the JPEG
+# decoder's reference tables; fontconfig and the bundled fonts are OFL.
+confidence-threshold = 0.93
+exceptions = [
+    # Unicode licence on the tables egui and epaint embed: attribution is in docs/ATTRIBUTION.md.
+    { allow = ["Unicode-3.0"], crate = "unicode-ident" },
+    # Ubuntu-font on the bundled Hack/Ubuntu faces egui ships; attribution is in docs/ATTRIBUTION.md.
+    { allow = ["Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
+]
+
+[bans]
+# A duplicate major version is reported rather than fatal: the graph is mostly transitive and a
+# second copy is a size problem, not a correctness one. Crates we control are held to the rule.
+multiple-versions = "warn"
+# Internal crates are path dependencies with no version, which is the point of a workspace, so they
+# are exempt. A wildcard *version requirement* on a registry crate is still fatal: that is the case
+# this lint exists for.
+wildcards = "deny"
+allow-wildcard-paths = true
+deny = [
+    # Nothing here yet. An entry is a decision with a reason, e.g. a crate we refuse on principle.
+]
+skip = []
+skip-tree = []
+
+[sources]
+# Only crates.io and the three git repositories pinned on purpose: the craft suite, the ArtCraft egui
+# fork and the winit fork it tracks. A new git source is a supply-chain decision, so it fails.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    "https://github.com/storytold/craft-libs",
+    "https://github.com/storytold/egui",
+    "https://github.com/storytold/winit",
+]

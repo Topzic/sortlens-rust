@@ -52,6 +52,7 @@ fn main() -> ExitCode {
         "roots" => roots(),
         "assets" => assets(),
         "fonts" => fonts(),
+        "deny" => deny(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -78,7 +79,8 @@ fn help() {
   layers   enforce the dependency layering rules
   roots    enforce the crate-level lint header
   assets   enforce that every asset has a provenance entry
-  fonts    report the embedded face set and refuse to ship one that covers no Latin text"
+  fonts    report the embedded face set and refuse to ship one that covers no Latin text
+  deny     check licences, advisories, bans and sources against deny.toml"
     );
 }
 
@@ -251,6 +253,23 @@ fn fonts() -> Result<(), String> {
     }
     println!("xtask fonts: ok ({} note(s))", report.len());
     Ok(())
+}
+
+/// Run cargo-deny against the allow-list in `deny.toml`.
+///
+/// A missing cargo-deny is a failure, not a pass: a check that quietly does nothing when its tool is
+/// absent is worse than no check, because the badge still goes green. CI installs it; locally it is
+/// `cargo install cargo-deny --locked`.
+fn deny() -> Result<(), String> {
+    let installed = Command::new("cargo")
+        .args(["deny", "--version"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    if !installed {
+        return Err("cargo-deny is not installed; run: cargo install cargo-deny --locked".to_string());
+    }
+    run("cargo", &["deny", "check"])
 }
 
 fn assets() -> Result<(), String> {

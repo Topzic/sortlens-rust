@@ -35,7 +35,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [x] `rust-toolchain.toml` (1.95.0, wasm target), `.cargo/config.toml` alias; egui + winit forks patched in `Cargo.toml`
 - [x] Workspace: 19 library crates + 4 app crates; `[lints] workspace = true`; crate-root denies (A)
 - [x] `xtask`: `ci`, `fmt`, `clippy`, `test`, `layers`, `roots`, `assets`, `wasm` (E)
-- [ ] `cargo deny` allow-list; `Cargo.lock` committed (E) — policy is written in `docs/ATTRIBUTION.md`, tool not wired
+- [x] `cargo deny` allow-list in `deny.toml` (licences, advisories, bans, sources), `cargo xtask deny`, its own CI job; `Cargo.lock` committed (E)
 - [x] App shell: top bar, bottom bar, left/right panels, canvas (B)
 - [x] `craft-window` title-bar policy; macOS traffic-light inset (B)
 - [x] Fonts: `crates/ui/build.rs` embeds craft-fonts when `CRAFT_FONTS_DIR` is set (optional by design), `fonts::install` appends them as fallbacks after egui's own faces, `fonts::coverage` checks `Latn`/`Zsym`, and `cargo xtask fonts` reports the set (B) — egui's own faces remain the zero-config default

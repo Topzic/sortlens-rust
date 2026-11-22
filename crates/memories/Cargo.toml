@@ -2,6 +2,7 @@
 name = "sortlens-memories"
 description = "Resurfacing cards: on this day, this week in past years, and photos never looked at"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

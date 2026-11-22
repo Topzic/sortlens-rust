@@ -1049,8 +1049,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   font stack is asserted structurally (defaults kept, first face unchanged, fallbacks appended), not
   visually. The app's `TIM` typography also still uses egui's default sizes.
 
+## 2026-11-21 — M0 debt: a supply-chain gate that actually bites
+
+- `deny.toml`: an allow-list, not a snapshot of what happens to be in the tree. Allow-listed: 0BSD,
+  Apache-2.0 (and with LLVM-exception), BSD-2/3-Clause, BSL-1.0, IJG, ISC, MIT, MPL-2.0, OFL-1.1,
+  Unicode-3.0, Ubuntu-font (per-crate exception for `epaint_default_fonts`), Unlicense, Zlib, with a
+  `unicode-ident` exception for its Unicode-3.0 tables. GPL/AGPL/LGPL/CC-BY-NC fail by omission.
+- `[sources]` allows exactly three git origins — `storytold/craft-libs`, `storytold/egui`,
+  `storytold/winit` — so a new git dependency is a decision, not a diff nobody reads. (The first
+  version listed `emilk/egui`; the check caught the fork URL, which is the point.)
+- `[bans]`: `wildcards = "deny"` with `allow-wildcard-paths = true`. That needed every workspace
+  member to say `publish = false` (25 `Cargo.toml`s, inherited from `[workspace.package]`), because
+  cargo-deny treats a publishable crate's path dependencies as wildcards — the honest answer is that
+  nothing here is published to crates.io; the repository is the distribution.
+- **`BSL-1.0` and `Ubuntu-font-1.0` are deliberately absent from the allow list** even though crates
+  in the graph carry them: `ryu` is "Apache-2.0 OR BSL-1.0" so BSL is never *chosen*, and the font is
+  covered by the exception. Listing them produced "licence not encountered" noise, which trains
+  people to ignore the output.
+- `cargo xtask deny`: creates no pass when cargo-deny is missing — it fails and says
+  `cargo install cargo-deny --locked`, because a check that silently does nothing is worse than none.
+- CI: its own `deny` job on ubuntu, so a licence or advisory regression is named as that instead of
+  hiding inside a three-OS test log.
+- **the gate was proved to bite**: with MIT removed from the allow-list the licences check FAILS, and
+  with `storytold/winit` removed from `[sources]` the sources check FAILS. Both reverted.
+- `deny.toml`, `xtask deny`, README, TOOLING and CONTRIBUTING (including "a dependency change is a
+  licence change") record the policy where a contributor will read it.
+
 ## Next
 
-M0 debt: **`cargo deny`** with an allow-list (`deny.toml`), so a licence or advisory regression fails
-CI instead of being noticed by a person. Then the snapshot CI job (run the suite with
-`SORTLENS_SNAPSHOT=1`, or commit the catalog fixtures the tests regenerate).
+M0 debt: the **snapshot CI job** (ROADMAP "CI: 3 OSes + wasm check + snapshot job" is the last
+unchecked box on that row). There is no insta/expect-test in the tree, so the cheapest honest version
+is a committed golden-output job: drive the CLI and the MCP server against a fixture library built by
+`sortlens-testkit`, write the JSON to `tests/golden/`, and diff it — which catches a renamed serde
+field or a reworded summary that no unit test asserts. Design the fixture first, then the diff step;
+`cargo xtask snapshot` writing `--update` and CI running it read-only.

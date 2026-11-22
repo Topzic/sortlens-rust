@@ -2,6 +2,7 @@
 name = "sortlens-engine"
 description = "The command registry and job scheduler that everything else calls"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

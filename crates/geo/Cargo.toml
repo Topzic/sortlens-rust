@@ -2,6 +2,7 @@
 name = "sortlens-geo"
 description = "Geotag parsing, offline gazetteer and clustering for the map"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

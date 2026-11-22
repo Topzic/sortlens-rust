@@ -276,8 +276,12 @@ Notes and gotchas:
   tool permissions may refuse writes outside the workspace.
 - **Sandbox/CI caching:** `~/.cargo/registry`, `~/.cargo/git`, `target/`, and the craft-libs git
   checkout dominate build time. Cache `~/.cargo/git` keyed on the pinned rev.
-- **`cargo-deny`** enforces the licence allow-list required by AGENTS.md §26 (MIT, Apache-2.0,
-  BSD, ISC, OFL, Zlib, Unicode; explicitly denied: GPL/AGPL/LGPL, CC-BY-NC).
+- **`cargo-deny`** enforces `deny.toml` via `cargo xtask deny`, in its own CI job. Allow-listed:
+  0BSD, Apache-2.0 (and with LLVM-exception), BSD-2/3-Clause, BSL-1.0, IJG, ISC, MIT, MPL-2.0,
+  OFL-1.1, Unicode-3.0, Unlicense, Zlib, plus per-crate exceptions for `unicode-ident` and
+  `epaint_default_fonts`. Denied by omission: GPL, AGPL, LGPL, CC-BY-NC. Advisories, yanked crates,
+  wildcard version requirements and unknown git sources fail the same job. Install with
+  `cargo install cargo-deny --locked`; the task says so rather than passing silently.
 - **`cargo-nextest`** for the suite's test profile; `cargo test` remains supported.
 - **`cargo-mutants`** on `sortlens-catalog` and `sortlens-cull` only, nightly job.
 - **No `sccache` in release builds** (LTO + one codegen unit); it helps dev loops only.

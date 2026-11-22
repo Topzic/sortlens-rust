@@ -48,9 +48,13 @@ Open an issue before writing code if you are changing:
 ```sh
 . scripts/env.sh          # project-local toolchain, if you used scripts/bootstrap.sh
 cargo run -p sortlens     # the application
-cargo xtask ci            # fmt, clippy, tests, layer rules, lint headers, provenance
+cargo xtask ci            # fmt, clippy, tests, layer rules, lint headers, provenance, fonts
 cargo xtask wasm          # wasm-safe crates
+cargo xtask deny          # licences, advisories, bans, sources (needs cargo-deny)
 ```
+
+A dependency change is a licence change. `deny.toml` is the allow-list; adding a crate that needs a
+new licence is a decision to argue for in the PR, not a line to add quietly.
 
 Commit messages: `<area>: <imperative summary>` — for example `catalog: keep ratings across a
 rescan` or `ui: fix filter bar height at narrow widths`. The body explains why, not what.

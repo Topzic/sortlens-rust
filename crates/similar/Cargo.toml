@@ -2,6 +2,7 @@
 name = "sortlens-similar"
 description = "Similar-photo search over perceptual hashes and colour signatures"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

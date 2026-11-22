@@ -2,6 +2,7 @@
 name = "sortlens-ui"
 description = "The egui shell: tokens, themes, panels, grid and dialogs"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

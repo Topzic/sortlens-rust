@@ -2,6 +2,7 @@
 name = "xtask"
 description = "Repository tasks: CI, layer rules, provenance, wasm"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

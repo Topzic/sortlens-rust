@@ -2,6 +2,7 @@
 name = "sortlens-quality"
 description = "Sharpness, exposure and composition measures that drive best-pick and soft-focus"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

@@ -111,8 +111,14 @@ screenshots remain the property of their owner. This repository contains no vend
 derived from decompilation, and no vendor assets; `docs/ATTRIBUTION.md` lists every dependency and
 every bundled file with its licence.
 
-Published dependencies keep their own licences. If you redistribute a build, include those notices;
-`cargo deny check licenses` (M1) enforces the allow-list in CI.
+Published dependencies keep their own licences. If you redistribute a build, include those notices.
+
+`deny.toml` is the allow-list, and `cargo xtask deny` (its own CI job) enforces it: permissive
+licences only — MIT, Apache-2.0 (with the LLVM exception), BSD-2/3, ISC, Zlib, 0BSD, BSL-1.0 via
+Apache, MPL-2.0, OFL-1.1, Unicode-3.0, the IJG and Ubuntu font licences, Unlicense — with no GPL,
+AGPL, LGPL or CC-BY-NC. It also denies vulnerable and yanked crates, refuses wildcard version
+requirements and any git source that is not one of the three pinned here. Nothing in the workspace is
+published to crates.io (`publish = false`), which is why internal path dependencies carry no version.
 
 ## Fonts
 

@@ -8,6 +8,9 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
 repository = "https://github.com/Topzic/sortlens-rust"
+# This workspace is distributed as a repository, not as crates: nothing here is published, so a path
+# dependency with no version is correct rather than an oversight.
+publish = false
 
 # One rev for every craft crate (suite rule). Move it in its own PR.
 [workspace.dependencies]

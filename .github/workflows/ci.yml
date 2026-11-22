@@ -44,3 +44,19 @@ jobs:
       - name: wasm
         if: matrix.os == 'ubuntu-latest'
         run: cargo xtask wasm
+
+  # Its own job so a licence or advisory regression is named as that, not buried in a test log. Runs
+  # on one OS because the check reads Cargo.lock, which is the same everywhere.
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: deny
+        run: cargo xtask deny

@@ -2,6 +2,7 @@
 name = "sortlens-insights"
 description = "Library statistics, camera and lens breakdowns, timeline buckets"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true

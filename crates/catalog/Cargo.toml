@@ -2,6 +2,7 @@
 name = "sortlens-catalog"
 description = "The persistent photo catalog: op log, snapshots, counters and queries"
 version.workspace = true
+publish.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
