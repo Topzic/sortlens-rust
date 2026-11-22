@@ -324,6 +324,31 @@ impl Engine {
         Ok(health)
     }
 
+    /// Audit the catalog files without changing them.
+    pub fn audit(&mut self) -> Result<sortlens_catalog::integrity::Audit> {
+        let dir = self.dir.clone().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        if let Some(catalog) = self.catalog.as_mut() {
+            catalog.flush()?;
+        }
+        sortlens_catalog::integrity::audit(&dir)
+    }
+
+    /// Compact the catalog: snapshot everything, then start a fresh log.
+    ///
+    /// Also the repair path — a torn log tail or a stale record cannot survive it, because the log
+    /// is rewritten from a clean snapshot.
+    pub fn compact(&mut self) -> Result<u64> {
+        // Compaction rewrites the log from the snapshot, so it would cement whatever the snapshot
+        // got wrong. A torn log tail is the one thing it is meant to repair; anything else the audit
+        // found is a reason to stop and ask rather than to write.
+        let audit = self.audit()?;
+        if !audit.is_clean() && !audit.torn_tail {
+            return Err(Error::Invalid(format!("refusing to compact: {}", audit.notes.join("; "))));
+        }
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        catalog.compact()
+    }
+
     /// Repoint an indexed root at a new location, after checking a sample of its photos.
     ///
     /// A renamed or moved volume is the common case: every file keeps its relative path, so the
@@ -1678,6 +1703,24 @@ impl Engine {
                 }))
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
+            "library.audit" => {
+                let audit = self.audit()?;
+                Ok(json!({
+                    "clean": audit.is_clean(),
+                    "photos": audit.photos,
+                    "collections": audit.collections,
+                    "seq": audit.final_seq,
+                    "snapshotSeq": audit.snapshot_seq,
+                    "replayed": audit.replayed,
+                    "skipped": audit.skipped,
+                    "logBytes": audit.log_bytes,
+                    "tornTail": audit.torn_tail,
+                    "headline": audit.headline(),
+                    "detail": audit.detail(),
+                    "notes": audit.notes,
+                }))
+            }
+            "library.compact" => Ok(json!({ "reclaimed": self.compact()? })),
             "library.remapRoot" => {
                 let from = args
                     .get("from")
@@ -2257,6 +2300,58 @@ mod tests {
             .run("collection.colour", &json!({ "id": id.0, "colour": "none" }))
             .expect("clear");
         assert!(engine.collections()[0].colour.is_none());
+    }
+
+    #[test]
+    fn compaction_refuses_a_library_it_could_not_read() {
+        let folder = Temp::new("bad-snapshot-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (lib, mut engine) = library("lib-bad-snapshot");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        engine.close().expect("close");
+
+        // A half-written snapshot is what a crash during a snapshot leaves.
+        let path = lib.0.join(sortlens_catalog::SNAPSHOT_NAME);
+        let text = std::fs::read_to_string(&path).expect("read");
+        std::fs::write(&path, &text[..text.len() / 2]).expect("truncate");
+
+        let mut engine = Engine::open(&lib.0).expect("reopen");
+        let peek = engine.audit().expect("audit");
+        assert!(!peek.is_clean(), "the audit saw nothing wrong: {peek:?}");
+        let error = engine.compact().expect_err("refused");
+        assert!(error.to_string().contains("refusing to compact"), "{error}");
+        assert!(
+            std::fs::read_to_string(&path).expect("still there").len() < text.len(),
+            "the damaged snapshot was left alone"
+        );
+        assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn the_catalog_can_be_audited_and_compacted() {
+        let folder = Temp::new("audit-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (_lib, mut engine) = library("lib-audit");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        engine.rate(&[id], 4).expect("rate");
+
+        let audit = engine.run("library.audit", &json!({})).expect("audit");
+        assert_eq!(audit["clean"], true);
+        assert_eq!(audit["photos"], 1);
+        assert!(audit["headline"].as_str().expect("headline").contains("Clean"));
+
+        let compact = engine.run("library.compact", &json!({})).expect("compact");
+        assert!(compact["reclaimed"].as_u64().expect("bytes") > 0, "the log had records");
+
+        let after = engine.run("library.audit", &json!({})).expect("audit again");
+        assert_eq!(after["clean"], true);
+        assert_eq!(after["replayed"], 0, "everything is in the snapshot");
+        assert_eq!(engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].rating, 4);
     }
 
     #[test]

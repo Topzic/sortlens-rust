@@ -200,6 +200,8 @@ pub struct UiState {
     pub tag_edit: Option<(String, String)>,
     /// The rejects bin is being emptied after a confirmation.
     pub empty_bin_open: bool,
+    /// The last catalog audit: (headline, detail, clean).
+    pub audit: Option<(String, String, bool)>,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -283,6 +285,7 @@ impl UiState {
             welcome_ready: None,
             tag_edit: None,
             empty_bin_open: false,
+            audit: None,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -2754,6 +2757,44 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             }
             ui.label(
                 RichText::new("Repointing checks a sample of photos in the new folder first.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(8.0);
+            ui.separator();
+            ui.label(RichText::new("Catalog files").size(11.0).color(t.text_muted));
+            if let Some((headline, detail, clean)) = &state.audit {
+                ui.label(
+                    RichText::new(headline.clone())
+                        .size(11.5)
+                        .color(if *clean { t.text } else { t.reject }),
+                );
+                ui.label(RichText::new(detail.clone()).size(10.0).color(t.text_faint));
+            }
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("Check integrity").size(11.5)).clicked() {
+                    match engine.audit() {
+                        Ok(audit) => {
+                            state.audit = Some((audit.headline(), audit.detail(), audit.is_clean()));
+                            state.notice(audit.headline());
+                        }
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                }
+                if ui
+                    .button(RichText::new("Compact").size(11.5))
+                    .on_hover_text("Write a fresh snapshot and empty the log; also repairs a torn log tail")
+                    .clicked()
+                {
+                    match engine.compact() {
+                        Ok(0) => state.notice("Catalog was already compact"),
+                        Ok(bytes) => state.notice(format!("Compacted · {} reclaimed", sortlens_core::format_bytes(bytes))),
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                }
+            });
+            ui.label(
+                RichText::new("The check replays a copy of the log, so the library itself is never touched.")
                     .size(10.5)
                     .color(t.text_faint),
             );

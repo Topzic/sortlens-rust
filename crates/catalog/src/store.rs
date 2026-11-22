@@ -52,6 +52,10 @@ pub struct OpenReport {
     pub snapshot_seq: u64,
     /// Human-readable problems; none is fatal.
     pub warnings: Vec<String>,
+    /// The log ended in a record that failed its checksum and was dropped.
+    pub torn_tail: bool,
+    /// Records the log held that were already in the snapshot.
+    pub skipped: usize,
 }
 
 /// The persisted state.
@@ -197,10 +201,12 @@ impl Catalog {
                     Some(record) => record,
                     None => {
                         report.warnings.push("log record failed its checksum; earlier records kept".into());
+                        report.torn_tail = true;
                         break;
                     }
                 };
                 if record_seq <= catalog.seq {
+                    report.skipped += 1;
                     continue;
                 }
                 let _ = catalog.apply(&op)?;
@@ -882,6 +888,23 @@ impl Catalog {
     }
 
     /// Write a snapshot and truncate the log. Called automatically every [`SNAPSHOT_EVERY`] ops.
+    /// How many bytes the log occupies on disk.
+    pub fn log_bytes(&self) -> u64 {
+        fs::metadata(self.dir.join(LOG_NAME)).map(|meta| meta.len()).unwrap_or(0)
+    }
+
+    /// Write a snapshot and start a fresh log, reporting the bytes that were reclaimed.
+    ///
+    /// This is both compaction and repair: whatever the log held is now in the snapshot, so a torn
+    /// tail or a stale record cannot come back. The caller is expected to [`audit`] first if it
+    /// wants to know what was dropped.
+    pub fn compact(&mut self) -> Result<u64> {
+        let before = self.log_bytes();
+        self.snapshot()?;
+        let after = self.log_bytes();
+        Ok(before.saturating_sub(after))
+    }
+
     pub fn snapshot(&mut self) -> Result<()> {
         let snapshot = Snapshot {
             schema: SCHEMA,

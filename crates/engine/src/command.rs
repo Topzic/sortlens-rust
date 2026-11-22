@@ -213,6 +213,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.audit",
+                    label: "Check Catalog Integrity",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Check Catalog Integrity",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.compact",
+                    label: "Compact Catalog",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Compact Catalog",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.remapRoot",
                     label: "Point at a New Folder…",
                     group: Group::Library,

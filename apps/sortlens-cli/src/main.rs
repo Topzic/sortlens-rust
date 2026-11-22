@@ -33,6 +33,8 @@ Commands:
   list [--tag KW]           filter the listing by keyword
   undo                      undo the last change
   remap <old> <new>         repoint a moved or renamed root, sample checked
+  audit                     check the catalog files read back cleanly
+  compact                   snapshot and empty the log
   backup <file>             write a verified backup of the index
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
@@ -239,6 +241,20 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "audit" => {
+            let audit = engine.audit().map_err(|error| error.to_string())?;
+            println!("{}", audit.headline());
+            println!("{}", audit.detail());
+            for note in &audit.notes {
+                println!("note: {note}");
+            }
+            Ok(())
+        }
+        "compact" => {
+            let bytes = engine.compact().map_err(|error| error.to_string())?;
+            println!("compacted · {} reclaimed", sortlens_core::format_bytes(bytes));
             Ok(())
         }
         "remap" => {

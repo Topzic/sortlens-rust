@@ -634,7 +634,29 @@ photos one at a time.
   root unchanged; an unindexed root refused; the sample covering 12 of 30 and everything of 3
 - 225 tests, CI and wasm green. Verified by hand over the CLI, including the refusal path.
 
+## 2026-11-21 — M7: integrity check and compaction
+
+- catalog: new `integrity` module. `audit(dir)` answers "can this library be read back exactly?" by
+  copying the two catalog files to a scratch directory and opening them there — the same code a
+  normal open runs, with no side effects on the library. It reports the snapshot's seq, records
+  replayed, records already covered, log bytes, photos, collections, whether the log tail was torn,
+  and any warnings from the open
+- catalog: `open()` now reports `torn_tail` and `skipped` in `OpenReport` instead of leaving them in
+  prose warnings; `log_bytes()` and `compact()` (snapshot then truncate, returning bytes reclaimed)
+- engine: `audit()`, `compact()`, commands `library.audit` / `library.compact`. Compaction **refuses**
+  when the audit found anything worse than a torn tail, because rewriting the log from a damaged
+  snapshot would cement the damage — found by hand: compacting a half-written snapshot produced a
+  clean-looking, empty library
+- ui: Library health gains a Catalog files section ("Check integrity", "Compact") that reports the
+  headline, the detail and the bytes reclaimed
+- cli: `audit` and `compact`
+- tests: fresh library clean, records replayed counted, a truncated log tail reported as recoverable
+  and then repaired by compaction (clean again, the readable prefix kept), an empty folder refused,
+  compaction reporting reclaimed bytes, the engine round trip, and compaction refusing a library whose
+  snapshot could not be read
+- 231 tests, CI and wasm green. Verified by hand: audit on a clean library, a damaged snapshot
+  reported as "Needs attention" with the reason, and compaction refusing it.
+
 ## Next
 
-M7: library integrity check and compaction — verifying the log and the snapshot agree, and
-rewriting the log from a clean snapshot.
+M7: audit viewer and export — a browsable list of recent changes with an export for support.
