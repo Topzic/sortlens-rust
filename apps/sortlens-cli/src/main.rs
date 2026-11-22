@@ -28,6 +28,8 @@ Commands:
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
+  reveal <id>               show the file in the desktop's file manager
+  open <id>                 hand the file to the desktop's default application
   memories [--today D]      resurfacing cards; D is YYYY-MM-DD, default today
   shortcuts                 every command that has a keyboard shortcut
   registry                  keywords, the names they swallowed, and orphaned aliases
@@ -465,6 +467,33 @@ fn run() -> Result<(), String> {
             let dest = rest.get(1).ok_or("a destination folder is required")?;
             let files = Engine::import_backup(std::path::Path::new(path), std::path::Path::new(dest)).map_err(|error| error.to_string())?;
             println!("restored {files} file(s) into {dest}");
+            Ok(())
+        }
+        "reveal" | "open" => {
+            let id = parse_id(rest.first())?;
+            let value = engine
+                .run(
+                    if command == "reveal" { "photo.reveal" } else { "photo.open" },
+                    &serde_json::json!({ "id": id.0 }),
+                )
+                .map_err(|error| error.to_string())?;
+            let program = value["program"].as_str().unwrap_or("open");
+            let args: Vec<&str> = value["args"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|arg| arg.as_str())
+                .collect();
+            // The engine built the command; the CLI is a desktop host, so it runs it.
+            match std::process::Command::new(program)
+                .args(&args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+            {
+                Ok(_) => println!("{}", value["line"].as_str().unwrap_or_default()),
+                Err(error) => return Err(format!("could not run {program}: {error}")),
+            }
             Ok(())
         }
         "memories" => print_memories(&mut engine, rest),

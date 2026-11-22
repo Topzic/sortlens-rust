@@ -169,3 +169,24 @@ always produce the same cards, so a card can be checked against the grid.
 - **A card says what it left out** ("3 of 10 photos · since 2019") rather than silently truncating.
 - **A wrong date can be corrected** with `photo.setCaptured`, which is an op like any other: undoable,
   in the change log, and written to the sidecar so the correction survives the next read.
+
+## Showing a file to the desktop
+
+Two actions, `photo.reveal` and `photo.open`, and one rule about who does what.
+
+- **The engine builds the command; the host runs it.** `sortlens_core::reveal` turns a path and a
+  desktop into a program and an argument list, with no process table involved, so the exact argv is
+  asserted in a test for each platform. The app and the CLI execute it; the engine's command result
+  says `"ran": false` and hands back the line, because a library opened by the wasm client has no
+  process table to run anything in.
+- **Arguments are always a list.** A file called `$(rm -rf ~).jpg` is one argument, never a shell
+  string.
+- **Reveal selects the file where the desktop can**: macOS `open -R`, Windows `explorer /select,`.
+  Linux has no portable way to select a file in its file manager, so reveal opens the *containing
+  folder* and the app says so instead of pretending the photo is highlighted.
+- **A file that is no longer on disk is refused** with an instruction to rescan or relocate the
+  folder, rather than spawning a process that fails silently.
+- **Nothing is mutated.** Neither action touches the catalog, the op log or a sidecar: showing a file
+  is not an edit, and it must not appear in the change history.
+- Windows `explorer` exits non-zero even when it worked, so a non-zero exit is only treated as a
+  failure when the program could not be started at all.

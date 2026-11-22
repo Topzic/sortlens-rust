@@ -934,6 +934,27 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   deltas cleared), so bad geometry or an empty series fails in CI rather than in front of a user
 - 285 tests (6 in `charts`), CI and wasm green
 
+## 2026-11-21 — M7: show a file to the desktop
+
+- new `crates/core/src/reveal.rs`: the two OS actions as **pure command construction** —
+  `Desktop { MacOs, Windows, Linux }` with `current()`, `reveal()` (`open -R` / `explorer /select,` /
+  `xdg-open <folder>`), `open_with_default()` (`open` / `cmd /c start ""` / `xdg-open`) and
+  `reveal_selects()` so a caller can tell the truth about Linux. Arguments are always a list, so a
+  file called `$(rm -rf ~).jpg` is one argument and never a command; six tests pin the exact argv,
+  including the empty `start` title argument Windows needs
+- **the split is the design**: the engine builds the command, the host runs it. `photo.reveal` and
+  `photo.open` return `{program, args, line, ran: false}` — a library opened by the wasm client has no
+  process table, so a command that claimed to have run would be a lie. `Engine::reveal_target` and
+  `path_of` do the resolution and refuse a file that is no longer on disk with "rescan or relocate"
+- app: `Action::Reveal` / `Action::OpenExternal` spawn the built command and report the line (or the
+  desktop's inability to select a file on Linux) in the status bar
+- ui: "Show in folder" and "Open" in the grid's context menu and in the detail header, next to Close
+- cli: `reveal <id>` and `open <id>` execute the same command
+- docs: `docs/BEHAVIOUR.md` gains "Showing a file to the desktop" — who builds, who runs, why
+  arguments are a list, the Linux folder deviation, and that nothing here mutates the catalog
+- 292 tests, CI and wasm green. Verified end to end: the CLI ran `open -R /tmp/sl-rev/ph/a.jpg` (Finder
+  opened), and a file deleted behind the app's back was refused with the rescan instruction
+
 ## Next
 
-M7: `photo.reveal` and `photo.open` — show the file in the OS and hand it to the default app.
+M7: MCP server — expose the command registry over stdio so an agent can cull a library.

@@ -132,7 +132,7 @@ scans headlessly and prints a JSON report.
 - [x] Detail lookahead strip + 64-bin luminance histogram (B) — SL-B21
 - [x] Shortcut overlay + keymap wiring (B) — SL-B23: `crates/ui/src/keymap.rs` is the table, checked against the command registry in both directions
 - [ ] Undo/redo (20+) + audit log + viewer skeleton (A) — SL-D10/H04
-- [ ] `photo.reveal/open` (A) — SL-B22
+- [x] `photo.reveal` / `photo.open`: argv built in `sortlens-core::reveal` (pure, per-desktop, tested), executed by the app and the CLI (A) — SL-B22
 - [ ] Tests: XMP golden, filter algebra, stale revision, contrast of badges
 
 **Demo:** rate/tag 100 photos → quit → reopen: identical state; `xmllint`-clean sidecars contain

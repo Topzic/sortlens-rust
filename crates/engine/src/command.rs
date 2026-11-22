@@ -589,6 +589,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "photo.reveal",
+                    label: "Show in Folder",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Show in Folder",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "photo.open",
+                    label: "Open in Default App",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Open in Default App",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "photo.setCaptured",
                     label: "Set Capture Date",
                     group: Group::Organise,

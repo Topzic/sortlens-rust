@@ -124,6 +124,10 @@ pub enum Action {
     MovePicks(Vec<PhotoId>),
     /// Put a moved batch back.
     UndoMove(u64),
+    /// Show this photo in the desktop's file manager.
+    Reveal(PhotoId),
+    /// Hand this photo to the desktop's default application.
+    OpenExternal(PhotoId),
 }
 
 /// What Apply does with rejected photos.
@@ -1096,13 +1100,13 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
 
             match state.view {
                 View::Library if state.detail_open => {
-                    detail_view(ui, t, state, engine, thumbs);
+                    detail_view(ui, t, state, engine, thumbs, actions);
                 }
                 View::Library => {
                     if total == 0 {
                         empty_library(ui, t, state, engine, actions);
                     } else {
-                        grid(ui, t, state, engine, thumbs, &filter);
+                        grid(ui, t, state, engine, thumbs, &filter, actions);
                     }
                 }
                 View::ForYou => for_you_view(ui, t, state, engine, thumbs),
@@ -1115,7 +1119,15 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         });
 }
 
-fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, filter: &Filter) {
+fn grid(
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut UiState,
+    engine: &mut Engine,
+    thumbs: &mut Thumbnails,
+    filter: &Filter,
+    actions: &mut Vec<Action>,
+) {
     let gap = t.grid_gap;
     let available = ui.available_width();
     let min_cell = 132.0;
@@ -1152,6 +1164,15 @@ fn grid(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumb
                                     state.detail_open = true;
                                 }
                                 response.context_menu(|ui| {
+                                    if ui.button("Show in folder").clicked() {
+                                        actions.push(Action::Reveal(photo.id));
+                                        ui.close();
+                                    }
+                                    if ui.button("Open in default app").clicked() {
+                                        actions.push(Action::OpenExternal(photo.id));
+                                        ui.close();
+                                    }
+                                    ui.separator();
                                     ui.menu_button("Add to Collection", |ui| {
                                         let collections = engine.collections();
                                         if collections.is_empty() {
@@ -1869,7 +1890,7 @@ fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
     facts
 }
 
-fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
+fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     let filter = state.filter();
     let Some(id) = state.selected else {
         ui.vertical_centered(|ui| {
@@ -1909,6 +1930,20 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             ui.label(RichText::new(format!("{index} of {total}")).size(11.5).color(t.text_muted));
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if ui
+                .add(Button::new(RichText::new("Open").size(10.5)).frame(false))
+                .on_hover_text("Hand this file to the desktop's default application")
+                .clicked()
+            {
+                actions.push(Action::OpenExternal(id));
+            }
+            if ui
+                .add(Button::new(RichText::new("Show in folder").size(10.5)).frame(false))
+                .on_hover_text("Show this file where it lives on disk")
+                .clicked()
+            {
+                actions.push(Action::Reveal(id));
+            }
             if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
                 state.detail_open = false;
                 state.compare = None;

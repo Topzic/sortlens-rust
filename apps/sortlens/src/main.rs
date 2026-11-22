@@ -126,6 +126,49 @@ impl App {
         }
     }
 
+    /// Run the command the engine built for "show this file on disk".
+    ///
+    /// The engine refuses a file that is no longer there, so a failure here is about the desktop
+    /// (no handler, a sandbox) rather than about the library, and the message says which.
+    fn show_in_folder(&mut self, id: sortlens_core::PhotoId) {
+        self.spawn(sortlens_engine::RevealMode::Reveal, id);
+    }
+
+    /// Hand the file to whatever the desktop opens it with.
+    fn open_externally(&mut self, id: sortlens_core::PhotoId) {
+        self.spawn(sortlens_engine::RevealMode::Open, id);
+    }
+
+    fn spawn(&mut self, mode: sortlens_engine::RevealMode, id: sortlens_core::PhotoId) {
+        let built = match self.engine.reveal_target(id, mode) {
+            Ok(built) => built,
+            Err(error) => {
+                self.ui.notice(error.to_string());
+                return;
+            }
+        };
+        match std::process::Command::new(&built.program)
+            .args(&built.args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+        {
+            // Explorer returns 1 even when it did the job, so a non-zero exit is reported as the
+            // command failing to start only when the program itself could not be run at all.
+            Ok(_) => {
+                let folder_only = sortlens_core::Desktop::current().is_some_and(|desktop| !sortlens_core::reveal::reveal_selects(desktop))
+                    && mode == sortlens_engine::RevealMode::Reveal;
+                let note = if folder_only {
+                    "Opened the containing folder — this desktop cannot select a file in it".to_string()
+                } else {
+                    built.display()
+                };
+                self.ui.notice(note);
+            }
+            Err(error) => self.ui.notice(format!("Could not run {}: {error}", built.program)),
+        }
+    }
+
     fn apply(&mut self, ctx: &egui::Context, action: Action) {
         match action {
             Action::SetTheme(kind) => {
@@ -142,6 +185,8 @@ impl App {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
             Action::Notice(text) => self.ui.notice(text),
+            Action::Reveal(id) => self.show_in_folder(id),
+            Action::OpenExternal(id) => self.open_externally(id),
             Action::PickFolder => {
                 if let Some(folder) = rfd::FileDialog::new().set_title("Add a folder to Sortlens").pick_folder() {
                     let path = folder.to_string_lossy().to_string();

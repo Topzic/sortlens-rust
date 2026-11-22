@@ -44,6 +44,15 @@ pub enum Effect {
     Quit,
 }
 
+/// Which of the two OS actions a photo asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevealMode {
+    /// Show the file in the desktop's file manager.
+    Reveal,
+    /// Hand the file to the default application.
+    Open,
+}
+
 /// A scan running on a worker thread.
 struct PendingScan {
     root: String,
@@ -1280,6 +1289,39 @@ impl Engine {
         Ok(changed)
     }
 
+    /// The absolute path of one photo, if the library knows it.
+    pub fn path_of(&self, id: PhotoId) -> Option<std::path::PathBuf> {
+        self.catalog
+            .as_ref()
+            .and_then(|catalog| catalog.photo(id))
+            .map(|photo| std::path::Path::new(&photo.root).join(&photo.rel))
+    }
+
+    /// What the host should run to show a photo in the file manager or hand it to its application.
+    ///
+    /// The engine constructs the command and checks the file is still there; running it is the
+    /// host's job, because a library opened by the wasm client has no process table to run it in.
+    pub fn reveal_target(&self, id: PhotoId, mode: RevealMode) -> Result<sortlens_core::reveal::Command> {
+        let desktop =
+            sortlens_core::Desktop::current().ok_or_else(|| Error::Invalid("this build has no desktop to show files in".into()))?;
+        let photo = self
+            .catalog
+            .as_ref()
+            .and_then(|catalog| catalog.photo(id))
+            .ok_or(Error::NoSuchPhoto(id))?;
+        let path = std::path::Path::new(&photo.root).join(&photo.rel);
+        if !path.exists() {
+            return Err(Error::Invalid(format!(
+                "{} is not on disk any more; rescan or relocate the folder first",
+                photo.name
+            )));
+        }
+        Ok(match mode {
+            RevealMode::Reveal => sortlens_core::reveal::reveal(&path, desktop),
+            RevealMode::Open => sortlens_core::reveal::open_with_default(&path, desktop),
+        })
+    }
+
     /// Resurfacing cards for a given day, defaulting to today.
     ///
     /// `today` exists so the cards can be reproduced and tested; the app passes the clock.
@@ -2413,6 +2455,29 @@ impl Engine {
                     .collect();
                 Ok(json!({ "jobs": jobs }))
             }
+            "photo.reveal" | "photo.open" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| Error::Invalid("an id is required".into()))?;
+                let mode = if command == "photo.reveal" {
+                    RevealMode::Reveal
+                } else {
+                    RevealMode::Open
+                };
+                let built = self.reveal_target(PhotoId(id), mode)?;
+                // The host runs it. `ran` is honest about that: a caller that was expecting the file
+                // to open should look at it before believing anything happened.
+                Ok(json!({
+                    "program": built.program,
+                    "args": built.args,
+                    "line": built.display(),
+                    "ran": false,
+                    "selects": sortlens_core::reveal::reveal_selects(
+                        sortlens_core::Desktop::current().unwrap_or(sortlens_core::Desktop::Linux)
+                    ),
+                }))
+            }
             "photo.setCaptured" => {
                 let changes: Vec<(PhotoId, Option<i64>)> = args
                     .get("changes")
@@ -3090,6 +3155,37 @@ mod tests {
         assert!(engine.photo(ids[0]).expect("photo").has_tag("beach"));
         let forgotten = engine.run("tag.alias", &json!({ "alias": "seaside" })).expect("forget");
         assert_eq!(forgotten["changed"], true);
+    }
+
+    #[test]
+    fn revealing_a_photo_builds_a_command_and_refuses_a_missing_file() {
+        let folder = Temp::new("reveal-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (_lib, mut engine) = library("lib-reveal");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        let value = engine.run("photo.reveal", &json!({ "id": id.0 })).expect("reveal");
+        // The engine builds the command; running it is the host's job, and the result says so.
+        assert_eq!(value["ran"], false);
+        assert!(value["program"].as_str().expect("program").len() > 1);
+        let args = value["args"].as_array().expect("args");
+        assert!(
+            args.iter().any(|arg| arg.as_str().unwrap_or_default().ends_with("a.jpg")),
+            "the file should be named in the command: {args:?}"
+        );
+
+        let opened = engine.run("photo.open", &json!({ "id": id.0 })).expect("open");
+        assert_ne!(opened["line"], value["line"], "the two actions differ");
+
+        // A file deleted behind the app's back is refused with an instruction, not a broken spawn.
+        std::fs::remove_file(folder.0.join("a.jpg")).expect("remove");
+        let error = engine.run("photo.reveal", &json!({ "id": id.0 })).expect_err("missing file");
+        let message = error.to_string();
+        assert!(message.contains("rescan") || message.contains("relocate"), "{message}");
+        assert!(engine.run("photo.reveal", &json!({})).is_err(), "an id is required");
     }
 
     #[test]
