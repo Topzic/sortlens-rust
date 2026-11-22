@@ -28,6 +28,7 @@ Commands:
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
+  mcp                       serve the command registry over MCP on stdio, then exit
   reveal <id>               show the file in the desktop's file manager
   open <id>                 hand the file to the desktop's default application
   memories [--today D]      resurfacing cards; D is YYYY-MM-DD, default today
@@ -468,6 +469,15 @@ fn run() -> Result<(), String> {
             let files = Engine::import_backup(std::path::Path::new(path), std::path::Path::new(dest)).map_err(|error| error.to_string())?;
             println!("restored {files} file(s) into {dest}");
             Ok(())
+        }
+        "mcp" => {
+            // One line in, one line out, until the client closes the pipe. Nothing is printed to
+            // stdout except protocol messages: a stray println would corrupt the stream.
+            let mut server = sortlens_mcp::Mcp::new(engine);
+            let stdin = std::io::stdin();
+            let stdout = std::io::stdout();
+            server.serve(stdin.lock(), stdout.lock()).map_err(|error| format!("mcp: {error}"))?;
+            return Ok(());
         }
         "reveal" | "open" => {
             let id = parse_id(rest.first())?;

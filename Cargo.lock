@@ -3553,6 +3553,7 @@ dependencies = [
  "serde_json",
  "sortlens-core",
  "sortlens-engine",
+ "sortlens-mcp",
  "sortlens-memories",
 ]
 
@@ -3623,6 +3624,8 @@ dependencies = [
 name = "sortlens-mcp"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
+ "sortlens-core",
  "sortlens-engine",
 ]
 

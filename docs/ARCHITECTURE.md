@@ -557,3 +557,19 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 | M8 AI + export | model store, inference, packs, export | ai, engine, ui |
 | M9 Remote/automation | CLI, MCP, server, wasm client, i18n, keymap | mcp, remote, ui, cli |
 | M10 Release | a11y audit, themes, updates, packaging | all |
+
+## MCP
+
+`sortlens-mcp` speaks the model-context protocol over newline-delimited JSON on stdio: one message
+per line, `initialize`, `tools/list`, `tools/call`. Run it with `sortlens-cli --library DIR mcp`.
+
+- **A tool is a command id.** `tools/list` is the command registry filtered to `Ready`; `tools/call`
+  is `Engine::run`. There is no second list of agent actions, so an agent can reach exactly what the
+  app can reach — and a command still marked `Planned` refuses with the milestone that will build it.
+- **A refusal is a tool result, not a protocol error.** `isError: true` with the engine's own message
+  ("ids are required", "this library is open read-only") lets the agent read the reason and adjust;
+  JSON-RPC errors are reserved for malformed requests and unknown methods.
+- **Notifications are never answered**, because a client that receives an extra message where it
+  expected none fails to parse the stream.
+- The write path is the ordinary op log: an agent's rating shows up in `library.history` and is
+  undone by the same `edit.undo` the user presses.

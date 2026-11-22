@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
+sortlens-mcp = { workspace = true }
 sortlens-memories = { workspace = true }
 serde_json = { workspace = true }
 

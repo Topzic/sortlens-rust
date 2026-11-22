@@ -955,6 +955,32 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 292 tests, CI and wasm green. Verified end to end: the CLI ran `open -R /tmp/sl-rev/ph/a.jpg` (Finder
   opened), and a file deleted behind the app's back was refused with the rescan instruction
 
+## 2026-11-21 — M7: the MCP server
+
+- `crates/mcp/src/lib.rs` is no longer a scaffold: newline-delimited JSON-RPC over stdio —
+  `initialize`, `notifications/initialized`, `ping`, `tools/list`, `tools/call`. `Mcp::handle(line)`
+  takes one line and returns one line (or `None` for a notification), so the whole protocol is
+  testable without a pipe, and `Mcp::serve(reader, writer)` is the stdio loop
+- **a tool is a command id**: `tools/list` is the command registry filtered to `Ready`, `tools/call`
+  is `Engine::run`. No second list of agent actions, no per-tool schema to keep in sync, and a
+  command still marked `Planned` stays out of the list — a tool that can only refuse is noise
+- a refusal is a **tool result** (`isError: true` with the engine's own message), not a JSON-RPC
+  error; JSON-RPC errors are reserved for malformed requests (`-32600`) and unknown methods
+  (`-32601`). Notifications are never answered, because an extra message corrupts the stream
+- `sortlens-cli --library DIR mcp` serves it. Verified end to end by piping four lines into the real
+  binary: `initialize` answered the protocol version, the `notifications/initialized` line produced
+  no output, `photo.rate` rated two photos, `library.stats` reported them, and `history` afterwards
+  showed `#5 rate Rated 2 photos` — the agent's write lands in the same op log the user's undo reads
+- six tests, including an agent culling a real three-photo library through the protocol
+- 298 tests, CI and wasm green. **Not verified by hand**: a real MCP client (Claude Desktop et al)
+  connecting to the binary; the protocol was exercised with piped JSON only
+- docs: `docs/ARCHITECTURE.md` gains an MCP section (tool = command id, refusal is a result, why
+  notifications go unanswered, and that writes go through the ordinary op log)
+
 ## Next
 
-M7: MCP server — expose the command registry over stdio so an agent can cull a library.
+M7: **argument hints for the tool list.** `tools/list` says nothing about argument shapes, so an
+agent has to guess — my own test guessed `id` where the engine wanted `ids`, and `library.list`,
+which does not exist. Add an `args` hint to each ready `CommandSpec` (66 of them), derived by reading
+the `Engine::run` arm for each id so the hint cannot invent a name, put it in the tool description,
+and add a registry test that every ready command has one.

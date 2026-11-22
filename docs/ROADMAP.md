@@ -242,7 +242,7 @@ and recover; export/import a library onto a second machine and remap the volume.
 
 ## M9 — Remote + automation · 2.5 w · tracks E,B
 
-- [ ] MCP server: tool list from the registry, read/write roots (E) — SL-K05
+- [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
 - [ ] CLI parity + stable JSON schemas (E) — SL-K03/K06
 - [ ] `sortlens-server`: token auth, pairing, permissions, upload resume (E) — SL-J01/J03/J04
 - [ ] `sortlens-web` wasm client reusing the UI (B,E) — SL-J02
