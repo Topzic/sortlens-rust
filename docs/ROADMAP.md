@@ -158,7 +158,20 @@ scheduling and blur-up remain.
 
 - [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
 - [x] Cooperative cancellation + live file/folder counters during a scan (C)
-- [ ] One worker thread with a job queue is in; priority ordering and backpressure are not (C)
+- [x] Priority ordering and backpressure on the decode queue (C)
+  - **Priority is a value in the request**: `Urgency::{OnScreen, Nearby, Background}`, served most urgent
+    first and oldest first within a class. Workers pull from one shared queue under a condvar instead of a
+    channel, which is what makes the order at pop time possible: a channel hands out what it was given in the
+    order it was given.
+  - **Backpressure is a bound**: 4 096 waiters; a request arriving at a full queue evicts the least urgent
+    waiter only if it is more urgent itself, and is otherwise refused and counted. The evicted key is
+    released from the in-flight set, so a later attempt for the same thumbnail is not mistaken for a
+    duplicate.
+  - The grid asks at `OnScreen`, the detail view prefetches the next photo at `Nearby`, library-wide passes
+    belong at `Background`. Tested as the queue alone (ordering inside a class and across classes, eviction,
+    refusal and its counter) and through the service at the bound (a refused request can be asked for again;
+    an 80-cell grid against 8 slots must refuse) — proved to bite by raising that bound to 4 096, which made
+    the assertion fail with 63 waiters.
 - [x] JPEG decode path (C)
 - [x] PNG/TIFF/WebP/GIF/BMP decode paths via craft-image-codecs, alpha preserved (C)
 - [ ] HEIC decode path (C)

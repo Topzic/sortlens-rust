@@ -1672,8 +1672,32 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 465 tests; ci (exit 0), wasm, snapshot, docs green. **Not verified by hand**: how the row heights feel while
   scrolling a real library, and whether `Contain` leaves visible letterboxing for any real camera ratio.
 
+## 2026-11-21 — M2 row: priority and a bound on the decode queue
+
+- **Priority is a value in the request**, not a queue per priority: `Urgency::{OnScreen, Nearby, Background}`
+  served most urgent first and oldest first within a class. Workers now pull from one shared queue under a
+  condvar instead of a channel — a channel hands out what it was given in the order it was given, so priority
+  ordering was impossible without this change, and that is why the row had never been ticked.
+- **Backpressure is a bound**: `QUEUE_CAPACITY` = 4 096 waiters. A request arriving at a full queue evicts the
+  least urgent waiter only if it is more urgent itself; otherwise it is refused and counted. The victim is the
+  *newest* of the least urgent class, because the oldest has waited longest and is closest to being decoded.
+  An evicted key is released from the in-flight set, so a later attempt for the same thumbnail is not
+  mistaken for a duplicate that is already on its way — the bug this design would otherwise have had.
+- Callers: the grid asks at `OnScreen` (unchanged signature), the detail view prefetches the next photo in the
+  sorted order at `Nearby`, and library-wide passes belong at `Background`. `Thumbnails::queue()` exposes
+  waiters and refusals; `apps/sortlens-perf` prints the refusals so the bound is visible in a measurement
+  rather than only in a doc.
+- Tests: the queue on its own (urgency ordering across and within classes, eviction of the newest least
+  urgent, refusal and its counter), the service at the bound (a refused request can be asked for again once
+  the queue drains), and a headless 400-photo grid against an **eight**-slot queue that must refuse.
+  **Proved to bite**: raising that test's bound to 4 096 made it fail with "63 requests waiting, over the
+  eight slot bound", and lowering it back made it pass.
+- `docs/ARCHITECTURE.md` §5 rewritten from the plan to what the code does, including why the channel went.
+- 469 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: whether the priority actually feels
+  different while scrolling a real library — the ordering is unit-tested on the queue, but only a person can
+  say whether a stale scroll still shows decoded cells sooner than it did.
+
 ## Next
 
-Continue in milestone order. Next: M2's priority scheduling and backpressure; then the bell popover,
-`craft-ipc`, and the decoder rows (HEIC, video, blur-up), which belong in M2's absent-by-design table because
-each needs a decoder decision this repository has not made.
+Continue in milestone order. Next: the bell popover and unread badges (M2), then `craft-ipc` (or its
+absence documented honestly), then the decoder rows, which need a decision this repository has not made.

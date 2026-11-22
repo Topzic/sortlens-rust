@@ -29,6 +29,7 @@ ISO and focal length set in memory is measured separately.
 | thumbnail decode, cold, 128 px | 1 896 ms | 9.5 ms/thumb | 105 thumbs/s |
 | thumbnail read, warm (cache hit) | 3.2 ms | 16 µs/thumb | 62 293 thumbs/s |
 | thumbnail service, 2 workers | 1 000 ms | 5.0 ms/thumb | 200 thumbs/s |
+| requests refused at the 4 096 bound | 0 of 200 | — | — |
 | suggestions, with EXIF | 754 µs | 0.4 µs/photo | 2 653 252 photos/s |
 | grid frame, 1440×900, headless, square | 0.28 ms median | p95 0.33 ms | 3 545 frames/s |
 | grid frame, 1440×900, headless, justified | 0.14 ms median | p95 0.16 ms | 6 928 frames/s |

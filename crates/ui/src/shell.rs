@@ -2855,6 +2855,17 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         },
     }
 
+    // The next photo in the sorted order is decoded before you ask for it. It is queued at "nearly visible"
+    // urgency, so a library-wide pass never delays the frame you are looking at, and a refusal at the queue
+    // bound costs nothing: the request is simply made again when you get there.
+    if let Some(id) = state.selection.primary()
+        && let Some(next) = engine.neighbour(&state.filter(), state.sort, id, 1)
+        && let Some(next) = engine.photo(next)
+        && next.key != photo.key
+    {
+        thumbs.prefetch(next, 1600);
+    }
+
     if let Some(second) = &other {
         // The differences that matter when choosing between two frames, on one line.
         ui.add_space(4.0);
@@ -5648,6 +5659,58 @@ mod tests {
         assert_eq!(plan.rows, built, "an unchanged view does not re-pack");
         plan.prepare(&engine, &Filter::default(), Sort::Natural, 900.0, 300.0, 8.0);
         assert_ne!(plan.rows.len(), 0, "a taller target still produces rows");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A grid of hundreds of cells at once asks for their thumbnails, and the queue bounds what waits.
+    ///
+    /// The interesting claim is not "it asks" but "it cannot ask for everything": without the bound a fast
+    /// scroll enqueues the library and holds the memory for it.
+    #[test]
+    fn a_full_grid_stays_within_the_decode_queue_bound() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-bound-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-bound");
+        for index in 0..400 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [index as u8, 120, 200], 16, 12), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..1200 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        // A bound of eight requests, so the bound is what the test watches rather than a number the grid never
+        // comes close to: eighty-odd visible cells against eight slots must produce refusals.
+        let mut thumbs = Thumbnails::with_queue_bound(dir.join("cache"), 1, 8);
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.density = Density::Compact;
+        let mut actions: Vec<Action> = Vec::new();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1440.0, 900.0))),
+            ..egui::RawInput::default()
+        };
+        let mut painted = 0;
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    grid(ui, &tokens, &mut state, &mut engine, &mut thumbs, &Filter::default(), &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            painted = state.cell_rects.len();
+        }
+        let (queued, refused) = thumbs.queue();
+        assert!(painted > 0, "the grid painted cells, so it also asked for them");
+        assert!(queued <= 8, "{queued} requests waiting, over the eight slot bound");
+        assert!(refused > 0, "with eight slots and {painted} cells, some request had to be refused");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

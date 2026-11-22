@@ -272,10 +272,19 @@ Rules:
 - **Cancellation is cooperative and generation-based**: each job carries a `JobId` and an
   `AtomicBool`; results from a cancelled or superseded job are dropped by comparing the job's
   generation with the current one. No channel is closed to stop work.
-- **Backpressure** is a bounded queue per pool (e.g. 2× threads). The grid requests only what
-  is visible + one screen of lookahead, so a fast scroll cannot enqueue 100k decodes.
-- **Priority**: visible viewport > cull lookahead > lightbox neighbours > background analysis.
-  Priority is a value in the job, not a separate queue per priority (avoids starvation).
+- **Backpressure** is a bounded queue per pool. The thumbnail queue holds at most
+  `QUEUE_CAPACITY` = 4 096 requests — several screens of headroom over what a grid frame asks for. A request
+  that arrives at a full queue is refused *unless* it is more urgent than the least urgent waiter, which it
+  then evicts; the least urgent waiter is the newest of that class, because the oldest has waited longest and
+  is closest to being decoded. A refusal is not an error: the caller asks again when the photo is on screen.
+  `Service::dropped()` counts refusals and `Service::queued()` counts waiters, so the bound is observable
+  rather than assumed.
+- **Priority is a value in the request, not a separate queue per priority** (separate queues starve):
+  `Urgency::{OnScreen, Nearby, Background}`, served most-urgent-first and, within a class, oldest-first.
+  The grid asks at `OnScreen`, the detail view prefetches the next photo at `Nearby`, and library-wide passes
+  at `Background`. Workers pull from one shared queue under a condvar rather than from a channel, because a
+  channel hands out its contents in arrival order and a queue read at pop time is what makes priority
+  possible at all.
 
 ### 5.1 Preview cache
 

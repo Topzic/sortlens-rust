@@ -14,7 +14,8 @@ use sortlens_core::{Error, Result};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
+use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::{Arc, Condvar, Mutex};
 
 /// Preview sizes. The grid asks for 128, the filmstrip and large grid for 384, the detail view
 /// for 1024; nothing asks for more until the loupe.
@@ -286,15 +287,162 @@ pub struct Loaded {
     pub error: Option<String>,
 }
 
-struct Request {
+/// How badly a thumbnail is wanted.
+///
+/// The order matters and is a number so it can be compared: what is on screen is worth decoding before what
+/// the user is about to scroll to, which is worth decoding before a whole-library pass that nobody is
+/// watching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Urgency {
+    /// A cell the user can see right now.
+    OnScreen = 0,
+    /// A cell just off the edge of the viewport, or the next photo in the detail view.
+    Nearby = 1,
+    /// Library-wide work: memories, suggestions, a warm-up pass.
+    Background = 2,
+}
+
+impl Urgency {
+    /// Sort key; lower is more urgent.
+    pub const fn rank(self) -> u8 {
+        self as u8
+    }
+}
+
+struct Entry {
     key: u64,
     path: PathBuf,
     size: u32,
+    urgency: Urgency,
+    /// Arrival order, so two requests of equal urgency are served in the order they were asked for.
+    seq: u64,
+}
+
+/// What happened to a request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Accepted {
+    /// Queued.
+    Queued,
+    /// Queued, having pushed a less urgent request out of a full queue.
+    QueuedAndEvicted(u64, u32),
+    /// Not queued: the queue is full of work at least as urgent.
+    Rejected,
+}
+
+/// How many requests may wait at once.
+///
+/// A grid frame asks for at most a few hundred cells, so a few thousand is several screens of headroom. The
+/// number matters because an unbounded queue is what lets a fast scroll enqueue the whole library and hold
+/// the memory for it: a bound turns that into "we will skip some", which is the honest answer.
+pub const QUEUE_CAPACITY: usize = 4096;
+
+/// Requests waiting for a worker, ordered by urgency and then by arrival.
+pub struct Queue {
+    entries: Vec<Entry>,
+    capacity: usize,
+    next_seq: u64,
+    dropped: u64,
+}
+
+impl Queue {
+    /// An empty queue with a bound on how much may wait.
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            entries: Vec::new(),
+            capacity: capacity.max(1),
+            next_seq: 0,
+            dropped: 0,
+        }
+    }
+
+    /// How much may wait at once.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// How much is waiting now.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether nothing is waiting.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// How many requests were refused because the queue was full of more urgent work.
+    pub fn dropped(&self) -> u64 {
+        self.dropped
+    }
+
+    /// Whether this key and size is already waiting.
+    pub fn contains(&self, key: u64, size: u32) -> bool {
+        self.entries.iter().any(|entry| entry.key == key && entry.size == size)
+    }
+
+    /// Add a request.
+    ///
+    /// When the queue is full, the *least* urgent waiting request loses its place to a more urgent arrival, and
+    /// the least urgent is the newest of the least urgent: the oldest has been waiting longest and is closest
+    /// to being decoded, so evicting it would throw away the most nearly-finished work.
+    pub fn push(&mut self, key: u64, path: PathBuf, size: u32, urgency: Urgency) -> Accepted {
+        if self.entries.len() >= self.capacity {
+            let victim = self
+                .entries
+                .iter()
+                .enumerate()
+                .min_by_key(|(index, entry)| (std::cmp::Reverse(entry.urgency.rank()), std::cmp::Reverse(entry.seq), *index))
+                .map(|(index, _)| index);
+            match victim {
+                Some(index) if self.entries[index].urgency.rank() > urgency.rank() => {
+                    let evicted = self.entries.swap_remove(index);
+                    self.entries.push(Entry {
+                        key,
+                        path,
+                        size,
+                        urgency,
+                        seq: self.next_seq,
+                    });
+                    self.next_seq += 1;
+                    return Accepted::QueuedAndEvicted(evicted.key, evicted.size);
+                }
+                _ => {
+                    self.dropped += 1;
+                    return Accepted::Rejected;
+                }
+            }
+        }
+        self.entries.push(Entry {
+            key,
+            path,
+            size,
+            urgency,
+            seq: self.next_seq,
+        });
+        self.next_seq += 1;
+        Accepted::Queued
+    }
+
+    /// Take the most urgent request, oldest first among equals.
+    fn pop(&mut self) -> Option<Entry> {
+        let best = self
+            .entries
+            .iter()
+            .enumerate()
+            .min_by_key(|(index, entry)| (entry.urgency.rank(), entry.seq, *index))
+            .map(|(index, _)| index)?;
+        Some(self.entries.swap_remove(best))
+    }
+}
+
+struct Shared {
+    queue: Mutex<Queue>,
+    work: Condvar,
 }
 
 /// A pool of decode workers in front of a [`Cache`].
 pub struct Service {
-    tx: Sender<Request>,
+    shared: Arc<Shared>,
     rx: Receiver<Loaded>,
     in_flight: HashSet<(u64, u32)>,
     failed: HashSet<(u64, u32)>,
@@ -304,20 +452,39 @@ impl Service {
     /// Start `workers` threads. Two is enough to keep a grid scrolling on a laptop without
     /// fighting the UI thread for cores during a scan.
     pub fn new(cache: Cache, workers: usize) -> Self {
-        let (request_tx, request_rx) = channel::<Request>();
+        Self::with_capacity(cache, workers, QUEUE_CAPACITY)
+    }
+
+    /// The same, with an explicit queue bound — the only reason to say so is a test that wants the queue to
+    /// fill immediately.
+    pub fn with_capacity(cache: Cache, workers: usize, capacity: usize) -> Self {
         let (loaded_tx, loaded_rx) = channel::<Loaded>();
-        let request_rx = std::sync::Arc::new(std::sync::Mutex::new(request_rx));
+        let shared = Arc::new(Shared {
+            queue: Mutex::new(Queue::new(capacity)),
+            work: Condvar::new(),
+        });
         for index in 0..workers.max(1) {
             let cache = cache.clone();
-            let rx = request_rx.clone();
+            let shared = shared.clone();
             let tx = loaded_tx.clone();
             let _ = std::thread::Builder::new().name(format!("sortlens-thumb-{index}")).spawn(move || {
                 loop {
-                    let request = match rx.lock() {
-                        Ok(guard) => guard.recv(),
+                    let request = match shared.queue.lock() {
+                        Ok(mut queue) => loop {
+                            if let Some(entry) = queue.pop() {
+                                break Some(entry);
+                            }
+                            // Nothing to do: sleep until someone pushes. A condvar rather than a channel so the
+                            // worker sees the *queue*, not a snapshot of it taken at send time — that is what
+                            // makes priority ordering possible at all.
+                            match shared.work.wait(queue) {
+                                Ok(guard) => queue = guard,
+                                Err(_) => return,
+                            }
+                        },
                         Err(_) => return,
                     };
-                    let Ok(request) = request else {
+                    let Some(request) = request else {
                         return;
                     };
                     let loaded = load(&cache, &request);
@@ -328,20 +495,53 @@ impl Service {
             });
         }
         Self {
-            tx: request_tx,
+            shared,
             rx: loaded_rx,
             in_flight: HashSet::new(),
             failed: HashSet::new(),
         }
     }
 
-    /// Ask for a thumbnail. Duplicate requests and known failures are ignored.
+    /// How much work is waiting, and how much was refused, for the activity stack and for tests.
+    pub fn queued(&self) -> usize {
+        self.shared.queue.lock().map(|queue| queue.len()).unwrap_or(0)
+    }
+
+    /// How many requests have been refused because the queue was full of more urgent work.
+    pub fn dropped(&self) -> u64 {
+        self.shared.queue.lock().map(|queue| queue.dropped()).unwrap_or(0)
+    }
+
+    /// Ask for a thumbnail at the urgency of what is on screen. Duplicate requests and known failures are
+    /// ignored.
     pub fn request(&mut self, key: u64, path: PathBuf, size: u32) {
+        self.request_with(key, path, size, Urgency::OnScreen);
+    }
+
+    /// Ask for a thumbnail, saying how urgently.
+    ///
+    /// Returns whether it was queued. A refusal is not an error: it means the queue is full of work that
+    /// matters at least as much, and the caller can ask again next frame.
+    pub fn request_with(&mut self, key: u64, path: PathBuf, size: u32, urgency: Urgency) -> bool {
         if self.failed.contains(&(key, size)) || !self.in_flight.insert((key, size)) {
-            return;
+            return false;
         }
-        if self.tx.send(Request { key, path, size }).is_err() {
-            self.in_flight.remove(&(key, size));
+        let accepted = match self.shared.queue.lock() {
+            Ok(mut queue) => queue.push(key, path, size, urgency),
+            Err(_) => Accepted::Rejected,
+        };
+        match accepted {
+            Accepted::Queued => true,
+            Accepted::QueuedAndEvicted(evicted, evicted_size) => {
+                // The evicted request will never be answered, so forgetting it keeps a later request for the
+                // same thumbnail from looking like it is already on its way.
+                self.in_flight.remove(&(evicted, evicted_size));
+                true
+            }
+            Accepted::Rejected => {
+                self.in_flight.remove(&(key, size));
+                false
+            }
         }
     }
 
@@ -370,7 +570,7 @@ impl Service {
     }
 }
 
-fn load(cache: &Cache, request: &Request) -> Loaded {
+fn load(cache: &Cache, request: &Entry) -> Loaded {
     if let Some(thumbnail) = cache.get(request.key, request.size) {
         return Loaded {
             key: request.key,
@@ -556,6 +756,73 @@ mod tests {
         assert!(cache.get(42, 64).is_none(), "a torn cache file reads as a miss");
         cache.clear().expect("clear");
         assert!(!path.exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// What is on screen is decoded before what is off it, and equal urgency keeps its arrival order.
+    #[test]
+    fn the_queue_serves_the_most_urgent_request_first() {
+        let mut queue = Queue::new(16);
+        queue.push(1, PathBuf::from("bg-old.jpg"), 128, Urgency::Background);
+        queue.push(2, PathBuf::from("screen.jpg"), 128, Urgency::OnScreen);
+        queue.push(3, PathBuf::from("bg-new.jpg"), 128, Urgency::Background);
+        queue.push(4, PathBuf::from("near.jpg"), 128, Urgency::Nearby);
+        assert_eq!(queue.len(), 4);
+        assert_eq!(queue.pop().map(|entry| entry.key), Some(2), "the visible cell first");
+        assert_eq!(queue.pop().map(|entry| entry.key), Some(4));
+        // Two background requests of equal urgency: the one asked for first has waited longest.
+        assert_eq!(queue.pop().map(|entry| entry.key), Some(1));
+        assert_eq!(queue.pop().map(|entry| entry.key), Some(3));
+        assert!(queue.is_empty());
+        assert!(queue.pop().is_none());
+    }
+
+    /// A full queue makes room for something more urgent and refuses something less urgent, and it says so.
+    #[test]
+    fn a_full_queue_makes_room_for_what_matters_and_refuses_what_does_not() {
+        let mut queue = Queue::new(2);
+        assert_eq!(queue.push(1, PathBuf::from("a.jpg"), 128, Urgency::Background), Accepted::Queued);
+        assert_eq!(queue.push(2, PathBuf::from("b.jpg"), 128, Urgency::Background), Accepted::Queued);
+        // Full of background work: a visible cell takes the place of the newest background request, because
+        // the older one has been waiting longer and is the closer to being decoded.
+        assert_eq!(
+            queue.push(3, PathBuf::from("c.jpg"), 128, Urgency::OnScreen),
+            Accepted::QueuedAndEvicted(2, 128)
+        );
+        assert_eq!(queue.len(), 2);
+        assert!(queue.contains(1, 128) && queue.contains(3, 128));
+        // Now full of the most urgent work: more background work is refused, not evicting what matters.
+        assert_eq!(queue.push(4, PathBuf::from("d.jpg"), 128, Urgency::Background), Accepted::Rejected);
+        assert_eq!(queue.len(), 2);
+        assert_eq!(queue.dropped(), 1);
+        assert!(!queue.contains(4, 128));
+    }
+
+    /// A refused request is not left marked as on its way, so the next frame can ask again.
+    #[test]
+    fn a_refused_request_can_be_asked_for_again_next_frame() {
+        let dir = std::env::temp_dir().join(format!("sortlens-bound-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        // One slot, no workers decoding: the queue stays exactly as asked. Workers are still spawned — the
+        // bound is about what waits, not about who decodes.
+        let mut service = Service::with_capacity(Cache::new(&dir), 4, 1);
+        assert!(service.request_with(1, dir.join("a.jpg"), 128, Urgency::OnScreen));
+        let refused = service.request_with(2, dir.join("b.jpg"), 128, Urgency::Background);
+        assert!(!refused, "the queue holds one more urgent request");
+        assert!(!service.is_pending(2, 128), "and nothing is waiting on it");
+        // Once the queue drains, the same request is accepted: a refusal left nothing behind that would make
+        // the next attempt look like a duplicate.
+        for _ in 0..200 {
+            if service.queued() == 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(
+            service.request_with(2, dir.join("b.jpg"), 128, Urgency::Background),
+            "asked again, accepted"
+        );
+        assert!(service.is_pending(2, 128) || service.queued() == 0);
         let _ = fs::remove_dir_all(&dir);
     }
 

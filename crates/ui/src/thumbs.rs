@@ -6,7 +6,7 @@
 
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use sortlens_engine::Photo;
-use sortlens_thumbs::{Cache, Service};
+use sortlens_thumbs::{Cache, Service, Urgency};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 
@@ -40,6 +40,20 @@ impl Thumbnails {
         }
     }
 
+    /// The same, with an explicit queue bound.
+    ///
+    /// Only a test has a reason to say so: it is the only way to make a bound of four thousand requests bite
+    /// inside a few frames, and a bound nobody has seen bite is a bound nobody has checked.
+    pub fn with_queue_bound(cache_dir: PathBuf, workers: usize, capacity: usize) -> Self {
+        Self {
+            service: Service::with_capacity(Cache::new(cache_dir), workers, capacity),
+            textures: HashMap::new(),
+            order: VecDeque::new(),
+            failed: HashMap::new(),
+            histograms: HashMap::new(),
+        }
+    }
+
     /// Number of textures currently resident, for diagnostics.
     pub fn resident(&self) -> usize {
         self.textures.len()
@@ -56,6 +70,26 @@ impl Thumbnails {
         }
         let _ = ctx;
         None
+    }
+
+    /// Ask for a thumbnail that is not on screen yet, at the "nearly visible" urgency.
+    ///
+    /// The detail view asks for the next photo with this, so arrowing forward finds it already decoded while a
+    /// library-wide pass waits behind it. A refusal at the queue bound is not an error and need not be
+    /// reported: the caller asks again when the photo is actually shown.
+    pub fn prefetch(&mut self, photo: &Photo, size: u32) {
+        if self.textures.contains_key(&(photo.key, size)) || self.failed.contains_key(&photo.key) {
+            return;
+        }
+        let _ = self
+            .service
+            .request_with(photo.key, PathBuf::from(photo.path()), size, Urgency::Nearby);
+    }
+
+    /// How many decodes are waiting, and how many were refused at the bound — for diagnostics and for tests
+    /// that want to prove the grid does not enqueue a whole library.
+    pub fn queue(&self) -> (usize, u64) {
+        (self.service.queued(), self.service.dropped())
     }
 
     /// Luminance histogram for a photo, computed once and cached by content key.

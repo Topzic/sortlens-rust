@@ -172,6 +172,13 @@ fn main() -> Result<(), String> {
         }
     }
     row("thumbnail service, 2 workers", started.elapsed(), loaded, "thumbs");
+    // The bound is the point of the queue: how much was allowed to wait, and how much was refused rather than
+    // held. A number nobody prints is a bound nobody has checked.
+    println!(
+        "{:<34} {:>12}",
+        "  requests refused at the bound",
+        format!("{} of {}", service.dropped(), options.thumbs)
+    );
     println!();
 
     // 5. Suggestions: the no-model half, which is what ships for every photo.
