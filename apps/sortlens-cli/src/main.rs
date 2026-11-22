@@ -26,6 +26,8 @@ Commands:
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
+  registry                  keywords, the names they swallowed, and orphaned aliases
+  alias <name> [canonical]  link a keyword to another, or forget the link
   folders [--root R] [--in PREFIX]
                             list subfolders with recursive counts
   check                     verify every indexed file is still on disk
@@ -46,6 +48,52 @@ Commands:
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
 ";
+
+/// Add or remove one keyword, naming the keyword that was really used.
+fn apply_keyword(engine: &mut Engine, id: sortlens_core::PhotoId, keyword: &str, add: bool) -> Result<(), String> {
+    let resolved = engine.resolve_tag(keyword);
+    let changed = engine.set_tag(&[id], keyword, add).map_err(|error| error.to_string())?;
+    let verb = if add { "tagged" } else { "untagged" };
+    if changed == 0 {
+        println!("{id}: no change");
+    } else if resolved == keyword.trim().to_lowercase() {
+        println!("{id}: {verb} {resolved}");
+    } else {
+        println!("{id}: {verb} {resolved} ({keyword} is an alias)");
+    }
+    Ok(())
+}
+
+/// Print the keyword registry: counts, swallowed names, and aliases pointing nowhere.
+fn print_registry(engine: &Engine) {
+    let registry = engine.tag_registry();
+    println!("{}", registry.headline());
+    for entry in &registry.entries {
+        let aliases = if entry.aliases.is_empty() {
+            String::new()
+        } else {
+            format!("  <- {}", entry.aliases.join(", "))
+        };
+        println!("  {:>6}  {}{aliases}", entry.count, entry.name);
+    }
+    for (alias, canonical) in &registry.orphans {
+        println!("  orphan: {alias} -> {canonical}");
+    }
+}
+
+/// Link a keyword to another, or forget the link when no target is given.
+fn link_alias(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
+    let alias = rest.first().ok_or("a keyword is required")?;
+    let canonical = rest.get(1).map(String::as_str);
+    let changed = engine.set_alias(alias, canonical).map_err(|error| error.to_string())?;
+    match (canonical, changed) {
+        (Some(canonical), true) => println!("{alias} now means {canonical}"),
+        (Some(canonical), false) => println!("{alias} already means {canonical}"),
+        (None, true) => println!("forgot the alias {alias}"),
+        (None, false) => println!("{alias} was not an alias"),
+    }
+    Ok(())
+}
 
 fn main() -> ExitCode {
     match run() {
@@ -213,13 +261,7 @@ fn run() -> Result<(), String> {
             let add = command == "tag";
             let id = parse_id(rest.first())?;
             let keyword = rest.get(1).ok_or("a keyword is required")?;
-            let changed = engine.set_tag(&[id], keyword, add).map_err(|error| error.to_string())?;
-            if changed == 0 {
-                println!("{id}: no change");
-            } else {
-                println!("{id}: {} {keyword}", if add { "tagged" } else { "untagged" });
-            }
-            Ok(())
+            apply_keyword(&mut engine, id, keyword, add)
         }
         "keywords" => {
             let vocabulary = engine.tag_vocabulary();
@@ -367,6 +409,11 @@ fn run() -> Result<(), String> {
             println!("restored {files} file(s) into {dest}");
             Ok(())
         }
+        "registry" => {
+            print_registry(&engine);
+            Ok(())
+        }
+        "alias" => link_alias(&mut engine, rest),
         "undo" => {
             let undone = engine.undo().map_err(|error| error.to_string())?;
             println!("{}", if undone { "undone" } else { "nothing to undo" });

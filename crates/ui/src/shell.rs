@@ -747,7 +747,14 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             }
             for (tag, count) in vocabulary.iter().take(12) {
                 let selected = state.tag_filters.iter().any(|active| active == tag);
-                let row = nav_row(ui, t, tag, &format_count(*count as u64), selected);
+                let aliases = engine.registry_aliases_of(tag);
+                let row = if aliases.is_empty() {
+                    nav_row(ui, t, tag, &format_count(*count as u64), selected)
+                } else {
+                    // Say where a keyword came from: a rename leaves a trail behind it.
+                    nav_row(ui, t, tag, &format_count(*count as u64), selected)
+                        .on_hover_text(format!("also written as {}", aliases.join(", ")))
+                };
                 if row.clicked() {
                     if selected {
                         state.tag_filters.retain(|active| active != tag);

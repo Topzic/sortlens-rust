@@ -841,6 +841,27 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   afterwards and agrees with `view.insights`
 - 259 tests, CI and wasm green
 
+## 2026-11-21 — M7: the keyword registry
+
+- catalog: `aliases: BTreeMap<String, String>` in the snapshot and in memory, `Op::Aliased { changes }`
+  with an exact inverse (a `Group` of per-alias inverses), `resolve_tag` (chains resolve all the way,
+  with a step cap so a mistaken cycle cannot hang), `set_alias` (refuses a self-alias, no-ops when
+  nothing changes), `aliases_of`, `orphaned_aliases`
+- catalog: `rename_tag` now records `from -> to` as an alias **in the same op as the retag**, so one
+  undo still reverses a rename — the first version committed two ops and a test that has been green
+  since M5 caught it immediately
+- catalog: new `registry` module — `Entry { name, count, aliases }`, `Registry { entries, orphans }`,
+  `merged()`, `headline()` ("3 keyword(s) · 1 renamed into another · 1 alias(es) pointing nowhere")
+- engine: `set_tag` resolves through the registry first, so typing `STRAND` after a rename lands on
+  `beach`; `resolve_tag`, `registry_aliases_of`, `tag_registry`, `set_alias`; commands `tag.registry`
+  and `tag.alias`
+- ui: a keyword row with aliases says so on hover ("also written as strand"), which is where a
+  photographer would otherwise wonder why two keywords became one
+- cli: `registry` (counts, swallowed names, orphans) and `alias <name> [canonical]`; `tag`/`untag` print
+  the keyword actually used and name the alias ("untagged beach (STRAND is an alias)")
+- 263 tests, CI and wasm green. Verified by hand: rename, retype the old name, registry showing
+  `2 beach <- strand`, and the CLI naming the alias
+
 ## Next
 
-M7: a tag registry — one place that knows every keyword, its aliases and where it came from.
+M7: shortcut overlay — a searchable list of every binding, so the keymap is discoverable.

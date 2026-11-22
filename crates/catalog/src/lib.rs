@@ -14,6 +14,7 @@ pub mod integrity;
 pub mod op;
 pub mod photo;
 pub mod query;
+pub mod registry;
 pub mod store;
 
 pub use collection::Collection;

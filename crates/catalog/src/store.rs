@@ -90,6 +90,9 @@ struct Snapshot {
     /// Collections, added after the first format; older snapshots simply have none.
     #[serde(default)]
     collections: Vec<Collection>,
+    /// Keyword aliases, as `old -> canonical`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    aliases: BTreeMap<String, String>,
     /// Next collection id, defaulted for older snapshots.
     #[serde(default)]
     next_collection: u32,
@@ -134,6 +137,7 @@ pub struct Catalog {
     photos: BTreeMap<PhotoId, Photo>,
     roots: Vec<String>,
     collections: BTreeMap<CollectionId, Collection>,
+    aliases: BTreeMap<String, String>,
     next_collection: u32,
     next_id: u64,
     seq: u64,
@@ -179,6 +183,7 @@ impl Catalog {
         let mut next_id = 1u64;
         let mut next_collection = 1u32;
         let mut collections: BTreeMap<CollectionId, Collection> = BTreeMap::new();
+        let mut aliases: BTreeMap<String, String> = BTreeMap::new();
         let mut seq = 0u64;
         // The snapshot carries the last inverse; log records that replay after it take precedence.
         let mut restore_undo: Option<Op> = None;
@@ -203,6 +208,7 @@ impl Catalog {
                             .into_iter()
                             .map(|collection| (collection.id, collection))
                             .collect();
+                        aliases = snapshot.aliases;
                         report.snapshot_seq = seq;
                         restore_undo = snapshot.undo;
                     }
@@ -225,6 +231,7 @@ impl Catalog {
                 photos,
                 roots,
                 collections,
+                aliases,
                 next_collection,
                 next_id,
                 seq,
@@ -294,6 +301,7 @@ impl Catalog {
                 photos,
                 roots,
                 collections,
+                aliases,
                 next_collection,
                 next_id,
                 seq,
@@ -421,6 +429,71 @@ impl Catalog {
     }
 
     /// Every keyword in use, in the requested order.
+    /// Resolve a keyword through the alias registry.
+    ///
+    /// Following a chain means a keyword renamed twice still lands on its current name; a cycle is
+    /// refused rather than looped over, because an alias is user data and a cycle is a mistake.
+    pub fn resolve_tag(&self, tag: &str) -> String {
+        let mut current = tag.to_string();
+        let mut steps = 0;
+        while let Some(next) = self.aliases.get(&current) {
+            steps += 1;
+            if steps > 16 || next == &current {
+                break;
+            }
+            current = next.clone();
+        }
+        current
+    }
+
+    /// Record that `alias` now means `canonical`. Passing `None` forgets the link.
+    pub fn set_alias(&mut self, alias: &str, canonical: Option<&str>) -> Result<bool> {
+        let alias = alias.trim().to_lowercase();
+        let canonical = canonical.map(|name| name.trim().to_lowercase());
+        if alias.is_empty() {
+            return Err(Error::Invalid("an alias needs a name".into()));
+        }
+        if canonical.as_deref() == Some(alias.as_str()) {
+            return Err(Error::Invalid("a keyword cannot be its own alias".into()));
+        }
+        if self.aliases.get(&alias).map(String::as_str) == canonical.as_deref() {
+            return Ok(false);
+        }
+        self.commit(Op::Aliased {
+            changes: vec![(alias, canonical)],
+        })?;
+        Ok(true)
+    }
+
+    /// Every alias pointing at `tag`.
+    pub fn aliases_of(&self, tag: &str) -> Vec<String> {
+        self.aliases
+            .iter()
+            .filter(|(_, canonical)| canonical.as_str() == tag)
+            .map(|(alias, _)| alias.clone())
+            .collect()
+    }
+
+    /// Aliases whose target no longer carries any photo — either a mistake, or a keyword that was
+    /// removed after the rename that created the alias.
+    pub fn orphaned_aliases(&self) -> Vec<(String, String)> {
+        let live: HashSet<&str> = self
+            .photos
+            .values()
+            .flat_map(|photo| photo.tags.iter().map(String::as_str))
+            .collect();
+        self.aliases
+            .iter()
+            .filter(|(_, canonical)| !live.contains(canonical.as_str()))
+            .map(|(alias, canonical)| (alias.clone(), canonical.clone()))
+            .collect()
+    }
+
+    /// The keyword registry: every keyword in use, its aliases, and any alias pointing nowhere.
+    pub fn registry(&self) -> crate::registry::Registry {
+        crate::registry::Registry::of(self.tag_vocabulary_in(TagOrder::Name), &self.aliases, self.orphaned_aliases())
+    }
+
     pub fn tag_vocabulary_in(&self, order: TagOrder) -> Vec<(String, usize)> {
         let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
         for photo in self.photos.values() {
@@ -569,11 +642,30 @@ impl Catalog {
             tags.dedup();
             changes.push((photo.id, tags));
         }
-        if changes.is_empty() {
-            return Ok(0);
-        }
+        // The old name becomes an alias of the new one, so re-typing it lands on the right keyword
+        // instead of quietly re-creating the keyword that was just merged away. Both halves go into
+        // one op, so a mistaken rename still costs a single undo.
+        let mut ops = Vec::new();
         let count = changes.len();
-        self.commit(Op::Tagged { changes })?;
+        if !changes.is_empty() {
+            ops.push(Op::Tagged { changes });
+        }
+        if self.resolve_tag(to) != from {
+            ops.push(Op::Aliased {
+                changes: vec![(from.to_string(), Some(to.to_string()))],
+            });
+        }
+        match ops.len() {
+            0 => {}
+            1 => {
+                if let Some(op) = ops.pop() {
+                    self.commit(op)?;
+                }
+            }
+            _ => {
+                self.commit(Op::Group { ops })?;
+            }
+        }
         Ok(count)
     }
 
@@ -698,6 +790,27 @@ impl Catalog {
                         });
                         photo.rel = rel.clone();
                         photo.missing = false;
+                    }
+                }
+                Ok(Op::Group { ops: inverse })
+            }
+            Op::Aliased { changes } => {
+                let mut inverse = Vec::new();
+                for (alias, canonical) in changes {
+                    let previous = self.aliases.get(alias).cloned();
+                    if previous.as_deref() == canonical.as_deref() {
+                        continue;
+                    }
+                    inverse.push(Op::Aliased {
+                        changes: vec![(alias.clone(), previous)],
+                    });
+                    match canonical {
+                        Some(canonical) => {
+                            self.aliases.insert(alias.clone(), canonical.clone());
+                        }
+                        None => {
+                            self.aliases.remove(alias);
+                        }
                     }
                 }
                 Ok(Op::Group { ops: inverse })
@@ -1039,6 +1152,7 @@ impl Catalog {
             roots: self.roots.clone(),
             photos: self.photos.values().cloned().collect(),
             collections: self.collections.values().cloned().collect(),
+            aliases: self.aliases.clone(),
             next_collection: self.next_collection,
             undo: self.undo.last().cloned(),
         };
@@ -1414,6 +1528,51 @@ mod tests {
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
+    }
+
+    #[test]
+    fn a_renamed_keyword_becomes_an_alias_that_still_resolves() {
+        let temp = TempCatalog::new("alias");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![(PhotoId(1), vec!["strand".to_string()])],
+            })
+            .expect("tag");
+
+        assert_eq!(catalog.rename_tag("strand", "beach").expect("rename"), 1);
+        assert_eq!(catalog.resolve_tag("strand"), "beach", "the old name now means the new one");
+        assert_eq!(catalog.aliases_of("beach"), vec!["strand".to_string()]);
+
+        let registry = catalog.registry();
+        assert_eq!(registry.entries[0].name, "beach");
+        assert_eq!(registry.entries[0].aliases, vec!["strand".to_string()]);
+        assert_eq!(registry.merged(), 1);
+
+        // Renaming twice still lands on the current name, and a cycle cannot be built.
+        catalog.rename_tag("beach", "shore").expect("rename again");
+        assert_eq!(catalog.resolve_tag("strand"), "shore", "chains resolve all the way");
+        assert_eq!(catalog.resolve_tag("beach"), "shore");
+        assert!(catalog.set_alias("shore", Some("shore")).is_err(), "no self-alias");
+
+        // Forgetting an alias is an op, and undo brings it back.
+        assert!(catalog.set_alias("strand", None).expect("forget"));
+        assert_eq!(catalog.resolve_tag("strand"), "strand");
+        catalog.undo().expect("undo");
+        assert_eq!(catalog.resolve_tag("strand"), "shore", "the old link is back");
+
+        // An alias whose keyword nobody carries is reported rather than silently kept.
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![(PhotoId(1), Vec::new())],
+            })
+            .expect("untag");
+        let orphans = catalog.orphaned_aliases();
+        assert!(
+            orphans.iter().any(|(alias, canonical)| alias == "strand" && canonical == "beach"),
+            "{orphans:?}"
+        );
     }
 
     #[test]

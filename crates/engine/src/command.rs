@@ -237,6 +237,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "tag.registry",
+                    label: "Keyword Registry",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Keyword Registry",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "tag.alias",
+                    label: "Link Keyword Alias",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Link Keyword Alias",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "insights.progress",
                     label: "Insights Progress",
                     group: Group::View,

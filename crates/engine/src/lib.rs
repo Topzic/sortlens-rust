@@ -1205,6 +1205,11 @@ impl Engine {
     /// Add or remove one keyword on a selection.
     pub fn set_tag(&mut self, ids: &[PhotoId], tag: &str, add: bool) -> Result<usize> {
         let tag = normalize_tag(tag)?;
+        // A keyword renamed earlier still means its current name.
+        let tag = match self.catalog.as_ref() {
+            Some(catalog) => catalog.resolve_tag(&tag),
+            None => tag,
+        };
         let mut changes = Vec::new();
         for id in ids {
             let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
@@ -1477,6 +1482,39 @@ impl Engine {
     /// Groups around one photo, for "find similar to this".
     pub fn similar_to(&self, id: PhotoId, threshold: u32) -> Option<SimilarGroup> {
         sortlens_similar::around(&self.similar_members, id, threshold)
+    }
+
+    /// The keyword registry: counts, the names each keyword swallowed, and aliases pointing nowhere.
+    pub fn tag_registry(&self) -> sortlens_catalog::registry::Registry {
+        match self.catalog.as_ref() {
+            Some(catalog) => catalog.registry(),
+            None => sortlens_catalog::registry::Registry::default(),
+        }
+    }
+
+    /// What a typed keyword really means, after aliases.
+    pub fn resolve_tag(&self, tag: &str) -> String {
+        let normalised = tag.trim().to_lowercase();
+        match self.catalog.as_ref() {
+            Some(catalog) => catalog.resolve_tag(&normalised),
+            None => normalised,
+        }
+    }
+
+    /// The aliases that resolve to one keyword, for the sidebar hint.
+    pub fn registry_aliases_of(&self, tag: &str) -> Vec<String> {
+        match self.catalog.as_ref() {
+            Some(catalog) => catalog.aliases_of(tag),
+            None => Vec::new(),
+        }
+    }
+
+    /// Link a keyword to another, or forget the link when `canonical` is `None`.
+    pub fn set_alias(&mut self, alias: &str, canonical: Option<&str>) -> Result<bool> {
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        // A renamed keyword must keep resolving forward, so the target is resolved first.
+        let canonical = canonical.map(|name| catalog.resolve_tag(&name.trim().to_lowercase()));
+        catalog.set_alias(alias, canonical.as_deref())
     }
 
     /// Every keyword in use, most used first.
@@ -2104,6 +2142,29 @@ impl Engine {
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
             "library.readOnly" => Ok(json!({ "readOnly": self.read_only() })),
+            "tag.registry" => {
+                let registry = self.tag_registry();
+                Ok(json!({
+                    "headline": registry.headline(),
+                    "entries": registry.entries.iter().map(|entry| json!({
+                        "name": entry.name,
+                        "count": entry.count,
+                        "aliases": entry.aliases,
+                    })).collect::<Vec<_>>(),
+                    "orphans": registry.orphans.iter().map(|(alias, canonical)| json!({
+                        "alias": alias,
+                        "canonical": canonical,
+                    })).collect::<Vec<_>>(),
+                }))
+            }
+            "tag.alias" => {
+                let alias = args
+                    .get("alias")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a keyword is required".into()))?;
+                let canonical = args.get("canonical").and_then(Value::as_str);
+                Ok(json!({ "changed": self.set_alias(alias, canonical)? }))
+            }
             "edit.movePicks" => {
                 let dest = args
                     .get("dest")
@@ -2898,6 +2959,47 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn a_renamed_keyword_still_resolves_when_it_is_typed_again() {
+        let folder = Temp::new("alias-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"b").expect("write");
+        let (_lib, mut engine) = library("lib-alias");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        engine.set_tag(&[ids[0]], "strand", true).expect("tag");
+        engine.rename_tag("strand", "beach").expect("rename");
+
+        // Typing the old name now lands on the keyword it was renamed to.
+        engine.set_tag(&[ids[1]], "STRAND", true).expect("tag again");
+        assert!(engine.photo(ids[1]).expect("photo").has_tag("beach"));
+        assert!(!engine.photo(ids[1]).expect("photo").has_tag("strand"));
+
+        let value = engine.run("tag.registry", &json!({})).expect("registry");
+        assert_eq!(value["entries"][0]["name"], "beach");
+        assert_eq!(value["entries"][0]["count"], 2);
+        assert_eq!(value["entries"][0]["aliases"][0], "strand");
+        assert!(value["headline"].as_str().expect("headline").contains("renamed"));
+
+        // Linking and forgetting are commands too.
+        let linked = engine
+            .run("tag.alias", &json!({ "alias": "seaside", "canonical": "beach" }))
+            .expect("alias");
+        assert_eq!(linked["changed"], true);
+        engine.set_tag(&[ids[0]], "seaside", true).expect("tag alias");
+        assert!(engine.photo(ids[0]).expect("photo").has_tag("beach"));
+        let forgotten = engine.run("tag.alias", &json!({ "alias": "seaside" })).expect("forget");
+        assert_eq!(forgotten["changed"], true);
     }
 
     #[test]

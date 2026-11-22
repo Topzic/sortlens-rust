@@ -38,6 +38,8 @@ pub enum Op {
     RemoveCollection { collection: Box<crate::collection::Collection> },
     /// A collection was renamed.
     RenameCollection { id: CollectionId, name: String },
+    /// A keyword now means another one, so later uses of the old name follow the rename.
+    Aliased { changes: Vec<(String, Option<String>)> },
     /// A photo's metadata read failed (or was retried successfully).
     Retry { changes: Vec<(PhotoId, bool)> },
     /// A whole root was repointed at a new location, which rewrites every member's root.
@@ -75,6 +77,7 @@ impl Op {
             Self::Tagged { .. } => "tagged",
             Self::Relocate { .. } => "relocate",
             Self::Retry { .. } => "retry",
+            Self::Aliased { .. } => "aliased",
             Self::RemapRoot { .. } => "remapRoot",
             Self::AddCollection { .. } => "addCollection",
             Self::RemoveCollection { .. } => "removeCollection",
@@ -99,6 +102,7 @@ impl Op {
             Self::Tagged { changes } => changes.len(),
             Self::Relocate { changes } => changes.len(),
             Self::Retry { changes } => changes.len(),
+            Self::Aliased { .. } => 0,
             Self::Collect { added, removed, .. } => added.len() + removed.len(),
             Self::Group { ops } => ops.iter().map(Self::photo_count).sum(),
             _ => 0,
@@ -120,6 +124,9 @@ impl Op {
             Self::Tagged { changes } => format!("Keyworded {}", photos(changes.len())),
             Self::Relocate { changes } => format!("Found {} somewhere else", photos(changes.len())),
             Self::Retry { changes } => format!("Queued {} for a metadata retry", photos(changes.len())),
+            Self::Aliased { changes } => {
+                format!("Linked {} keyword alias(es)", changes.len())
+            }
             Self::RemapRoot { from, to } => format!("Repointed {from} to {to}"),
             Self::AddCollection { collection } => format!("Created the collection {}", collection.name),
             Self::RemoveCollection { collection } => format!("Deleted the collection {}", collection.name),
