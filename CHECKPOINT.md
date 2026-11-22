@@ -1868,9 +1868,25 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand**: whether 110 is the right fade on a real screen, and whether the real app's first
   paint after a long idle now recovers — the regression test proves the mechanism, not the app's timing.
 
+## 2026-11-22 (second) — a refusal that named the wrong fact
+
+- The previous commit's `ci` came back 1 on the same tree that then returned 0, so this run hunted the flake
+  instead of starting new work. **Found it**: `applying_move_moves_the_file_and_a_changed_file_refuses_the_batch`
+  restores the bytes after an edit but not the timestamp, so whether the batch was refused depended on whether
+  the rewrite landed inside a new clock second. The test now restores the mtime with `File::set_times`.
+- Chasing it found a real defect: the safety audit checks size **and** mtime, but both answered
+  `Refusal::Changed`, which prints byte counts — so an edited file of the same length was refused with
+  "changed since it was indexed (1 → 1 bytes)". A refusal that reads as a bug in the app is worse than no
+  refusal. New `Refusal::Modified { path, indexed, on_disk }` with its own message, and
+  `a_file_whose_timestamp_moved_is_refused_and_says_so` pins it and asserts the message never dresses a
+  timestamp change up as a size change.
+- 493 tests; ten consecutive runs of the previously flaky test with `--test-threads=8`, and three full-suite
+  runs with `--test-threads=16`, all green; ci, wasm, deny, snapshot, docs green.
+- **Not verified by hand**: nothing new; the fade from the previous commit is still un-eyeballed.
+
 ## Next
 
-M3–M7 pass, then M9's `--json` write verbs. Still the best next candidates: `--json` write verbs (needs a
-written per-schema compatibility note, which is why it is a run of its own), collections' range-select/
-select-all, and `photo.tagFromPrev` is done so the cull workflow rows are nearly closed. Video posters, the map,
-AI inference, i18n and the keymap editor stay named absent with their blockers.
+M3–M7 pass, then M9's `--json` write verbs. Candidates in order: `--json` write verbs (needs a written
+per-schema compatibility note, which is why it is its own run), collections' range-select/select-all, and the
+remaining M4 detail-view rows. Video posters, the map, AI inference, i18n and the keymap editor stay named
+absent with their blockers.

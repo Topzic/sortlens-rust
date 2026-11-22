@@ -265,6 +265,15 @@ what they need.
   - `a_request_after_the_workers_have_parked_is_still_decoded` sleeps 250 ms first — the only way to be certain
     both workers are inside `wait` — and was proved to bite by removing the notify (it fails, waiting out its
     ten-second deadline).
+- [x] **A refusal that names the wrong fact** — `Refusal::Modified`, found by a flaky test
+  - The move/cull safety audit compares both size and modification time, but both came back as
+    `Refusal::Changed`, whose message prints the byte counts. An edited file of the same length was therefore
+    refused with "changed since it was indexed (1 → 1 bytes)" — a message that reads as a bug in the app, and a
+    refusal nobody believes is worse than no refusal.
+  - It surfaced as an intermittent engine test failure: `applying_move_moves_the_file_and_a_changed_file_refuses_the_batch`
+    restored the bytes but not the timestamp, so whether the batch was refused depended on whether the rewrite
+    landed in a new clock second. The test now restores both, and `a_file_whose_timestamp_moved_is_refused_and_says_so`
+    pins the new variant and asserts the message never dresses a timestamp change up as a size change.
 - [x] `craft-jsonrpc` + `craft-mcp` carry the MCP server (E) — SL-K04, part 1
   - Envelopes are `craft-jsonrpc`: it validates the `jsonrpc` version and the id, separates requests from
     notifications, answers batches as batches, and refuses a message over a byte bound **before** parsing it. The

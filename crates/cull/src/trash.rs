@@ -56,8 +56,13 @@ pub enum Refusal {
     Missing(String),
     /// The file is outside the root it claims to belong to.
     OutsideRoot { path: String, root: String },
-    /// The file changed since it was indexed, so deleting it could destroy new work.
+    /// The file's size changed since it was indexed, so deleting it could destroy new work.
     Changed { path: String, expected: u64, actual: u64 },
+    /// The size still matches but the modification time does not.
+    ///
+    /// Its own variant because the message has to say so: reporting "1 → 1 bytes" for an edited file reads as a
+    /// bug in the app rather than a refusal, and a refusal nobody believes is worse than no refusal.
+    Modified { path: String, indexed: i64, on_disk: i64 },
     /// A symlink resolves outside the root.
     SymlinkEscape(String),
     /// The destination folder cannot be written to.
@@ -72,6 +77,9 @@ impl Refusal {
             Self::OutsideRoot { path, root } => format!("{path}: outside its root {root}"),
             Self::Changed { path, expected, actual } => {
                 format!("{path}: changed since it was indexed ({expected} → {actual} bytes)")
+            }
+            Self::Modified { path, indexed, on_disk } => {
+                format!("{path}: modified since it was indexed ({indexed} → {on_disk})")
             }
             Self::SymlinkEscape(path) => format!("{path}: symlink resolves outside its root"),
             Self::TargetUnwritable(path) => format!("{path}: cannot write to the destination"),
@@ -268,12 +276,12 @@ fn audit_one(candidate: &Candidate) -> Option<Refusal> {
     }
     if let (Some(expected), Ok(modified)) = (candidate.modified, meta.modified())
         && let Ok(since) = modified.duration_since(std::time::UNIX_EPOCH)
-        && since.as_secs() as i64 != expected
+        && (since.as_secs() as i64) != expected
     {
-        return Some(Refusal::Changed {
+        return Some(Refusal::Modified {
             path,
-            expected: candidate.size,
-            actual: meta.len(),
+            indexed: expected,
+            on_disk: since.as_secs() as i64,
         });
     }
     None
@@ -499,6 +507,40 @@ mod tests {
         };
         let refusals = audit(&batch).expect_err("refused");
         assert!(matches!(refusals[0], Refusal::Missing(_)));
+    }
+
+    /// A rewrite that keeps the size is still refused, and the message says which fact changed.
+    #[test]
+    fn a_file_whose_timestamp_moved_is_refused_and_says_so() {
+        let temp = Temp::new("modified");
+        let image = temp.file("a.jpg", b"photo");
+        let mut entry = candidate(1, &temp.0, &image);
+        // The same length, so only the timestamp can be what the audit notices.
+        fs::write(&image, b"PHOTO").expect("rewrite");
+        let file = fs::OpenOptions::new().write(true).open(&image).expect("open");
+        file.set_times(fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(9_999)))
+            .expect("mtime");
+        drop(file);
+        entry.modified = Some(1_000);
+        let batch = Batch {
+            mode: Mode::TagOnly,
+            candidates: vec![entry],
+        };
+        let refusals = audit(&batch).expect_err("refused");
+        assert_eq!(
+            refusals,
+            vec![Refusal::Modified {
+                path: image.display().to_string(),
+                indexed: 1_000,
+                on_disk: 9_999,
+            }]
+        );
+        let message = refusals[0].message();
+        assert!(message.contains("modified since it was indexed"), "{message}");
+        assert!(
+            !message.contains("0 → 0 bytes"),
+            "a timestamp refusal must not be dressed up as a size change: {message}"
+        );
     }
 
     #[test]

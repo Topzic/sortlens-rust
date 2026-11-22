@@ -5051,8 +5051,18 @@ mod tests {
         assert!(engine.cull().is_some(), "the session is kept");
         assert!(image.exists(), "nothing was moved");
 
-        // Put the size back and the same batch goes through.
-        std::fs::write(&image, b"x").expect("restore size");
+        // Restore what was indexed — the bytes *and* the timestamp — and the same batch goes through.
+        //
+        // Putting only the size back made this test a race against filesystem timestamp granularity: the
+        // rewrite usually left a newer mtime and the batch was refused, but on a box whose clock ticked over
+        // inside the same second it sometimes passed. The safety check compares both, so the test restores
+        // both.
+        std::fs::write(&image, b"x").expect("restore bytes");
+        let indexed = engine.photo(id).expect("photo").modified.expect("an indexed mtime");
+        let file = std::fs::OpenOptions::new().write(true).open(&image).expect("open for times");
+        file.set_times(std::fs::FileTimes::new().set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(indexed as u64)))
+            .expect("restore mtime");
+        drop(file);
         let report = engine
             .cull_apply(sortlens_cull::trash::Mode::Move(destination.clone()))
             .expect("applied");
