@@ -73,9 +73,21 @@ volume probe and `PathKey`.
 - [ ] Square grid is virtualised (a window of cells over 200k rows); justified rows are not built (B) — SL-B01/B02
 - [ ] Cell size is derived from the window width; there is no density control (B) — SL-B04
 - [ ] One selected photo plus the cull follow-selection; no multi-select, marquee or ⇧-range (B) — SL-B15
-- [ ] Sources: only All Photos and Recently Deleted; Recently Added, Picks and Rated rows are not built (B) — SL-A14
+- [x] Sources, part 1 — **Picks**, **Rated** and **Rejects** rows in the sidebar, each showing its own count
+  rather than the library total, and each replacing the whole question rather than nudging it (picking Picks
+  with three stars and a keyword active used to leave them on, so the row meant "picks among the ones you
+  starred and tagged"); the folder scope survives, because that is where you are, not what you asked. The
+  highlighted row is *derived* from the filter, so a filter chip that asks the same question highlights the
+  same row — a stored flag would let the two disagree. Both behaviours tested (B) — SL-A14 part 1
+- [ ] Sources, part 2 — **Recently Added**: needs an `added` timestamp per photo, which is a snapshot schema
+  change with a migration for every existing library; inventing one from the file's mtime would be "recently
+  modified", a different and more confusing question. Listed with its unblocker in the M1 table below
 - [x] Folder tree with recursive counts + drill-down (`library.subfolders`, breadcrumbs) (B) — SL-A03/A04
-- [ ] Skeleton thumbs + failure badge (B) — SL-M10
+- [x] Placeholder cell while decoding (kind glyph on the tile) and a **badge** for the two ways a cell can
+  have no pixels: `?` for a file that is not on disk, `!` for a file that could not be decoded, each with a
+  hover that says which, and a missing file outranking the decode failure it caused. `cell_badge` is a pure
+  function tested against all four cases, and the cell paints for a missing photo without requesting a
+  decode (B) — SL-M10
 - [x] Synthetic library generator (`sortlens-testkit`: deterministic JPEGs from a real encoder, sidecars by convention, self-cleaning folders) + delta-scan truth table
 
 **Demo:** add 5k folder → grid fills → counts correct → relaunch instant → rescan adds only new
@@ -102,7 +114,10 @@ scheduling and blur-up remain.
 - [ ] Blur-up tier transitions (B)
 - [x] Activity stack: job list, statuses, elapsed, per-item errors, cancel (B) — SL-A18
 - [ ] Bell popover and unread badges (B)
-- [ ] Offline/missing badges + cached-thumb behaviour (A,B) — SL-A12
+- [x] Offline/missing badge in the grid: `?` with "File missing — unmounted drive, or moved outside the
+  library", and the spoken name already said "file missing" before the badge existed (B) — SL-A12 part 1
+- [ ] Offline/missing, part 2 — cached-thumb behaviour: a thumbnail decoded before the drive went away is
+  still in the cache and is still drawn, but nothing marks it as stale, so an offline library looks current
 - [ ] `craft-ipc` + `craft-jsonrpc` are not used: agent access is the MCP server over stdio instead (E) — SL-K04
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
 - [ ] `page` prints JSON and the MCP server returns JSON; there is no `--json` for the other verbs (E)

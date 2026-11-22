@@ -18,5 +18,8 @@ egui = { workspace = true }
 craft-ui = { workspace = true }
 serde = { workspace = true }
 
+[dev-dependencies]
+sortlens-testkit = { workspace = true }
+
 [lints]
 workspace = true

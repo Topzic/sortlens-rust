@@ -1506,14 +1506,33 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   the absent-by-design table (with why a headless test there would assert nothing).
 - 432 tests; ci (exit 0), snapshot, deny green. **Not verified by hand**: nothing here is GUI work.
 
+## 2026-11-21 — M1/M2 rows: real sources, and a grid that says why a cell is empty
+
+- **Sources, part 1 (SL-A14)**: the sidebar now offers **Picks**, **Rated** and **Rejects** beside All Photos.
+  Each row counts what it would show (Picks reading "0" while the library holds thousands is the row working),
+  and each **replaces** the question instead of nudging it — picking Picks with three stars and a keyword
+  active used to leave them on, so the row silently meant "picks among the ones you starred and tagged".
+  The folder scope survives: that is where you are, not what you asked. The highlighted row is derived from
+  the filter, so a filter chip asking the same question highlights the same row; a stored flag would let the
+  two disagree. `Source` lives in `crates/ui/src/shell.rs` with `apply_source`/`source_selected`, tested as
+  pure logic, plus a headless paint of the real sidebar over a two-photo library with counts that differ.
+- **Placeholder + badges (SL-M10, SL-A12 part 1)**: a cell that has no pixels now says which kind of nothing
+  it is — `?` for a file that is not on disk, `!` for one that could not be decoded, each with a hover that
+  explains it, and a missing file outranking the decode failure it caused. `cell_badge` is pure and tested
+  against all four combinations; the cell paints for a missing photo without requesting a decode.
+- Rows split rather than ticked whole: **Recently Added** needs an `added` timestamp per photo (a schema
+  migration, and the file's mtime would be "recently modified" — a different question), and cached-thumb
+  behaviour for offline libraries needs staleness marking. Both say so in their rows.
+- Files: `crates/ui/src/shell.rs`, `crates/ui/Cargo.toml` (dev-dependency on the fixture kit),
+  `crates/ui/src/lib.rs`, `docs/ROADMAP.md`. 436 tests; ci (exit 0), wasm, snapshot green.
+  **Not verified by hand**: the badge at small cell sizes, and whether "Rejects" is a source people want
+  next to Picks — it is in the list because rejects are still in the library until you delete them.
+
 ## Next
 
-The exit condition needs every ROADMAP box ticked **or** explicitly absent. Around thirty rows still sit as
-plain unchecked boxes, and each needs one of three decisions, milestone by milestone: it is a real feature
-that is still missing (then it belongs in that milestone's "Deliberately absent" table with its unblocker,
-or it is genuinely next work), it is a half-shipped row whose text already says what is missing (then say
-which half and why the rest is out), or it is stale and describes something that shipped (then tick it and
-prove it with a grep). Start with M1–M2 (volume probe, magic-byte sniffing, grid justification/density,
-multi-select, HEIC and video decode, priority scheduling, blur-up, offline badges), then M3–M7, then M9's
-`--json` write verbs, i18n and the keymap editor. That pass is what makes "every box checked or explicitly
-absent" true rather than declared.
+Continue the row-by-row pass in milestone order. Next: M1's `ContentKey` volume probe and `PathKey`, magic-byte
+sniffing (SL-B11), grid justification and density (SL-B01/B02/B04), multi-select and marquee (SL-B15); then
+M2's priority scheduling and backpressure, HEIC and video decode (both crates are declared and unlinked —
+that is a decoder decision, so it belongs in M2's absent table with its unblocker), blur-up, the bell popover,
+and `craft-ipc`. Each row needs the same treatment as these three: prove it shipped and tick it, ship it, or
+move it to the milestone's table with what would unblock it.

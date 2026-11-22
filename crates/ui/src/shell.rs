@@ -173,6 +173,55 @@ impl DeleteMode {
     }
 }
 
+/// The sidebar's saved questions. All Photos is the empty filter; the rest are one dimension each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    /// Everything the library knows about.
+    All,
+    /// Flags that survived a cull.
+    Picks,
+    /// Anything with at least one star.
+    Rated,
+    /// Rejected frames, still in the grid and not yet deleted.
+    Rejects,
+}
+
+impl Source {
+    /// Every source, in sidebar order.
+    pub const ALL: [Source; 4] = [Source::All, Source::Picks, Source::Rated, Source::Rejects];
+
+    /// The row's label.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Source::All => "All Photos",
+            Source::Picks => "Picks",
+            Source::Rated => "Rated",
+            Source::Rejects => "Rejects",
+        }
+    }
+
+    /// The flag this source asks for, if any.
+    #[must_use]
+    pub fn flag(self) -> Option<Flag> {
+        match self {
+            Source::Picks => Some(Flag::Pick),
+            Source::Rejects => Some(Flag::Reject),
+            Source::All | Source::Rated => None,
+        }
+    }
+
+    /// The star floor this source asks for, if any. Rated is one star rather than five: "rated" means
+    /// somebody looked at it and said something, and a five-star floor would hide most of the library.
+    #[must_use]
+    pub fn min_rating(self) -> u8 {
+        match self {
+            Source::Rated => 1,
+            Source::All | Source::Picks | Source::Rejects => 0,
+        }
+    }
+}
+
 /// Everything the shell remembers between frames.
 #[derive(Debug, Clone)]
 pub struct UiState {
@@ -407,6 +456,38 @@ impl UiState {
             include_missing: self.show_missing,
             ..Filter::default()
         }
+    }
+
+    /// Jump to one of the saved sources, replacing whatever narrowed the view before.
+    ///
+    /// A source is not a filter dimension: picking one clears the other dimensions so "Picks" always means
+    /// the same thing, rather than "picks, among the ones you starred, inside that folder". The folder
+    /// scope is the exception — it is where you are, not what you asked for.
+    pub fn apply_source(&mut self, source: Source) {
+        self.min_rating = source.min_rating();
+        self.flag_filter = source.flag();
+        self.label_filter = None;
+        self.tag_filters.clear();
+        self.collection_filter = None;
+        self.kind_filter = None;
+        self.edited_filter = None;
+        self.search.clear();
+        self.all_photos_selected = source == Source::All;
+    }
+
+    /// Whether a source is the one the sidebar should highlight.
+    ///
+    /// Derived from the filter rather than stored, so a keyboard shortcut or a filter chip that produces
+    /// the same question highlights the same row — a stored flag would let the two disagree.
+    #[must_use]
+    pub fn source_selected(&self, source: Source) -> bool {
+        self.min_rating == source.min_rating()
+            && self.flag_filter == source.flag()
+            && self.label_filter.is_none()
+            && self.tag_filters.is_empty()
+            && self.collection_filter.is_none()
+            && self.kind_filter.is_none()
+            && self.edited_filter.is_none()
     }
 
     /// How many filter dimensions are narrowing the view, for the header badge.
@@ -719,11 +800,24 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             ui.add_space(6.0);
             ui.separator();
 
-            let stats = engine.stats();
             nav_section(ui, t, "Sources");
-            if nav_row(ui, t, "All Photos", &format_count(stats.total as u64), state.root.is_none()).clicked() {
-                state.root = None;
-                state.all_photos_selected = true;
+            for source in Source::ALL {
+                // Each row's count is what that row would show, not the library total: a Picks row reading
+                // "0" while the grid holds thousands is the row doing its job.
+                let mut filter = Filter {
+                    root: state.root.clone(),
+                    folder: (state.root.is_some() && !state.folder.is_empty()).then(|| state.folder.clone()),
+                    ..Filter::default()
+                };
+                filter.flag = source.flag();
+                filter.min_rating = source.min_rating();
+                let count = engine.count(&filter);
+                if nav_row(ui, t, source.label(), &format_count(count as u64), state.source_selected(source)).clicked() {
+                    if source == Source::All {
+                        state.root = None;
+                    }
+                    state.apply_source(source);
+                }
             }
             if let Some(progress) = engine.scan_progress()
                 && engine.is_scanning()
@@ -1250,6 +1344,55 @@ fn grid(
     }
 }
 
+/// What a grid cell has to say when its pixels are missing, and nothing when they are not.
+///
+/// A missing file outranks a decode failure: the file is gone, so the failure is a consequence and telling
+/// the user twice is noise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CellBadge {
+    /// The file is not on disk — an unmounted drive, a moved folder.
+    Offline,
+    /// The file is there but could not be decoded.
+    Unreadable,
+}
+
+impl CellBadge {
+    /// The glyph painted in the corner of the cell.
+    fn glyph(self) -> &'static str {
+        match self {
+            CellBadge::Offline => "?",
+            CellBadge::Unreadable => "!",
+        }
+    }
+
+    /// What the hover says, so the glyph is never the only explanation.
+    fn hint(self) -> &'static str {
+        match self {
+            CellBadge::Offline => "File missing — unmounted drive, or moved outside the library",
+            CellBadge::Unreadable => "This file could not be decoded",
+        }
+    }
+
+    /// The badge colour, from the active theme rather than a literal.
+    fn colour(self, t: &Tokens) -> Color32 {
+        match self {
+            CellBadge::Offline => t.text_faint,
+            CellBadge::Unreadable => t.reject,
+        }
+    }
+}
+
+/// The badge a cell needs, if any.
+fn cell_badge(photo: &Photo, failure: Option<&str>) -> Option<CellBadge> {
+    if photo.missing {
+        Some(CellBadge::Offline)
+    } else if failure.is_some() {
+        Some(CellBadge::Unreadable)
+    } else {
+        None
+    }
+}
+
 fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32, thumbs: &mut Thumbnails) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::click());
     // A painted cell is invisible to a screen reader unless it says what it is.
@@ -1285,6 +1428,16 @@ fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32,
         let colour = t.flag(photo.flag);
         let badge = Rect::from_min_size(image.min + vec2(5.0, 5.0), vec2(7.0, 7.0));
         painter.rect_filled(badge, 3.0, colour);
+    }
+
+    // A cell whose pixels could not be made says so, rather than showing the same grey rectangle as one
+    // that is still decoding: a missing file and an unreadable one look identical otherwise.
+    if let Some(badge) = cell_badge(photo, thumbs.failure(photo.key)) {
+        let corner = image.right_top() + vec2(-6.0, 6.0);
+        let dot = Rect::from_center_size(corner, vec2(14.0, 14.0));
+        painter.rect_filled(dot, 4.0, badge.colour(t));
+        painter.text(dot.center(), Align2::CENTER_CENTER, badge.glyph(), t.font(9.0), Color32::WHITE);
+        response.clone().on_hover_text(badge.hint());
     }
 
     // Stars sit along the bottom edge of the thumbnail so the eye can scan a whole row.
@@ -4735,6 +4888,209 @@ mod tests {
         let same = compare_facts(&left, &left);
         assert!(same.iter().all(|(label, _)| *label != "size"));
         assert!(same.iter().all(|(label, _)| *label != "exposure"));
+    }
+
+    /// A cell says why it has no pixels, and stays quiet when it has them.
+    #[test]
+    fn a_cell_badges_a_missing_file_before_a_failed_decode() {
+        let mut photo = Photo {
+            id: PhotoId(1),
+            root: "/photos".to_string(),
+            rel: "a.jpg".to_string(),
+            name: "a.jpg".to_string(),
+            size: 10,
+            modified: None,
+            kind: MediaKind::Image,
+            key: 1,
+            rating: 0,
+            flag: Flag::None,
+            label: None,
+            missing: false,
+            width: 0,
+            height: 0,
+            captured: None,
+            camera: String::new(),
+            lens: String::new(),
+            iso: None,
+            aperture: None,
+            shutter: None,
+            focal: None,
+            tags: Vec::new(),
+            edited: false,
+            retry: false,
+        };
+        assert_eq!(cell_badge(&photo, None), None, "a decoded cell needs no badge");
+        assert_eq!(cell_badge(&photo, Some("bad jpeg")), Some(CellBadge::Unreadable));
+        photo.missing = true;
+        assert_eq!(
+            cell_badge(&photo, Some("bad jpeg")),
+            Some(CellBadge::Offline),
+            "a missing file outranks the decode failure it caused"
+        );
+        // Both badges explain themselves on hover; a glyph alone is a riddle.
+        assert!(CellBadge::Offline.hint().contains("missing"));
+        assert!(CellBadge::Unreadable.hint().contains("decoded"));
+    }
+
+    /// The grid paints a cell for a missing photo without asking for a decode, and names it for a reader.
+    #[test]
+    fn a_missing_photo_paints_with_its_badge() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-badge-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut photo = Photo {
+            id: PhotoId(7),
+            root: "/photos".to_string(),
+            rel: "gone.jpg".to_string(),
+            name: "gone.jpg".to_string(),
+            size: 10,
+            modified: None,
+            kind: MediaKind::Image,
+            key: 7,
+            rating: 4,
+            flag: Flag::Pick,
+            label: None,
+            missing: true,
+            width: 0,
+            height: 0,
+            captured: None,
+            camera: String::new(),
+            lens: String::new(),
+            iso: None,
+            aperture: None,
+            shutter: None,
+            focal: None,
+            tags: Vec::new(),
+            edited: false,
+            retry: false,
+        };
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let response = photo_cell(ui, &tokens, &photo, false, 96.0, 16.0, &mut thumbs);
+                assert!(!response.clicked());
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the cell painted something");
+        assert_eq!(
+            crate::a11y::describe_photo(&photo),
+            "gone.jpg, 4 stars, pick, file missing",
+            "and the spoken name says what the badge shows"
+        );
+        photo.missing = false;
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The sources ask different questions, and each one is the whole question rather than a nudge.
+    ///
+    /// The bug this guards: picking "Picks" while three stars and a keyword were active used to leave them
+    /// on, so the row meant "picks among the ones you starred and tagged", and pressing it twice did
+    /// nothing visible. A source replaces the question; the folder is where you are, not what you asked.
+    #[test]
+    fn a_source_replaces_the_question_and_keeps_the_folder() {
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.root = Some("/photos".to_string());
+        state.folder = "2026/trip/".to_string();
+        state.min_rating = 4;
+        state.label_filter = Some(ColorLabel::Red);
+        state.tag_filters = vec!["harbour".to_string()];
+        state.search = "sunset".to_string();
+
+        state.apply_source(Source::Picks);
+        let filter = state.filter();
+        assert_eq!(filter.flag, Some(Flag::Pick));
+        assert_eq!(filter.min_rating, 0, "the stars were somebody else's question");
+        assert!(filter.tags.is_empty());
+        assert!(filter.label.is_none());
+        assert!(filter.text.is_empty());
+        assert_eq!(filter.root.as_deref(), Some("/photos"), "you are still in the library you opened");
+        assert_eq!(filter.folder.as_deref(), Some("2026/trip/"));
+
+        state.apply_source(Source::Rated);
+        assert_eq!(state.filter().flag, None);
+        assert_eq!(state.filter().min_rating, 1, "rated means one star, not five");
+        assert!(state.source_selected(Source::Rated));
+        assert!(!state.source_selected(Source::Picks));
+        assert!(!state.source_selected(Source::All));
+
+        state.apply_source(Source::Rejects);
+        assert_eq!(state.filter().flag, Some(Flag::Reject));
+
+        state.apply_source(Source::All);
+        assert!(state.filter().flag.is_none());
+        assert_eq!(state.filter().min_rating, 0);
+        assert!(state.source_selected(Source::All));
+        assert!(state.all_photos_selected, "All Photos is also what the cull queue starts from");
+    }
+
+    /// The sidebar paints its four sources over a real library, with counts that differ.
+    #[test]
+    fn the_sidebar_lists_every_source_with_its_own_count() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-sources-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-sources");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        std::fs::copy(fixture.jpeg("b.jpg", [40, 200, 40], 64, 64), root.join("b.jpg")).expect("copy b");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "two photos indexed");
+        engine.flag(&ids[..1], Flag::Pick).expect("pick");
+        engine.rate(&ids[1..], 3).expect("rate");
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                left_panel(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "painting the sidebar presses nothing");
+        assert!(state.source_selected(Source::All), "nothing was narrowed by drawing the panel");
+        assert_eq!(engine.stats().total, 2);
+
+        // The counts come from the library, so Picks is one and Rated is one, not both "2".
+        assert_eq!(
+            engine.count(&Filter {
+                flag: Some(Flag::Pick),
+                ..Filter::default()
+            }),
+            1
+        );
+        assert_eq!(
+            engine.count(&Filter {
+                min_rating: 1,
+                ..Filter::default()
+            }),
+            1
+        );
+        assert_eq!(
+            engine.count(&Filter {
+                flag: Some(Flag::Reject),
+                ..Filter::default()
+            }),
+            0
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The export dialog has to survive being drawn with no photos, with photos, mid-job and after a
