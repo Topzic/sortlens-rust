@@ -328,6 +328,54 @@ impl Engine {
         Ok(health)
     }
 
+    /// Photos whose metadata could not be read when they were indexed.
+    pub fn retry_count(&self) -> usize {
+        self.catalog.as_ref().map_or(0, |catalog| catalog.retrying_photos().len())
+    }
+
+    /// How many photos have no camera and no capture date, so a better reader could still help.
+    pub fn exifless_count(&self) -> usize {
+        self.catalog.as_ref().map_or(0, |catalog| catalog.exifless_photos().len())
+    }
+
+    /// Retry metadata extraction for queued photos, and optionally for every photo with no EXIF.
+    ///
+    /// A photo that reads this time is updated and leaves the queue; one that still cannot be read
+    /// stays queued and is counted as remaining rather than reported as a failure. `all` widens the
+    /// pass to photos whose metadata is merely empty — useful after the app learns a new format.
+    /// Returns `(updated, remaining)`.
+    pub fn retry_metadata(&mut self, all: bool) -> Result<(usize, usize)> {
+        let mut queued = match self.catalog.as_ref() {
+            Some(catalog) => catalog.retrying_photos(),
+            None => Vec::new(),
+        };
+        if all {
+            let queued_ids: std::collections::HashSet<PhotoId> = queued.iter().map(|photo| photo.id).collect();
+            if let Some(catalog) = self.catalog.as_ref() {
+                for photo in catalog.exifless_photos() {
+                    if !queued_ids.contains(&photo.id) {
+                        queued.push(photo);
+                    }
+                }
+            }
+        }
+        let mut recovered = 0usize;
+        for photo in queued {
+            let path = Path::new(&photo.root).join(&photo.rel);
+            let outcome = sortlens_meta::read_outcome(&path);
+            if outcome.is_retryable() {
+                continue;
+            }
+            let mut updated = photo.clone();
+            updated.apply_meta(&outcome.meta());
+            updated.retry = false;
+            self.mutate(Op::AddPhoto { photo: Box::new(updated) })?;
+            recovered += 1;
+        }
+        let remaining = self.retry_count();
+        Ok((recovered, remaining))
+    }
+
     /// Whether the library is open read-only because another window is writing it.
     pub fn read_only(&self) -> bool {
         self.catalog.as_ref().is_some_and(sortlens_catalog::Catalog::read_only)
@@ -872,6 +920,7 @@ impl Engine {
                 meta: file.meta.clone(),
                 review: file.review.clone(),
                 edited: file.edited,
+                meta_unreadable: file.meta_unreadable,
             })
             .collect();
         let errors: Vec<String> = report
@@ -1742,6 +1791,11 @@ impl Engine {
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
             "library.readOnly" => Ok(json!({ "readOnly": self.read_only() })),
+            "library.retryMetadata" => {
+                let all = args.get("all").and_then(Value::as_bool).unwrap_or(false);
+                let (updated, remaining) = self.retry_metadata(all)?;
+                Ok(json!({ "updated": updated, "remaining": remaining }))
+            }
             "library.history" => {
                 let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(HISTORY_LIMIT as u64) as usize;
                 let entries: Vec<Value> = self
@@ -2426,6 +2480,46 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn unreadable_metadata_is_queued_and_retried() {
+        let folder = Temp::new("retry-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"not really a jpeg").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"also not a jpeg").expect("write");
+        let (_lib, mut engine) = library("lib-retry");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        assert_eq!(engine.retry_count(), 0, "readable files are never queued");
+
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2);
+
+        // A file that could not be read at scan time stays queued once its file is gone.
+        let gone = folder.0.join("b.jpg");
+        std::fs::remove_file(&gone).expect("remove");
+        engine.catalog.as_mut().expect("catalog").mark_retry(&ids, true).expect("queue");
+        assert_eq!(engine.retry_count(), 2);
+
+        let value = engine.run("library.retryMetadata", &json!({})).expect("retry");
+        assert_eq!(value["updated"], 1, "a.jpg reads now");
+        assert_eq!(value["remaining"], 1, "b.jpg is still unavailable");
+        assert_eq!(engine.retry_count(), 1);
+
+        // The retry is an op, so it undoes like everything else.
+        let queued_before = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .filter(|photo| photo.retry)
+            .count();
+        assert_eq!(queued_before, 1);
     }
 
     #[test]

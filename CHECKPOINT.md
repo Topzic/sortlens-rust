@@ -702,7 +702,34 @@ photos one at a time.
 - 239 tests, CI and wasm green. Verified by hand with an OS lock held by another process: writes
   refused with the read-only message, reads fine, writes working again after the holder exits.
 
+## 2026-11-21 — M7: retry unreadable metadata
+
+The gap: `sortlens_meta::read` returned defaults on *any* failure, so "this file could not be read"
+was indistinguishable from "this photo has no EXIF", and nothing ever tried again.
+
+- meta: `ReadOutcome { Parsed, Unreadable }` and `read_outcome()`; `read()` stays as the forgiving
+  wrapper. A missing file is retryable, an empty result is final
+- scan: `ScannedFile.meta_unreadable`, so the flag survives the walk
+- catalog: `Photo.retry` (serde default), `Seed.meta_unreadable`, `Op::Retry { changes }` with an exact
+  inverse, `retrying_photos()`, `exifless_photos()`, `mark_retry()`. A rescan clears the flag when the
+  file reads again
+- engine: `retry_metadata(all)` returns `(updated, remaining)`, `retry_count()`, `exifless_count()`,
+  command `library.retryMetadata` (takes `{"all": true}`)
+- The `all` scope is the honest second half: after the app learns to read a format it could not parse
+  before, "re-read every photo with no camera and no date" is the action a photographer actually
+  wants, and it is a plain sequence of undoable `AddPhoto` updates
+- ui: Library health shows the queue ("N photo(s) could not be read when indexed") with "Retry
+  metadata" and "Re-read all without EXIF" — the second names its count and is disabled at zero.
+  cli: `retry [--all]`
+- Deliberate scope note: a file the *scanner* cannot read at all is still refused at scan time and
+  named in the scan report (it has no identity yet, so there is nothing to queue). The queue covers
+  reads that fail after the identity hash — a flaky volume, a file replaced mid-walk
+- tests: meta distinguishes retryable from empty; catalog queues on sync, clears with an undoable op,
+  and treats a re-queue as a no-op; engine reports `updated`/`remaining` with a file removed mid-retry
+- 242 tests, CI and wasm green. Verified by hand: `retry`, `retry --all` updating two photos, and undo
+  reversing it.
+
 ## Next
 
-M7: external-change detection — noticing a photo that changed on disk since it was indexed, and
-sending its metadata back through extraction instead of trusting the old values.
+M7: external-change detection — noticing, without a full rescan, that a photo changed on disk since
+it was indexed, and re-extracting its metadata instead of trusting the indexed values.

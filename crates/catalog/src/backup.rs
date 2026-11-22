@@ -176,6 +176,7 @@ mod tests {
             meta: sortlens_meta::PhotoMeta::default(),
             review: None,
             edited: false,
+            meta_unreadable: false,
         }
     }
 

@@ -213,6 +213,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.retryMetadata",
+                    label: "Retry Unreadable Metadata",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Retry Unreadable Metadata",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.readOnly",
                     label: "Is the Library Read-Only?",
                     group: Group::Library,

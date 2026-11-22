@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 sortlens-core = { workspace = true }
+sortlens-meta = { workspace = true }
 sortlens-catalog = { workspace = true }
 sortlens-cull = { workspace = true }
 sortlens-similar = { workspace = true }

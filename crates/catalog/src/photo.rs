@@ -72,6 +72,9 @@ pub struct Photo {
     /// Whether another application has edit settings for this photo.
     #[serde(default)]
     pub edited: bool,
+    /// The metadata read failed when this photo was indexed, so it is queued for a retry.
+    #[serde(default)]
+    pub retry: bool,
 }
 
 impl Photo {
@@ -100,6 +103,7 @@ impl Photo {
             aperture: None,
             shutter: None,
             focal: None,
+            retry: false,
             tags: Vec::new(),
             edited: false,
         }

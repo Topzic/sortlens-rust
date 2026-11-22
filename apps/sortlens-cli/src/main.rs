@@ -34,6 +34,7 @@ Commands:
   undo                      undo the last change
   remap <old> <new>         repoint a moved or renamed root, sample checked
   history [--limit N]       recent changes, newest first
+  retry [--all]             re-read metadata for photos that failed, or for all without EXIF
   audit                     check the catalog files read back cleanly
   compact                   snapshot and empty the log
   backup <file>             write a verified backup of the index
@@ -242,6 +243,12 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "retry" => {
+            let all = rest.iter().any(|arg| arg == "--all");
+            let (updated, remaining) = engine.retry_metadata(all).map_err(|error| error.to_string())?;
+            println!("updated {updated}, {remaining} still unreadable");
             Ok(())
         }
         "history" => {

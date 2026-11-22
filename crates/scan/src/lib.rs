@@ -84,6 +84,8 @@ pub struct ScannedFile {
     pub depth: usize,
     /// EXIF and XMP facts, empty when the file has none.
     pub meta: PhotoMeta,
+    /// The file could not be read for metadata, so the empty result is not final.
+    pub meta_unreadable: bool,
     /// Review state from the photo's sidecar, when one exists beside it.
     pub review: Option<Review>,
     /// Whether the sidecar carries edit settings from another application.
@@ -329,7 +331,8 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
                 }
             };
             let rel = relative_path(&root, &path);
-            let meta = sortlens_meta::read(&path);
+            let meta_outcome = sortlens_meta::read_outcome(&path);
+            let meta = meta_outcome.meta();
             let sidecar_text = sortlens_sidecar::read_text(&path);
             let review = sidecar_text.as_deref().and_then(sidecar_review);
             let edited = sidecar_text.as_deref().is_some_and(sortlens_sidecar::has_edits);
@@ -342,6 +345,7 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
                 key,
                 depth,
                 meta,
+                meta_unreadable: meta_outcome.is_retryable(),
                 review,
                 edited,
             });

@@ -3587,6 +3587,7 @@ dependencies = [
  "sortlens-cull",
  "sortlens-hash",
  "sortlens-insights",
+ "sortlens-meta",
  "sortlens-scan",
  "sortlens-sidecar",
  "sortlens-similar",

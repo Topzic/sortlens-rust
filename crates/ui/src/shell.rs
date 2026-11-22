@@ -2784,6 +2784,47 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             );
             ui.add_space(8.0);
             ui.separator();
+            // Files whose metadata could not be read at scan time are queued, not forgotten.
+            let queued = engine.retry_count();
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(if queued == 0 {
+                        "No photos are waiting on a metadata retry".to_string()
+                    } else {
+                        format!("{queued} photo(s) could not be read when indexed")
+                    })
+                    .size(11.0)
+                    .color(if queued == 0 { t.text_faint } else { t.text }),
+                );
+            });
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(queued > 0, Button::new(RichText::new("Retry metadata").size(11.5)))
+                    .on_hover_text("Try reading EXIF again for the photos that failed")
+                    .clicked()
+                {
+                    match engine.retry_metadata(false) {
+                        Ok((0, remaining)) => state.notice(format!("Nothing recovered; {remaining} still unreadable")),
+                        Ok((updated, 0)) => state.notice(format!("Read metadata for {updated} photo(s)")),
+                        Ok((updated, remaining)) => state.notice(format!("Read {updated}; {remaining} still unreadable")),
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                }
+                let exifless = engine.exifless_count();
+                if ui
+                    .add_enabled(exifless > 0, Button::new(RichText::new("Re-read all without EXIF").size(11.5)))
+                    .on_hover_text(format!(
+                        "{exifless} photo(s) have no camera and no date; try again with the current readers"
+                    ))
+                    .clicked()
+                {
+                    match engine.retry_metadata(true) {
+                        Ok((updated, _)) => state.notice(format!("Read metadata for {updated} photo(s)")),
+                        Err(error) => state.notice(error.to_string()),
+                    }
+                }
+            });
+            ui.add_space(8.0);
             ui.label(RichText::new("Catalog files").size(11.0).color(t.text_muted));
             if let Some((headline, detail, clean)) = &state.audit {
                 ui.label(

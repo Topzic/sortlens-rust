@@ -121,6 +121,8 @@ pub struct Seed {
     pub review: Option<Review>,
     /// Whether the sidecar carries edit settings from another application.
     pub edited: bool,
+    /// The file's metadata could not be read, so it stays queued for a retry.
+    pub meta_unreadable: bool,
 }
 
 /// The catalog.
@@ -700,6 +702,19 @@ impl Catalog {
                 }
                 Ok(Op::Group { ops: inverse })
             }
+            Op::Retry { changes } => {
+                let mut inverse = Vec::new();
+                for (id, retry) in changes {
+                    let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+                    if photo.retry != *retry {
+                        inverse.push(Op::Retry {
+                            changes: vec![(*id, photo.retry)],
+                        });
+                        photo.retry = *retry;
+                    }
+                }
+                Ok(Op::Group { ops: inverse })
+            }
             Op::RemapRoot { from, to } => {
                 // Repointing a root is one change to the root list plus one per member, and its
                 // inverse is the same swap in reverse — so a mistake costs one undo.
@@ -901,6 +916,7 @@ impl Catalog {
                     let mut photo = Photo::from_scan(id, root, &seed.rel, seed.size, seed.modified, seed.kind, seed.key);
                     photo.apply_meta(&seed.meta);
                     photo.edited = seed.edited;
+                    photo.retry = seed.meta_unreadable;
                     if let Some(review) = &seed.review {
                         photo.adopt_review(review);
                     }
@@ -910,6 +926,11 @@ impl Catalog {
                 Some(previous) => {
                     let unchanged = previous.size == seed.size && previous.key == seed.key;
                     if unchanged {
+                        if previous.retry && !seed.meta_unreadable {
+                            self.commit(Op::Retry {
+                                changes: vec![(previous.id, false)],
+                            })?;
+                        }
                         if previous.missing {
                             self.commit(Op::Missing {
                                 id: previous.id,
@@ -927,6 +948,7 @@ impl Catalog {
                     updated.missing = false;
                     updated.apply_meta(&seed.meta);
                     updated.edited = seed.edited;
+                    updated.retry = seed.meta_unreadable;
                     self.commit(Op::AddPhoto { photo: Box::new(updated) })?;
                     outcome.updated += 1;
                 }
@@ -943,6 +965,41 @@ impl Catalog {
             }
         }
         Ok(outcome)
+    }
+
+    /// Photos whose metadata could not be read when they were indexed, oldest first.
+    pub fn retrying_photos(&self) -> Vec<Photo> {
+        let mut photos: Vec<Photo> = self.photos.values().filter(|photo| photo.retry).cloned().collect();
+        photos.sort_by_key(|photo| photo.id.0);
+        photos
+    }
+
+    /// Photos whose metadata is empty and could be worth re-reading — for instance after the app
+    /// learns to read a format it could not parse before.
+    pub fn exifless_photos(&self) -> Vec<Photo> {
+        let mut photos: Vec<Photo> = self
+            .photos
+            .values()
+            .filter(|photo| !photo.missing && photo.camera.is_empty() && photo.captured.is_none())
+            .cloned()
+            .collect();
+        photos.sort_by_key(|photo| photo.id.0);
+        photos
+    }
+
+    /// Queue photos for a metadata retry after a failed read.
+    pub fn mark_retry(&mut self, ids: &[PhotoId], retry: bool) -> Result<usize> {
+        let changes: Vec<(PhotoId, bool)> = ids
+            .iter()
+            .filter(|id| self.photos.get(id).is_some_and(|photo| photo.retry != retry))
+            .map(|id| (*id, retry))
+            .collect();
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        let count = changes.len();
+        self.commit(Op::Retry { changes })?;
+        Ok(count)
     }
 
     /// Remove a root and every photo under it.
@@ -1106,6 +1163,7 @@ mod tests {
             meta: PhotoMeta::default(),
             review: None,
             edited: false,
+            meta_unreadable: false,
         }
     }
 
@@ -1356,6 +1414,26 @@ mod tests {
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
+    }
+
+    #[test]
+    fn an_unreadable_metadata_read_marks_the_photo_for_a_retry() {
+        let temp = TempCatalog::new("retry-queue");
+        let (mut catalog, _) = temp.open();
+        let mut seed = seed("a.jpg");
+        seed.meta_unreadable = true;
+        catalog.sync_root("/photos", vec![seed]).expect("sync");
+
+        let queued = catalog.retrying_photos();
+        assert_eq!(queued.len(), 1);
+        assert!(queued[0].retry);
+
+        // Marking it done is one undoable op with an exact inverse.
+        catalog.mark_retry(&[PhotoId(1)], false).expect("clear");
+        assert!(catalog.retrying_photos().is_empty());
+        catalog.undo().expect("undo");
+        assert_eq!(catalog.retrying_photos().len(), 1, "the queue is back");
+        assert_eq!(catalog.mark_retry(&[PhotoId(1)], true).expect("no-op"), 0, "already queued");
     }
 
     #[test]

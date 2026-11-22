@@ -74,18 +74,50 @@ impl PhotoMeta {
     }
 }
 
+/// What reading a file's metadata came to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReadOutcome {
+    /// The file was read; the metadata may still be empty, which is a fact about the photo.
+    Parsed(PhotoMeta),
+    /// The file could not be read at all — locked, unplugged, a permissions problem. Worth retrying
+    /// later, and *not* the same thing as a photo with no EXIF.
+    Unreadable(String),
+}
+
+impl ReadOutcome {
+    /// The metadata, empty when the file could not be read.
+    pub fn meta(&self) -> PhotoMeta {
+        match self {
+            Self::Parsed(meta) => meta.clone(),
+            Self::Unreadable(_) => PhotoMeta::default(),
+        }
+    }
+
+    /// Whether another attempt later could do better.
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Unreadable(_))
+    }
+}
+
 /// Read metadata for one file, bounded by [`METADATA_READ_LIMIT`].
 ///
-/// Returns defaults on any failure; the caller keeps the photo.
+/// Returns defaults on any failure; the caller keeps the photo. Use [`read_outcome`] when the
+/// difference between "no EXIF" and "could not be read" matters.
 pub fn read(path: &Path) -> PhotoMeta {
+    read_outcome(path).meta()
+}
+
+/// Read metadata, distinguishing an unreadable file from an empty one.
+pub fn read_outcome(path: &Path) -> ReadOutcome {
     let mut buffer = Vec::new();
-    let Ok(file) = File::open(path) else {
-        return PhotoMeta::default();
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) => return ReadOutcome::Unreadable(error.to_string()),
     };
-    if file.take(METADATA_READ_LIMIT).read_to_end(&mut buffer).is_err() {
-        return PhotoMeta::default();
+    if let Err(error) = file.take(METADATA_READ_LIMIT).read_to_end(&mut buffer) {
+        return ReadOutcome::Unreadable(error.to_string());
     }
-    parse(&buffer)
+    ReadOutcome::Parsed(parse(&buffer))
 }
 
 /// Parse metadata out of a byte buffer that starts at the beginning of a file.
@@ -217,5 +249,22 @@ mod tests {
             ..PhotoMeta::default()
         };
         assert_eq!(meta.megapixels(), 24.0);
+    }
+
+    #[test]
+    fn an_unreadable_file_is_not_the_same_as_a_photo_without_exif() {
+        let missing = std::env::temp_dir().join("sortlens-meta-absent-xyz.jpg");
+        let _ = std::fs::remove_file(&missing);
+        let outcome = super::read_outcome(&missing);
+        assert!(outcome.is_retryable(), "a missing file is worth retrying");
+        assert_eq!(outcome.meta(), super::PhotoMeta::default());
+
+        // A readable file with no EXIF is a fact, not a failure.
+        let plain = std::env::temp_dir().join(format!("sortlens-meta-plain-{}.jpg", std::process::id()));
+        std::fs::write(&plain, b"not really a jpeg").expect("write");
+        let outcome = super::read_outcome(&plain);
+        assert!(!outcome.is_retryable(), "an empty result is final");
+        assert!(outcome.meta().camera.is_empty());
+        let _ = std::fs::remove_file(&plain);
     }
 }
