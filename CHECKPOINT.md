@@ -1594,9 +1594,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   wasm, snapshot green. **Not verified by hand**: how the three steps feel on a real display — the numbers
   are a judgement call, and the only way to judge them is to scroll a shoot.
 
+## 2026-11-21 — M1 row: a selection that can hold more than one photo
+
+- **`Selection`** (`crates/ui/src/shell.rs`) keeps three things apart: the **primary** (what the inspector
+  shows), the **ticks** (what a batch acts on) and the **anchor** (where a ⇧-click measures from). They cannot
+  be one field — removing the primary has to move the inspector to a photo that is still ticked, and a
+  ⇧-click measured from the primary would walk instead of extending.
+- Gestures: **click** replaces, **⌘-click** toggles, **⇧-click** takes the run from the anchor *in the order
+  the grid shows them* (a range in id order would select something nobody is looking at), **⌘A** selects
+  everything in view (capped at `MAX_RANGE` = 20 000 so a click cannot stall on a huge library) and **Esc**
+  clears. A ⇧-click with no anchor in view falls back to a plain click rather than selecting half the library.
+- Batch keys: rating, flag and label now act on `selection.ids()` and the notice says the count — "Rated 4★
+  on 12 photos" — instead of pretending one photo changed. Label toggle clears only when the primary already
+  carries the colour, so pressing the same key twice over a mixed selection sets rather than clears.
+- The selection is pruned against the library once per frame, so a delete or a rescan cannot leave the
+  inspector showing a photo that no longer exists; `library_status` now speaks the selected count instead of
+  a 0/1 flag.
+- `keymap.rs` documents Click / ⌘-click / ⇧-click and Ctrl+A, so the shortcuts dialog is not silent about the
+  three gestures it now has.
+- Tests: the gesture state machine (add, remove, primary follows survivors, range forwards and backwards
+  from a stable anchor, anchor-less range falls back), select-all + prune, a real engine batch write over
+  three photos, and a headless paint with a three-photo selection that asks for nothing.
+- 458 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: the gestures with a real mouse —
+  modifier-click in egui behaves, but only a person can say whether ⇧-click over a wrapped row feels right.
+- **Split, not ticked whole**: marquee is its own row. It needs cell rectangles collected during paint and a
+  drag that does not fight the scroll area's own, which is a piece of work rather than a footnote.
+
 ## Next
 
-Continue in milestone order. Next: multi-select, marquee and ⇧-range in the grid (SL-B15) — the largest
-remaining M1 row, and the one that makes batch actions on a selection possible; then grid justification
-(SL-B01/B02); then M2's priority scheduling and backpressure, the bell popover, `craft-ipc`, and the decoder
-rows (HEIC, video, blur-up) which belong in M2's absent-by-design table.
+Continue in milestone order. Next: marquee (SL-B15 part 2) or grid justification (SL-B01/B02); then M2's
+priority scheduling and backpressure, the bell popover, `craft-ipc`, and the decoder rows (HEIC, video,
+blur-up), which belong in M2's absent-by-design table because each needs a decoder decision this repository
+has not made.

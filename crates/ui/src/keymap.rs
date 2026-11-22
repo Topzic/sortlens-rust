@@ -104,6 +104,13 @@ pub const BINDINGS: &[Binding] = &[
         Some("photo.label"),
     ),
     binding("K", "Jump to the keyword field", Context::Library, Some("photo.keyword")),
+    binding(
+        "Click",
+        "Select one photo; ⌘-click adds or removes, ⇧-click takes the run",
+        Context::Library,
+        None,
+    ),
+    binding("Ctrl+A", "Select every photo in view", Context::Library, None),
     binding("D", "Open the detail view", Context::Library, Some("view.detail")),
     binding("C", "Start a cull session from the filters", Context::Library, Some("cull.start")),
     binding("I", "Open insights", Context::Library, Some("view.insights")),

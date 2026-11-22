@@ -98,7 +98,17 @@ volume probe and `PathKey`.
   layout (more columns when dense, exact fit at each step, floor on a narrow window), as a settings round
   trip including an unknown id falling back to the default, and as a headless paint at all three densities (B)
   — SL-B04
-- [ ] One selected photo plus the cull follow-selection; no multi-select, marquee or ⇧-range (B) — SL-B15
+- [x] Multi-select, part 1 — **click** replaces, **⌘-click** adds or removes, **⇧-click** takes the run from
+  the anchor *in the order the grid shows* (not id order, which is not what anyone is looking at), **⌘A**
+  selects everything in view and **Esc** drops it. `Selection` keeps the primary (what the inspector shows)
+  apart from the ticks (what a batch acts on), so removing the primary moves the inspector to a photo that is
+  still selected instead of one that is not; a ⇧-click with no anchor in view is a plain click. Rating, flag
+  and label keys write every ticked photo and the notice says how many ("Rated 4★ on 12 photos"). The
+  selection is pruned each frame against the library, so a delete cannot leave the inspector on a ghost. All
+  of it tested as logic plus one headless paint with a three-photo selection (B) — SL-B15 part 1
+- [ ] Multi-select, part 2 — **marquee**: dragging a rectangle over the grid to select what it touches. It
+  needs cell rectangles collected during paint and a drag that does not fight the scroll area's own drag, so
+  it is its own piece of work rather than a footnote to this one
 - [x] Sources, part 1 — **Picks**, **Rated** and **Rejects** rows in the sidebar, each showing its own count
   rather than the library total, and each replacing the whole question rather than nudging it (picking Picks
   with three stars and a keyword active used to leave them on, so the row meant "picks among the ones you

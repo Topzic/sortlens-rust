@@ -19,6 +19,7 @@ use egui::{
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
 use sortlens_cull::gesture::Gesture;
 use sortlens_engine::{Decision, Engine, Filter, Photo, Sort, TagOrder};
+use std::collections::BTreeSet;
 
 /// A top-level destination in the bottom bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -175,6 +176,132 @@ impl DeleteMode {
     }
 }
 
+/// How many photos a ⇧-click range or ⌘A will walk. Large enough for any shoot a person would select by hand,
+/// small enough that the walk cannot turn a click into a stall on a library of hundreds of thousands.
+pub const MAX_RANGE: usize = 20_000;
+
+/// What is selected in the grid: one photo, a range, or a handful picked out of a shoot.
+///
+/// The primary is what the detail panel shows; the rest are what a batch command acts on. Keeping them
+/// together matters: "rate the selection 4" has to mean every ticked cell, while the inspector must still
+/// know which one you are looking at. The anchor is where a ⇧-click measures from, and it is separate from
+/// the primary so ⇧-clicking twice narrows or widens the range from the same place instead of walking.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Selection {
+    /// The one the inspector shows.
+    primary: Option<PhotoId>,
+    /// Everything ticked, including the primary.
+    ids: BTreeSet<PhotoId>,
+    /// Where a range starts.
+    anchor: Option<PhotoId>,
+}
+
+impl Selection {
+    /// Nothing selected.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// How many are ticked.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    /// The photo the inspector shows.
+    #[must_use]
+    pub fn primary(&self) -> Option<PhotoId> {
+        self.primary
+    }
+
+    /// Whether a photo is part of the selection.
+    #[must_use]
+    pub fn contains(&self, id: PhotoId) -> bool {
+        self.ids.contains(&id)
+    }
+
+    /// Everything the batch commands should act on, in id order so a log reads the same twice.
+    #[must_use]
+    pub fn ids(&self) -> Vec<PhotoId> {
+        self.ids.iter().copied().collect()
+    }
+
+    /// Select exactly this photo, the way a plain click does.
+    pub fn replace(&mut self, id: PhotoId) {
+        self.ids.clear();
+        self.ids.insert(id);
+        self.primary = Some(id);
+        self.anchor = Some(id);
+    }
+
+    /// Add or remove one photo, the way ⌘-click does. Removing the primary moves the primary to whatever is
+    /// still selected, so the inspector never shows a photo that is no longer ticked.
+    pub fn toggle(&mut self, id: PhotoId) {
+        if self.ids.remove(&id) {
+            if self.primary == Some(id) {
+                self.primary = self.ids.iter().next().copied();
+            }
+            if self.anchor == Some(id) {
+                self.anchor = self.primary;
+            }
+        } else {
+            self.ids.insert(id);
+            self.primary = Some(id);
+            self.anchor = Some(id);
+        }
+    }
+
+    /// Select the run between the anchor and `id`, in the order the grid is showing them.
+    ///
+    /// If there is no anchor — nothing selected, or the anchor is no longer in view — this is a plain click:
+    /// a range with nothing to measure from would otherwise select a random half of the library.
+    pub fn extend(&mut self, order: &[PhotoId], id: PhotoId) {
+        let Some(anchor) = self.anchor.filter(|anchor| order.contains(anchor)) else {
+            self.replace(id);
+            return;
+        };
+        let from = order.iter().position(|candidate| *candidate == anchor);
+        let to = order.iter().position(|candidate| *candidate == id);
+        let (Some(from), Some(to)) = (from, to) else {
+            self.replace(id);
+            return;
+        };
+        let (start, end) = if from <= to { (from, to) } else { (to, from) };
+        self.ids = order[start..=end].iter().copied().collect();
+        self.primary = Some(id);
+    }
+
+    /// Everything in view, the way ⌘A does. The anchor stays where it was so a following ⇧-click still narrows.
+    pub fn all(&mut self, order: &[PhotoId]) {
+        self.ids = order.iter().copied().collect();
+        if self.primary.is_none_or(|primary| !self.ids.contains(&primary)) {
+            self.primary = order.first().copied();
+        }
+        if self.anchor.is_none_or(|anchor| !self.ids.contains(&anchor)) {
+            self.anchor = self.primary;
+        }
+    }
+
+    /// Drop the selection, keeping nothing — including the anchor.
+    pub fn clear(&mut self) {
+        self.ids.clear();
+        self.primary = None;
+        self.anchor = None;
+    }
+
+    /// Keep only ids that still exist, after a filter change or a delete.
+    pub fn retain(&mut self, keep: impl Fn(PhotoId) -> bool) {
+        self.ids.retain(|id| keep(*id));
+        if self.primary.is_some_and(|primary| !self.ids.contains(&primary)) {
+            self.primary = self.ids.iter().next().copied();
+        }
+        if self.anchor.is_some_and(|anchor| !self.ids.contains(&anchor)) {
+            self.anchor = self.primary;
+        }
+    }
+}
+
 /// The sidebar's saved questions. All Photos is the empty filter; the rest are one dimension each.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
@@ -255,8 +382,8 @@ pub struct UiState {
     pub shortcuts_open: bool,
     /// Filter typed into the shortcut overlay.
     pub shortcut_query: String,
-    /// Selected photo.
-    pub selected: Option<PhotoId>,
+    /// What the grid has ticked; the inspector shows its primary.
+    pub selection: Selection,
     /// Sidebar row for "All Photos".
     pub all_photos_selected: bool,
     /// Minimum stars, 0 for any.
@@ -378,7 +505,7 @@ impl UiState {
             about_open: false,
             shortcuts_open: false,
             shortcut_query: String::new(),
-            selected: None,
+            selection: Selection::default(),
             all_photos_selected: true,
             min_rating: 0,
             flag_filter: None,
@@ -551,6 +678,10 @@ impl UiState {
 pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) -> Vec<Action> {
     let mut actions = Vec::new();
     let t = state.theme.tokens();
+
+    // A photo can vanish under the selection — a delete, an emptied bin, a rescan that found the file gone.
+    // Dropping it here, once, keeps the inspector from showing a photo that is no longer in the library.
+    state.selection.retain(|id| engine.photo(id).is_some());
 
     let had_photos = engine.stats().total;
     if let Some(done) = engine.poll() {
@@ -727,7 +858,7 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                     };
                     let search = ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
                     if search.changed() {
-                        state.selected = None;
+                        state.selection.clear();
                     }
                     // Commit the search to the collection when the box is left or Enter is pressed,
                     // rather than writing an op for every keystroke.
@@ -788,7 +919,7 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         ui.label(RichText::new(text.to_owned()).size(11.5).color(t.accent));
                         ui.add_space(10.0);
                     }
-                    if let Some(selected) = state.selected.and_then(|id| engine.photo(id)) {
+                    if let Some(selected) = state.selection.primary().and_then(|id| engine.photo(id)) {
                         ui.label(RichText::new(format!("{}★", selected.rating)).size(11.5).color(t.text_muted));
                         ui.label(RichText::new(selected.name.clone()).size(11.5).color(t.text_muted));
                     } else {
@@ -999,11 +1130,11 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
             ui.add_space(4.0);
 
             match state.right_tab {
-                RightTab::Details => match state.selected.and_then(|id| engine.photo(id)) {
+                RightTab::Details => match state.selection.primary().and_then(|id| engine.photo(id)) {
                     Some(photo) => details(ui, t, photo),
                     None => hint(ui, t, "Select a photo to see camera, exposure and file details."),
                 },
-                RightTab::Tags => match state.selected.and_then(|id| engine.photo(id)).cloned() {
+                RightTab::Tags => match state.selection.primary().and_then(|id| engine.photo(id)).cloned() {
                     Some(photo) => tags(ui, t, state, engine, &photo),
                     None => hint(ui, t, "Keywords and collections for the selection appear here."),
                 },
@@ -1187,11 +1318,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             ui.horizontal(|ui| {
                 ui.label(RichText::new(state.view.label()).size(16.0).strong());
                 ui.add_space(6.0);
-                crate::a11y::live_line(
-                    ui,
-                    &crate::a11y::library_status(total, usize::from(state.selected.is_some())),
-                    t.text_muted,
-                );
+                crate::a11y::live_line(ui, &crate::a11y::library_status(total, state.selection.len()), t.text_muted);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
                         state.root = None;
@@ -1332,10 +1459,26 @@ fn grid(
                         let index = row * columns + column;
                         match page.photos.get(index) {
                             Some(photo) => {
-                                let selected = state.selected == Some(photo.id);
+                                let selected = state.selection.contains(photo.id);
                                 let response = photo_cell(ui, t, photo, selected, cell, caption, thumbs);
                                 if response.clicked() {
-                                    state.selected = Some(photo.id);
+                                    // Three gestures, three meanings: click replaces, ⌘-click toggles, and
+                                    // ⇧-click takes the run from the anchor in the order the grid shows —
+                                    // not in id order, which is not what the person is looking at.
+                                    let modifiers = ui.input(|input| input.modifiers);
+                                    if modifiers.command {
+                                        state.selection.toggle(photo.id);
+                                    } else if modifiers.shift {
+                                        let order: Vec<PhotoId> = engine
+                                            .page(filter, state.sort, 0, MAX_RANGE)
+                                            .photos
+                                            .iter()
+                                            .map(|photo| photo.id)
+                                            .collect();
+                                        state.selection.extend(&order, photo.id);
+                                    } else {
+                                        state.selection.replace(photo.id);
+                                    }
                                     state.right_tab = RightTab::Details;
                                 }
                                 if response.double_clicked() {
@@ -1545,9 +1688,30 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         }
         return;
     }
-    let Some(id) = state.selected else {
+    // ⌘A selects everything in view and Escape drops the selection. Both work with nothing selected, which
+    // is why they come before the primary check: ⌘A on an empty selection is how you start.
+    if ui.input(|input| input.modifiers.command && input.key_pressed(Key::A)) {
+        let order: Vec<PhotoId> = engine
+            .page(&state.filter(), state.sort, 0, MAX_RANGE)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        let total = order.len();
+        state.selection.all(&order);
+        state.notice(format!("Selected {total} photos"));
+        return;
+    }
+    if !state.detail_open && ui.input(|input| input.key_pressed(Key::Escape) && !input.modifiers.command) && !state.selection.is_empty() {
+        state.selection.clear();
+        return;
+    }
+
+    let Some(id) = state.selection.primary() else {
         return;
     };
+    // A batch is every ticked photo, not just the one in the inspector.
+    let targets = state.selection.ids();
 
     let mut rating = None;
     let mut label = None;
@@ -1605,34 +1769,43 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         state.tag_focus = true;
     }
 
+    let count = targets.len();
     if let Some(colour) = label {
+        // Toggling on a batch clears only when the primary already carries it, so pressing the same key twice
+        // over a mixed selection sets rather than clears — the predictable direction.
         let cleared = engine.photo(id).and_then(|photo| photo.label) == colour;
         let wanted = if cleared { None } else { colour };
-        match engine.label(&[id], wanted) {
-            Ok(_) => state.notice(match wanted {
-                Some(colour) => format!("{} label", colour.label()),
-                None => "Cleared the label".to_string(),
+        match engine.label(&targets, wanted) {
+            Ok(_) => state.notice(match (wanted, count) {
+                (Some(colour), 1) => format!("{} label", colour.label()),
+                (Some(colour), many) => format!("{} label on {many} photos", colour.label()),
+                (None, 1) => "Cleared the label".to_string(),
+                (None, many) => format!("Cleared the label on {many} photos"),
             }),
             Err(error) => state.notice(error.to_string()),
         }
     }
 
     if let Some(stars) = rating {
-        match engine.rate(&[id], stars) {
-            Ok(_) => state.notice(if stars == 0 {
-                "Cleared rating".into()
-            } else {
-                format!("Rated {stars}★")
+        match engine.rate(&targets, stars) {
+            Ok(_) => state.notice(match (stars, count) {
+                (0, 1) => "Cleared rating".to_string(),
+                (0, many) => format!("Cleared the rating on {many} photos"),
+                (stars, 1) => format!("Rated {stars}★"),
+                (stars, many) => format!("Rated {stars}★ on {many} photos"),
             }),
             Err(error) => state.notice(error.to_string()),
         }
     }
     if let Some(flag) = flag {
-        match engine.flag(&[id], flag) {
-            Ok(_) => state.notice(match flag {
-                Flag::Pick => "Picked".to_string(),
-                Flag::Reject => "Rejected".to_string(),
-                Flag::None => "Unflagged".to_string(),
+        match engine.flag(&targets, flag) {
+            Ok(_) => state.notice(match (flag, count) {
+                (Flag::Pick, 1) => "Picked".to_string(),
+                (Flag::Reject, 1) => "Rejected".to_string(),
+                (Flag::None, 1) => "Unflagged".to_string(),
+                (Flag::Pick, many) => format!("Picked {many} photos"),
+                (Flag::Reject, many) => format!("Rejected {many} photos"),
+                (Flag::None, many) => format!("Unflagged {many} photos"),
             }),
             Err(error) => state.notice(error.to_string()),
         }
@@ -1971,14 +2144,14 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         state.detail_open = false;
     }
     if step != 0
-        && let Some(id) = state.selected
+        && let Some(id) = state.selection.primary()
         && let Some(next) = engine.neighbour(&state.filter(), state.sort, id, step)
     {
         // In a compare the pair walks together, so the two photos stay neighbours.
         if state.compare.is_some() {
             state.compare = Some(id);
         }
-        state.selected = Some(next);
+        state.selection.replace(next);
     }
 }
 
@@ -2078,7 +2251,7 @@ pub fn toggle_compare(state: &mut UiState, engine: &Engine) {
     if state.compare.take().is_some() {
         return;
     }
-    let Some(id) = state.selected else {
+    let Some(id) = state.selection.primary() else {
         state.notice("Pick a photo first");
         return;
     };
@@ -2136,7 +2309,7 @@ fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
 
 fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     let filter = state.filter();
-    let Some(id) = state.selected else {
+    let Some(id) = state.selection.primary() else {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
             ui.label(RichText::new("Nothing selected").size(16.0).strong());
@@ -2211,7 +2384,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                     .clicked()
                     && let Some(second) = state.compare
                 {
-                    state.selected = Some(second);
+                    state.selection.replace(second);
                     state.compare = Some(id);
                 }
                 if ui.button(RichText::new("Compare  C").size(11.0)).clicked() {
@@ -2329,12 +2502,12 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         if ui.add(Button::new(RichText::new("← Previous").size(11.0))).clicked()
             && let Some(previous) = engine.neighbour(&filter, state.sort, id, -1)
         {
-            state.selected = Some(previous);
+            state.selection.replace(previous);
         }
         if ui.add(Button::new(RichText::new("Next →").size(11.0))).clicked()
             && let Some(next) = engine.neighbour(&filter, state.sort, id, 1)
         {
-            state.selected = Some(next);
+            state.selection.replace(next);
         }
         ui.add_space(8.0);
         ui.label(
@@ -2398,7 +2571,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             });
         });
         if let Some(target) = jump {
-            state.selected = Some(target);
+            state.selection.replace(target);
         }
     });
 
@@ -2972,7 +3145,10 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                             );
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 if ui.small_button("Select all but the best").clicked() {
-                                    state.selected = group.others().into_iter().next();
+                                    state.selection.clear();
+                                    if let Some(id) = group.others().into_iter().next() {
+                                        state.selection.replace(id);
+                                    }
                                     state.notice(format!("{} set aside", group.len() - 1));
                                 }
                             });
@@ -3005,7 +3181,7 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                                     );
                                 }
                                 if response.clicked() {
-                                    state.selected = Some(member.id);
+                                    state.selection.replace(member.id);
                                 }
                             }
                         });
@@ -3385,12 +3561,12 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                             ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
                         }
                     }
-                    if state.selected == Some(*id) {
+                    if state.selection.contains(*id) {
                         ui.painter()
                             .rect_stroke(rect, t.corner(), Stroke::new(2.0, t.accent), StrokeKind::Inside);
                     }
                     if response.on_hover_text(format!("{} · {}", photo.name, card.kind.label())).clicked() {
-                        state.selected = Some(*id);
+                        state.selection.replace(*id);
                         state.detail_open = true;
                     }
                 }
@@ -5028,6 +5204,151 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Click, ⌘-click and ⇧-click are three different gestures, and each has to leave the inspector sane.
+    #[test]
+    fn a_selection_replaces_toggles_and_ranges() {
+        let order: Vec<PhotoId> = (1..=6).map(PhotoId).collect();
+        let mut selection = Selection::default();
+        assert!(selection.is_empty());
+
+        selection.replace(PhotoId(2));
+        assert_eq!(selection.primary(), Some(PhotoId(2)));
+        assert_eq!(selection.ids(), vec![PhotoId(2)]);
+
+        // ⌘-click adds.
+        selection.toggle(PhotoId(5));
+        assert_eq!(selection.ids(), vec![PhotoId(2), PhotoId(5)]);
+        assert_eq!(selection.primary(), Some(PhotoId(5)), "the last one you clicked is the one you see");
+
+        // ⌘-click again removes, and the primary moves to what is left rather than pointing at a photo
+        // that is no longer selected.
+        selection.toggle(PhotoId(5));
+        assert_eq!(selection.ids(), vec![PhotoId(2)]);
+        assert_eq!(selection.primary(), Some(PhotoId(2)));
+
+        // ⇧-click measures from the anchor (2) to the clicked photo, in the order the grid shows.
+        selection.toggle(PhotoId(2));
+        assert!(selection.is_empty(), "the anchor followed it away");
+        selection.replace(PhotoId(2));
+        selection.extend(&order, PhotoId(5));
+        assert_eq!(selection.ids(), vec![PhotoId(2), PhotoId(3), PhotoId(4), PhotoId(5)]);
+        assert_eq!(selection.primary(), Some(PhotoId(5)));
+
+        // And backwards, from the same anchor.
+        selection.extend(&order, PhotoId(1));
+        assert_eq!(selection.ids(), vec![PhotoId(1), PhotoId(2)], "the run between them, not the union");
+
+        // A range with no anchor in view is a plain click: there is nothing to measure from.
+        selection.clear();
+        selection.extend(&order, PhotoId(4));
+        assert_eq!(selection.ids(), vec![PhotoId(4)]);
+        assert_eq!(selection.primary(), Some(PhotoId(4)));
+    }
+
+    /// Selecting everything, then filtering, does not leave the selection pointing at photos that are gone.
+    #[test]
+    fn select_all_and_retain_follow_what_is_actually_there() {
+        let order: Vec<PhotoId> = (1..=4).map(PhotoId).collect();
+        let mut selection = Selection::default();
+        selection.all(&order);
+        assert_eq!(selection.len(), 4);
+        assert_eq!(selection.primary(), Some(PhotoId(1)), "something to show in the inspector");
+
+        selection.retain(|id| id != PhotoId(1));
+        assert_eq!(selection.ids(), vec![PhotoId(2), PhotoId(3), PhotoId(4)]);
+        assert_eq!(selection.primary(), Some(PhotoId(2)), "the primary follows the survivors");
+
+        selection.retain(|_| false);
+        assert!(selection.is_empty());
+        assert_eq!(selection.primary(), None);
+    }
+
+    /// A batch key press writes every ticked photo, and says how many in one line.
+    #[test]
+    fn rating_a_selection_writes_every_ticked_photo() {
+        let (_lib, photos, mut engine) = {
+            let dir = std::env::temp_dir().join(format!("sortlens-ui-batch-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            let root = dir.join("photos");
+            std::fs::create_dir_all(&root).expect("root");
+            let fixture = sortlens_testkit::Fixture::new("ui-batch");
+            for index in 0..3 {
+                let name = format!("IMG_{index}.jpg");
+                std::fs::copy(fixture.jpeg(&name, [40 * index as u8, 80, 160], 48, 32), root.join(&name)).expect("copy");
+            }
+            let mut engine = Engine::open(&dir).expect("open");
+            engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+            for _ in 0..600 {
+                if engine.poll().is_some() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            (dir, root, engine)
+        };
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3);
+
+        let mut selection = Selection::default();
+        selection.all(&ids);
+        // The keyboard path calls the engine with exactly this list.
+        engine.rate(&selection.ids(), 4).expect("rate");
+        engine.flag(&selection.ids(), Flag::Pick).expect("flag");
+        for id in &ids {
+            let photo = engine.photo(*id).expect("photo");
+            assert_eq!((photo.rating, photo.flag), (4, Flag::Pick), "every ticked photo, not just one");
+        }
+        let _ = std::fs::remove_dir_all(&photos);
+    }
+
+    /// The grid paints a multi-selection: every ticked cell draws its outline, and one press asks for nothing.
+    #[test]
+    fn the_grid_paints_a_multi_selection() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-multi-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-multi");
+        for index in 0..3 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 + index * 50, 110, 190], 48, 32), root.join(&name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.all(&ids);
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                grid(ui, &tokens, &mut state, &mut engine, &mut thumbs, &Filter::default(), &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "painting a selection does not act on it");
+        assert_eq!(state.selection.len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Density changes how many photos fit across the same window, and the row still fills it exactly.
     #[test]
     fn a_denser_grid_fits_more_photos_across_the_same_window() {
@@ -5489,7 +5810,7 @@ mod tests {
         assert_eq!(state.compare, None, "a second press closes the compare");
 
         // With nothing selected there is nothing to compare against, and the reason is said out loud.
-        state.selected = None;
+        state.selection.clear();
         toggle_compare(&mut state, &engine);
         assert_eq!(state.compare, None);
         assert!(state.live_notice().is_some() || state.notice.is_some(), "the reason is not silent");
