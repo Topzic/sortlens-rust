@@ -48,12 +48,31 @@ pub const CELL_PX: f64 = 64.0;
 ///
 /// Constructing one is the only way to get a [`LatLon`], so a function that takes one never has to ask whether it is
 /// a real coordinate.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+// Deserialising goes through the constructor rather than filling the fields: a snapshot, a log record or a hand-edited
+// file must not be able to put a coordinate that is not a place into the catalog. `try_from` means a bad value is an
+// error the loader reports, not a photograph drawn in the wrong ocean.
+#[serde(try_from = "Unchecked")]
 pub struct LatLon {
     /// Degrees north of the equator, −90 to 90.
     pub lat: f64,
     /// Degrees east of Greenwich, −180 to 180.
     pub lon: f64,
+}
+
+/// The two numbers as they appear in a file, before they are known to be a coordinate.
+#[derive(serde::Deserialize)]
+struct Unchecked {
+    lat: f64,
+    lon: f64,
+}
+
+impl TryFrom<Unchecked> for LatLon {
+    type Error = String;
+
+    fn try_from(value: Unchecked) -> Result<Self, Self::Error> {
+        Self::new(value.lat, value.lon).ok_or_else(|| format!("{} , {} is not a coordinate", value.lat, value.lon))
+    }
 }
 
 impl LatLon {
@@ -363,6 +382,24 @@ mod tests {
         LatLon::new(lat, lon).expect("a real coordinate")
     }
 
+    /// A stored coordinate goes through the constructor, so a corrupt record is an error rather than a wrong dot.
+    #[test]
+    fn a_coordinate_that_is_not_a_place_cannot_be_loaded_from_a_file() {
+        let good = r#"{"lat": 51.5, "lon": -0.12}"#;
+        let back: LatLon = serde_json::from_str(good).expect("a real coordinate parses");
+        assert!((back.lat - 51.5).abs() < 1e-12);
+        let text = serde_json::to_string(&back).expect("serialise");
+        assert_eq!(serde_json::from_str::<LatLon>(&text).expect("round trip"), back);
+
+        for bad in [
+            r#"{"lat": 91.0, "lon": 0.0}"#,
+            r#"{"lat": 0.0, "lon": 181.0}"#,
+            r#"{"lat": "north", "lon": 0.0}"#,
+        ] {
+            assert!(serde_json::from_str::<LatLon>(bad).is_err(), "{bad} should not load");
+        }
+    }
+
     #[test]
     fn a_coordinate_off_the_globe_is_refused_rather_than_folded_onto_it() {
         assert!(LatLon::new(0.0, 0.0).is_some());
@@ -443,6 +480,32 @@ mod tests {
         assert!((cluster.centre.lon - -0.118).abs() < 1e-9);
         assert_eq!(cluster.bounds, (51.504, 51.500, -0.116, -0.120));
         assert!(!cluster.is_single());
+    }
+
+    /// A grid splits two close photos that happen to fall either side of a cell edge — stated, not discovered.
+    ///
+    /// This is what a grid clustering does, and it is the right trade for a map: the alternative (chaining neighbours
+    /// until everything within a radius is one dot) is not deterministic from frame to frame, and a dot that jumps
+    /// when a photo is added is worse than a dot that is occasionally in two pieces. The test exists so that the
+    /// behaviour is a decision in the record rather than a surprise in a bug report.
+    #[test]
+    fn two_photos_either_side_of_a_cell_edge_are_two_dots() {
+        // Zoom 0 is one 256-pixel tile, so a cell is a quarter of the world in each direction.
+        // Find two coordinates just either side of the x boundary at CELL_PX.
+        let boundary_lon = (CELL_PX / TILE) * 360.0 - 180.0;
+        let left = at(0.0, boundary_lon - 0.001);
+        let right = at(0.0, boundary_lon + 0.001);
+        let clusters = cluster(&[(PhotoId(1), left), (PhotoId(2), right)], 0);
+        assert_eq!(clusters.len(), 2, "a few hundred metres apart, but a cell apart");
+        // A few kilometres the other way, well inside one cell, and they are one dot.
+        let together = cluster(
+            &[
+                (PhotoId(3), at(0.0, boundary_lon - 1.0)),
+                (PhotoId(4), at(0.0, boundary_lon - 1.001)),
+            ],
+            0,
+        );
+        assert_eq!(together.len(), 1);
     }
 
     /// The promise that matters for a map: the same photos, in any order, give the same dots in the same order.

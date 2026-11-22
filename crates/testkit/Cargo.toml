@@ -11,6 +11,9 @@ repository.workspace = true
 [dependencies]
 sortlens-core = { workspace = true }
 craft-jpeg = { workspace = true }
+# Writing a GPS block into a fixture: the same library the app reads EXIF with, so a fixture cannot be
+# something the reader would never see.
+craft-metadata = { workspace = true }
 
 [lints]
 workspace = true

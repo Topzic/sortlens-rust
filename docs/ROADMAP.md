@@ -562,12 +562,78 @@ remap a moved drive; run the wizard on a clean machine.
     data's attribution can stay where its licence can be read.
   - Eleven tests, including the great-circle distance (London–Paris ~344 km rather than 3.5 "degrees") and the
     refusal cases. **Not verified by hand**: nothing draws yet — see the dependency below.
+- [x] Places **part 2**: GPS in the catalog, and a view that tells the truth about what it has
+  - `sortlens-meta` now reads `GPSLatitude`/`GPSLongitude` into a `sortlens_geo::LatLon`, and `Photo` carries it, so a
+    scan fills it in and a re-read replaces it. Tested end to end with a JPEG whose EXIF APP1 block is written by the
+    same library that reads it: JPEG → EXIF → degrees/minutes/seconds → a coordinate, southern-hemisphere sign intact.
+  - **A device with no fix writes 0, 0, and that is a real coordinate.** Taking it at face value would put every
+    photo taken before the receiver locked in one dot in the Gulf of Guinea, which reads as a data disaster rather
+    than a missing tag, so an exact 0, 0 is treated as "no location". The cost of being wrong is that a photograph
+    genuinely taken at Null Island is left off the map; the other choice lies about hundreds.
+  - **A stored coordinate cannot be an impossible one**: `LatLon` deserialises through its constructor, so a corrupt
+    snapshot is a load error rather than a photograph drawn in the wrong ocean.
+  - `Engine::geotagged`, `located` and `places(zoom)`; the Places view reports the counts, the biggest clusters as
+    latitude/longitude rows, and says in the view that the coastline is the next piece of work. **No dots on a blank
+    rectangle** — a field of dots with no coastline looks like a map and tells you nothing about where anything is.
+  - **Two stale nav gates removed**: `Cull` still claimed "M4" and `Places` "M5" in the bottom bar, closing working
+    views behind a label that had gone out of date. A view that is partly built now says so inside itself.
+  - A grid's known limitation is pinned as a decision rather than a surprise: two photos a few hundred metres apart
+    that fall either side of a cell edge are two dots (`two_photos_either_side_of_a_cell_edge_are_two_dots`). The
+    alternative — chaining neighbours until everything within a radius is one dot — is not deterministic from frame to
+    frame, and a dot that jumps when a photo is added is worse than a dot occasionally in two pieces.
+  - `Testkit::jpeg_with_location` writes a GPS block into any fixture, which is what makes the whole path testable.
+  - **Not verified by hand**: how the counts look at real library scale, and whether `zoom 6` is the right summary.
+- [ ] Places **part 3**: the map itself — an offline basemap with its licence line, click-to-filter, and the
+  gazetteer wired to name the clusters (the crate side of both is done; the decision is which tiles, and their
+  attribution, so nothing is fetched from a network at runtime).
+
+- [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
+- [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
+- [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03
+- [x] Similar: side-by-side compare and colour-only matches (B) — SL-E05
+- [x] Batch select of group leftovers, and delete them (B) — SL-E05
+  - "Select all but the best" selected **exactly one photo while announcing "N set aside"** — a quieter promise than
+    the button makes, and the kind of lie that makes a batch delete dangerous. It now takes `group.others()` through
+    `Selection::select_many`, and the group header names the photo it is keeping.
+  - A batch bar adds "Select leftovers in every group (N)", and a "Delete the N selected…" action that opens a
+    confirmation naming the count and the three modes (trash, rejects folder, tag only).
+  - **There is one delete executor, and this row refactored rather than added one.** `Engine::apply_candidates` now
+    holds the audit, the apply, the batch record and the flags; `apply_session` keeps the session bookkeeping and
+    `delete_photos(ids, mode)` builds a set and calls the same function. Two ways to delete would be two places for
+    the safety check to be wrong.
+  - `photo.delete` is in the registry (so the window, MCP and the CLI all reach it), with `delete_mode_from` shared
+    with `cull.apply`; CLI `delete <ids> --mode trash|tag|move [--target F]` and a `--json` schema. The golden step
+    uses `--mode tag`, because a golden must not drop a file into the machine's real Trash.
+  - Tested: three engine tests (one batch and one undo, a refused batch deletes nothing at all, an empty set is an
+    error), a headless similarity test that the selection is every leftover and not just the first, and the golden
+    JSON. **`Mode::Trash` is not exercised by a test** — it hands the file to the operating system's trash, and a
+    test that moves a real file into the real user's Trash is a test that damages the machine it runs on; the batch,
+    audit and undo machinery is covered through `Mode::Move`.
+- [x] `sortlens-geo` **part 1**: projection, clusters and gazetteer — SL-E06/E07
+  - `LatLon` is the only way to hold a coordinate, so nothing downstream has to ask whether it is real; the
+    constructor refuses non-finite numbers, latitudes off the globe and longitudes outside ±180 rather than folding
+    them onto it.
+  - **Web Mercator, because tiles are Mercator** — one place for the maths, and a projection that agrees with every
+    offline basemap and MBTiles archive. `project`/`unproject` round-trip to within a millionth of a degree at zooms
+    0–18, checked at Greenwich, the antimeridian and the northern limit.
+  - **Mercator has no pole, so a polar photograph is refused, not clamped.** Clamping would draw it at the top edge
+    as if it had been taken at 85°N — a wrong statement about a real photograph instead of a missing one. Every
+    returned point is inside the world square, so callers never check.
+  - **Clustering is a 64-pixel grid and it is deterministic**: cells are sorted by count then cell, and a test feeds
+    the same forty photos in two orders and asserts the same dots in the same order. This closes the ROADMAP row
+    that was waiting for the feature ("cluster determinism waits for its feature").
+  - The gazetteer is a **tab-separated file the user supplies**, parsed with comments and malformed lines counted
+    rather than dropped silently; lookup is a one-degree cell index, nearest wins within a radius and ties break by
+    name so file order cannot decide. This crate ships no place data and makes no network call, which is why the
+    data's attribution can stay where its licence can be read.
+  - Eleven tests, including the great-circle distance (London–Paris ~344 km rather than 3.5 "degrees") and the
+    refusal cases. **Not verified by hand**: nothing draws yet — see the dependency below.
 - [ ] Places **part 2**: the map view — and it has a **blocking dependency worth naming**: `sortlens-meta` does not
   parse GPS at all and `Photo` has no coordinate, so there is nothing to cluster *of* until EXIF GPS is read and
   stored in the catalog. That is the real next step, and it is data first: parse GPS (degrees/minutes/seconds with
   its reference hemisphere), put `lat`/`lon` on the record, prove it survives a snapshot and a rescan, and only then
   paint.
-- [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06
+- [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06, part 3 above: needs a tile source and its licence line before anything is drawn
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
 - [x] Insights: worker with progress, highlights, months and seasonality (B) — SL-E09..E11
 - [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12

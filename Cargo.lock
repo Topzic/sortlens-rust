@@ -3589,6 +3589,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sortlens-core",
+ "sortlens-geo",
  "sortlens-meta",
  "sortlens-quality",
 ]
@@ -3639,6 +3640,7 @@ dependencies = [
  "sortlens-core",
  "sortlens-cull",
  "sortlens-export",
+ "sortlens-geo",
  "sortlens-hash",
  "sortlens-insights",
  "sortlens-memories",
@@ -3665,6 +3667,8 @@ dependencies = [
 name = "sortlens-geo"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "sortlens-core",
 ]
 
@@ -3722,11 +3726,13 @@ name = "sortlens-meta"
 version = "0.1.0"
 dependencies = [
  "craft-heif",
+ "craft-jpeg",
  "craft-media",
  "craft-metadata",
  "craft-tiff",
  "serde",
  "sortlens-core",
+ "sortlens-geo",
 ]
 
 [[package]]
@@ -3801,6 +3807,7 @@ name = "sortlens-testkit"
 version = "0.1.0"
 dependencies = [
  "craft-jpeg",
+ "craft-metadata",
  "sortlens-core",
 ]
 

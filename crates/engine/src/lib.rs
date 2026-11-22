@@ -2104,6 +2104,34 @@ impl Engine {
         })
     }
 
+    /// Every photo that has a location, with the coordinate.
+    ///
+    /// Unlocated photos are left out rather than given a placeholder: "we do not know where this was" is not a place,
+    /// and a map that averaged it into one would be wrong about all of them.
+    pub fn located(&self) -> Vec<(PhotoId, sortlens_geo::LatLon)> {
+        self.all_photos()
+            .into_iter()
+            .filter(|photo| !photo.missing)
+            .filter_map(|photo| photo.location.map(|location| (photo.id, location)))
+            .collect()
+    }
+
+    /// How many photos have a location at all.
+    pub fn geotagged(&self) -> usize {
+        self.all_photos()
+            .into_iter()
+            .filter(|photo| !photo.missing && photo.location.is_some())
+            .count()
+    }
+
+    /// The photos grouped into map dots at a zoom level.
+    ///
+    /// Deterministic by construction (`sortlens_geo::cluster` sorts its cells), so a view can call this every frame
+    /// and get the same dots.
+    pub fn places(&self, zoom: u8) -> Vec<sortlens_geo::Cluster> {
+        sortlens_geo::cluster(&self.located(), zoom)
+    }
+
     /// How many photos have no usable sharpness score yet.
     ///
     /// The window asks this to decide whether "Measure sharpness" is a job worth offering, so the wording is
@@ -3947,6 +3975,67 @@ mod tests {
         panic!("the sharpness pass did not finish");
     }
 
+    /// A scan reads a photo's GPS into the catalog, and the map groups it.
+    ///
+    /// Three photos: two a few hundred metres apart in Brighton, one in Sydney, one with no GPS block at all. Every
+    /// step is the real one — the fixture carries an EXIF APP1 segment, `sortlens-meta` parses it, the catalog stores
+    /// it, and `sortlens-geo` clusters what comes out.
+    #[test]
+    fn a_scan_finds_locations_and_the_map_clusters_them() {
+        let library_dir = Temp::new("places-library");
+        let photos = Temp::new("places-photos");
+        let fixture = sortlens_testkit::Fixture::new("places");
+        std::fs::create_dir_all(&photos.0).expect("dir");
+        std::fs::copy(
+            fixture.jpeg_with_location("IMG_0001.jpg", [40, 90, 160], 48, 32, 50.8225, -0.1372),
+            photos.0.join("IMG_0001.jpg"),
+        )
+        .expect("copy");
+        std::fs::copy(
+            // About twenty metres from the first: the same dot at any zoom, so the count does not depend on which
+            // side of a grid boundary they happen to fall on.
+            fixture.jpeg_with_location("IMG_0002.jpg", [40, 90, 170], 48, 32, 50.8227, -0.1370),
+            photos.0.join("IMG_0002.jpg"),
+        )
+        .expect("copy");
+        std::fs::copy(
+            fixture.jpeg_with_location("IMG_0003.jpg", [40, 60, 90], 48, 32, -33.8688, 151.2093),
+            photos.0.join("IMG_0003.jpg"),
+        )
+        .expect("copy");
+        std::fs::copy(fixture.jpeg("IMG_0004.jpg", [10, 20, 30], 48, 32), photos.0.join("IMG_0004.jpg")).expect("copy");
+
+        let mut engine = Engine::open(&library_dir.0).expect("open");
+        engine.begin_scan(photos.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+
+        assert_eq!(engine.geotagged(), 3, "three photos carried a location");
+        let located = engine.located();
+        assert_eq!(located.len(), 3);
+        let sydney = located
+            .iter()
+            .find(|(_, at)| at.lat < 0.0)
+            .map(|(_, at)| *at)
+            .expect("the southern hemisphere photo");
+        assert!((sydney.lat + 33.8688).abs() < 1e-4, "the sign survives the whole path");
+        assert!((sydney.lon - 151.2093).abs() < 1e-4);
+
+        // At a city zoom the two Brighton photos are one dot and Sydney is another; nothing is drawn for the photo
+        // with no GPS block.
+        let clusters = engine.places(12);
+        assert_eq!(clusters.len(), 2, "two places, not two photos and a gap");
+        assert_eq!(clusters.iter().map(sortlens_geo::Cluster::len).sum::<usize>(), 3);
+        let brighton = clusters.iter().find(|cluster| cluster.centre.lat > 0.0).expect("Brighton");
+        assert_eq!(brighton.len(), 2);
+        // Zoomed right out the two hemisphere photos are still separate dots, but the count is stable.
+        assert_eq!(engine.places(0).iter().map(sortlens_geo::Cluster::len).sum::<usize>(), 3);
+        // The same call twice is the same answer, which is what keeps dots from jumping between frames.
+        assert_eq!(
+            engine.places(6).iter().map(|c| (c.cell, c.len())).collect::<Vec<_>>(),
+            engine.places(6).iter().map(|c| (c.cell, c.len())).collect::<Vec<_>>()
+        );
+    }
+
     /// Measuring the library stores one score per photo, as a single undoable change.
     #[test]
     fn measuring_the_library_scores_every_photo_in_one_undoable_step() {
@@ -4250,6 +4339,7 @@ mod tests {
             edited: false,
             retry: false,
             sharpness: None,
+            location: None,
         };
         photo.tags.sort_unstable();
         photo

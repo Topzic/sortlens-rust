@@ -2669,6 +2669,43 @@ mod tests {
         assert_eq!(catalog.photos().count(), 2, "resync did not delete the other photo");
     }
 
+    /// A location lives on the photo record, so it survives a snapshot and cannot outlive the bytes it describes.
+    #[test]
+    fn a_location_survives_a_snapshot_and_follows_a_changed_file() {
+        let temp = TempCatalog::new("location");
+        let id;
+        {
+            let (mut catalog, _) = temp.open();
+            catalog
+                .sync_root(
+                    "/p",
+                    vec![Seed {
+                        rel: "a.jpg".into(),
+                        size: 10,
+                        modified: Some(5),
+                        kind: MediaKind::Image,
+                        key: 1,
+                        meta: sortlens_meta::PhotoMeta {
+                            location: sortlens_geo::LatLon::new(50.8225, -0.1372),
+                            ..Default::default()
+                        },
+                        review: None,
+                        edited: false,
+                        meta_unreadable: false,
+                    }],
+                )
+                .expect("sync");
+            id = catalog.photos().next().map(|photo| photo.id).expect("a photo");
+            catalog.close().expect("close");
+        }
+        let (reopened, _) = temp.open();
+        let stored = reopened.photo(id).and_then(|photo| photo.location).expect("a location");
+        // A JPEG's GPS is stored in whole seconds of arc, so the round trip is a fraction of a metre, not exact.
+        assert!((stored.lat - 50.8225).abs() < 1e-4, "got {}", stored.lat);
+        assert!((stored.lon + 0.1372).abs() < 1e-4);
+        assert!(reopened.sharpness(id).is_none());
+    }
+
     #[test]
     fn a_score_survives_a_snapshot() {
         let temp = TempCatalog::new("score-snapshot");

@@ -44,12 +44,23 @@ pub struct PhotoMeta {
     pub fps: Option<f32>,
     /// Video codec name, e.g. `H.264`.
     pub video_codec: Option<String>,
+    /// Where the camera said it was, when it said anything believable.
+    ///
+    /// `None` means no usable location: no GPS block, a placeholder block like the one a phone writes before it has a
+    /// fix, coordinates off the globe, or the "null island" a device writes when it has no lock at all. See
+    /// [`location_of`] for why the last one is treated as absence rather than as a place in the Atlantic.
+    pub location: Option<sortlens_geo::LatLon>,
 }
 
 impl PhotoMeta {
     /// Whether anything at all was found.
     pub fn is_empty(&self) -> bool {
-        self.width == 0 && self.height == 0 && self.captured.is_none() && self.camera.is_empty() && self.duration_ms.is_none()
+        self.width == 0
+            && self.height == 0
+            && self.captured.is_none()
+            && self.camera.is_empty()
+            && self.duration_ms.is_none()
+            && self.location.is_none()
     }
 
     /// Megapixels, rounded to one decimal, for the details panel.
@@ -267,6 +278,7 @@ pub fn parse(bytes: &[u8]) -> PhotoMeta {
         video_codec: None,
         width,
         height,
+        location: metadata.gps.as_ref().and_then(location_of),
         captured: metadata.capture_time.as_ref().and_then(epoch_seconds),
         camera,
         lens: metadata.lens_model.clone().unwrap_or_default(),
@@ -287,6 +299,27 @@ fn heif_size(bytes: &[u8]) -> Option<(u32, u32)> {
     }
     let info = craft_heif::probe(bytes).ok()?;
     (info.width > 0 && info.height > 0).then_some((info.width, info.height))
+}
+
+/// Turn a camera's GPS block into a coordinate, or say there is none.
+///
+/// The EXIF reader has already refused a placeholder block (a degrees/minutes/seconds triplet it cannot read) and
+/// anything off the globe. What is left is one case it cannot decide for us, because the numbers are real:
+///
+/// **A device with no fix writes 0, 0.** That is a coordinate — the Gulf of Guinea, on the equator and the prime
+/// meridian — and a library that took it at face value would put every photo taken before the receiver locked in one
+/// dot in the Atlantic, which reads as a data disaster rather than a missing tag. So an exact `0, 0` is treated as
+/// "no location". The cost of being wrong is that a photograph genuinely taken at Null Island is left off the map,
+/// which is a photograph nobody has; the cost of the other choice is a map that lies about hundreds of them.
+///
+/// The comparison is exact rather than a radius because a real fix at 0, 0 is written with the camera's own precision:
+/// a device that locked within metres of it writes `0, 0.0001` and keeps its place.
+pub fn location_of(gps: &craft_metadata::Gps) -> Option<sortlens_geo::LatLon> {
+    let location = sortlens_geo::LatLon::new(gps.latitude, gps.longitude)?;
+    if location.lat == 0.0 && location.lon == 0.0 {
+        return None;
+    }
+    Some(location)
 }
 
 /// Convert a civil capture time to seconds since the Unix epoch.
@@ -366,6 +399,62 @@ fn a_heif_size_comes_from_its_container_and_honours_rotation() {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
+    /// A GPS block becomes a coordinate, and the two kinds of "no fix" become `None`.
+    #[test]
+    fn a_location_is_read_unless_it_is_a_placeholder() {
+        let gps = |lat, lon| craft_metadata::Gps {
+            latitude: lat,
+            longitude: lon,
+            altitude: None,
+        };
+        let brighton = location_of(&gps(50.8225, -0.1372)).expect("a real fix");
+        assert!((brighton.lat - 50.8225).abs() < 1e-9);
+        assert!((brighton.lon + 0.1372).abs() < 1e-9);
+
+        // A device with no lock writes 0, 0, which is a *real* coordinate in the Gulf of Guinea — and treating it as
+        // one would put every pre-lock frame in one dot in the Atlantic.
+        assert_eq!(location_of(&gps(0.0, 0.0)), None, "null island is not a fix");
+        // A device that did lock near the equator keeps its place: only an exact 0, 0 is refused.
+        assert!(location_of(&gps(0.0, 0.0001)).is_some());
+        assert!(location_of(&gps(0.0001, 0.0)).is_some());
+        // Numbers a file can hold but a place cannot be are refused rather than stored.
+        assert_eq!(location_of(&gps(91.0, 0.0)), None);
+        assert_eq!(location_of(&gps(0.0, -181.0)), None);
+        assert_eq!(location_of(&gps(f64::NAN, 0.0)), None);
+    }
+
+    /// End to end: a JPEG carrying a GPS block is parsed into a location, and one without it has none.
+    ///
+    /// The EXIF block is written by the same library that reads it, then embedded as a JPEG APP1 segment, so this goes
+    /// through the real path a camera's file takes: JPEG → EXIF → degrees/minutes/seconds → `LatLon`.
+    #[test]
+    fn a_jpeg_with_a_gps_block_parses_into_a_location() {
+        let metadata = craft_metadata::Metadata {
+            gps: Some(craft_metadata::Gps {
+                latitude: -33.8688,
+                longitude: 151.2093,
+                altitude: Some(58.0),
+            }),
+            ..Default::default()
+        };
+        let exif = craft_metadata::write_exif(&metadata);
+        let mut payload = b"Exif\0\0".to_vec();
+        payload.extend_from_slice(&exif);
+        let pixels: Vec<u8> = (0..16 * 16).flat_map(|_| [40u8, 90, 160]).collect();
+        let jpeg =
+            craft_jpeg::encode_baseline(&pixels, 16, 16, 3, 80, craft_jpeg::ChromaSubsampling::S444, &[(0xE1, payload)]).expect("encode");
+
+        let parsed = parse(&jpeg);
+        let location = parsed.location.expect("Sydney");
+        assert!((location.lat + 33.8688).abs() < 1e-6, "the southern hemisphere keeps its sign");
+        assert!((location.lon - 151.2093).abs() < 1e-6);
+        assert!(!parsed.is_empty(), "a location is something found");
+
+        // A JPEG with no EXIF at all has no location, and says so by being `None` rather than by inventing one.
+        let plain = craft_jpeg::encode_baseline(&pixels, 16, 16, 3, 80, craft_jpeg::ChromaSubsampling::S444, &[]).expect("encode");
+        assert_eq!(parse(&plain).location, None);
+    }
+
     /// A video's length, rate, size and codec come from its container, and a file that says nothing usable is
     /// refused rather than reported as a zero-length clip.
     ///

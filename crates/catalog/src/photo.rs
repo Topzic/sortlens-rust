@@ -84,6 +84,12 @@ pub struct Photo {
     /// The metadata read failed when this photo was indexed, so it is queued for a retry.
     #[serde(default)]
     pub retry: bool,
+    /// Where the camera said it was, when it said anything believable.
+    ///
+    /// Stored on the record like the capture date, and refreshed by every metadata read — so a re-index of a file
+    /// whose EXIF gained a fix picks it up, and one whose bytes changed cannot keep an old dot on the map.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<sortlens_geo::LatLon>,
     /// How much fine detail the pixels have, and which algorithm measured it.
     ///
     /// Stored on the photo rather than in a side map because a score belongs to *this file*: a scan that replaces
@@ -141,6 +147,7 @@ impl Photo {
             tags: Vec::new(),
             edited: false,
             sharpness: None,
+            location: None,
         }
     }
 
@@ -148,6 +155,9 @@ impl Photo {
     pub fn apply_meta(&mut self, meta: &PhotoMeta) {
         self.width = meta.width;
         self.height = meta.height;
+        // A metadata read replaces the location rather than merging it: the file's EXIF is the only source, and a
+        // successive read that finds no GPS means the location is gone, not that the old one should be kept.
+        self.location = meta.location;
         self.captured = meta.captured;
         self.camera = meta.camera.clone();
         self.lens = meta.lens.clone();

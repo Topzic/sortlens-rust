@@ -2141,11 +2141,33 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   snapshot and a rescan — and only then paint.
 - 553 tests; ci (exit 0), wasm, deny, snapshot, docs, layers green.
 
+## 2026-11-22 (thirteenth) — Places part 2: GPS in the catalog, and a view that admits what it lacks
+
+- `sortlens-meta` reads the camera's GPS into a `sortlens_geo::LatLon`; `Photo` carries it, so a scan fills it in and a
+  re-read replaces it (a successive read with no GPS clears it rather than keeping a stale dot). End-to-end test uses
+  a JPEG whose EXIF APP1 block is written by the same library that reads it — JPEG → EXIF → DMS → coordinate, with the
+  southern hemisphere's sign intact. `Testkit::jpeg_with_location` makes that fixture available everywhere.
+- **The decision worth keeping**: a device with no fix writes 0, 0, and 0/0 is a real coordinate in the Gulf of
+  Guinea. Treating it as real would put every pre-lock frame in one dot in the Atlantic — a data disaster rather than
+  a missing tag — so an exact 0, 0 is "no location". Cost of being wrong: a photo genuinely taken at Null Island is
+  left off the map. Cost of the other choice: the map lies about hundreds. Stated in `location_of`'s doc.
+- `LatLon` now deserialises **through its constructor** (`#[serde(try_from)]`), so a corrupt snapshot is a load error
+  instead of a photograph drawn in the wrong ocean.
+- `Engine::geotagged`/`located`/`places(zoom)` and a Places view that reports counts and the biggest clusters, and
+  says in the view that the coastline is next. **No dots on a blank rectangle**: a field of dots with no coastline
+  looks like a map and tells you nothing about where anything is.
+- **Two stale nav gates deleted**: `Cull` still said "M4" and `Places` "M5" in the bottom bar, so the nav closed
+  working views behind an out-of-date label. `View::milestone` now returns `None` for everything, `planned_view` is
+  gone with its last caller, and a partly built view says so inside itself where the person looking will read it.
+- A grid-clustering limitation is now a decision in the record, not a surprise: two photos a few hundred metres apart
+  that straddle a cell edge are two dots. My first engine test asserted one dot and failed — the code was right.
+- 560 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers, attribution green.
+
 ## Next
 
-Geo part 2, data first: EXIF GPS → `Photo` → snapshot. `crates/meta` reads `GPSLatitude`/`GPSLatitudeRef` (three
-RATIONALS for degrees/minutes/seconds and the ref that decides the sign), `Photo` gains `lat`/`lon` (serde default,
-absent when the camera recorded none), a test that a snapshot round-trips a coordinate and that a *changed* file
-clears it like the sharpness score does, and an engine accessor for "geotagged count". Coordinates must be refused
-when the record is impossible (lat > 90 after the sign is applied) rather than stored and drawn wrongly. The map view
-itself is part 3 and needs `sortlens-geo::cluster` plus a basemap decision.
+Places part 3: the map. It needs a decision before code — which offline tile source (bundled vector basemap, or an
+MBTiles file the user supplies) and how its attribution is shown, because nothing may be fetched at runtime and a map
+without its licence line is not shippable. The crate side is done (`project`, `cluster`, `Gazetteer`), the data is in
+the catalog, and the view already counts. If the tile decision cannot be made honestly in one run, the right move is
+to keep the view as it is and take a named-absent item that can be finished completely instead, with a line in
+ROADMAP saying which decision is outstanding.

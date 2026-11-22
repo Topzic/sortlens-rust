@@ -65,6 +65,42 @@ impl Fixture {
         self.write(rel, &bytes)
     }
 
+    /// Write a solid-colour JPEG that carries a GPS block at `rel`, returning its path.
+    ///
+    /// The EXIF is written by the same library the application reads, and embedded as a JPEG APP1 segment, so a
+    /// fixture travels the whole path a camera's file travels: JPEG → EXIF → degrees/minutes/seconds → a coordinate.
+    /// `altitude` is written as a positive height above sea level, which is what a camera with a fix records.
+    pub fn jpeg_with_location(&self, rel: &str, colour: [u8; 3], width: usize, height: usize, lat: f64, lon: f64) -> PathBuf {
+        let metadata = craft_metadata::Metadata {
+            gps: Some(craft_metadata::Gps {
+                latitude: lat,
+                longitude: lon,
+                altitude: Some(0.0),
+            }),
+            ..Default::default()
+        };
+        let mut payload = b"Exif\0\0".to_vec();
+        payload.extend_from_slice(&craft_metadata::write_exif(&metadata));
+        let pixels: Vec<u8> = (0..width * height).flat_map(|_| [colour[0], colour[1], colour[2]]).collect();
+        let encoded = craft_jpeg::encode_baseline(
+            &pixels,
+            width,
+            height,
+            3,
+            QUALITY,
+            craft_jpeg::ChromaSubsampling::S444,
+            &[(0xE1, payload)],
+        );
+        let bytes = match encoded {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                eprintln!("fixture: could not encode {rel}: {error:?}");
+                return self.dir.join(rel);
+            }
+        };
+        self.write(rel, &bytes)
+    }
+
     /// Write arbitrary bytes at `rel`, returning its path.
     pub fn write(&self, rel: &str, bytes: &[u8]) -> PathBuf {
         let path = self.dir.join(rel);

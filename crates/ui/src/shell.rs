@@ -56,16 +56,13 @@ impl View {
         }
     }
 
-    /// The milestone that makes this view real, or `None` when it ships today.
+    /// The milestone that still has to arrive before this view can open, or `None` when it opens today.
+    ///
+    /// Every destination opens today. `Cull` and `Places` used to be gated here with labels that had gone stale — a
+    /// shipped cull screen still claiming "M4" in the nav — and a gate that closes a working view is worse than no
+    /// gate. A view that is only partly built says so *inside* itself, where the person looking at it will read it.
     pub const fn milestone(self) -> Option<&'static str> {
-        match self {
-            Self::Library => None,
-            Self::ForYou => None,
-            Self::Cull => Some("M4"),
-            Self::Places => Some("M5"),
-            Self::Insights => None,
-            Self::Similar => None,
-        }
+        None
     }
 }
 
@@ -1840,7 +1837,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
                 View::Insights => insights_view(ui, t, state, engine),
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
-                other => planned_view(ui, t, other),
+                View::Places => places_view(ui, t, engine),
             }
             keyboard(ui, state, engine, actions);
         });
@@ -4233,6 +4230,62 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     }
 }
 
+/// Where the photographs were taken: the counts and the dots, without pretending to be a map.
+///
+/// There is no basemap yet, and a field of dots on a blank rectangle is a worse answer than a number: it looks like a
+/// map and tells you nothing about where anything is. So this view shows what the catalog genuinely knows — how many
+/// photos have a location, how many clusters they form at a few zoom levels, and the names of the biggest clusters —
+/// and states, in the view, that the coastline is the next piece.
+fn places_view(ui: &mut Ui, t: &Tokens, engine: &Engine) {
+    let located = engine.geotagged();
+    let total = engine.all_photos().len();
+    ui.allocate_ui_with_layout(
+        vec2(ui.available_width(), ui.available_height()),
+        Layout::top_down(Align::Min),
+        |ui| {
+            ui.add_space(8.0);
+            ui.horizontal_wrapped(|ui| {
+                figure(ui, t, "With a location", &format_count(located as u64));
+                figure(ui, t, "Without", &format_count(total.saturating_sub(located) as u64));
+                let dots = engine.places(6).len();
+                figure(ui, t, "Places (zoom 6)", &format_count(dots as u64));
+                let close = engine.places(12).len();
+                figure(ui, t, "Places (zoom 12)", &format_count(close as u64));
+            });
+            ui.add_space(12.0);
+            if located == 0 {
+                ui.label(RichText::new("No photo has a location yet").size(14.0).strong());
+                ui.label(
+                    RichText::new(
+                        "A camera records where it was in the file's EXIF. Photos taken with location services off, \
+                         or stripped by another tool, do not have one.",
+                    )
+                    .size(11.0)
+                    .color(t.text_muted),
+                );
+                return;
+            }
+            ui.label(RichText::new("Biggest places").size(12.0).strong());
+            for cluster in engine.places(6).iter().take(12) {
+                let label = format!(
+                    "{:.2}{}  {:.2}{}",
+                    cluster.centre.lat.abs(),
+                    if cluster.centre.lat >= 0.0 { 'N' } else { 'S' },
+                    cluster.centre.lon.abs(),
+                    if cluster.centre.lon >= 0.0 { 'E' } else { 'W' }
+                );
+                charts::share_row(ui, t, &label, cluster.len(), located);
+            }
+            ui.add_space(12.0);
+            ui.label(
+                RichText::new("The map — a coastline, and dots you can click — is the next piece of work.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        },
+    );
+}
+
 /// Totals, distributions and breakdowns, all recomputed from the catalog.
 fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let _ = engine.poll_insights();
@@ -4838,20 +4891,6 @@ fn card_years(engine: &Engine, ids: &[PhotoId]) -> Vec<(i64, usize)> {
         }
     }
     counts.into_iter().collect()
-}
-
-fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {
-    let milestone = view.milestone().unwrap_or("a later milestone");
-    ui.allocate_ui_with_layout(
-        vec2(ui.available_width(), ui.available_height()),
-        Layout::top_down(Align::Center),
-        |ui| {
-            ui.add_space(80.0);
-            ui.label(RichText::new(format!("{} is not built yet", view.label())).size(17.0).strong());
-            ui.add_space(4.0);
-            ui.label(RichText::new(format!("Planned for {milestone}.")).size(12.0).color(t.text_muted));
-        },
-    );
 }
 
 /// Human-friendly age for a batch.
@@ -6455,6 +6494,7 @@ mod tests {
             edited: false,
             retry: false,
             sharpness: None,
+            location: None,
         };
         assert_eq!(cell_badge(&photo, None), None, "a decoded cell needs no badge");
         assert_eq!(cell_badge(&photo, Some("bad jpeg")), Some(CellBadge::Unreadable));
@@ -6506,6 +6546,7 @@ mod tests {
             edited: false,
             retry: false,
             sharpness: None,
+            location: None,
         };
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -6690,6 +6731,64 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// The Places view reports what the catalog knows and does not pretend to draw a map.
+    ///
+    /// Headless, over a real library: four photos, two of which carry GPS. The assertions are the view's claims — the
+    /// counts it prints and the cluster list it builds — because a screenshot of text is not checkable and "it
+    /// painted" alone would not notice a view that lied about the numbers.
+    #[test]
+    fn places_counts_locations_and_draws_nothing_it_cannot_draw() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-places-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-places");
+        std::fs::copy(
+            fixture.jpeg_with_location("BRIGHTON_1.jpg", [40, 90, 160], 48, 32, 50.8225, -0.1372),
+            root.join("BRIGHTON_1.jpg"),
+        )
+        .expect("copy");
+        std::fs::copy(
+            fixture.jpeg_with_location("BRIGHTON_2.jpg", [40, 90, 170], 48, 32, 50.8227, -0.1370),
+            root.join("BRIGHTON_2.jpg"),
+        )
+        .expect("copy");
+        std::fs::copy(fixture.jpeg("NOWHERE_1.jpg", [10, 20, 30], 48, 32), root.join("NOWHERE_1.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.all_photos().len(), 3);
+        assert_eq!(engine.geotagged(), 2);
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                places_view(ui, &tokens, &engine);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the view painted");
+        assert_eq!(engine.places(6).len(), 1, "one place, two photos");
+        assert_eq!(engine.places(6)[0].len(), 2);
+
+        // And the view for a library with no locations is a sentence, not an empty map.
+        let empty = Engine::open(dir.join("elsewhere")).expect("open");
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                places_view(ui, &tokens, &empty);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the empty state paints too");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Choosing leftovers in the similarity view ticks every one of them, and the delete dialog acts on that set.
@@ -7113,6 +7212,7 @@ mod tests {
             edited: false,
             retry: false,
             sharpness: None,
+            location: None,
         };
         let present = photo(false);
         let gone = photo(true);

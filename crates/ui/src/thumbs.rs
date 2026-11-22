@@ -279,6 +279,7 @@ mod tests {
             edited: false,
             retry: false,
             sharpness: None,
+            location: None,
         }
     }
 }

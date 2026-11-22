@@ -21,6 +21,7 @@ sortlens-memories = { workspace = true }
 sortlens-hash = { workspace = true }
 sortlens-thumbs = { workspace = true }
 sortlens-quality = { workspace = true }
+sortlens-geo = { workspace = true }
 sortlens-scan = { workspace = true }
 sortlens-sidecar = { workspace = true }
 serde_json = { workspace = true }
