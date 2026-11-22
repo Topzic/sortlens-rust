@@ -310,7 +310,10 @@ pub const EXAMPLES: &[Example] = &[
     },
     Example {
         command: "photo.delete",
-        args: r#"{"ids": [3, 4], "mode": "trash"}"#,
+        // Tag-only in the example on purpose: the harness runs every example against one scratch library, and an
+        // example that really deleted files would break the ones after it — and, if the mode were `trash`, would
+        // move files into the machine's real Trash while a test was running.
+        args: r#"{"ids": [3], "mode": "tag"}"#,
         note: "mode: trash (default), tag (flags only), or move with a target folder; one audited batch, undoable.",
     },
     Example {

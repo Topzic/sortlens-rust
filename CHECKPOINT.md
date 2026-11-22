@@ -2115,11 +2115,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   root is refused outright, because rejects there would reappear on the next scan. The test now puts it outside.
 - 542 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers, attribution green.
 
+## 2026-11-22 (twelfth) — `sortlens-geo` part 1: projection, deterministic clusters, an offline gazetteer
+
+- `crates/geo` stopped being a scaffold and holds three things, all pure: `LatLon` (the only way to hold a coordinate,
+  refusing non-finite numbers, latitudes off the globe and longitudes outside ±180), Web Mercator `project`/
+  `unproject`, a 64-pixel grid `cluster`, and a `Gazetteer` parsed from a tab-separated file the user supplies.
+- **Mercator has no pole, so a polar photograph is refused, not clamped.** Clamping would draw it at the top edge as
+  if it were taken at 85°N — a wrong claim about a real photograph rather than a missing dot. `MERCATOR_LIMIT` is the
+  tile scheme's own latitude, and every returned point is inside the world square so callers never check.
+- **Clustering determinism is now a fact rather than an aspiration**: cells are sorted by count then cell, and a test
+  feeds the same forty photos in two orders and asserts the same dots in the same order. That closes the ROADMAP row
+  which had been waiting for the feature.
+- The gazetteer ships **no data and makes no network call**: it parses `name<TAB>lat<TAB>lon[<TAB>country]`, counts
+  malformed lines instead of dropping them silently, indexes by one-degree cell, and breaks ties by name so file order
+  cannot decide the answer.
+- Two test bugs of my own, both worth the note: a coordinate at 89°N is *valid* and *unmappable* (the test asserted the
+  wrong one), and a "near Brighton" lookup 54 km away with a 30 km radius correctly returned nothing — the test was
+  wrong, not the code.
+- Found while checking: **`sortlens-mcp`'s example harness broke on my new `photo.delete` example**, which really
+  deleted the photos the later examples needed (and after 112 s, because `mode: trash` goes through the OS trash).
+  The example is now `mode: "tag"`, moves nothing, and says in a comment why — the same hazard as the golden step.
+- **The blocking dependency for part 2 is named, not discovered later**: `sortlens-meta` parses no GPS at all and
+  `Photo` has no coordinate, so there is nothing to cluster until EXIF GPS is read and stored. The next run is
+  therefore data first — parse GPS with its hemisphere reference, put `lat`/`lon` on the record, prove it survives a
+  snapshot and a rescan — and only then paint.
+- 553 tests; ci (exit 0), wasm, deny, snapshot, docs, layers green.
+
 ## Next
 
-M6 is now closed except the deliberately absent map (`sortlens-geo` projection/clusters/gazetteer and the offline
-basemap with attribution) — that is a milestone-sized job of its own with a data dependency (a gazetteer and tiles
-that must be attributed), so it should start with the crate and its tests, not with a view. After it, the remaining
-work is the named-absent tail: registry delete-everywhere, stale-revision rejection, 20-step undo history, inline
-tagging in cull, i18n/RTL, keymap editor. Each needs a design decision; the next run should take the first one it can
-finish completely.
+Geo part 2, data first: EXIF GPS → `Photo` → snapshot. `crates/meta` reads `GPSLatitude`/`GPSLatitudeRef` (three
+RATIONALS for degrees/minutes/seconds and the ref that decides the sign), `Photo` gains `lat`/`lon` (serde default,
+absent when the camera recorded none), a test that a snapshot round-trips a coordinate and that a *changed* file
+clears it like the sharpness score does, and an engine accessor for "geotagged count". Coordinates must be refused
+when the record is impossible (lat > 90 after the sign is applied) rather than stored and drawn wrongly. The map view
+itself is part 3 and needs `sortlens-geo::cluster` plus a basemap decision.

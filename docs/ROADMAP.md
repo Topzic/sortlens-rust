@@ -543,7 +543,30 @@ remap a moved drive; run the wizard on a clean machine.
     JSON. **`Mode::Trash` is not exercised by a test** — it hands the file to the operating system's trash, and a
     test that moves a real file into the real user's Trash is a test that damages the machine it runs on; the batch,
     audit and undo machinery is covered through `Mode::Move`.
-- [ ] `sortlens-geo`: projection, clusters, gazetteer (D) — SL-E06/E07
+- [x] `sortlens-geo` **part 1**: projection, clusters and gazetteer — SL-E06/E07
+  - `LatLon` is the only way to hold a coordinate, so nothing downstream has to ask whether it is real; the
+    constructor refuses non-finite numbers, latitudes off the globe and longitudes outside ±180 rather than folding
+    them onto it.
+  - **Web Mercator, because tiles are Mercator** — one place for the maths, and a projection that agrees with every
+    offline basemap and MBTiles archive. `project`/`unproject` round-trip to within a millionth of a degree at zooms
+    0–18, checked at Greenwich, the antimeridian and the northern limit.
+  - **Mercator has no pole, so a polar photograph is refused, not clamped.** Clamping would draw it at the top edge
+    as if it had been taken at 85°N — a wrong statement about a real photograph instead of a missing one. Every
+    returned point is inside the world square, so callers never check.
+  - **Clustering is a 64-pixel grid and it is deterministic**: cells are sorted by count then cell, and a test feeds
+    the same forty photos in two orders and asserts the same dots in the same order. This closes the ROADMAP row
+    that was waiting for the feature ("cluster determinism waits for its feature").
+  - The gazetteer is a **tab-separated file the user supplies**, parsed with comments and malformed lines counted
+    rather than dropped silently; lookup is a one-degree cell index, nearest wins within a radius and ties break by
+    name so file order cannot decide. This crate ships no place data and makes no network call, which is why the
+    data's attribution can stay where its licence can be read.
+  - Eleven tests, including the great-circle distance (London–Paris ~344 km rather than 3.5 "degrees") and the
+    refusal cases. **Not verified by hand**: nothing draws yet — see the dependency below.
+- [ ] Places **part 2**: the map view — and it has a **blocking dependency worth naming**: `sortlens-meta` does not
+  parse GPS at all and `Photo` has no coordinate, so there is nothing to cluster *of* until EXIF GPS is read and
+  stored in the catalog. That is the real next step, and it is data first: parse GPS (degrees/minutes/seconds with
+  its reference hemisphere), put `lat`/`lon` on the record, prove it survives a snapshot and a rescan, and only then
+  paint.
 - [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
 - [x] Insights: worker with progress, highlights, months and seasonality (B) — SL-E09..E11
@@ -552,7 +575,7 @@ remap a moved drive; run the wizard on a clean machine.
 - [x] Duplicate-transform and BK-tree cross-check tests are in, and the blur ladder is checked: `crates/quality`'s
   `a_blurred_frame_scores_far_below_the_sharp_one_it_came_from` blurs a known pattern and asserts both the separation
   and the ordering, so "more blur scores lower" is pinned rather than assumed
-- [ ] Map cluster determinism still waits for its feature — `sortlens-geo` has no clustering to be deterministic about
+- [x] Map cluster determinism: `sortlens-geo::cluster` is a sorted grid, and the test that reverses the input photo order and asserts identical clusters is where it is pinned
 
 **Demo:** find 20 blurred frames and 12 duplicate groups in a 5k library; map clusters match
 GPS; every dashboard number reconciles with the catalog; memories stable across refresh.
