@@ -67,6 +67,54 @@ pub fn live_line(ui: &mut Ui, text: &str, colour: Color32) -> egui::Response {
     response
 }
 
+/// Give a custom-drawn, clickable region a name, a role and a selected state.
+///
+/// The grid, the cull strip and the contact sheets paint their own cells, which means egui knows nothing
+/// about them: no label, no role, nothing for a screen reader to land on. A cell that can be clicked and
+/// cannot be described is a control that does not exist for anyone using assistive technology, so every
+/// custom region registers itself here.
+pub fn label_widget(ui: &egui::Ui, response: &egui::Response, kind: egui::Role, label: &str, selected: bool) {
+    // `WidgetInfo` is what makes egui give the widget a node at all: a plain `allocate_rect` reports
+    // nothing, so a node built for it would be discarded. This is the difference between an accessible
+    // grid and a grid that looks accessible in the source.
+    let label = label.to_string();
+    // `widget_info` is only called when the widget asks for it, so it takes a closure rather than a value.
+    response.widget_info(move || egui::WidgetInfo::labeled(kind, true, label.clone()));
+    if selected {
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_selected(true);
+        });
+    }
+}
+
+/// What one photo is called when read aloud: its name, then the facts that decide a cull.
+///
+/// Written as a sentence rather than a list of fields because it is spoken, and ordered by what matters
+/// first: which photo, how good, whether it is flagged, and what it is tagged with.
+#[must_use]
+pub fn describe_photo(photo: &sortlens_engine::Photo) -> String {
+    let mut parts = vec![photo.name.clone()];
+    if photo.rating > 0 {
+        let noun = if photo.rating == 1 { "star" } else { "stars" };
+        parts.push(format!("{} {noun}", photo.rating));
+    }
+    match photo.flag {
+        sortlens_core::Flag::Pick => parts.push("pick".to_string()),
+        sortlens_core::Flag::Reject => parts.push("reject".to_string()),
+        sortlens_core::Flag::None => {}
+    }
+    if let Some(label) = photo.label {
+        parts.push(format!("{label:?} label"));
+    }
+    if photo.missing {
+        parts.push("file missing".to_string());
+    }
+    if !photo.tags.is_empty() {
+        parts.push(photo.tags.join(", "));
+    }
+    parts.join(", ")
+}
+
 fn capitalize(word: &str) -> String {
     let mut chars = word.chars();
     match chars.next() {
@@ -101,6 +149,83 @@ mod tests {
         assert_eq!(library_status(0, 0), "0 photos");
         assert_eq!(library_status(1, 0), "1 photo");
         assert_eq!(library_status(240, 3), "240 photos, 3 selected");
+    }
+
+    /// A named region paints, and the name survives being asked for twice in one frame.
+    ///
+    /// What this does *not* prove is that egui put the label in the accessibility tree: this version has no
+    /// public way to read the tree back, so `cargo xtask a11y` checks the coverage instead — every
+    /// custom-painted clickable region in the shell must register one — and the names themselves are
+    /// tested as the pure functions above. A test that claimed to read the tree would be a lie.
+    #[test]
+    fn a_painted_region_takes_a_name_without_complaining() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut actions = 0;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let (_, response) = ui.allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::click());
+                label_widget(ui, &response, egui::Role::Button, "DSC_0001.jpg, 3 stars", true);
+                if response.clicked() {
+                    actions += 1;
+                }
+            });
+        });
+        output.textures_delta.clear();
+        assert_eq!(actions, 0, "naming a region does not click it");
+        assert!(!output.shapes.is_empty());
+    }
+
+    #[test]
+    fn a_photo_is_described_by_name_then_the_facts_that_decide_a_cull() {
+        let mut photo = test_photo("DSC_0001.jpg");
+        assert_eq!(describe_photo(&photo), "DSC_0001.jpg");
+        photo.rating = 1;
+        assert_eq!(describe_photo(&photo), "DSC_0001.jpg, 1 star");
+        photo.rating = 4;
+        photo.flag = sortlens_core::Flag::Pick;
+        photo.tags = vec!["harbour".to_string(), "night".to_string()];
+        assert_eq!(describe_photo(&photo), "DSC_0001.jpg, 4 stars, pick, harbour, night");
+        photo.flag = sortlens_core::Flag::Reject;
+        photo.missing = true;
+        assert_eq!(
+            describe_photo(&photo),
+            "DSC_0001.jpg, 4 stars, reject, file missing, harbour, night"
+        );
+        photo.rating = 0;
+        photo.flag = sortlens_core::Flag::None;
+        photo.tags.clear();
+        photo.label = Some(sortlens_core::ColorLabel::Green);
+        assert!(describe_photo(&photo).contains("label"));
+    }
+
+    fn test_photo(name: &str) -> sortlens_engine::Photo {
+        sortlens_engine::Photo {
+            id: sortlens_core::PhotoId(1),
+            root: "/photos".into(),
+            rel: name.into(),
+            name: name.into(),
+            size: 1,
+            modified: None,
+            kind: sortlens_core::MediaKind::Image,
+            key: 1,
+            rating: 0,
+            flag: sortlens_core::Flag::None,
+            label: None,
+            missing: false,
+            width: 0,
+            height: 0,
+            captured: None,
+            camera: String::new(),
+            lens: String::new(),
+            iso: None,
+            aperture: None,
+            shutter: None,
+            focal: None,
+            tags: Vec::new(),
+            edited: false,
+            retry: false,
+        }
     }
 
     #[test]

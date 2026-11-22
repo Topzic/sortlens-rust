@@ -327,7 +327,14 @@ photos live; the UI renders correctly in Arabic and Japanese.
 installers, the a11y audit, the remaining themes/icon pass, performance budgets and the final release
 notes are not.
 
-- [ ] Accessibility audit: focus order, roles, names, announcements, no traps (B) — SL-L01..L05
+- [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
+  cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
+  registers a `WidgetInfo` with a description from `a11y::describe_photo`, and the row carries its label
+  and count; `cargo xtask a11y` fails when a function makes a region clickable without naming it, proved
+  to bite by deleting one registration (B) — SL-L01
+- [ ] Accessibility audit, part 2 — focus order, focus-trap checks and a real tree walk: this egui version
+  has no public way to read accessibility nodes back, so the emitted tree cannot be asserted here; that
+  half needs a platform accessibility client (VoiceOver, Orca, NVDA) on a machine with a desktop session
 - [ ] High-contrast preset + reduced-motion toggle (B) — SL-L09/L06
 - [ ] Theme import via `craft-ext-core` palette (B) — SL-I06
 - [ ] Icon set final pass + brand assets (B) — SL-I11

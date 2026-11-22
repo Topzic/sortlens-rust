@@ -1407,14 +1407,34 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   the model-weights statement.
 - 423 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: nothing here is visual.
 
+## 2026-11-21 — M10 (part 3): every painted control has a name, and a check that keeps it that way
+
+- **the gap**: the grid, the detail preview, the lookahead strip, cull thumbnails, similar clusters, memory
+  cards and sidebar rows are painted rather than built from widgets, so none of them had a name. A control
+  that can be clicked and cannot be described does not exist for anyone using a screen reader.
+- `a11y::label_widget` now registers a `WidgetInfo` (role, label, selected) for each of them, and
+  `a11y::describe_photo` says the file name first, then stars, flag, missing state, colour label and
+  keywords — the order that decides a cull. Sidebar rows say their label and count.
+- `cargo xtask a11y` (in `ci`) walks `crates/ui/src/shell.rs` function by function and fails when a
+  function makes something clickable without naming it. **Proved to bite** by deleting the `nav_row`
+  registration, which failed naming that function, then restoring it.
+- **what this deliberately does not claim**: the emitted accessibility tree is not asserted, because this
+  egui version has no public way to read nodes back. `Context::has_accesskit_node` reports `true` even for a
+  plain unnamed allocation (measured, not assumed) and is cleared at the end of the frame, so a test built
+  on it would have been theatre. The names are tested as pure functions, the coverage by the source walk,
+  and the missing half — focus order, traps, a real client — is a separate ROADMAP row naming VoiceOver,
+  Orca and NVDA as what would unblock it.
+- `epaint` deprecation caught by clippy: `WidgetType` is now `Role`; the rename is applied.
+- 425 tests; ci (exit 0), wasm, deny, snapshot and `a11y` green. **Not verified by hand**: how any of it
+  sounds or reads with an actual screen reader.
+
 ## Next
 
-M10's last testable row: **the accessibility audit (SL-L01..L05)**. It can be done headlessly — build each
-surface with `Context::run_ui`, walk `AccessKit` nodes (egui exposes the tree through
-`ctx.accesskit_node_builder` and the platform adapter) and assert that every interactive widget has a name
-and a role, that no dialog traps focus without a way out, and that the announcement regions are live. Where
-a check cannot be written without a real accessibility client, say so in the row rather than ticking it.
+`docs/PERF.md` with measured numbers, done honestly: what this machine can measure (cold thumbnail rate,
+a large-library scan, the cost of a suggestion pass, scroll frames over a synthetic grid if it can be
+driven headlessly), each with the hardware and the command that produced it, and a separate list of the
+budgets that cannot be measured here (100k-photo scroll p99 on a retina display, mobile, GPU) marked as
+untested rather than estimated.
 
-After that: `docs/PERF.md` with measured numbers, then M10's absent-by-design table (signing, installers,
-icon pass, theme import, `craft-update`), then the final README/PLAN reconciliation and the M0 debt sweep
-that is still on the list.
+After that: M10's absent-by-design table (signing, installers, icon pass, theme import, `craft-update`),
+the accessibility part 2 row, then the final README/PLAN reconciliation and the M0 debt sweep.

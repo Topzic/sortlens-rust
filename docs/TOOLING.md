@@ -386,5 +386,9 @@ crate a manifest links must be attributed, a crate the workspace declares but no
 listed as such, and a table entry for a dependency that no longer exists is a problem too. It also refuses
 a missing embedded font family and a deleted statement about model weights.
 
-Both run inside `cargo xtask ci`, so a dependency that arrives without its licence being read cannot be
-merged, and a document that has drifted from the manifests fails in the same run.
+`cargo xtask a11y` walks `crates/ui/src/shell.rs` function by function and fails when a function makes a
+region clickable (`Sense::click()`) without registering a name for it.
+
+All three run inside `cargo xtask ci`, so a dependency that arrives without its licence being read cannot
+be merged, a document that has drifted from the manifests fails in the same run, and a painted control
+without a name fails before anyone can ship it.

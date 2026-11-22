@@ -448,3 +448,17 @@ While it runs, the dialog shows a progress bar with "n of total" and a **Stop** 
 panel shows the same job. When it finishes, a receipt replaces the dialog with what was written, into
 which folder, and the sentence that matters: the originals are where they were.
 
+## Accessibility: what is claimed and what is checked
+
+Announcements are visible polite live regions (`a11y::live_line`), not invisible AccessKit-only text, so the
+status a screen reader hears is the status everyone can see.
+
+Every region the app paints itself — grid cells, the detail preview, the lookahead strip, cull thumbnails,
+similar clusters, memory cards and sidebar rows — registers a name: `a11y::describe_photo` says the file
+name first, then stars, flag, missing state, colour label and keywords, because that is the order that
+decides a cull. `cargo xtask a11y` fails when a function in the shell makes something clickable without
+naming it.
+
+What is **not** checked here: the accessibility tree an assistive client actually receives. egui exposes no
+public way to read nodes back in this version, so that needs a real screen reader on a machine with a
+desktop session. Until then this document says "named", never "audited".

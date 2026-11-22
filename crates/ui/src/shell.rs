@@ -1252,6 +1252,8 @@ fn grid(
 
 fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32, thumbs: &mut Thumbnails) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::click());
+    // A painted cell is invisible to a screen reader unless it says what it is.
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, &crate::a11y::describe_photo(photo), selected);
     let image = Rect::from_min_size(rect.min, vec2(cell, cell));
     let painter = ui.painter();
 
@@ -2030,7 +2032,14 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
 
     let footer = 118.0;
     let height = (ui.available_height() - footer).max(180.0);
-    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    let (area, area_response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    crate::a11y::label_widget(
+        ui,
+        &area_response,
+        egui::Role::Image,
+        &format!("Preview of {}", crate::a11y::describe_photo(&photo)),
+        false,
+    );
     ui.painter().rect_filled(area, t.corner(), t.thumb_bg);
 
     let aspect = if photo.width > 0 && photo.height > 0 {
@@ -2172,6 +2181,13 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                         continue;
                     };
                     let (rect, response) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::click());
+                    crate::a11y::label_widget(
+                        ui,
+                        &response,
+                        egui::Role::Button,
+                        &format!("Jump to {}", crate::a11y::describe_photo(&other)),
+                        false,
+                    );
                     ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
                     if let Some(texture) = thumbs.get(ui.ctx(), &other, 128).cloned() {
                         let uv = cover_uv(texture.size_vec2(), rect.size());
@@ -2541,6 +2557,13 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         for id in up_next {
             if let Some(photo) = engine.photo(id).cloned() {
                 let (rect, response) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::click());
+                crate::a11y::label_widget(
+                    ui,
+                    &response,
+                    egui::Role::Button,
+                    &format!("Jump to {}", crate::a11y::describe_photo(&photo)),
+                    false,
+                );
                 ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
                 if let Some(texture) = thumbs.get(ui.ctx(), &photo, 160).cloned() {
                     let uv = cover_uv(texture.size_vec2(), rect.size());
@@ -2762,6 +2785,13 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                                     continue;
                                 };
                                 let (rect, response) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::click());
+                                crate::a11y::label_widget(
+                                    ui,
+                                    &response,
+                                    egui::Role::Button,
+                                    &crate::a11y::describe_photo(&photo),
+                                    member.id == group.best,
+                                );
                                 ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
                                 if let Some(texture) = thumbs.get(ui.ctx(), &photo, 128).cloned() {
                                     let uv = cover_uv(texture.size_vec2(), rect.size());
@@ -3142,6 +3172,7 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                         continue;
                     };
                     let (rect, response) = ui.allocate_exact_size(vec2(96.0, 96.0), Sense::click());
+                    crate::a11y::label_widget(ui, &response, egui::Role::Button, &crate::a11y::describe_photo(photo), false);
                     let texture = thumbs.get(ui.ctx(), photo, GRID_SIZE).cloned();
                     match texture {
                         Some(texture) => {
@@ -4483,6 +4514,12 @@ fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
 fn nav_row(ui: &mut Ui, t: &Tokens, label: &str, count: &str, selected: bool) -> egui::Response {
     let height = 24.0;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    let spoken = if count.is_empty() {
+        label.to_string()
+    } else {
+        format!("{label}, {count}")
+    };
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, &spoken, selected);
     if selected || response.hovered() {
         ui.painter()
             .rect_filled(rect, t.corner(), if selected { t.selection } else { t.hover });

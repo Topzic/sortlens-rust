@@ -56,6 +56,7 @@ fn main() -> ExitCode {
         "snapshot" => snapshot(),
         "version" => version(),
         "attribution" => attribution(),
+        "a11y" => a11y(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -86,7 +87,8 @@ fn help() {
   deny     check licences, advisories, bans and sources against deny.toml
   snapshot golden CLI output; --update rewrites the goldens, then read the diff
   version  one version for the workspace, declared once
-  attribution  every dependency attributed, and the document honest about what is linked"
+  attribution  every dependency attributed, and the document honest about what is linked
+  a11y     every custom-painted clickable region registers a name"
     );
 }
 
@@ -100,6 +102,7 @@ fn ci() -> Result<(), String> {
     fonts()?;
     version()?;
     attribution()?;
+    a11y()?;
     Ok(())
 }
 
@@ -457,6 +460,62 @@ fn crate_names_in(section: &str) -> Vec<String> {
         }
     }
     names
+}
+
+/// Every custom-painted clickable region has to say what it is.
+///
+/// A grid cell, a contact sheet and a cull strip are painted rather than built from widgets, so nothing
+/// gives them a name: without `a11y::label_widget` a screen reader sees empty space where the photo is.
+/// This walks the shell function by function — function granularity, because a line-level rule would break
+/// the first time a call is reformatted — and fails when a region that can be clicked registers nothing.
+///
+/// It cannot check the emitted tree: this egui version has no public way to read accessibility nodes back,
+/// so the labels themselves are tested as pure functions and this check covers the plumbing. Both halves
+/// are named in ROADMAP so nobody mistakes one for the other.
+fn a11y() -> Result<(), String> {
+    let mut problems = Vec::new();
+    for file in ["crates/ui/src/shell.rs"] {
+        let text = fs::read_to_string(file).map_err(|error| format!("{file}: {error}"))?;
+        let mut current: Option<(String, bool, bool)> = None;
+        let mut functions: Vec<(String, bool, bool)> = Vec::new();
+        for line in text.lines() {
+            let trimmed = line.trim_start();
+            let starts_function = (trimmed.starts_with("fn ") || trimmed.starts_with("pub fn ")) && trimmed.contains('(');
+            if starts_function {
+                if let Some(done) = current.take() {
+                    functions.push(done);
+                }
+                let name = trimmed
+                    .split('(')
+                    .next()
+                    .unwrap_or(trimmed)
+                    .trim_start_matches("pub ")
+                    .trim_start_matches("fn ")
+                    .to_string();
+                current = Some((name, false, false));
+                continue;
+            }
+            if let Some((_, clickable, named)) = current.as_mut() {
+                if line.contains("Sense::click()") || line.contains("Sense::click_and_drag()") {
+                    *clickable = true;
+                }
+                if line.contains("a11y::label_widget(") {
+                    *named = true;
+                }
+            }
+        }
+        if let Some(done) = current.take() {
+            functions.push(done);
+        }
+        for (name, clickable, named) in functions {
+            if clickable && !named {
+                problems.push(format!(
+                    "{file}: {name} makes a region clickable without naming it for assistive technology"
+                ));
+            }
+        }
+    }
+    report("a11y", problems)
 }
 
 fn assets() -> Result<(), String> {
