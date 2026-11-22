@@ -12,7 +12,12 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 craft-metadata = { workspace = true }
 craft-tiff = { workspace = true }
+# Container-only probe (`ispe`, `irot`, `clap`) for HEIF sizes: no decode, no feature.
+craft-heif = { workspace = true, features = ["decode"] }
 serde = { workspace = true }
+
+[dev-dependencies]
+craft-heif = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

@@ -69,7 +69,7 @@ this table is a promise about versions, not a claim about features.
 | `craft-keymap` | MIT OR Apache-2.0 | Reserved for the rebinding editor |
 | `craft-quit` | MIT OR Apache-2.0 | Reserved; the quit guard is written by hand |
 | `craft-update` | MIT OR Apache-2.0 | In-app updates, which need a release feed |
-| `craft-heif` | MIT OR Apache-2.0 | HEIC decoding, which is not built |
+| `craft-heif` | MIT OR Apache-2.0 | HEIC decoding, including container sizes during the scan |
 | `craft-webp` | MIT OR Apache-2.0 | WebP decoding and export, neither built |
 | `craft-gainmap` | MIT OR Apache-2.0 | HDR gain maps, not built |
 | `craft-video` | MIT OR Apache-2.0 | Video posters, not built |

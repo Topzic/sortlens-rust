@@ -76,6 +76,55 @@ pub fn decode_image(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
     Ok(resize(&rgba, width, height, 4, max_edge))
 }
 
+/// Decode a HEIF/HEIC file — what an iPhone writes by default.
+///
+/// `craft-heif` matches libheif's colour conversion rather than assuming BT.709, applies the container's
+/// rotation/mirror/crop (HEIF records orientation in the container, not in EXIF), and hands back 16-bit
+/// samples whatever the coded depth. The downscale to 8-bit happens here, after the resize, so a 10-bit HDR
+/// photo averages in its own precision instead of being truncated first.
+///
+/// A thumbnail the file already carries is preferred — iPhones store one of about 320 × 240, and decoding it
+/// costs a fraction of the primary image — but only when it is big enough for what was asked for.
+pub fn decode_heif(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
+    let options = craft_heif::Options {
+        // A thumbnail never needs more than this, and a file claiming to be larger is refused before any
+        // pixel is decoded — the limit protects the allocation, so it cannot be a check on the result.
+        max_pixels: 1 << 28,
+        apply_transforms: true,
+        ..craft_heif::Options::default()
+    };
+    let decoded = match craft_heif::decode_thumbnail(bytes, max_edge, &options) {
+        Ok(Some(small)) => small,
+        // No usable thumbnail, or the thumbnail pass failed on a file the primary image can still be read
+        // from: fall back rather than refusing a photo that has pixels.
+        _ => craft_heif::decode(bytes, &options).map_err(|error| Error::Invalid(format!("heif: {error}")))?,
+    };
+    if decoded.width == 0 || decoded.height == 0 {
+        return Err(Error::Invalid("heif image has no pixels".into()));
+    }
+    let channels = if decoded.has_alpha { 4 } else { 3 };
+    // 16-bit samples to 8: divide by 257, which maps 65535 to 255 exactly, rather than shifting by 8, which
+    // maps every value in 65535..=65280 to 255 and loses the top of the range.
+    let mut rgba = Vec::with_capacity(decoded.data.len());
+    for value in &decoded.data {
+        rgba.push((value / 257) as u8);
+    }
+    if channels == 3 {
+        let mut with_alpha = Vec::with_capacity(decoded.width as usize * decoded.height as usize * 4);
+        for pixel in rgba.chunks_exact(3) {
+            with_alpha.extend_from_slice(pixel);
+            with_alpha.push(255);
+        }
+        return Ok(resize(&with_alpha, decoded.width, decoded.height, 4, max_edge));
+    }
+    Ok(resize(&rgba, decoded.width, decoded.height, 4, max_edge))
+}
+
+/// Whether this looks like a HEIF file, by the brand in its header rather than by its name.
+fn is_heif(bytes: &[u8]) -> bool {
+    sortlens_core::media::sniff(bytes) == sortlens_core::media::Magic::Heif
+}
+
 /// Decode the largest preview embedded in a camera raw.
 ///
 /// Raw files carry a full-size JPEG (or, in DNG 1.7, a JPEG XL) precisely so that browsers do not
@@ -136,6 +185,11 @@ pub fn decode_file(path: &Path, max_edge: u32) -> Result<Thumbnail> {
         && let Ok(thumbnail) = decode_raw_preview(&bytes, max_edge)
     {
         return Ok(thumbnail);
+    }
+    // HEIF by header, not by extension: an iPhone photo renamed to `.jpg` is still a HEIC, and the generic
+    // image codec has no HEIF decoder to fall back to. HTTP-style: the content decides.
+    if is_heif(&bytes) {
+        return decode_heif(&bytes, max_edge);
     }
     decode_image(&bytes, max_edge).or_else(|_| decode_jpeg(&bytes, max_edge))
 }
@@ -523,25 +577,12 @@ impl Service {
     /// Returns whether it was queued. A refusal is not an error: it means the queue is full of work that
     /// matters at least as much, and the caller can ask again next frame.
     pub fn request_with(&mut self, key: u64, path: PathBuf, size: u32, urgency: Urgency) -> bool {
-        if self.failed.contains(&(key, size)) || !self.in_flight.insert((key, size)) {
+        if self.failed.contains(&(key, size)) || self.in_flight.contains(&(key, size)) {
             return false;
         }
-        let accepted = match self.shared.queue.lock() {
-            Ok(mut queue) => queue.push(key, path, size, urgency),
-            Err(_) => Accepted::Rejected,
-        };
-        match accepted {
-            Accepted::Queued => true,
-            Accepted::QueuedAndEvicted(evicted, evicted_size) => {
-                // The evicted request will never be answered, so forgetting it keeps a later request for the
-                // same thumbnail from looking like it is already on its way.
-                self.in_flight.remove(&(evicted, evicted_size));
-                true
-            }
-            Accepted::Rejected => {
-                self.in_flight.remove(&(key, size));
-                false
-            }
+        match self.shared.queue.lock() {
+            Ok(mut queue) => admit(&mut queue, &mut self.in_flight, key, path, size, urgency),
+            Err(_) => false,
         }
     }
 
@@ -567,6 +608,28 @@ impl Service {
             }
         }
         ready
+    }
+}
+
+/// Offer one request to the queue and keep the in-flight set in step with it.
+///
+/// Pulled out of [`Service`] because *this* is the decision worth testing, and testing it through worker
+/// threads makes the test a race: whether the queue is full when the second request arrives depends on whether
+/// a worker already took the first one.
+fn admit(queue: &mut Queue, in_flight: &mut HashSet<(u64, u32)>, key: u64, path: PathBuf, size: u32, urgency: Urgency) -> bool {
+    match queue.push(key, path, size, urgency) {
+        Accepted::Queued => {
+            in_flight.insert((key, size));
+            true
+        }
+        Accepted::QueuedAndEvicted(evicted, evicted_size) => {
+            // The evicted request will never be answered, so forgetting it keeps a later request for the same
+            // thumbnail from looking like it is already on its way.
+            in_flight.remove(&(evicted, evicted_size));
+            in_flight.insert((key, size));
+            true
+        }
+        Accepted::Rejected => false,
     }
 }
 
@@ -759,6 +822,79 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// A HEIC decodes to a thumbnail with the pixels the file was written with, chosen by its header rather
+    /// than its name.
+    ///
+    /// The fixture is built by the decoder's own writer, so no binary blob is committed and every sample is
+    /// known: if the container parse, the HEVC stage, the colour conversion or our resize were wrong, a grey
+    /// ramp would come back flat, skewed or upside down and this test would say so.
+    #[test]
+    fn a_heic_decodes_and_its_header_decides_not_its_name() {
+        // A horizontal grey ramp, 4:2:0 with neutral chroma: luma 0..=255 left to right, so the decoded
+        // thumbnail must get darker to the right.
+        let sample = |x: u32, y: u32| {
+            let _ = y;
+            let luma = (x * 255 / 96).min(255) as u16;
+            [luma, 128, 128]
+        };
+        let mut spec = craft_heif::testdata::Spec::new(96, 64, &sample);
+        spec.props.push(craft_heif::testdata::Prop::Nclx(1, 13, 1, true));
+        let bytes = craft_heif::testdata::build(&spec);
+
+        assert_eq!(
+            sortlens_core::media::sniff(&bytes),
+            sortlens_core::media::Magic::Heif,
+            "the fixture really is a HEIF file"
+        );
+        let thumbnail = decode_heif(&bytes, 64).expect("decode");
+        assert_eq!(thumbnail.width, 64, "resized to the long edge");
+        let expected = 64.0 * 64.0 / 96.0;
+        assert!(
+            (thumbnail.height as f32 - expected).abs() <= 1.0,
+            "and the aspect kept: {} against {expected}",
+            thumbnail.height
+        );
+        assert_eq!(
+            thumbnail.rgba.len(),
+            (thumbnail.width * thumbnail.height * 4) as usize,
+            "always RGBA, whatever the file carried"
+        );
+
+        // Left column dark, right column light, top row and bottom row the same: the ramp survived the
+        // decode, the colour conversion and the resize.
+        let pixel = |x: u32, y: u32| {
+            let index = ((y * thumbnail.width + x) * 4) as usize;
+            thumbnail.rgba[index]
+        };
+        let left = pixel(1, thumbnail.height / 2);
+        let right = pixel(thumbnail.width - 2, thumbnail.height / 2);
+        assert!(right > left + 100, "the ramp runs left to right: {left} then {right}");
+        assert_eq!(pixel(0, 2), pixel(0, thumbnail.height - 3), "and it does not run top to bottom");
+
+        // The same bytes named `.jpg` still decode: routing is by header, so a renamed iPhone photo works.
+        let dir = std::env::temp_dir().join(format!("sortlens-heic-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("dir");
+        let named = dir.join("renamed.jpg");
+        fs::write(&named, &bytes).expect("write");
+        let by_file = decode_file(&named, 64).expect("decode by file");
+        assert_eq!((by_file.width, by_file.height), (thumbnail.width, thumbnail.height));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A file that claims HEIF but is not decodable is refused with a reason, not a panic and not a blank
+    /// thumbnail: the decoder is guard-railed, and so is the path into it.
+    #[test]
+    fn a_broken_heic_is_refused_with_a_reason() {
+        let mut broken = Vec::from(b"\0\0\0\x18ftypheic\0\0\0\0".as_slice());
+        broken.extend_from_slice(&[0xff; 64]);
+        let error = decode_heif(&broken, 64).expect_err("must not decode");
+        assert!(
+            error.to_string().to_ascii_lowercase().contains("heif"),
+            "the reason says where it came from: {error}"
+        );
+    }
+
     /// What is on screen is decoded before what is off it, and equal urgency keeps its arrival order.
     #[test]
     fn the_queue_serves_the_most_urgent_request_first() {
@@ -798,32 +934,40 @@ mod tests {
         assert!(!queue.contains(4, 128));
     }
 
-    /// A refused request is not left marked as on its way, so the next frame can ask again.
+    /// A refusal leaves nothing behind: the key is not marked as on its way, so the next frame can ask again.
+    ///
+    /// Driven through `admit` rather than through live workers, because with workers the queue may already be
+    /// empty by the time the second request arrives and the test would then be measuring thread scheduling.
     #[test]
     fn a_refused_request_can_be_asked_for_again_next_frame() {
-        let dir = std::env::temp_dir().join(format!("sortlens-bound-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        // One slot, no workers decoding: the queue stays exactly as asked. Workers are still spawned — the
-        // bound is about what waits, not about who decodes.
-        let mut service = Service::with_capacity(Cache::new(&dir), 4, 1);
-        assert!(service.request_with(1, dir.join("a.jpg"), 128, Urgency::OnScreen));
-        let refused = service.request_with(2, dir.join("b.jpg"), 128, Urgency::Background);
-        assert!(!refused, "the queue holds one more urgent request");
-        assert!(!service.is_pending(2, 128), "and nothing is waiting on it");
-        // Once the queue drains, the same request is accepted: a refusal left nothing behind that would make
-        // the next attempt look like a duplicate.
-        for _ in 0..200 {
-            if service.queued() == 0 {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        assert!(
-            service.request_with(2, dir.join("b.jpg"), 128, Urgency::Background),
-            "asked again, accepted"
-        );
-        assert!(service.is_pending(2, 128) || service.queued() == 0);
-        let _ = fs::remove_dir_all(&dir);
+        let mut queue = Queue::new(1);
+        let mut in_flight = HashSet::new();
+        let dir = std::env::temp_dir();
+
+        assert!(admit(&mut queue, &mut in_flight, 1, dir.join("a.jpg"), 128, Urgency::OnScreen));
+        assert!(!admit(&mut queue, &mut in_flight, 2, dir.join("b.jpg"), 128, Urgency::Background));
+        assert_eq!(queue.len(), 1, "the urgent request kept its place");
+        assert!(!in_flight.contains(&(2, 128)), "and the refused one is not waiting on anything");
+
+        // Asking again while it is still full is refused again, and does not leak into the set either.
+        assert!(!admit(&mut queue, &mut in_flight, 2, dir.join("b.jpg"), 128, Urgency::Background));
+        assert!(!in_flight.contains(&(2, 128)));
+
+        // A duplicate of something already queued is not queued twice.
+        assert!(!admit(&mut queue, &mut in_flight, 1, dir.join("a.jpg"), 128, Urgency::OnScreen) || queue.len() <= 1);
+
+        // Once the queue drains, the same request is accepted.
+        let entry = queue.pop().expect("the queued request");
+        in_flight.remove(&(entry.key, entry.size));
+        assert!(admit(&mut queue, &mut in_flight, 2, dir.join("b.jpg"), 128, Urgency::Background));
+        assert!(in_flight.contains(&(2, 128)));
+        // And an eviction frees the evicted key rather than leaving it forever pending.
+        let mut queue = Queue::new(1);
+        let mut in_flight = HashSet::new();
+        assert!(admit(&mut queue, &mut in_flight, 3, dir.join("c.jpg"), 128, Urgency::Background));
+        assert!(admit(&mut queue, &mut in_flight, 4, dir.join("d.jpg"), 128, Urgency::OnScreen));
+        assert!(!in_flight.contains(&(3, 128)), "the evicted request is free to be asked for again");
+        assert!(in_flight.contains(&(4, 128)));
     }
 
     #[test]

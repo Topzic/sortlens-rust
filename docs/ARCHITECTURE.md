@@ -633,7 +633,8 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 | --- | --- | --- | --- |
 | Storage | Op log + snapshot | SQLite, redb, sled | Undo/audit/replay for free; deterministic tests |
 | UI toolkit | egui 0.37 (storytold fork) | GTK, Qt, Slint, Tauri | ArtCraft suite consistency; one codebase to wasm |
-| Image decode | craft-libs decoders | `image` crate | Control, purity, bounded hostile input, RAW/HEIC |
+| Image decode | craft-libs decoders (`craft-jpeg`, `craft-image-codecs`, `craft-raw`, `craft-heif`) | `image` crate | Control, purity, bounded hostile input, RAW/HEIC |
+| HEIC | `craft-heif` (pure Rust `heic-rs`, panic-guarded, libheif colour) | libheif (C) | No C dependency; 16-bit samples so a 10-bit photo is not clipped |
 | AI runtime | `tract` (pure Rust ONNX) | `ort` (C++), Burn+Candle | Licence/portability; revisit only on a benchmark |
 | Map | Offline vector world, opt-in tiles | Online tiles by default | Privacy promise is the product |
 | Similarity | dHash + pHash | CNN embeddings only | Works before any model download, milliseconds per 100k |

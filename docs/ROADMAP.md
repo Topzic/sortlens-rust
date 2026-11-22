@@ -152,9 +152,10 @@ files → rename a subfolder → no duplicate rows.
 ## M2 — Preview scales · 2.5 w · track C
 
 **Goal:** 50k photos, 60 fps, bounded memory, visible activity.
-**State:** JPEG and RAW-preview thumbnails, the content-addressed cache, the two-worker decode
-service and the activity stack are in; metadata is read during the scan. HEIC, video, priority
-scheduling and blur-up remain.
+**State:** JPEG, PNG/TIFF/WebP/GIF/BMP, RAW-preview and **HEIC** thumbnails are in, behind the
+content-addressed cache, the priority-ordered and bounded decode service and the activity stack; metadata is
+read during the scan, including HEIF sizes from the container. Video posters and blur-up tier transitions
+remain, and are named below with what they need.
 
 - [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
 - [x] Cooperative cancellation + live file/folder counters during a scan (C)
@@ -174,7 +175,21 @@ scheduling and blur-up remain.
     the assertion fail with 63 waiters.
 - [x] JPEG decode path (C)
 - [x] PNG/TIFF/WebP/GIF/BMP decode paths via craft-image-codecs, alpha preserved (C)
-- [ ] HEIC decode path (C)
+- [x] HEIC decode path (C)
+  - **`craft-heif`** (pure Rust via `heic-rs`, panic-guarded, colour-matched to libheif rather than assuming
+    BT.709) decodes the primary image and prefers the thumbnail an iPhone already stores when it is big enough
+    for what was asked for. 16-bit samples are divided by 257 rather than shifted, so a 10-bit HDR photo keeps
+    the top of its range instead of clipping at 255.
+  - **Routed by header, not by name** (`sniff` says `Heif`), so an iPhone photo renamed `.jpg` still decodes
+    and a `.heic` that is really a JPEG is not sent to a decoder that cannot read it.
+  - **Sizes come from the container** during the scan (`ispe`, `irot`, `clap`), because that is the source the
+    decoder will use: a portrait iPhone photo is 64 × 96 in the grid and 1.4 MP in the insights, not 0 × 0.
+  - Tested with synthetic HEIF files written by the decoder's own writer — a grey ramp that must stay a ramp
+    after the container parse, the HEVC stage, the colour conversion and the resize, a rotated file whose
+    displayed size must swap axes, the same bytes under a `.jpg` name, and a truncated file refused with a
+    reason. No binary fixture is committed, and the routing was proved to bite by disabling it (the `.jpg`
+    case then fails with "not a JPEG stream").
+  - **Not measured**: HEIC decode rate appears nowhere in `docs/PERF.md`; the fixtures there are JPEG.
 - [x] RAW embedded previews (`craft-raw`) (C) — SL-B18
 - [ ] Video poster + duration/fps/codec (C) — SL-B11
 - [x] Placeholder cell while decoding, no spinner (B)

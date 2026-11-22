@@ -1746,9 +1746,33 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 479 tests; ci (exit 0), wasm, deny, snapshot, attribution green. **Not verified by hand**: against a real MCP
   client — the handshake is exercised in-process, but no client has ever connected to this server.
 
+## 2026-11-21 — M2 row: HEIC, routed by header and measured from its container
+
+- **The decoder is the suite's**: `craft-heif` (pure Rust `heic-rs`, every call inside `catch_unwind`, colour
+  converted to match libheif instead of assuming BT.709). It decodes the primary image and prefers the ~320 ×
+  240 thumbnail an iPhone already stores when that is big enough for the request, which is the difference
+  between a grid filling and a grid waiting.
+- **16-bit samples are divided by 257, not shifted by 8.** A shift maps everything in 65535..=65280 to 255 and
+  throws away the top of a 10-bit HDR photo's range; 257 maps 65535 to 255 and 0 to 0 exactly.
+- **Routing is by header** (`sniff` → `Magic::Heif`), so an iPhone photo renamed `.jpg` decodes, and a `.heic`
+  that is really a JPEG goes to the JPEG decoder. Proved to bite: disabling the branch makes the renamed case
+  fail with "not a JPEG stream".
+- **Sizes come from the container** in the scan path (`ispe`/`irot`/`clap` via `craft_heif::probe`), because the
+  container is what the decoder will use: a portrait iPhone photo is 64 × 96 in the justified grid and 1.4 MP
+  in insights rather than 0 × 0 with a 3:2 guess. `heif_size` returns `None` for every non-HEIF file, and the
+  container's answer wins outright rather than being merged per axis with a stale EXIF tag.
+- **No binary fixture was committed**: the tests build synthetic HEIF files with the decoder's own writer — a
+  grey ramp that must still be a ramp after the container parse, the HEVC stage, colour conversion and resize;
+  a rotated file whose displayed size must swap axes; the same bytes under a `.jpg` name; and a truncated file
+  refused with a reason rather than a panic or a blank cell.
+- **A flaky test was fixed, not retried**: the priority test that expected the queue to be full assumed a worker
+  had not already taken the first request. The admission decision (push, eviction, in-flight bookkeeping) is now
+  a pure `admit()` and is tested without threads; the timing-dependent service test is gone.
+- 482 tests; ci (exit 0), wasm, deny, docs, attribution green. **Not verified by hand**: a real iPhone HEIC —
+  the decoder is exercised on synthetic files it was designed against, and performance is unmeasured (the perf
+  fixtures are JPEG, and `docs/ROADMAP.md` says so).
+
 ## Next
 
-Continue in milestone order. Next: the decoder rows — HEIC (SL-M0x), video poster/duration, blur-up tier
-transitions. Each needs a decision this repository has not made, so the honest outcome may be an
-absent-by-design table with the unblocker for each; check `craft-heif`/`craft-video` in the pinned suite first,
-because the crates are already declared.
+Continue in milestone order. Next: video posters + duration/fps/codec (SL-B11), which needs `craft-video` and a
+decision about which frames to extract; then blur-up tier transitions (needs the 384 tier wired to the grid).

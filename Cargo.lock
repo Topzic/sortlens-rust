@@ -116,7 +116,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
  "wl-clipboard-rs",
  "x11rb",
 ]
@@ -652,6 +652,15 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
 
 [[package]]
+name = "craft-heif"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
+dependencies = [
+ "heic-rs",
+ "rayon",
+]
+
+[[package]]
 name = "craft-i18n"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
@@ -872,7 +881,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1135,7 +1144,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e35d6e78f4cebb90e51d543db8fe41528851d6deeef6ef21ebd4bfdc1e784776"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1604,6 +1613,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c75ab947623ef4ccaa7acf0579edf7cbb5a73838e3839a7be73335e522f433a1"
 dependencies = [
  "fearless_simd",
+]
+
+[[package]]
+name = "heic-rs"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8883c3bfa6b4ff19a40e52a6dc051c5612cbe21bf408fc6d4875e8dfd777cb66"
+dependencies = [
+ "rayon",
 ]
 
 [[package]]
@@ -2834,7 +2852,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3314,7 +3332,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3690,6 +3708,7 @@ dependencies = [
 name = "sortlens-meta"
 version = "0.1.0"
 dependencies = [
+ "craft-heif",
  "craft-metadata",
  "craft-tiff",
  "serde",
@@ -3771,6 +3790,7 @@ dependencies = [
 name = "sortlens-thumbs"
 version = "0.1.0"
 dependencies = [
+ "craft-heif",
  "craft-image-codecs",
  "craft-jpeg",
  "craft-raw",
@@ -3883,7 +3903,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.6",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4634,7 +4654,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

@@ -123,6 +123,10 @@ pub fn read_outcome(path: &Path) -> ReadOutcome {
 /// Parse metadata out of a byte buffer that starts at the beginning of a file.
 pub fn parse(bytes: &[u8]) -> PhotoMeta {
     let metadata = craft_metadata::extract(bytes);
+    // A HEIF file keeps its size in the container's `ispe` box and its orientation in `irot`, neither of which
+    // an EXIF reader can see. Without this an iPhone photo indexes as 0 × 0, which costs it its aspect ratio in
+    // the justified grid and its megapixels in the insights — so ask the container directly.
+    let heif = heif_size(bytes);
     let camera = match (metadata.make.as_deref(), metadata.model.as_deref()) {
         (Some(make), Some(model)) if !model.starts_with(make) => format!("{make} {model}"),
         (_, Some(model)) => model.to_string(),
@@ -131,9 +135,13 @@ pub fn parse(bytes: &[u8]) -> PhotoMeta {
     };
     let iso = metadata.iso.filter(|iso| *iso > 0);
 
+    // The container wins for a HEIF file: it is the same source the decoder will use, so the grid's shape and
+    // the pixels cannot disagree. Mixing the two would let a stale EXIF tag re-shape a portrait photo.
+    let (width, height) = heif.unwrap_or((metadata.width.unwrap_or(0), metadata.height.unwrap_or(0)));
+
     PhotoMeta {
-        width: metadata.width.unwrap_or(0),
-        height: metadata.height.unwrap_or(0),
+        width,
+        height,
         captured: metadata.capture_time.as_ref().and_then(epoch_seconds),
         camera,
         lens: metadata.lens_model.clone().unwrap_or_default(),
@@ -142,6 +150,18 @@ pub fn parse(bytes: &[u8]) -> PhotoMeta {
         shutter: metadata.exposure_time.filter(|value| *value > 0.0),
         focal: metadata.focal_length.filter(|value| *value > 0.0),
     }
+}
+
+/// The displayed size of a HEIF file, from its container alone — no pixel is decoded.
+///
+/// Rotation and crop are already applied by the probe, so the pair is what a viewer would show, which is the
+/// only answer that keeps a portrait iPhone photo portrait in the grid.
+fn heif_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    if sortlens_core::media::sniff(bytes) != sortlens_core::media::Magic::Heif {
+        return None;
+    }
+    let info = craft_heif::probe(bytes).ok()?;
+    (info.width > 0 && info.height > 0).then_some((info.width, info.height))
 }
 
 /// Convert a civil capture time to seconds since the Unix epoch.
@@ -193,6 +213,29 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> Option<i64> {
     let day_of_year = (153 * (if month > 2 { month - 3 } else { month + 9 }) + 2) / 5 + day - 1;
     let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
     Some(era * 146_097 + day_of_era - 719_468)
+}
+
+/// A HEIF photo's size comes from its container, with the rotation the container declares applied.
+///
+/// This is the difference between a portrait iPhone photo showing portrait in the grid and it showing as an
+/// unrotated landscape, and between a real megapixel count in the insights and 0.0 MP.
+#[test]
+fn a_heif_size_comes_from_its_container_and_honours_rotation() {
+    let sample = |x: u32, y: u32| {
+        let _ = (x, y);
+        [128_u16, 128, 128]
+    };
+    let mut spec = craft_heif::testdata::Spec::new(96, 64, &sample);
+    spec.props.push(craft_heif::testdata::Prop::Nclx(1, 13, 1, true));
+    let upright = craft_heif::testdata::build(&spec);
+    let meta = parse(&upright);
+    assert_eq!((meta.width, meta.height), (96, 64), "the coded size when nothing is rotated");
+
+    // One quarter turn counter-clockwise: a 96 × 64 file is shown 64 × 96.
+    spec.props.push(craft_heif::testdata::Prop::Irot(1));
+    let turned = craft_heif::testdata::build(&spec);
+    let meta = parse(&turned);
+    assert_eq!((meta.width, meta.height), (64, 96), "and the displayed size when it is");
 }
 
 #[cfg(test)]
