@@ -710,6 +710,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-jsonrpc"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "craft-mcp"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
+dependencies = [
+ "craft-jsonrpc",
+ "serde_json",
+]
+
+[[package]]
 name = "craft-metadata"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
@@ -3648,6 +3665,8 @@ dependencies = [
 name = "sortlens-mcp"
 version = "0.1.0"
 dependencies = [
+ "craft-jsonrpc",
+ "craft-mcp",
  "serde_json",
  "sortlens-core",
  "sortlens-engine",

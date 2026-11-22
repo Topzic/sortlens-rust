@@ -197,7 +197,24 @@ scheduling and blur-up remain.
   library", and the spoken name already said "file missing" before the badge existed (B) — SL-A12 part 1
 - [ ] Offline/missing, part 2 — cached-thumb behaviour: a thumbnail decoded before the drive went away is
   still in the cache and is still drawn, but nothing marks it as stale, so an offline library looks current
-- [ ] `craft-ipc` + `craft-jsonrpc` are not used: agent access is the MCP server over stdio instead (E) — SL-K04
+- [x] `craft-jsonrpc` + `craft-mcp` carry the MCP server (E) — SL-K04, part 1
+  - Envelopes are `craft-jsonrpc`: it validates the `jsonrpc` version and the id, separates requests from
+    notifications, answers batches as batches, and refuses a message over a byte bound **before** parsing it. The
+    line reader is its `read_line`, so an eight-megabyte line is refused without being allocated, the frame is
+    discarded and the session keeps going instead of dying on one bad message.
+  - The session is `craft-mcp`: version negotiation (newest first, `2025-03-26` then `2024-11-05`, echoing a
+    client's own version when it asks for one this server knows), the `initialize`/`initialized` handshake,
+    the tools envelope and the text result. Tool **routing** stays here, straight from the command registry.
+  - Two behaviours changed because the suite's answer is the protocol's answer: input that is not JSON is now
+    `-32700 Parse error` rather than `-32600`, and `tools/call` with non-object arguments is `-32602` rather
+    than an empty call. Both are tested, as are batch handling, the oversized frame, negotiation and the
+    handshake.
+- [ ] `craft-ipc` is still unused — **absent by design, with a reason**: there is no second process to talk to.
+  The window owns the engine and the library's write lock, and the CLI opens the library itself, which is what
+  makes the lock meaningful. A socket would need a server mode in the app, an authentication story on a
+  multi-user machine, and an answer for "the app is not running" — none of which exist, and none of which the
+  MCP-over-stdio path needs, because the client starts the server. **Unblocker**: a real second consumer that
+  wants to drive a *running* window (a menu-bar helper, a browser extension, two windows on one library).
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
 - [ ] `page` prints JSON and the MCP server returns JSON; there is no `--json` for the other verbs (E)
 - [x] Benchmarks, part 1 — **measured**: `cargo xtask perf` (a release-mode binary, deliberately outside

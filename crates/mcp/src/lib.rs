@@ -8,12 +8,19 @@
 //! Transport is newline-delimited JSON over stdio, one message per line, which is what MCP clients
 //! speak when they launch a server as a subprocess. `handle` takes one line and returns one line, so
 //! the whole protocol is testable without a pipe or a process.
+//!
+//! Envelope handling is `craft-jsonrpc`, not hand-rolled: it validates the `jsonrpc` version and the id,
+//! separates requests from notifications, handles batches, and enforces a byte bound on every message. Session
+//! handling — version negotiation, the initialize/initialized handshake, the tool envelopes — is `craft-mcp`.
+//! This crate owns the transport and the method table, which is the division both state for themselves.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
 use std::io::{BufRead, Write};
 
+use craft_jsonrpc::{Limits, ParseError, Request, RpcError};
+use craft_mcp::{Policy, Session};
 use serde_json::{Value, json};
 use sortlens_engine::Engine;
 
@@ -22,9 +29,15 @@ pub mod examples;
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// The protocol version this server implements.
-pub const PROTOCOL_VERSION: &str = "2024-11-05";
+/// The protocol version this server speaks by default.
+pub const PROTOCOL_VERSION: &str = craft_mcp::PROTOCOL_VERSION;
 
+/// Versions offered during negotiation, newest first. A client asking for an older one is echoed back its own
+/// version rather than being told it is wrong: the tool surface is the same either way.
+pub const SUPPORTED_VERSIONS: &[&str] = &[PROTOCOL_VERSION, "2024-11-05"];
+
+/// JSON-RPC error code: the input was not JSON.
+pub const PARSE_ERROR: i64 = -32700;
 /// JSON-RPC error code: the method does not exist.
 pub const METHOD_NOT_FOUND: i64 = -32601;
 /// JSON-RPC error code: the request was not valid JSON-RPC.
@@ -35,12 +48,26 @@ pub const INVALID_PARAMS: i64 = -32602;
 /// One MCP server bound to an open library.
 pub struct Mcp {
     engine: Engine,
+    session: Session,
 }
 
 impl Mcp {
     /// Wrap an engine.
     pub fn new(engine: Engine) -> Self {
-        Self { engine }
+        let session = Session::new("sortlens", VERSION, Policy::Compatible)
+            .with_legacy_initialize(SUPPORTED_VERSIONS, json!({ "name": "sortlens", "version": VERSION }));
+        let mut session = session;
+        session.set_instructions(
+            "Every tool is a Sortlens command id. Call tools/list for the ready ones; a tool still listed as \
+             planned refuses and names its milestone."
+                .to_string(),
+        );
+        Self { engine, session }
+    }
+
+    /// Whether the client has completed the handshake, which a host may want to log.
+    pub fn is_initialized(&self) -> bool {
+        self.session.is_initialized()
     }
 
     /// The engine, for tests and for a host that wants to keep using it.
@@ -53,37 +80,86 @@ impl Mcp {
     /// A notification (no `id`) is answered with `None`: JSON-RPC forbids a response to one, and a
     /// client that gets an extra message where it expected none will fail to parse the stream.
     pub fn handle(&mut self, line: &str) -> Option<String> {
-        let request: Value = match serde_json::from_str(line) {
+        self.handle_with(line, limits())
+    }
+
+    /// The same, with explicit bounds — a test uses this to prove the message bound bites without writing
+    /// eight megabytes.
+    pub fn handle_with(&mut self, line: &str, limits: Limits) -> Option<String> {
+        let value = match craft_jsonrpc::parse_json(line.as_bytes(), limits) {
             Ok(value) => value,
-            Err(error) => {
-                return Some(error_response(Value::Null, INVALID_REQUEST, &format!("that is not JSON: {error}")));
+            // An oversized message is refused *before* it is parsed, which is the point of the bound: the
+            // limit protects the allocation, so it cannot be a check on the parsed result.
+            Err(ParseError::MessageTooLarge) => {
+                return Some(
+                    craft_jsonrpc::error_response(
+                        Value::Null,
+                        RpcError::new(PARSE_ERROR, format!("message over {} bytes", limits.max_message_bytes)),
+                    )
+                    .to_string(),
+                );
             }
+            Err(ParseError::BatchTooLarge) => {
+                return Some(
+                    craft_jsonrpc::error_response(
+                        Value::Null,
+                        RpcError::new(INVALID_REQUEST, format!("batch over {} requests", limits.max_batch_items)),
+                    )
+                    .to_string(),
+                );
+            }
+            Err(ParseError::InvalidJson) => return Some(craft_jsonrpc::parse_error_response().to_string()),
         };
-        let id = request.get("id").cloned();
-        let method = request.get("method").and_then(Value::as_str).unwrap_or_default();
-        let params = request.get("params").cloned().unwrap_or(Value::Null);
+        let server = std::cell::RefCell::new(&mut *self);
+        let response = craft_jsonrpc::process(
+            &value,
+            limits,
+            |request| {
+                let mut server = server.borrow_mut();
+                server.dispatch(request)
+            },
+            |notification| {
+                // Notifications never reach `dispatch`: JSON-RPC answers none of them, so `craft-jsonrpc` hands
+                // them to this callback instead.
+                server.borrow_mut().notify(notification);
+            },
+        );
+        match response {
+            Ok(value) => value.map(|value| value.to_string()),
+            Err(error) => Some(craft_jsonrpc::error_response(Value::Null, RpcError::new(INVALID_REQUEST, error.to_string())).to_string()),
+        }
+    }
 
-        let result = match method {
-            "initialize" => Ok(self.initialize()),
-            "notifications/initialized" | "initialized" => return None,
-            "ping" => Ok(json!({})),
-            "tools/list" => Ok(self.tools()),
-            "tools/call" => self.call(&params),
-            other => Err((METHOD_NOT_FOUND, format!("no such method: {other}"))),
-        };
+    /// One validated request, dispatched to a method.
+    ///
+    /// A notification (`notifications/initialized`) is handled by being ignored: JSON-RPC forbids answering
+    /// one, and `craft-jsonrpc` never asks for a response when the id is absent.
+    /// A notification from the client. The only one this protocol defines is `initialized`, which the session
+    /// records; anything else is ignored rather than answered.
+    fn notify(&mut self, request: Request<'_>) {
+        self.session.notification(request);
+    }
 
-        match (id, result) {
-            // No id: a notification, so nothing goes back even if it failed.
-            (None, _) => None,
-            (Some(id), Ok(result)) => Some(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": result,
-                })
-                .to_string(),
-            ),
-            (Some(id), Err((code, message))) => Some(error_response(id, code, &message)),
+    fn dispatch(&mut self, request: Request<'_>) -> Result<Value, RpcError> {
+        // The handshake belongs to the session: version negotiation, `ping`, and the initialized
+        // notification are the same in every MCP server, and getting them subtly wrong is how a client
+        // decides not to talk to you.
+        if let Some(answer) = self.session.request(request, false) {
+            return answer;
+        }
+        let params = request.params.cloned().unwrap_or(Value::Null);
+        match request.method {
+            // `initialized` is a notification, so nothing is answered; the session has recorded it.
+            "notifications/initialized" | "initialized" => {
+                self.session.notification(request);
+                Ok(Value::Null)
+            }
+            "tools/list" => Ok(craft_mcp::tool_list(self.tools())),
+            "tools/call" => {
+                let (name, arguments) = craft_mcp::tool_call(&params).map_err(|error| RpcError::new(error.code, error.message))?;
+                Ok(self.invoke(name, &arguments))
+            }
+            other => Err(RpcError::new(METHOD_NOT_FOUND, format!("no such method: {other}"))),
         }
     }
 
@@ -91,33 +167,43 @@ impl Mcp {
     ///
     /// Returns the number of requests answered. A read or write error ends the loop: a client that
     /// has closed the pipe has nothing more to say, and there is nowhere left to report to.
-    pub fn serve<R: BufRead, W: Write>(&mut self, input: R, mut output: W) -> std::io::Result<usize> {
+    pub fn serve<R: BufRead, W: Write>(&mut self, input: R, output: W) -> std::io::Result<usize> {
+        self.serve_with(input, output, limits())
+    }
+
+    /// The same, with explicit bounds. A message over the bound is answered with an error and the rest of that
+    /// line is discarded, so one bad frame does not end the session — and does not allocate the line either.
+    pub fn serve_with<R: BufRead, W: Write>(&mut self, mut input: R, mut output: W, limits: Limits) -> std::io::Result<usize> {
         let mut answered = 0;
-        for line in input.lines() {
-            let line = line?;
-            if line.trim().is_empty() {
-                continue;
-            }
-            if let Some(response) = self.handle(&line) {
-                writeln!(output, "{response}")?;
-                output.flush()?;
-                answered += 1;
+        loop {
+            match craft_jsonrpc::read_line(&mut input, limits.max_message_bytes) {
+                Ok(None) => break,
+                Ok(Some(bytes)) => {
+                    if bytes.iter().all(u8::is_ascii_whitespace) {
+                        continue;
+                    }
+                    let line = String::from_utf8_lossy(&bytes).into_owned();
+                    if let Some(response) = self.handle_with(&line, limits) {
+                        writeln!(output, "{response}")?;
+                        output.flush()?;
+                        answered += 1;
+                    }
+                }
+                Err(craft_jsonrpc::LineError::TooLong) => {
+                    // Discard the rest of the line without holding it, then say what happened and keep going.
+                    discard_line(&mut input)?;
+                    let response = craft_jsonrpc::error_response(
+                        Value::Null,
+                        RpcError::new(PARSE_ERROR, format!("message over {} bytes", limits.max_message_bytes)),
+                    );
+                    writeln!(output, "{response}")?;
+                    output.flush()?;
+                    answered += 1;
+                }
+                Err(craft_jsonrpc::LineError::Io(error)) => return Err(error),
             }
         }
         Ok(answered)
-    }
-
-    fn initialize(&self) -> Value {
-        json!({
-            "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": { "tools": {} },
-            "serverInfo": {
-                "name": "sortlens",
-                "version": VERSION,
-            },
-            "instructions": "Every tool is a Sortlens command id. Call tools/list for the ready \
-                             ones; a tool still listed as planned refuses and names its milestone.",
-        })
     }
 
     /// The tool list, straight from the registry.
@@ -150,38 +236,59 @@ impl Mcp {
                 },
             }));
         }
-        json!({ "tools": tools })
+        Value::Array(tools)
     }
 
-    /// Run one tool: `{ name, arguments }`.
-    fn call(&mut self, params: &Value) -> Result<Value, (i64, String)> {
-        let name = params
-            .get("name")
-            .and_then(Value::as_str)
-            .ok_or((INVALID_PARAMS, "a tool name is required".to_string()))?;
-        let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
-        match self.engine.run(name, &args) {
-            Ok(value) => Ok(json!({
-                "content": [{ "type": "text", "text": value.to_string() }],
-                "isError": false,
-            })),
-            // A refused command is a tool result, not a protocol error: the agent should read the
-            // reason ("arrives in M8", "read-only library") and decide what to do next.
-            Err(error) => Ok(json!({
-                "content": [{ "type": "text", "text": error.to_string() }],
-                "isError": true,
-            })),
+    /// Run one tool. A refused command is a tool *result*, not a protocol error: the agent should read the
+    /// reason ("arrives in M8", "read-only library") and decide what to do next rather than retry a frame.
+    fn invoke(&mut self, name: &str, arguments: &Value) -> Value {
+        match self.engine.run(name, arguments) {
+            Ok(value) => craft_mcp::text_tool_result(&value.to_string(), false),
+            Err(error) => craft_mcp::text_tool_result(&error.to_string(), true),
         }
     }
 }
 
-fn error_response(id: Value, code: i64, message: &str) -> String {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": { "code": code, "message": message },
-    })
-    .to_string()
+/// The bounds this server serves under.
+///
+/// Eight megabytes is more than any tool call and far less than any library: the limit exists so that a client
+/// cannot turn one line into an allocation, not to be generous.
+pub const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
+
+/// How many requests one batch may hold. MCP clients send one at a time; a batch is accepted because JSON-RPC
+/// allows it, and bounded because a batch is also a way to ask for a thousand things at once.
+pub const MAX_BATCH_ITEMS: usize = 64;
+
+/// The bounds above, as `craft-jsonrpc` wants them.
+pub fn limits() -> Limits {
+    Limits {
+        max_message_bytes: MAX_MESSAGE_BYTES,
+        max_batch_items: MAX_BATCH_ITEMS,
+        // MCP clients use string or number ids, and a null id is discouraged but not fatal: refusing it would
+        // reject a client that works with every other server for no benefit to anyone.
+        integer_ids_only: false,
+        allow_null_ids: true,
+    }
+}
+
+/// Read and throw away the rest of an over-long line, without holding it in memory.
+fn discard_line<R: BufRead>(input: &mut R) -> std::io::Result<()> {
+    loop {
+        let bytes = input.fill_buf()?;
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        match bytes.iter().position(|&byte| byte == b'\n') {
+            Some(newline) => {
+                input.consume(newline + 1);
+                return Ok(());
+            }
+            None => {
+                let len = bytes.len();
+                input.consume(len);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -230,6 +337,46 @@ mod tests {
         assert_eq!(response["result"]["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(response["result"]["serverInfo"]["name"], "sortlens");
         assert!(response["result"]["capabilities"]["tools"].is_object());
+    }
+
+    /// Negotiation: a client asking for a version this server knows is answered with its own version, and one
+    /// asking for a version nobody has heard of gets the newest this server speaks.
+    #[test]
+    fn the_protocol_version_is_negotiated_not_announced() {
+        let (mut server, _temp) = server("negotiate");
+        let older = call(&mut server, "initialize", json!({ "protocolVersion": "2024-11-05" }));
+        assert_eq!(older["result"]["protocolVersion"], "2024-11-05");
+        let unknown = call(&mut server, "initialize", json!({ "protocolVersion": "1999-01-01" }));
+        assert_eq!(unknown["result"]["protocolVersion"], PROTOCOL_VERSION);
+        assert_eq!(unknown["result"]["serverInfo"]["name"], "sortlens");
+        assert!(
+            unknown["result"]["instructions"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("command id"),
+            "the session carries the instructions that say what a tool is"
+        );
+    }
+
+    /// The initialized notification completes the handshake, and sending it is not the same as being answered.
+    #[test]
+    fn the_initialized_notification_completes_the_handshake() {
+        let (mut server, _temp) = server("handshake");
+        assert!(!server.is_initialized());
+        let line = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }).to_string();
+        assert!(server.handle(&line).is_none(), "a notification is never answered");
+        assert!(server.is_initialized(), "but the session noticed it");
+    }
+
+    /// Tool arguments must be an object: a tool call with a string where the arguments go is a bad request, not
+    /// an empty call, and saying so is more useful than running the command with nothing.
+    #[test]
+    fn tool_arguments_must_be_an_object() {
+        let (mut server, _temp) = server("arguments");
+        let answer = call(&mut server, "tools/call", json!({ "name": "library.stats", "arguments": "all" }));
+        assert_eq!(answer["error"]["code"], INVALID_PARAMS);
+        let fine = call(&mut server, "tools/call", json!({ "name": "library.stats", "arguments": {} }));
+        assert!(fine["result"]["content"][0]["text"].is_string());
     }
 
     #[test]
@@ -456,14 +603,84 @@ mod tests {
         let line = json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }).to_string();
         assert!(server.handle(&line).is_none(), "a notification must not be answered");
 
+        // Not JSON is a *parse* error, which JSON-RPC numbers -32700; the old hand-rolled server called it
+        // an invalid request, and a client cannot fix a malformed frame it is told is a bad request.
         let broken = server.handle("{not json").expect("a response");
         let parsed: Value = serde_json::from_str(&broken).expect("valid JSON");
-        assert_eq!(parsed["error"]["code"], INVALID_REQUEST);
+        assert_eq!(parsed["error"]["code"], PARSE_ERROR);
         assert_eq!(parsed["id"], Value::Null);
 
         let missing = call(&mut server, "no/such/method", json!({}));
         assert_eq!(missing["error"]["code"], METHOD_NOT_FOUND);
         assert_eq!(call(&mut server, "ping", json!({}))["result"], json!({}));
+    }
+
+    /// An envelope without `jsonrpc: "2.0"` is refused: the version is not decoration, and a server that
+    /// accepts anything teaches clients to send anything.
+    #[test]
+    fn an_envelope_without_the_version_is_refused() {
+        let (mut server, _temp) = server("envelope");
+        let unversioned = json!({ "id": 1, "method": "ping" }).to_string();
+        let answer = server.handle(&unversioned).expect("a response");
+        let parsed: Value = serde_json::from_str(&answer).expect("valid JSON");
+        assert_eq!(parsed["error"]["code"], INVALID_REQUEST);
+        assert_eq!(
+            parsed["id"],
+            Value::Null,
+            "there is no id to echo: the frame was refused before dispatch"
+        );
+    }
+
+    /// A batch is answered as a batch, and a batch over the item bound is refused whole.
+    #[test]
+    fn a_batch_is_answered_as_a_batch_within_the_bound() {
+        let (mut server, _temp) = server("batch");
+        let batch = json!([
+            { "jsonrpc": "2.0", "id": 1, "method": "ping" },
+            { "jsonrpc": "2.0", "method": "notifications/initialized" },
+            { "jsonrpc": "2.0", "id": 2, "method": "tools/list" },
+        ])
+        .to_string();
+        let answer = server.handle(&batch).expect("a response");
+        let parsed: Value = serde_json::from_str(&answer).expect("valid JSON");
+        let replies = parsed.as_array().expect("a batch reply");
+        assert_eq!(replies.len(), 2, "the notification is not answered");
+        assert_eq!(replies[0]["id"], 1);
+        assert_eq!(replies[1]["id"], 2);
+
+        // Three requests against a bound of two: refused before any of them runs.
+        let two = Limits {
+            max_batch_items: 2,
+            ..limits()
+        };
+        let answer = server.handle_with(&batch, two).expect("a response");
+        let parsed: Value = serde_json::from_str(&answer).expect("valid JSON");
+        assert_eq!(parsed["error"]["code"], INVALID_REQUEST);
+    }
+
+    /// The message bound protects the allocation: an oversized line is refused before it is parsed, and
+    /// serving continues after it rather than dying on one bad frame.
+    #[test]
+    fn an_oversized_message_is_refused_and_the_session_survives() {
+        let (mut server, _temp) = server("oversize");
+        let small = Limits {
+            max_message_bytes: 64,
+            ..limits()
+        };
+        let oversized = json!({ "jsonrpc": "2.0", "id": 9, "method": "ping", "params": { "pad": "x".repeat(200) } });
+        let input = format!("{oversized}\n{}\n", json!({ "jsonrpc": "2.0", "id": 10, "method": "ping" }));
+        let mut output = Vec::new();
+        let answered = server.serve_with(input.as_bytes(), &mut output, small).expect("serve");
+        assert_eq!(answered, 2, "the bad frame is answered and so is the good one");
+        let text = String::from_utf8(output).expect("utf8");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 2);
+        let first: Value = serde_json::from_str(lines[0]).expect("valid JSON");
+        assert_eq!(first["error"]["code"], PARSE_ERROR);
+        assert!(first["error"]["message"].as_str().unwrap_or_default().contains("64 bytes"));
+        let second: Value = serde_json::from_str(lines[1]).expect("valid JSON");
+        assert_eq!(second["id"], 10, "the session kept going");
+        assert_eq!(second["result"], json!({}));
     }
 
     #[test]

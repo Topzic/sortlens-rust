@@ -12,6 +12,9 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 serde_json = { workspace = true }
+# The suite's JSON-RPC envelope handling, so framing, validity and batch rules are not re-invented here.
+craft-jsonrpc = { workspace = true }
+craft-mcp = { workspace = true }
 
 [lints]
 workspace = true

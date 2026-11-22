@@ -1719,8 +1719,36 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 473 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: where the popover lands against a
   real top bar at a real window size, and whether "just now" is the right threshold rather than "now".
 
+## 2026-11-21 — M2 row: the MCP server stops hand-rolling its protocol
+
+- **Envelopes are `craft-jsonrpc`.** It validates the `jsonrpc` version and the id, tells requests from
+  notifications, answers a batch as a batch, and refuses a message over a byte bound **before** parsing it —
+  the bound protects the allocation, so it cannot be a check on the parsed result. Its `read_line` replaced our
+  `input.lines()`, so an eight-megabyte line is refused without being allocated, the rest of that frame is
+  discarded by a loop that never holds it, and the session survives rather than dying on one bad frame.
+- **The session is `craft-mcp`.** Version negotiation (newest `2025-03-26`, and `2024-11-05` echoed back to a
+  client that asks for it, which is what "supported versions" has to mean), the `initialize`/`initialized`
+  handshake, the tools envelope and the text result. Our hand-written `initialize` — with a hard-coded
+  `2024-11-05` and a session state that was really just "has anyone said hello" — is gone. Tool *routing* stays
+  here, straight from the command registry.
+- **Two behaviours changed, deliberately, because the protocol says so**: input that is not JSON is `-32700
+  Parse error` rather than `-32600`, and `tools/call` with non-object arguments is `-32602` rather than an empty
+  call. Both are named in the test that asserts them and in the ROADMAP row, not quietly changed.
+- **`craft-ipc` is documented as absent, not ticked.** There is no second process: the window owns the engine
+  and the write lock, and the CLI opens the library itself, which is what makes that lock meaningful. The
+  ROADMAP row now says what would justify a socket (a running-window consumer: a menu-bar helper, a browser
+  extension, two windows on one library) and what it would need first (a server mode, authentication on a
+  multi-user machine, and an answer for "the app is not running").
+- Tests: negotiation (an older version echoed, an unknown one answered with the newest), the handshake
+  (`is_initialized` after the notification, and no reply to it), a batch answered as a batch with the
+  notification skipped and an over-bound batch refused whole, an oversized frame refused with a message that
+  names the bound while the *next* frame is answered, and non-object arguments refused. 16 tests in the crate.
+- 479 tests; ci (exit 0), wasm, deny, snapshot, attribution green. **Not verified by hand**: against a real MCP
+  client — the handshake is exercised in-process, but no client has ever connected to this server.
+
 ## Next
 
-Continue in milestone order. Next: `craft-ipc` — either wire it or write its absence down honestly with an
-unblocker; then the decoder rows (HEIC, video, blur-up), which each need a decoder decision this repository has
-not made.
+Continue in milestone order. Next: the decoder rows — HEIC (SL-M0x), video poster/duration, blur-up tier
+transitions. Each needs a decision this repository has not made, so the honest outcome may be an
+absent-by-design table with the unblocker for each; check `craft-heif`/`craft-video` in the pinned suite first,
+because the crates are already declared.

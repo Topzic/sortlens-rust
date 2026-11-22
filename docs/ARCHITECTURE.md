@@ -663,6 +663,17 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 `sortlens-mcp` speaks the model-context protocol over newline-delimited JSON on stdio: one message
 per line, `initialize`, `tools/list`, `tools/call`. Run it with `sortlens-cli --library DIR mcp`.
 
+- **The protocol plumbing is the suite's.** `craft-jsonrpc` validates envelopes, separates requests from
+  notifications, answers batches and enforces a per-message byte bound *before* parsing, so an eight-megabyte
+  line is refused without being allocated. `craft-mcp` owns the session: version negotiation, the
+  `initialize`/`initialized` handshake, the tools envelope and the text result. This crate owns the transport
+  and the method table — the division both crates state for themselves — which is why a protocol detail is
+  fixed once in the suite rather than twice here.
+- **`craft-ipc` is deliberately unused.** There is no second process: the window owns the engine and the
+  library's write lock, and the CLI opens the library itself. A socket needs a server mode, authentication on a
+  multi-user machine and an answer for "the app is not running"; `docs/ROADMAP.md` names the opener that would
+  justify it.
+
 - **A tool is a command id.** `tools/list` is the command registry filtered to `Ready`; `tools/call`
   is `Engine::run`. There is no second list of agent actions, so an agent can reach exactly what the
   app can reach — and a command still marked `Planned` refuses with the milestone that will build it.
