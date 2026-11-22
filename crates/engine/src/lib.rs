@@ -391,7 +391,7 @@ impl Engine {
 
     /// The mark on one folder, or the default when it has none.
     pub fn folder_mark(&self, key: &str) -> sortlens_catalog::folder::FolderMark {
-        self.folder_marks().get(key).copied().unwrap_or_default()
+        self.folder_marks().get(key).cloned().unwrap_or_default()
     }
 
     /// Set a folder's pin and colour as one change, keyed by `sortlens_core::pathkey::PathKey`.
@@ -2640,12 +2640,40 @@ impl Engine {
                     ),
                     Some(_) => return Err(Error::Invalid("colour must be a name or null".into())),
                 };
-                let mark = sortlens_catalog::folder::FolderMark { favourite, colour };
+                let sort = match args.get("sort") {
+                    None => current.sort,
+                    Some(Value::Null) => None,
+                    Some(Value::String(id)) if id == "none" => None,
+                    Some(Value::String(id)) => {
+                        if !Sort::ALL.into_iter().any(|sort| sort.id() == id) {
+                            return Err(Error::Invalid(format!("{id} is not a sort order")));
+                        }
+                        Some(id.clone())
+                    }
+                    Some(_) => return Err(Error::Invalid("sort must be an id or null".into())),
+                };
+                let search = match args.get("search") {
+                    None => current.search,
+                    Some(Value::Null) => None,
+                    Some(Value::String(text)) => {
+                        let text = text.trim();
+                        if text.is_empty() { None } else { Some(text.to_string()) }
+                    }
+                    Some(_) => return Err(Error::Invalid("search must be text or null".into())),
+                };
+                let mark = sortlens_catalog::folder::FolderMark {
+                    favourite,
+                    colour,
+                    sort,
+                    search,
+                };
                 Ok(json!({
-                    "changed": self.set_folder_mark(path, mark)?,
+                    "changed": self.set_folder_mark(path, mark.clone())?,
                     "key": sortlens_catalog::folder::key_of(path),
                     "favourite": mark.favourite,
                     "colour": mark.colour.map(|label| label.id()),
+                    "sort": mark.sort,
+                    "search": mark.search,
                 }))
             }
             "folder.marks" => {
@@ -2657,6 +2685,8 @@ impl Engine {
                             "key": key,
                             "favourite": mark.favourite,
                             "colour": mark.colour.map(|label| label.id()),
+                            "sort": mark.sort,
+                            "search": mark.search,
                         })
                     })
                     .collect();
@@ -3647,11 +3677,23 @@ mod tests {
         let mark = sortlens_catalog::folder::FolderMark {
             favourite: true,
             colour: Some(ColorLabel::Blue),
+            sort: Some("largest".into()),
+            search: Some("beach".into()),
         };
-        assert!(engine.set_folder_mark(&root, mark).expect("mark"));
+        assert!(engine.set_folder_mark(&root, mark.clone()).expect("mark"));
         assert_eq!(
             engine.folder_mark(&sortlens_catalog::folder::key_of(&root)).colour,
             Some(ColorLabel::Blue)
+        );
+
+        assert_eq!(
+            engine.folder_mark(&sortlens_catalog::folder::key_of(&root)).sort.as_deref(),
+            Some("largest"),
+            "a remembered sort is part of the mark"
+        );
+        assert_eq!(
+            engine.folder_mark(&sortlens_catalog::folder::key_of(&root)).search.as_deref(),
+            Some("beach")
         );
 
         // The same folder typed with a trailing separator is the same mark, not a second one.
@@ -3678,7 +3720,7 @@ mod tests {
                     "",
                     sortlens_catalog::folder::FolderMark {
                         favourite: true,
-                        colour: None
+                        ..sortlens_catalog::folder::FolderMark::default()
                     }
                 )
                 .is_err()

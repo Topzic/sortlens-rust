@@ -132,6 +132,10 @@ Folder rows carry the same marks collections do: a star when pinned and a colour
 set from the row's context menu. The mark belongs to the folder's *path identity*, so it survives a rescan and
 a drive that comes back with the same name, and it is one undo step.
 
+A folder also remembers how you were browsing it: opening it restores its sort (a folder with no remembered
+sort follows the library's) and puts its last search back in the search box, where you can see it and clear it
+rather than being filtered quietly.
+
 ### 4.4 Left panel footer
 
 Storage summary for the selected scope (photo count, on-disk size, cache size), app version,

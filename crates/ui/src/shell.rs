@@ -1250,6 +1250,17 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
         });
 }
 
+/// The sort and search a folder should be opened with.
+///
+/// A folder returns to how it was being browsed: its own sort if it has one, otherwise the library's — a folder
+/// with nothing remembered must not snap to Natural and undo the sort you had chosen a moment ago. The remembered
+/// search comes back into the box rather than filtering in the background, so it is visible and one click from
+/// being cleared.
+fn folder_scope(mark: &sortlens_engine::FolderMark, library_sort: Sort) -> (Sort, String) {
+    let sort = mark.sort.as_deref().map(Sort::parse).unwrap_or(library_sort);
+    (sort, mark.search.clone().unwrap_or_default())
+}
+
 /// The folder list: one row per root, with its volume state, pin and colour.
 ///
 /// Its own function because the sidebar had grown past the point where one closure could hold every section and
@@ -1277,7 +1288,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
             _ => (format_count(count as u64), false),
         };
         let key = sortlens_engine::folder_key(&root);
-        let mark = marks.get(&key).copied().unwrap_or_default();
+        let mark = marks.get(&key).cloned().unwrap_or_default();
         let name = format!("{}{}", if mark.favourite { "★ " } else { "" }, folder_name(&root));
         let response = nav_row(ui, t, &name, &count_text, selected);
         if let Some(colour) = mark.colour {
@@ -1298,6 +1309,10 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
             }
             state.root = Some(root.clone());
             state.all_photos_selected = false;
+            // A folder returns to how it was being browsed — see `folder_scope` for the rule.
+            let (sort, search) = folder_scope(&mark, state.library_sort);
+            state.sort = sort;
+            state.search = search;
         }
         response.context_menu(|ui| {
             let pin_label = if mark.favourite {
@@ -1310,7 +1325,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
                     root.clone(),
                     sortlens_engine::FolderMark {
                         favourite: !mark.favourite,
-                        colour: mark.colour,
+                        ..mark.clone()
                     },
                 ));
                 ui.close();
@@ -1326,13 +1341,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
                     }
                 }
                 if let Some(colour) = chosen {
-                    remark = Some((
-                        root.clone(),
-                        sortlens_engine::FolderMark {
-                            favourite: mark.favourite,
-                            colour,
-                        },
-                    ));
+                    remark = Some((root.clone(), sortlens_engine::FolderMark { colour, ..mark.clone() }));
                     ui.close();
                 }
             });
@@ -1347,7 +1356,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         });
     }
     if let Some((path, mark)) = remark {
-        match engine.set_folder_mark(&path, mark) {
+        match engine.set_folder_mark(&path, mark.clone()) {
             Ok(_) => state.notice(match (mark.favourite, mark.colour) {
                 (true, Some(colour)) => format!("Pinned and {} ", colour.label().to_lowercase()),
                 (true, None) => "Pinned to the top".to_string(),
@@ -1737,7 +1746,19 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                                     state.notice_problem(error.to_string());
                                 }
                             }
-                            None => state.library_sort = chosen,
+                            // A folder is a scope too, so its sort belongs to it: switching away and back
+                            // should return you to how you were looking at it. With no scope, the sort is the
+                            // library's own preference and is kept in memory for this session.
+                            None => match state.root.clone() {
+                                Some(root) => {
+                                    let mut mark = engine.folder_mark(&sortlens_engine::folder_key(&root));
+                                    mark.sort = Some(chosen.id().to_string());
+                                    if let Err(error) = engine.set_folder_mark(&root, mark) {
+                                        state.notice_problem(error.to_string());
+                                    }
+                                }
+                                None => state.library_sort = chosen,
+                            },
                         }
                     }
                 });
@@ -4304,8 +4325,26 @@ fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::Insi
     }
 }
 
-/// Store the open collection's current search, so reopening it resumes there.
+/// Store the current search against whatever scope is open, so reopening it resumes there.
+///
+/// A collection and a folder are both scopes, and the rule is the same for both: the search is committed when the
+/// box is left or Enter is pressed, the text comes back into the box when the scope is reopened, and nothing is
+/// filtering in the background that you cannot see.
 fn remember_search(state: &mut UiState, engine: &mut Engine) {
+    if state.collection_filter.is_none()
+        && let Some(root) = state.root.clone()
+    {
+        let mut mark = engine.folder_mark(&sortlens_engine::folder_key(&root));
+        let wanted = Some(state.search.trim().to_string()).filter(|text| !text.is_empty());
+        if mark.search == wanted {
+            return;
+        }
+        mark.search = wanted;
+        if let Err(error) = engine.set_folder_mark(&root, mark) {
+            state.notice_problem(error.to_string());
+        }
+        return;
+    }
     let Some(id) = state.collection_filter else {
         return;
     };
@@ -6503,14 +6542,37 @@ mod tests {
         }
     }
 
-    /// A folder row shows its pin and colour, and the mark survives into the painted name.
+    /// Opening a folder returns to how it was being browsed, and an unmarked folder follows the library.
+    #[test]
+    fn opening_a_folder_restores_its_sort_and_search() {
+        let marked = sortlens_engine::FolderMark {
+            sort: Some("largest".into()),
+            search: Some("beach".into()),
+            ..sortlens_engine::FolderMark::default()
+        };
+        assert_eq!(folder_scope(&marked, Sort::Rating), (Sort::Largest, "beach".to_string()));
+
+        // Nothing remembered: the folder follows the library's sort instead of snapping back to Natural, and the
+        // box is empty rather than still holding the previous folder's question.
+        let unmarked = sortlens_engine::FolderMark::default();
+        assert_eq!(folder_scope(&unmarked, Sort::Rating), (Sort::Rating, String::new()));
+
+        // A remembered sort with no search: the sort is the folder's, the box is clear.
+        let sort_only = sortlens_engine::FolderMark {
+            sort: Some("name".into()),
+            ..sortlens_engine::FolderMark::default()
+        };
+        assert_eq!(folder_scope(&sort_only, Sort::Newest), (Sort::Name, String::new()));
+    }
+
+    /// The folder section paints, and a marked row carries its pin and colour into what it draws.
     #[test]
     fn a_marked_folder_paints_its_pin_and_colour() {
-        let dir = std::env::temp_dir().join(format!("sortlens-ui-foldermark-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-folderscope-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let root = dir.join("photos");
         std::fs::create_dir_all(&root).expect("root");
-        let fixture = sortlens_testkit::Fixture::new("ui-foldermark");
+        let fixture = sortlens_testkit::Fixture::new("ui-folderscope");
         std::fs::copy(fixture.jpeg("IMG_0001.jpg", [40, 90, 150], 48, 32), root.join("IMG_0001.jpg")).expect("copy");
         let mut engine = Engine::open(&dir).expect("open");
         engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
@@ -6527,6 +6589,7 @@ mod tests {
                 sortlens_engine::FolderMark {
                     favourite: true,
                     colour: Some(sortlens_core::ColorLabel::Green),
+                    ..sortlens_engine::FolderMark::default()
                 },
             )
             .expect("mark");
@@ -6543,10 +6606,9 @@ mod tests {
         output.textures_delta.clear();
         assert!(!output.shapes.is_empty(), "the folder row painted");
         assert!(actions.is_empty(), "painting asks for nothing");
-        // The mark is what the row is drawn from, so reading it back is the assertion that the row had it.
         let mark = engine.folder_mark(&sortlens_engine::folder_key(&root_text));
         assert!(mark.favourite, "the pin is on the row's data");
-        assert_eq!(mark.colour, Some(sortlens_core::ColorLabel::Green), "and so is the colour");
+        assert_eq!(mark.colour, Some(sortlens_core::ColorLabel::Green));
         // Clearing it through the same path leaves nothing behind.
         engine
             .set_folder_mark(&root_text, sortlens_engine::FolderMark::default())

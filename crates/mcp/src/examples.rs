@@ -154,8 +154,8 @@ pub const EXAMPLES: &[Example] = &[
     },
     Example {
         command: "folder.mark",
-        args: r#"{"path": "/photos/2024", "favourite": true, "colour": "blue"}"#,
-        note: "the key is a path identity: omitted fields keep their current value, and colour null clears it.",
+        args: r#"{"path": "/photos/2024", "favourite": true, "colour": "blue", "sort": "largest"}"#,
+        note: "the key is a path identity; omitted fields keep their value, and colour/sort/search null clears them.",
     },
     Example {
         command: "folder.marks",

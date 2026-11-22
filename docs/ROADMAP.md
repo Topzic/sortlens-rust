@@ -436,9 +436,19 @@ same photo; apply 148 rejects to trash; undo restores all 148.
   - Tested: the identity rules (above), the mark round-tripping through the log and undo as one step, an empty
     path refused, `library.folder_marks` empty for a fresh folder, and a headless sidebar paint with a marked
     folder.
-- [ ] Folders in the sidebar: per-folder remembered sort and search — **part 3**, needs the same mark record to
-  carry two more fields and a decision about whether a folder's sort follows the folder or the view (SL-A05..A10
-  part 3)
+- [x] Folders in the sidebar: remembered sort and search (SL-A05..A10 part 3)
+  - The mark gained `sort` and `search`, so a folder carries how it was being browsed. **The decision the row
+    asked for**: a sort belongs to the folder when a folder is the scope, and to the library otherwise — a
+    folder with nothing remembered follows the library's sort rather than snapping back to Natural, because
+    losing the sort you chose a moment ago is the more annoying failure. Search is remembered on the same rule
+    as collections (committed when the box is left or Enter is pressed, never per keystroke) and comes back into
+    the search box rather than filtering behind your back, so it is visible and one click from being cleared.
+  - `folder_scope(mark, library_sort) -> (Sort, String)` is the rule as a pure function, and the row's click
+    runs exactly it. `folder.mark` gained `sort` and `search` (omitted keeps, null clears), and `folder.marks`
+    reports both.
+  - Tested: the rule (marked/unmarked/sort-only), the mark round-tripping with all four fields, a mark written by
+    an older build with only the first two fields still parsing, and the mark surviving one undo. **Not verified
+    by hand**: whether restoring the search into the box on folder open feels helpful or intrusive.
 - [x] Collections: create/rename/delete, add/remove, sidebar, filter (A,B) — SL-G01..G03
 - [x] Collection favourites, colours, per-collection search and sort (B) — SL-G04
 - [x] Batch move with sidecars travelling, receipts and undo (A) — SL-G07

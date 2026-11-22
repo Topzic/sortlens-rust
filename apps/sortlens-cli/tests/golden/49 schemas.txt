@@ -100,7 +100,7 @@ exit 0
   {
     "command": "folder.mark",
     "kind": "write",
-    "note": "`changed` is whether the mark moved; `key` is the path identity it was stored under",
+    "note": "`changed` is whether the mark moved; `key` is the path identity it was stored under; omitted fields keep their value",
     "verb": "mark"
   },
   {

@@ -622,13 +622,13 @@ impl Catalog {
         if key.is_empty() {
             return Err(Error::Invalid("a folder mark needs a path".into()));
         }
-        let current = self.folders.get(key).copied().unwrap_or_default();
+        let current = self.folders.get(key).cloned().unwrap_or_default();
         if current == mark {
             return Ok(false);
         }
         self.commit(Op::SetFolderMark {
             key: key.to_string(),
-            mark,
+            mark: mark.clone(),
         })?;
         Ok(true)
     }
@@ -1038,7 +1038,7 @@ impl Catalog {
                 collection.sort = sort.clone();
                 Ok(Op::SetCollectionSort { id: *id, sort: previous })
             }
-            Op::SetFolderMark { key, mark } => self.apply_folder_mark(key, *mark),
+            Op::SetFolderMark { key, mark } => self.apply_folder_mark(key, mark.clone()),
             Op::SetPack { name, on } => {
                 let previous = self.packs.contains(name);
                 if *on {

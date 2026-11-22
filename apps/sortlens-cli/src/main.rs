@@ -476,7 +476,7 @@ const SCHEMAS: &[Schema] = &[
         verb: "mark",
         command: "folder.mark",
         kind: Kind::Write,
-        note: "`changed` is whether the mark moved; `key` is the path identity it was stored under",
+        note: "`changed` is whether the mark moved; `key` is the path identity it was stored under; omitted fields keep their value",
     },
     Schema {
         verb: "marks",
@@ -664,6 +664,12 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
                 } else {
                     serde_json::Value::String(colour)
                 };
+            }
+            if let Some(sort) = text_value(rest, "--sort") {
+                args["sort"] = serde_json::Value::String(sort);
+            }
+            if let Some(search) = text_value(rest, "--search") {
+                args["search"] = serde_json::Value::String(search);
             }
             args
         }

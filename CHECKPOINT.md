@@ -1981,9 +1981,29 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   colour dot read together on a real sidebar row, and whether resolving case per component is fast enough on a
   network volume — it is one `read_dir` per component, per mark change, not per frame.
 
+## 2026-11-22 (seventh) — folders part 3: a folder remembers how you were browsing it
+
+- The folder mark gained `sort` and `search`, which finishes the M5 folders row. **The decision the last run
+  deferred**: a sort belongs to the folder when a folder is the scope, and to the library otherwise. A folder
+  with nothing remembered follows the library's sort rather than snapping back to Natural — losing the sort you
+  chose a moment ago is the more annoying failure, and Natural is not a sensible default for a library of RAWs.
+- Search follows the collections rule exactly (committed on lost focus or Enter, never per keystroke — that
+  comment was already there) and comes back into the search box on open rather than filtering behind your back.
+- `folder_scope(mark, library_sort) -> (Sort, String)` is the rule as a pure function and the row's click runs
+  exactly it, so the test asserts the code path rather than restating the values. Its first version *did*
+  restate them; the extraction is what made the test worth having.
+- `FolderMark` is no longer `Copy` (two `String`s), which the compiler then chased through the catalog, engine
+  and UI: every `.copied()` became `.cloned()` and every partial update became `..mark.clone()`. Worth naming
+  because it is the kind of change that silently loses a field if one of the struct literals had been rewritten
+  by hand — `..mark.clone()` is what makes adding the fifth field safe next time.
+- `folder.mark` gained `sort`/`search` (omitted keeps, null clears, unknown sort id refused), `folder.marks`
+  reports both, and the CLI's `mark` verb passes `--sort`/`--search` through.
+- 509 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: whether restoring the
+  search into the box on folder open reads as helpful or intrusive — it is the kind of judgement only use makes.
+
 ## Next
 
-Folders part 3 — a per-folder remembered sort and search — is now a small extension of the mark record and is
-the honest next step; it needs a decision on whether a folder's sort follows the folder or the view. After that
-`sortlens-quality` sharpness + the blur scan (the biggest remaining M6 item). Video posters, the map, AI
-inference, i18n and the keymap editor stay named absent with their blockers.
+M5 is closed as far as folders go. The remaining big M6 item is `sortlens-quality`: a sharpness score with
+versioning, then the blur scan job, threshold review and batch select. That is a new crate plus a scan pass and
+should be its own run or two. Video posters, the map, AI inference, i18n and the keymap editor stay named absent
+with their blockers.
