@@ -228,8 +228,10 @@ only signal.
 - Current photo centred at fit; zoom levels 1–4 map to 100/200/300/400 % (drag to pan).
 - Decision overlay is drawn *inside the photo bounds* (vendor bug fixed by construction: the
   overlay rect is the image rect, not the canvas rect), then the photo slides out.
-- Animation: label fades/scales first (~90 ms), then translate (~140 ms). Reduced motion skips
-  the translate and cuts the fade to 0.
+- Animation: the label fades in first (~90 ms), then the photograph translates out (~140 ms), and the
+  overlay is painted inside the image bounds rather than the canvas. The two phases are separate on purpose:
+  the label is the confirmation and must land before anything moves, or the eye follows the photograph and
+  never reads what was decided.
 - Action bar: icon buttons with text labels (Reject/Skip/Undo/Keep), stars, zoom, view toggles,
   Apply menu. All are real buttons, not painted text, so they are focusable and named.
 - Session summary line under the bar, updating live.
@@ -399,8 +401,12 @@ re-checks its own contrast pairs after applying.
   selected", "Import finished: 412 photos".
 - Errors are announced and also shown in text; a toast alone is insufficient.
 - Colour independence: flag icons, label names in tooltips/accessible text, star counts as text.
-- Reduced motion: overlays fade only; no slide, no zoom animation; respects OS setting + an
-  in-app toggle.
+- Reduced motion: the cull overlay draws its label at full strength and skips the slide entirely, so the
+  stage has already cut to the next photo. The toggle is ours (`appearance.motion`, persisted, and a chip in
+  the top bar because it is the setting you turn on while the animation is bothering you). The operating
+  system's own "reduce motion" preference is **not** read: egui exposes no cross-platform signal for it, and
+  guessing from a platform API on one platform is worse than a setting that works everywhere. That is named in
+  M10's deliberately-absent table with its unblocker.
 - Zoom: UI scale 0.8–2.0, and the layout reflows rather than clipping (two-row filter bar,
   collapsed bottom bar, single-column inspector).
 - Contrast: enforced by theme tests; the high-contrast preset adds a pure black/white/yellow

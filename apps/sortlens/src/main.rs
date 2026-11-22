@@ -131,6 +131,7 @@ impl App {
         let mut ui = UiState::new(kind, title_inset);
         ui.density = Density::from_id(&store.get().appearance.density);
         ui.grid_mode = sortlens_ui::GridMode::from_id(&store.get().appearance.grid);
+        ui.motion = sortlens_ui::Motion::from_id(&store.get().appearance.motion);
         ui.sort = saved_sort;
         ui.library_sort = saved_sort;
         if report.has_problems() {
@@ -205,6 +206,9 @@ impl App {
             }
             Action::SetGrid(mode) => {
                 self.store.update(|prefs| prefs.appearance.grid = mode.id().to_owned());
+            }
+            Action::SetMotion(motion) => {
+                self.store.update(|prefs| prefs.appearance.motion = motion.id().to_owned());
             }
             Action::SetTheme(kind) => {
                 if kind != self.applied_theme {

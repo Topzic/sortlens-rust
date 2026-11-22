@@ -138,6 +138,59 @@ impl Density {
     }
 }
 
+/// How much movement the cull overlay is allowed to make.
+///
+/// Two values rather than a slider, because the question a person is actually answering is "is this helping me
+/// or making me ill", and a person who needs less motion needs *none* of it, not 30% of it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Motion {
+    /// Label fades in, then the photo slides away (~230 ms in total).
+    #[default]
+    Full,
+    /// No slide, no fade: the label appears at once and the next photo is already there. For vestibular
+    /// sensitivity, migraine, and anyone who simply does not want the animation.
+    Reduced,
+}
+
+impl Motion {
+    /// Every setting, in menu order.
+    pub const ALL: [Self; 2] = [Self::Full, Self::Reduced];
+
+    /// Stable id used in settings.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Reduced => "reduced",
+        }
+    }
+
+    /// Label for the chip and Settings.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Full => "Motion",
+            Self::Reduced => "Reduced motion",
+        }
+    }
+
+    /// Parse a persisted id, falling back to the default rather than failing.
+    pub fn from_id(id: &str) -> Self {
+        Self::ALL.into_iter().find(|motion| motion.id() == id).unwrap_or_default()
+    }
+
+    /// The other setting — what the chip does when clicked.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Full => Self::Reduced,
+            Self::Reduced => Self::Full,
+        }
+    }
+
+    /// Whether the overlay animates at all.
+    pub const fn animates(self) -> bool {
+        matches!(self, Self::Full)
+    }
+}
+
 impl ThemeKind {
     /// Every preset, in menu order.
     pub const ALL: [Self; 4] = [Self::Charcoal, Self::Midnight, Self::Silver, Self::Paper];

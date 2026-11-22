@@ -28,6 +28,9 @@ pub struct Appearance {
     pub density: String,
     /// Grid layout id: `square` or `justified`. Unknown reads as the default, same rule as density.
     pub grid: String,
+    /// Motion id: `full` or `reduced`. Reduced turns off the cull overlay's slide and fade; unknown reads as
+    /// the default, same rule as the others.
+    pub motion: String,
     /// Interface scale, 1.0 is 100%.
     pub ui_scale: f32,
 }
@@ -38,6 +41,7 @@ impl Default for Appearance {
             theme: "charcoal".into(),
             density: "comfortable".into(),
             grid: "justified".into(),
+            motion: "full".into(),
             ui_scale: 1.0,
         }
     }
@@ -174,6 +178,24 @@ mod tests {
             sortlens_ui::Density::Comfortable,
             "a settings file from a later build must not stop this one opening"
         );
+    }
+
+    /// Reduced motion is a persisted setting like density, and an unknown value falls back to full motion
+    /// rather than to no animation at all — a settings file from a later build must not change behaviour.
+    #[test]
+    fn every_motion_setting_round_trips_and_an_unknown_one_is_full() {
+        for motion in sortlens_ui::Motion::ALL {
+            let mut prefs = Prefs::default();
+            prefs.appearance.motion = motion.id().to_owned();
+            let text = toml::to_string(&prefs).expect("serialise");
+            let read: Prefs = toml::from_str(&text).expect("parse");
+            assert_eq!(sortlens_ui::Motion::from_id(&read.appearance.motion), motion);
+        }
+        let read: Prefs = toml::from_str("[appearance]\nmotion = \"bouncy\"\n").expect("parse");
+        assert_eq!(sortlens_ui::Motion::from_id(&read.appearance.motion), sortlens_ui::Motion::Full);
+        // And a settings file written before this setting existed still opens, with motion at its default.
+        let old: Prefs = toml::from_str("[appearance]\ntheme = \"paper\"\n").expect("parse");
+        assert_eq!(old.appearance.motion, "full");
     }
 
     #[test]

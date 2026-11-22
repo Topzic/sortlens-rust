@@ -1906,8 +1906,32 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   were restored, and the four goldens are unchanged.
 - 495 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: nothing new on screen.
 
+## 2026-11-22 (fourth) — M4 row: the decision overlay, in two phases, with an off switch
+
+- **SL-C04 done**: the cull decision overlay is painted inside the image's own bounds (clipped to the image
+  rect, not the canvas — a label outside the photograph reads as window chrome), and it now has the two phases
+  the design asked for. `overlay_phase(elapsed_ms, motion)` is pure: the label fades in over 90 ms with the
+  photograph still in place, then the photograph slides out over 140 ms while the next one is already behind it.
+- The overlay keeps the **judged** photo's id, because `cull_decide` has already advanced the session — sliding
+  out "the photo that just left" is only possible if you remember it. It clears itself when the slide ends and
+  requests a repaint while running, so it cannot freeze at the phase whatever input happened to cause.
+- `Motion::{Full, Reduced}` is a real persisted setting (`appearance.motion`, unknown value → full), a chip in
+  the top bar next to density and layout (it is the setting you turn on *while* the animation is bothering
+  you), and the phase function honours it: reduced draws the label at once, cuts the slide to zero, and still
+  holds the label for its 90 ms because the confirmation is information rather than decoration.
+- Docs corrected while here: `docs/UX.md` claimed reduced motion "respects OS setting + an in-app toggle" —
+  only the toggle is true, and the OS half is now named in M10's deliberately-absent table with its unblocker
+  (egui exposes no cross-platform reduce-motion signal). The same table's reduced-motion cell was rewritten
+  rather than left saying the toggle does not exist.
+- Tests: the phase table over every case (monotonic, both settings, overshoot-free), the settings round-trip
+  with an unknown value and a settings file predating the key, and a headless cull view where a decision paints
+  an overlay over the stage and then drops it. 498 tests; ci (exit 0), wasm, deny, snapshot, docs green.
+- **Not verified by hand**: the timings. 90 ms and 140 ms are reasoned from "one glance" and "reads as
+  movement", not measured against an eye, and the fade-plus-slide on a real display is exactly the kind of
+  thing this harness cannot judge.
+
 ## Next
 
-M3–M7 pass. Next candidates: collections' range-select/select-all (B), the remaining M4 detail-view rows, and
-`Offline/missing` is now closed. Video posters, the map, AI inference, i18n and the keymap editor stay named
-absent with their blockers.
+M4 is nearly closed; M5's collections row (favourites/colours/search/sort for folders, range-select and
+select-all in the collection list) is the biggest remaining M3–M7 item and should be its own run. Video posters,
+the map, AI inference, i18n and the keymap editor stay named absent with their blockers.

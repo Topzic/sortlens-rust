@@ -10,7 +10,7 @@
 
 use crate::charts::{self, Column};
 use crate::keymap::{self, Context};
-use crate::theme::{Density, GridMode, ThemeKind, Tokens};
+use crate::theme::{Density, GridMode, Motion, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
     Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
@@ -126,6 +126,8 @@ pub enum Action {
     SetDensity(Density),
     /// Persist a grid layout mode the shell has already applied to its own state.
     SetGrid(GridMode),
+    /// Reduce motion: no slide, no fade in the cull overlay.
+    SetMotion(Motion),
     MovePicks(Vec<PhotoId>),
     /// Put a moved batch back.
     UndoMove(u64),
@@ -514,6 +516,10 @@ pub struct UiState {
     pub cull_view: sortlens_cull::viewport::View,
     /// The last decision, announced once so a screen reader hears the result.
     pub announce: Option<String>,
+    /// How much motion the cull overlay may use, mirrored from settings.
+    pub motion: Motion,
+    /// The decision being animated out of the cull stage, if one is.
+    pub overlay: Option<Overlay>,
     /// The window was asked to close while work was in flight.
     pub quit_open: bool,
     /// Text in the keyword editor.
@@ -615,6 +621,8 @@ impl UiState {
             drag_from: None,
             cull_view: sortlens_cull::viewport::View::default(),
             announce: None,
+            motion: Motion::Full,
+            overlay: None,
             quit_open: false,
             tag_input: String::new(),
             tag_focus: false,
@@ -1051,6 +1059,16 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                         let next = state.grid_mode.next();
                         state.grid_mode = next;
                         actions.push(Action::SetGrid(next));
+                    }
+                    // Motion sits here rather than only in Settings because it is the setting a person turns
+                    // on *while* the animation is bothering them, not after a trip through a dialog.
+                    if icon_button(ui, state.motion.label(), t)
+                        .on_hover_text("Reduced motion: the cull overlay cuts instead of sliding")
+                        .clicked()
+                    {
+                        let next = state.motion.next();
+                        state.motion = next;
+                        actions.push(Action::SetMotion(next));
                     }
                     if icon_button(ui, "Add Folder…", t).clicked() {
                         actions.push(Action::PickFolder);
@@ -3342,6 +3360,49 @@ fn start_cull(engine: &mut Engine, state: &UiState) -> std::result::Result<usize
     engine.begin_cull(&ids).map_err(|error| error.to_string())
 }
 
+/// Paint a decided photo leaving the stage, with its label, inside the image's own bounds.
+///
+/// The overlay is clipped to the image rect rather than the canvas: a label that drifts outside the photograph
+/// lands on empty background where it reads as chrome rather than as a mark on the frame.
+fn paint_overlay(ui: &mut Ui, t: &Tokens, thumbs: &mut Thumbnails, engine: &Engine, area: Rect, overlay: Overlay, phase: Phase) {
+    let Some(photo) = engine.photo(overlay.photo).cloned() else {
+        return;
+    };
+    let aspect = aspect_of(&photo);
+    let fitted = fit_rect(area.shrink(8.0), aspect);
+    let painter = ui.painter().with_clip_rect(area);
+    // Slight fade as it leaves, so the current photo is visible underneath rather than being covered by a
+    // flash of the old one.
+    let alpha = ((1.0 - phase.slide) * 255.0) as u8;
+    let offset = vec2(-area.width() * phase.slide, 0.0);
+    let moved = fitted.translate(offset);
+    match thumbs.sharp_or_blur(ui.ctx(), &photo, 1600) {
+        Some((texture, _tier)) => {
+            let uv = cover_uv(texture.size_vec2(), moved.size());
+            let tint = Color32::from_white_alpha(alpha.min(cached_tint(&photo).a()));
+            painter.image(texture.id(), moved, uv, tint);
+        }
+        None => {
+            painter.rect_filled(moved, t.corner(), t.thumb_bg);
+        }
+    }
+    let (text, colour) = match overlay.decision {
+        Decision::Pick => ("PICK", t.pick),
+        Decision::Reject => ("REJECT", t.reject),
+        Decision::Deferred => ("DEFERRED", t.text_muted),
+        Decision::Unjudged => return,
+    };
+    // The label fades in on the image's own top-left corner, never the canvas's.
+    let at = moved.left_top() + vec2(10.0, 10.0);
+    painter.text(
+        at,
+        Align2::LEFT_TOP,
+        text,
+        t.font(11.0),
+        Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), (phase.label * 255.0) as u8),
+    );
+}
+
 fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool {
     if engine.cull().is_none() {
         return false;
@@ -3366,7 +3427,19 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
         }
     });
     if let Some(decision) = decision {
+        // Remember what was judged *before* the session moves on: the overlay paints that photo leaving while
+        // the next one is already behind it, which is the only way a slide-out can show the photo that left.
+        let judged = engine.cull().and_then(|session| session.current());
         engine.cull_decide(decision);
+        if decision != Decision::Unjudged
+            && let Some(photo) = judged
+        {
+            state.overlay = Some(Overlay {
+                photo,
+                decision,
+                at: ui.input(|input| input.time),
+            });
+        }
         let left = engine.cull().map(|session| session.summary().unjudged).unwrap_or_default();
         state.announce = Some(crate::a11y::decision_sentence(decision, left));
     } else if back {
@@ -3374,6 +3447,62 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
         state.announce = Some("Back one photo".to_string());
     }
     true
+}
+
+/// How long the decision label takes to arrive, and how long the photo takes to leave.
+///
+/// Two phases rather than one gesture: the label is the *confirmation* and must land before the photograph
+/// moves, or the eye follows the photograph and never reads what was decided. 90 ms is about one glance; the
+/// slide is 140 ms, slow enough to read as movement rather than a cut.
+const LABEL_MS: f32 = 90.0;
+const SLIDE_MS: f32 = 140.0;
+
+/// A decision being shown leaving the cull stage.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Overlay {
+    /// The photo that was judged, kept so it can slide out while the next one is already behind it.
+    pub photo: PhotoId,
+    /// What it was judged as.
+    pub decision: Decision,
+    /// When the decision was made, in seconds since the app started.
+    pub at: f64,
+}
+
+/// Where the overlay is in its two phases.
+///
+/// Pure, so the timings can be tested without waiting for them: `label` is the alpha the decision label is
+/// painted at, `slide` is how far the photograph has moved out (0 = in place, 1 = gone), and `done` means the
+/// overlay can be dropped.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Phase {
+    pub label: f32,
+    pub slide: f32,
+    pub done: bool,
+}
+
+/// The phase of the overlay `elapsed_ms` after the decision.
+///
+/// Reduced motion does not animate: the label is drawn at full strength at once (a fade of zero is what
+/// "reduced" means, not a faster fade) and there is no slide, so the stage has already cut to the next photo.
+/// The label still holds for its 90 ms, because the confirmation is information, not decoration — removing it
+/// would take away the only sign that the key press registered.
+pub fn overlay_phase(elapsed_ms: f32, motion: Motion) -> Phase {
+    if !motion.animates() {
+        return Phase {
+            label: 1.0,
+            slide: 0.0,
+            done: elapsed_ms >= LABEL_MS,
+        };
+    }
+    let label = (elapsed_ms / LABEL_MS).clamp(0.0, 1.0);
+    let slide = ((elapsed_ms - LABEL_MS) / SLIDE_MS).clamp(0.0, 1.0);
+    Phase {
+        // Ease-out on the label so it arrives rather than creeping, and ease-in on the slide so the photo
+        // starts moving only after it is read.
+        label: 1.0 - (1.0 - label) * (1.0 - label),
+        slide: slide * slide,
+        done: elapsed_ms >= LABEL_MS + SLIDE_MS,
+    }
 }
 
 fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
@@ -3552,6 +3681,21 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         }
         None => {
             ui.painter().rect_filled(area, t.corner(), t.thumb_bg);
+        }
+    }
+
+    // The decision that just happened, leaving. Painted *after* the current photo, so the photo that was
+    // judged slides away over the one that replaced it — the movement is the confirmation that the queue
+    // advanced, and a label alone would leave you unsure whether the key registered twice.
+    if let Some(overlay) = state.overlay {
+        let elapsed = ((ui.input(|input| input.time) - overlay.at) * 1000.0) as f32;
+        let phase = overlay_phase(elapsed, state.motion);
+        if phase.done {
+            state.overlay = None;
+        } else {
+            paint_overlay(ui, t, thumbs, engine, area, overlay, phase);
+            // Keep animating: without this the overlay would freeze at whatever phase the next input caused.
+            ui.ctx().request_repaint();
         }
     }
 
@@ -6011,6 +6155,120 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// The overlay paints a decided photo over the stage and then drops itself, in a real cull view.
+    ///
+    /// The phase table is tested on its own; this is the wiring — that a decision starts an overlay, that the
+    /// overlay paints something *over* the current photo, and that it clears rather than hanging forever.
+    #[test]
+    fn a_decision_paints_an_overlay_and_then_clears_it() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-overlay-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-overlay");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30, 60 * index as u8, 140], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("cull");
+        let judged = engine.cull().and_then(|session| session.current()).expect("a current photo");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.motion = Motion::Reduced;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let mut paint = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, time: f64| {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+                time: Some(time),
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    cull_view(ui, &tokens, state, engine, thumbs, &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            output.shapes.len()
+        };
+        assert!(paint(&mut state, &mut engine, &mut thumbs, 1.0) > 0, "the stage paints");
+
+        // Rejecting starts the overlay, on the photo that was judged.
+        state.overlay = Some(Overlay {
+            photo: judged,
+            decision: Decision::Reject,
+            at: 1.0,
+        });
+        assert!(paint(&mut state, &mut engine, &mut thumbs, 1.01) > 0, "the overlay paints");
+        assert!(state.overlay.is_some(), "and is still running just after the decision");
+        // Reduced motion: the label holds for its 90 ms and then the overlay is gone.
+        paint(&mut state, &mut engine, &mut thumbs, 1.05);
+        assert!(state.overlay.is_some(), "still inside the label's moment");
+        paint(&mut state, &mut engine, &mut thumbs, 1.2);
+        assert!(state.overlay.is_none(), "and dropped once it has been read");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The overlay's two phases, and what reduced motion does to them.
+    #[test]
+    fn the_decision_overlay_labels_first_then_slides() {
+        // At the moment of the decision nothing has happened yet: no label, no movement.
+        let start = overlay_phase(0.0, Motion::Full);
+        assert_eq!((start.label, start.slide), (0.0, 0.0));
+        assert!(!start.done);
+        // Half-way through the label phase: the label is arriving but the photograph has not moved, which is
+        // the whole point of two phases.
+        let fading = overlay_phase(LABEL_MS / 2.0, Motion::Full);
+        assert!(fading.label > 0.5, "the label is on its way: {}", fading.label);
+        assert_eq!(fading.slide, 0.0, "and the photo is still in place");
+        // The label phase ends with the label fully there and the slide only just beginning.
+        let labelled = overlay_phase(LABEL_MS, Motion::Full);
+        assert_eq!(labelled.label, 1.0);
+        assert_eq!(labelled.slide, 0.0);
+        // Then the photograph leaves, and is gone at the end of the slide.
+        let sliding = overlay_phase(LABEL_MS + SLIDE_MS / 2.0, Motion::Full);
+        assert_eq!(sliding.label, 1.0);
+        assert!(sliding.slide > 0.0 && sliding.slide < 1.0, "moving: {}", sliding.slide);
+        let gone = overlay_phase(LABEL_MS + SLIDE_MS, Motion::Full);
+        assert_eq!(gone.slide, 1.0);
+        assert!(gone.done, "the overlay can be dropped");
+        // The phases never run backwards, and never overshoot.
+        let mut last = 0.0;
+        for step in 0..=40 {
+            let phase = overlay_phase(step as f32 * 10.0, Motion::Full);
+            assert!(phase.slide >= last, "the slide is monotonic");
+            last = phase.slide;
+            assert!((0.0..=1.0).contains(&phase.label) && (0.0..=1.0).contains(&phase.slide));
+        }
+
+        // Reduced motion: no fade, no slide — and the label still holds for its 90 ms, because the
+        // confirmation is information rather than decoration.
+        let reduced = overlay_phase(0.0, Motion::Reduced);
+        assert_eq!((reduced.label, reduced.slide), (1.0, 0.0), "the label is simply there");
+        assert!(!reduced.done);
+        assert_eq!(overlay_phase(LABEL_MS / 2.0, Motion::Reduced).slide, 0.0);
+        assert!(overlay_phase(LABEL_MS, Motion::Reduced).done, "and then it is over");
+        for step in 0..=40 {
+            assert_eq!(overlay_phase(step as f32 * 10.0, Motion::Reduced).slide, 0.0, "never moves");
+        }
     }
 
     /// A cached thumbnail of a file that has gone is painted faded, and the hover says where it came from.

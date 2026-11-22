@@ -353,7 +353,23 @@ the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
 - [x] Session persistence + resume + crash resume (A) — SL-C07
 - [x] Cull view: canvas, up-next strip, action bar, live counts (B) — SL-C01/C06/C17
 - [x] Cull summary sheet + applied-batch receipt (B) — SL-C17
-- [ ] Overlays inside image bounds + two-phase animation + reduced motion (B) — SL-C04
+- [x] Overlays inside image bounds + two-phase animation + reduced motion (B) — SL-C04
+  - The decision overlay is painted with its label at the *image's* top-left corner, clipped to the image rect,
+    not the canvas: a label that drifts outside the photograph reads as window chrome rather than a mark on the
+    frame. The gesture tint and label were already inside the frame; the same rule now governs the overlay.
+  - Two phases, as a pure `overlay_phase(elapsed_ms, motion)`: the label fades in over 90 ms (ease-out) with the
+    photograph still in place, then the photograph slides out over 140 ms (ease-in) while the next one is
+    already behind it. The overlay keeps the *judged* photo id, because the session has already advanced — the
+    only way to slide out the photo that left is to remember it. It clears itself when the slide ends, and
+    requests a repaint while it runs so it cannot freeze at whatever phase the next input caused.
+  - `Motion::{Full, Reduced}` is a real persisted setting (`appearance.motion`, unknown value falls back to
+    full), a chip in the top bar, and honoured by the phase function: reduced draws the label at once and cuts
+    the slide to zero, while still holding the label for its 90 ms — the confirmation is information, not
+    decoration. The OS preference is not read and is named absent in M10's table.
+  - Tested: the phase table over every case including monotonicity and both settings, the settings round-trip
+    plus an unknown value and a settings file from before the key existed, and a headless cull view where a
+    decision paints an overlay over the stage and drops it. **Not verified by hand**: the timings on a real
+    display — 90 ms and 140 ms are reasoned, not measured against an eye.
 - [x] Keyboard decisions: P/X/Space/U/←/C (B) — SL-C02
 - [x] Gestures: drag up/down to keep/reject, weighted by distance (B) — SL-C03
 - [x] Zoom 1–8× with pan and wheel stepping (B) — SL-C05? (zoom) SL-C02
@@ -546,8 +562,8 @@ photos live; the UI renders correctly in Arabic and Japanese.
 
 **State:** the version contract, `--version`, the release workflow, the packaging notes, the measurements,
 the icon, the attribution gate and the first half of the accessibility audit are in. Signing, installers,
-the emitted accessibility tree, high contrast, reduced motion, theme import, `craft-update` and the tag are
-not — each named with its unblocker in the table at the end of this milestone.
+the emitted accessibility tree, high contrast, the operating system's own reduced-motion preference, theme
+import, `craft-update` and the tag are not — each named with its unblocker in the table at the end of this milestone.
 
 - [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
   cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
@@ -589,7 +605,7 @@ absence is a decision rather than a gap:
 | `.icns`/`.ico` generation and a brand pass | the icon is drawn and wired (`crates/icon`, `with_icon`), but the per-platform icon containers and any marketing artwork are packaging work that the absent installer work would consume | the packaging step above; the drawing itself already exists |
 | Theme import via `craft-ext-core` palettes (SL-I06) | importing someone else's palette means committing its colours and its licence; no palette has been chosen, and inventing one is not an import | a chosen palette with a licence that permits redistribution |
 | The emitted accessibility tree (SL-L01..L05 part 2) | the names and roles are set and checked (`cargo xtask a11y`), but this egui version has no public way to read the tree back and `Context::has_accesskit_node` answers `true` even for an unnamed area, so a headless test would assert nothing; focus order and traps need a real client | a screen reader — VoiceOver, Orca or NVDA — on a machine with a desktop session, and a person to listen |
-| High-contrast preset and reduced-motion toggle (SL-L09/L06) | both are real design decisions — which contrast pair, which motion to drop — and the headless harness cannot show whether the result is readable or comfortable | a design pass and a person looking at it |
+| High-contrast preset, and the operating system's reduced-motion preference (SL-L09/L06 part 2) | the reduced-motion *toggle* exists (`appearance.motion`) and the animation honours it, but the OS preference itself is a platform signal egui does not expose across platforms, and a high-contrast preset is a design decision — which contrast pair — that the headless harness cannot show is readable | a design pass and a person looking at it; a per-platform "reduce motion" query (or a future egui accessor) for the OS half |
 | `craft-update` wired to the launcher | the crate is declared but unlinked, and an update checker is a network call this project deliberately does not make (`crates/ai` has a `no_network` source scan guarding exactly that promise) | a decision that the app may reach the network, plus a release feed to check |
 | Release notes and a 1.0 tag | a tag is the repository owner's act, and notes for a version that no one has installed yet would describe intentions rather than a release | the owner tagging, and feedback from a run of the artefacts |
 
