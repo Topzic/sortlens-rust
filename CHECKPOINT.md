@@ -1844,9 +1844,33 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand**: the notice's tone on screen, and whether `T` collides with any OS-level shortcut on
   a real keyboard layout (the keymap gate only proves the registry's internal uniqueness).
 
+## 2026-11-22 — M2 row: stale cached thumbnails, and the wake-up nobody rang
+
+- **The row**: a thumbnail decoded before the drive went away is still in the cache and was still drawn at full
+  strength, so an offline library looked current. Missing photos' cached pixels are now painted at
+  `CACHED_ALPHA = 110/255` — visibly present, visibly not live — in the grid cell, the detail view, the compare
+  panes and the cull stage (a cached full-size preview of a missing file is still a cached preview). The `?`
+  badge's hover now distinguishes the two offline states: "showing the cached thumbnail from before it went
+  away" versus the plain missing-file text. Nothing is marked when nothing is cached — a grey rectangle is not
+  stale, it is absent.
+- **The bug this found is bigger than the row.** The M2 priority scheduler replaced a channel with a `Condvar`
+  queue and never notified it. Workers parked as soon as the queue emptied, so every thumbnail request after the
+  first quiet moment — which in the real app is most of them — waited for the life of the process. The tests all
+  missed it because a worker that had not yet reached its first `wait` finds the entry by itself, so requesting
+  immediately after startup worked; the first test that slept before requesting failed with
+  `queued 1, dropped 0` and a four-second silence. `request_with` now calls `notify_one` on an accepted push,
+  and `a_request_after_the_workers_have_parked_is_still_decoded` sleeps 250 ms before asking — **proved to
+  bite** by removing the notify: it then fails, waiting out its ten-second deadline.
+- Tests: the tint/hint table, the wake-up regression, and an end-to-end paint (decode a thumbnail from a real
+  JPEG, delete the file, rescan, paint) asserting the image mesh's vertex alpha falls 255 → 110 while the
+  default view — which hides missing files — paints nothing at all. 492 tests; ci (exit 0), wasm, deny,
+  snapshot, docs green.
+- **Not verified by hand**: whether 110 is the right fade on a real screen, and whether the real app's first
+  paint after a long idle now recovers — the regression test proves the mechanism, not the app's timing.
+
 ## Next
 
-M3–M7 pass, next unticked row that needs no absent prerequisite. Good candidates, in the order I would take
-them: `Offline/missing part 2` (cached-thumb behaviour when a drive leaves — needs a decision about what a cell
-shows, not a missing dependency) and `--json` write verbs (M9). Video posters stay named absent; the map, AI
-inference, i18n and the keymap editor rows each carry their own blocker.
+M3–M7 pass, then M9's `--json` write verbs. Still the best next candidates: `--json` write verbs (needs a
+written per-schema compatibility note, which is why it is a run of its own), collections' range-select/
+select-all, and `photo.tagFromPrev` is done so the cull workflow rows are nearly closed. Video posters, the map,
+AI inference, i18n and the keymap editor stay named absent with their blockers.

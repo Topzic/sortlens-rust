@@ -172,7 +172,8 @@ only signal.
   video badge + duration pill (`0:42`, from the container), offline badge, AI-suggestion dot (if unaccepted
   suggestions exist),
   filename on hover and in captions mode.
-- Sketch while a thumbnail is decoding; never a blank cell. A tier already in memory is painted scaled while
+- Sketch while a thumbnail is decoding; never a blank cell. A cached thumbnail whose file has gone is painted
+  faded (alpha 110) with the `?` badge, and the hover says the picture is from before the drive left. A tier already in memory is painted scaled while
   a sharper one decodes (the detail view, compare and cull do this with the grid's 128 px tier).
 - Selection: click, ⌘/Ctrl-click, Shift-click, drag-marquee, ⌘A, ⌘D. Focus ring distinct from
   selection ring (focus = keyboard cursor, selection = chosen set).

@@ -245,8 +245,26 @@ what they need.
     top bar on a real window.
 - [x] Offline/missing badge in the grid: `?` with "File missing — unmounted drive, or moved outside the
   library", and the spoken name already said "file missing" before the badge existed (B) — SL-A12 part 1
-- [ ] Offline/missing, part 2 — cached-thumb behaviour: a thumbnail decoded before the drive went away is
-  still in the cache and is still drawn, but nothing marks it as stale, so an offline library looks current
+- [x] Offline/missing, part 2 — a cached thumbnail of a file that has gone is painted **faded** (B) — SL-A12
+  - The cache does not know the drive left: it still holds the pixels decoded before it did, and drawing them at
+    full strength makes an offline library look current. A missing file's cached thumbnail is painted at
+    `CACHED_ALPHA` (110/255), so it is visibly present and visibly not live; the `?` badge says why, and its
+    hover now says where the picture came from ("showing the cached thumbnail from before it went away") —
+    a faded photograph and a grey rectangle are different states and the hover distinguishes them.
+  - The same tint is applied in the detail view, the compare panes and the cull stage, because a cached
+    full-size preview of a missing file is still a cached preview. Nothing is done when nothing is cached: the
+    placeholder stays, because there is no stale picture to mark.
+  - Tested as a pure tint table, and end to end: decode a thumbnail, delete the file, rescan, paint — the image
+    mesh's vertex alpha drops from 255 to 110, while the default view (which hides missing files) paints nothing
+    at all. **Not verified by hand**: whether 110 is the right fade on a real screen.
+- [x] **A thumbnail request made after the workers went idle is served** — the defect this row uncovered
+  - The priority queue replaced a channel with a `Condvar`, and nothing ever notified it. Workers parked after
+    the queue emptied and every later request sat in the queue for the life of the process; tests missed it
+    because a worker that had not yet reached its first `wait` found the entry by itself, so a request made
+    immediately after startup worked. `request_with` now notifies on an accepted push.
+  - `a_request_after_the_workers_have_parked_is_still_decoded` sleeps 250 ms first — the only way to be certain
+    both workers are inside `wait` — and was proved to bite by removing the notify (it fails, waiting out its
+    ten-second deadline).
 - [x] `craft-jsonrpc` + `craft-mcp` carry the MCP server (E) — SL-K04, part 1
   - Envelopes are `craft-jsonrpc`: it validates the `jsonrpc` version and the id, separates requests from
     notifications, answers batches as batches, and refuses a message over a byte bound **before** parsing it. The

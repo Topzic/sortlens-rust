@@ -2068,12 +2068,39 @@ impl CellBadge {
         }
     }
 
+    /// The hover for this badge, given whether a cached thumbnail is standing in for the file.
+    ///
+    /// An offline cell showing a faded photograph and an offline cell showing nothing are different states, and
+    /// a person looking at the first one needs to be told the picture is from before the drive left.
+    fn hint_cached(self, cached: bool) -> &'static str {
+        match (self, cached) {
+            (CellBadge::Offline, true) => "File missing — showing the cached thumbnail from before it went away",
+            _ => self.hint(),
+        }
+    }
+
     /// The badge colour, from the active theme rather than a literal.
     fn colour(self, t: &Tokens) -> Color32 {
         match self {
             CellBadge::Offline => t.text_faint,
             CellBadge::Unreadable => t.reject,
         }
+    }
+}
+
+/// How a cached thumbnail is painted when the file behind it is not on disk.
+///
+/// The cache does not know the drive left: it still holds the pixels decoded before it did, and drawing them at
+/// full strength makes an offline library look current. So a missing file's cached thumbnail is painted faded —
+/// visibly present, visibly not live — and the badge says why. Fully dimmed rather than hidden: the photograph
+/// is still the best way to recognise the frame, and `None` when there is nothing cached keeps the placeholder.
+const CACHED_ALPHA: u8 = 110;
+
+fn cached_tint(photo: &Photo) -> Color32 {
+    if photo.missing {
+        Color32::from_white_alpha(CACHED_ALPHA)
+    } else {
+        Color32::WHITE
     }
 }
 
@@ -2129,7 +2156,7 @@ fn photo_cell_sized(
                 Fit::Cover => cover_uv(texture.size_vec2(), image.size()),
                 Fit::Contain => Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             };
-            painter.image(texture.id(), image, uv, Color32::WHITE);
+            painter.image(texture.id(), image, uv, cached_tint(photo));
         }
         None => {
             let glyph = match photo.kind {
@@ -2170,7 +2197,7 @@ fn photo_cell_sized(
         let dot = Rect::from_center_size(corner, vec2(14.0, 14.0));
         painter.rect_filled(dot, 4.0, badge.colour(t));
         painter.text(dot.center(), Align2::CENTER_CENTER, badge.glyph(), t.font(9.0), Color32::WHITE);
-        response.clone().on_hover_text(badge.hint());
+        response.clone().on_hover_text(badge.hint_cached(texture.is_some()));
     }
 
     // Stars sit along the bottom edge of the thumbnail so the eye can scan a whole row.
@@ -3053,12 +3080,13 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                 // coarse, and it sharpens in place when the full decode lands.
                 match thumbs.sharp_or_blur(ui.ctx(), item, 2000) {
                     // The tier is not used for painting: a blur is painted exactly like the sharp one, only
-                    // visibly softer, which is the whole point.
+                    // visibly softer, which is the whole point. A photo whose file has gone is painted faded
+                    // here too — a cached full-size preview of a missing file is still a cached preview.
                     Some((texture, _tier)) => {
                         let uv = cover_uv(texture.size_vec2(), sized.size());
                         ui.painter()
                             .with_clip_rect(pane.intersect(clip))
-                            .image(texture.id(), sized, uv, Color32::WHITE);
+                            .image(texture.id(), sized, uv, cached_tint(item));
                     }
                     None => {
                         ui.painter()
@@ -3071,7 +3099,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             Some((texture, _tier)) => {
                 let uv = cover_uv(texture.size_vec2(), target.size());
                 let painter = ui.painter().with_clip_rect(area.intersect(ui.clip_rect()));
-                painter.image(texture.id(), target, uv, Color32::WHITE);
+                painter.image(texture.id(), target, uv, cached_tint(&photo));
             }
             None => {
                 ui.painter()
@@ -3464,7 +3492,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             match thumbs.sharp_or_blur(ui.ctx(), &photo, wanted) {
                 Some((texture, _tier)) => {
                     let uv = cover_uv(texture.size_vec2(), shown.size());
-                    painter.image(texture.id(), shown, uv, Color32::WHITE);
+                    painter.image(texture.id(), shown, uv, cached_tint(&photo));
                 }
                 None => {
                     painter.text(fitted.center(), Align2::CENTER_CENTER, &photo.rel, t.font(11.0), t.text_faint);
@@ -5983,6 +6011,151 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// A cached thumbnail of a file that has gone is painted faded, and the hover says where it came from.
+    #[test]
+    fn a_cached_thumbnail_of_a_missing_file_is_painted_as_stale() {
+        let photo = |missing: bool| Photo {
+            id: PhotoId(1),
+            root: "/photos".into(),
+            rel: "IMG_0001.jpg".into(),
+            name: "IMG_0001.jpg".into(),
+            size: 1,
+            modified: None,
+            kind: MediaKind::Image,
+            key: 7,
+            rating: 0,
+            flag: Flag::None,
+            label: None,
+            missing,
+            duration_ms: None,
+            fps: None,
+            video_codec: None,
+            width: 96,
+            height: 64,
+            captured: None,
+            camera: String::new(),
+            lens: String::new(),
+            iso: None,
+            aperture: None,
+            shutter: None,
+            focal: None,
+            tags: Vec::new(),
+            edited: false,
+            retry: false,
+        };
+        let present = photo(false);
+        let gone = photo(true);
+        assert_eq!(cached_tint(&present), Color32::WHITE, "a live file is painted at full strength");
+        assert_eq!(cached_tint(&gone).a(), CACHED_ALPHA, "a missing one is faded, not hidden");
+        assert_ne!(
+            CellBadge::Offline.hint(),
+            CellBadge::Offline.hint_cached(true),
+            "showing a cached photograph is a different state from showing nothing"
+        );
+        assert!(CellBadge::Offline.hint_cached(true).contains("cached"));
+        assert_eq!(
+            CellBadge::Unreadable.hint_cached(true),
+            CellBadge::Unreadable.hint(),
+            "an unreadable file has no cached pixels to explain"
+        );
+    }
+
+    /// End to end: decode a thumbnail, delete the file, rescan, and the grid still draws the cached picture —
+    /// faded, so an offline library cannot look current.
+    #[test]
+    fn the_grid_fades_a_thumbnail_whose_file_left() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-cached-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-cached");
+        let path = root.join("IMG_0001.jpg");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [60, 110, 180], 96, 64), &path).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        let scan = |engine: &mut Engine| {
+            engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+            for _ in 0..600 {
+                if engine.poll().is_some() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        };
+        scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+
+        // Decode the grid tier and keep it: this is the "cached before the drive went away" texture.
+        let photo = engine.photo(id).expect("photo");
+        assert!(
+            std::path::Path::new(&photo.path()).exists(),
+            "the file is there to decode: {}",
+            photo.path()
+        );
+        assert!(thumbs.get(&ctx, photo, GRID_SIZE).is_none(), "nothing is resident yet");
+        for _ in 0..800 {
+            if thumbs.poll(&ctx) > 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(
+            thumbs.resident() >= 1,
+            "the thumbnail decoded (failure: {:?}, queued {}, dropped {})",
+            thumbs.failure(engine.photo(id).expect("photo").key),
+            thumbs.queued(),
+            thumbs.dropped()
+        );
+
+        /// The alpha of the vertex colours on the painted image mesh, if one was painted.
+        fn painted_alpha(output: &egui::FullOutput) -> Option<u8> {
+            for clipped in &output.shapes {
+                if let egui::Shape::Mesh(mesh) = &clipped.shape
+                    && let Some(vertex) = mesh.vertices.first()
+                {
+                    return Some(vertex.color.a());
+                }
+            }
+            None
+        }
+        // Missing files are hidden by default — that is the whole point of the flag — so the offline paint asks
+        // for them, which is what the "Missing" filter in the sidebar does.
+        let offline = Filter {
+            include_missing: true,
+            ..Filter::default()
+        };
+        let paint = |state: &mut UiState, thumbs: &mut Thumbnails, engine: &mut Engine, filter: &Filter| {
+            let mut actions: Vec<Action> = Vec::new();
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    grid(ui, &tokens, state, engine, thumbs, filter, &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            painted_alpha(&output)
+        };
+
+        let visible = Filter::default();
+        let live = paint(&mut state, &mut thumbs, &mut engine, &visible).expect("the photo is painted");
+        assert_eq!(live, 255, "a present file is drawn at full strength");
+
+        // The drive leaves: the file is gone, the cache is not.
+        std::fs::remove_file(&path).expect("remove");
+        scan(&mut engine);
+        assert!(engine.photo(id).expect("photo").missing, "the rescan noticed the file is gone");
+        assert!(
+            paint(&mut state, &mut thumbs, &mut engine, &visible).is_none(),
+            "a missing photo is hidden from the default view"
+        );
+        let stale = paint(&mut state, &mut thumbs, &mut engine, &offline).expect("the cached photo is still drawn");
+        assert_eq!(stale, CACHED_ALPHA, "and it is painted faded, so the library does not look current");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The `T` key applies the keyword you last added, through the real key handler over a real library.

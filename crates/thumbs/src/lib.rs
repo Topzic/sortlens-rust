@@ -581,7 +581,16 @@ impl Service {
             return false;
         }
         match self.shared.queue.lock() {
-            Ok(mut queue) => admit(&mut queue, &mut self.in_flight, key, path, size, urgency),
+            Ok(mut queue) => {
+                let accepted = admit(&mut queue, &mut self.in_flight, key, path, size, urgency);
+                // Push without a wake-up and the workers, once they have gone idle, sleep for the life of the
+                // process: every request after the first quiet moment would sit in the queue forever. The
+                // condvar is only useful if somebody rings it.
+                if accepted {
+                    self.shared.work.notify_one();
+                }
+                accepted
+            }
             Err(_) => false,
         }
     }
@@ -665,6 +674,39 @@ fn load(cache: &Cache, request: &Entry) -> Loaded {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// A request made after the workers have gone idle is still served.
+    ///
+    /// The queue is a condvar rather than a channel, so pushing has to wake somebody: the first version of the
+    /// priority queue pushed into a `Condvar` that nothing ever notified, and every request made after the
+    /// workers had emptied the queue and parked waited forever. It looked fine in tests that requested work
+    /// immediately, because a worker that had not yet reached its first wait found the entry by itself — this
+    /// test sleeps first, which is the only way to be certain the workers are parked.
+    #[test]
+    fn a_request_after_the_workers_have_parked_is_still_decoded() {
+        let dir = std::env::temp_dir().join(format!("sortlens-thumbs-wake-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let samples = gradient(64, 48);
+        let jpeg = craft_jpeg::encode_baseline(&samples, 64, 48, 3, 90, craft_jpeg::ChromaSubsampling::S444, &[]).expect("encode");
+        let path = dir.join("wake.jpg");
+        std::fs::write(&path, &jpeg).expect("write");
+        let mut service = Service::new(Cache::new(dir.join("cache")), 2);
+        // Long enough that both workers are inside `wait`, so nothing can be picked up opportunistically.
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        assert!(service.request_with(1, path, GRID, Urgency::OnScreen), "the request is queued");
+        let mut loaded = Vec::new();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while loaded.is_empty() && std::time::Instant::now() < deadline {
+            loaded = service.poll();
+            if loaded.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
+        assert_eq!(loaded.len(), 1, "a parked worker woke up and did the work");
+        assert!(loaded[0].thumbnail.is_some(), "{:?}", loaded[0].error);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn gradient(width: u32, height: u32) -> Vec<u8> {
         (0..width * height * 3).map(|index| (index % 251) as u8).collect()

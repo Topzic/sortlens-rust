@@ -80,6 +80,16 @@ impl Thumbnails {
         }
     }
 
+    /// How much decode work is waiting, and how much was refused, for the activity stack and for tests.
+    pub fn queued(&self) -> usize {
+        self.service.queued()
+    }
+
+    /// How many requests have been refused because the queue was full of work at least as urgent.
+    pub fn dropped(&self) -> u64 {
+        self.service.dropped()
+    }
+
     /// Number of textures currently resident, for diagnostics.
     pub fn resident(&self) -> usize {
         self.textures.len()
