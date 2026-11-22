@@ -58,6 +58,7 @@ fn main() -> ExitCode {
         "attribution" => attribution(),
         "a11y" => a11y(),
         "perf" => perf(),
+        "docs" => docs(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -90,7 +91,8 @@ fn help() {
   version  one version for the workspace, declared once
   attribution  every dependency attributed, and the document honest about what is linked
   a11y     every custom-painted clickable region registers a name
-  perf     measurements for docs/PERF.md (not in ci: a timing that fails on a loaded box gets ignored)"
+  perf     measurements for docs/PERF.md (not in ci: a timing that fails on a loaded box gets ignored)
+  docs     the documents agree with the tracker, and every crate and document is named"
     );
 }
 
@@ -105,6 +107,7 @@ fn ci() -> Result<(), String> {
     version()?;
     attribution()?;
     a11y()?;
+    docs()?;
     Ok(())
 }
 
@@ -530,6 +533,114 @@ fn perf() -> Result<(), String> {
     let mut args = vec!["run", "-q", "--release", "-p", "sortlens-perf", "--"];
     args.extend(passthrough.iter().map(String::as_str));
     run("cargo", &args)
+}
+
+/// The documents must agree with the tracker, and every crate and document must be named.
+///
+/// Three drifts this exists to catch, all of which happened at least once while the plan ran:
+///
+/// 1. **README's status said M0–M8** while M10 had shipped. The milestone range is now computed from
+///    `docs/ROADMAP.md` — the highest milestone with a ticked row — and required in both `README.md` and
+///    `docs/PLAN.md`, so prose cannot quietly fall behind the checkboxes.
+/// 2. **New crates and apps went unlisted** (`sortlens-icon`, `sortlens-perf` were added to the workspace
+///    and the layer diagram in `docs/ARCHITECTURE.md` only by hand, if at all).
+/// 3. **`docs/PERF.md` existed and the README's document table never mentioned it**, so the measurements
+///    were reachable only if you already knew the file name.
+///
+/// Deliberately not a prose linter: it checks facts that have one right answer (a range, a path, a name),
+/// not how they are phrased.
+fn docs() -> Result<(), String> {
+    let mut problems = Vec::new();
+    let readme = fs::read_to_string("README.md").map_err(|error| format!("README.md: {error}"))?;
+    let plan = fs::read_to_string("docs/PLAN.md").map_err(|error| format!("docs/PLAN.md: {error}"))?;
+    let roadmap = fs::read_to_string("docs/ROADMAP.md").map_err(|error| format!("docs/ROADMAP.md: {error}"))?;
+    let architecture = fs::read_to_string("docs/ARCHITECTURE.md").map_err(|error| format!("docs/ARCHITECTURE.md: {error}"))?;
+
+    let Some(shipped) = shipped_through(&roadmap) else {
+        problems.push("docs/ROADMAP.md has no milestone with a ticked row".to_string());
+        return report("docs", problems);
+    };
+    let range = format!("M0–M{shipped}");
+    // The badge is percent-encoded for the dash, which is how it silently kept saying M0–M7.
+    let badge = format!("M0%E2%80%93M{shipped}");
+    if !readme.contains(&range) {
+        problems.push(format!("README.md never says {range}, which is what docs/ROADMAP.md has shipped"));
+    }
+    if !readme.contains(&badge) {
+        problems.push(format!("README.md's status badge does not say {range} (encoded as {badge})"));
+    }
+    if !plan.contains(&range) {
+        problems.push(format!("docs/PLAN.md §12 never says {range}"));
+    }
+
+    // Every crate and app in the workspace is named in the layer diagram.
+    for entry in fs::read_dir("crates").map_err(|error| format!("crates: {error}"))? {
+        let path = entry.map_err(|error| format!("crates: {error}"))?.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let package = format!("sortlens-{name}");
+        if !architecture.contains(&package) {
+            problems.push(format!("crates/{name} is not in docs/ARCHITECTURE.md's layer diagram ({package})"));
+        }
+    }
+    for entry in fs::read_dir("apps").map_err(|error| format!("apps: {error}"))? {
+        let path = entry.map_err(|error| format!("apps: {error}"))?.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !architecture.contains(name) {
+            problems.push(format!("apps/{name} is not named in docs/ARCHITECTURE.md"));
+        }
+    }
+
+    // Every document is reachable from the README.
+    for entry in fs::read_dir("docs").map_err(|error| format!("docs: {error}"))? {
+        let path = entry.map_err(|error| format!("docs: {error}"))?.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !readme.contains(name) {
+            problems.push(format!("docs/{name} is not mentioned anywhere in README.md"));
+        }
+    }
+    report("docs", problems)
+}
+
+/// The highest milestone in `docs/ROADMAP.md` with at least one ticked row.
+fn shipped_through(roadmap: &str) -> Option<u32> {
+    let mut shipped = None;
+    let mut current: Option<u32> = None;
+    for line in roadmap.lines() {
+        if let Some(rest) = line.strip_prefix("## M")
+            && let Some(number) = rest
+                .split_whitespace()
+                .next()
+                .and_then(|word| word.trim_end_matches('—').parse::<u32>().ok())
+        {
+            current = Some(number);
+            continue;
+        }
+        if line.starts_with("## ") {
+            current = None;
+            continue;
+        }
+        if line.trim_start().starts_with("- [x]")
+            && let Some(number) = current
+        {
+            shipped = Some(shipped.map_or(number, |best: u32| best.max(number)));
+        }
+    }
+    shipped
 }
 
 fn assets() -> Result<(), String> {

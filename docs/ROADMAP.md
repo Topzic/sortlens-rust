@@ -307,7 +307,6 @@ below with what would unblock it; i18n and the keymap editor remain.
 - [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07
 - [ ] Localised numbers/dates (B) — SL-L08
 - [ ] `craft-keymap` editor + import/export (B) — SL-I09
-- [ ] `craft-update` + in-app release notes (E) — SL-I10
 - [x] Diagnostics bundle: `Engine::diagnostics` writes plain text with versions, library counts, the
   read-only health check, packs, the last 25 changes and the root list, with **every absolute path
   replaced** by `<library>`, `<root-N>` or `<home>` (longest match first, so a root under the library is
@@ -344,12 +343,6 @@ not — each named with its unblocker in the table at the end of this milestone.
   registers a `WidgetInfo` with a description from `a11y::describe_photo`, and the row carries its label
   and count; `cargo xtask a11y` fails when a function makes a region clickable without naming it, proved
   to bite by deleting one registration (B) — SL-L01
-- [ ] Accessibility audit, part 2 — focus order, focus-trap checks and a real tree walk: this egui version
-  has no public way to read accessibility nodes back, so the emitted tree cannot be asserted here; that
-  half needs a platform accessibility client (VoiceOver, Orca, NVDA) on a machine with a desktop session
-- [ ] High-contrast preset + reduced-motion toggle (B) — SL-L09/L06 — moved to the table below: not
-  attempted, and not because it is hard
-- [ ] Theme import via `craft-ext-core` palette (B) — SL-I06
 - [x] Application icon: one drawing in `crates/icon` (code, not a dropped-in binary) rendered two ways —
   the window icon as RGBA through a build script, and `assets/icon.svg` as the committed, human-viewable
   copy — with the SVG held to the drawing by a test that fails when either changes and rewrites it only
@@ -365,18 +358,13 @@ not — each named with its unblocker in the table at the end of this milestone.
   run**; no tag exists yet, and the file says so
 - [x] `docs/RELEASE.md`: the single-version rule, the artefact list, the steps to cut a release, the
   checksum story and what this version deliberately does not have (E)
-- [ ] Packaging: macOS signed/notarised, Windows MSI, Linux AppImage/Flatpak (E) — moved to the table
-  below: it needs signing identities this repository does not have
 - [x] Benchmarks recorded in `docs/PERF.md`, from `cargo xtask perf` on a named machine, including the
   snapshot defect they exposed and the budgets that cannot be measured here (see M2's row) (E)
-- [ ] `craft-update` wired to the launcher (E) — moved to the table below
 - [x] `docs/ATTRIBUTION.md` complete and **enforced**: `cargo xtask attribution` (in `ci`) fails when a
   linked crate is unattributed, when a declared-but-unlinked crate is not listed as such, when a table
   names a dependency that no longer exists, when an embedded font family is missing, or when the
   "no model weights, corpora or datasets" statement is deleted — proved to bite both ways (a fake
   `serde_yaml` dependency, and a deleted font row) (E)
-- [ ] Release notes + 1.0 tag (E) — moved to the table below: a tag is a decision for the person who
-  owns the repository, not something a loop should push
 
 ### Deliberately absent from M10
 
@@ -389,6 +377,7 @@ absence is a decision rather than a gap:
 | Windows MSI and Linux AppImage/Flatpak | each needs its own toolchain (`cargo-wix`, `linuxdeploy`, Flatpak manifests and a runtime) and, for MSI, a code-signing certificate | those toolchains in the release workflow and a signing certificate |
 | `.icns`/`.ico` generation and a brand pass | the icon is drawn and wired (`crates/icon`, `with_icon`), but the per-platform icon containers and any marketing artwork are packaging work that the absent installer work would consume | the packaging step above; the drawing itself already exists |
 | Theme import via `craft-ext-core` palettes (SL-I06) | importing someone else's palette means committing its colours and its licence; no palette has been chosen, and inventing one is not an import | a chosen palette with a licence that permits redistribution |
+| The emitted accessibility tree (SL-L01..L05 part 2) | the names and roles are set and checked (`cargo xtask a11y`), but this egui version has no public way to read the tree back and `Context::has_accesskit_node` answers `true` even for an unnamed area, so a headless test would assert nothing; focus order and traps need a real client | a screen reader — VoiceOver, Orca or NVDA — on a machine with a desktop session, and a person to listen |
 | High-contrast preset and reduced-motion toggle (SL-L09/L06) | both are real design decisions — which contrast pair, which motion to drop — and the headless harness cannot show whether the result is readable or comfortable | a design pass and a person looking at it |
 | `craft-update` wired to the launcher | the crate is declared but unlinked, and an update checker is a network call this project deliberately does not make (`crates/ai` has a `no_network` source scan guarding exactly that promise) | a decision that the app may reach the network, plus a release feed to check |
 | Release notes and a 1.0 tag | a tag is the repository owner's act, and notes for a version that no one has installed yet would describe intentions rather than a release | the owner tagging, and feedback from a run of the artefacts |
@@ -415,5 +404,6 @@ unnamed controls; every budget in `FEATURES.md` §M passes.
 
 | Date | Change |
 | --- | --- |
+| 2026-11-21 | **M0–M10 shipped, and the documents reconciled with the tracker.** Everything that needs no weights, no signing identity, no second device and no translation pass is built and tested: 432 tests, one command registry behind the window, the CLI, the MCP server and `--json`; measured numbers in `docs/PERF.md` (which found and fixed a quadratic import); an icon the window actually loads; gates for layer rules, lint headers, asset provenance, fonts, one version, attribution, accessibility names and the documents themselves (`cargo xtask docs`). What remains is itemised in each milestone's "Deliberately absent" table with its unblocker. |
 | 2026-11-21 | Plan written: feature inventory (176), architecture, tooling audit, UX spec, roadmap. Implementation not started; Rust toolchain not yet installed on this machine. |
 | 2026-11-21 | M0 skeleton built on macOS. Toolchain 1.95.0 installed project-locally (`scripts/bootstrap.sh`, `.toolchain/` gitignored). 23 crates scaffolded; `sortlens-core` (ids, labels, units, errors), `sortlens-engine` (registry + `run`), `sortlens-ui` (4 presets, five surfaces, settings/about dialogs), the `sortlens` app (title-bar policy, `craft-settings` store, `fn ui` shell) all compile. `cargo xtask ci` green: fmt, clippy `-D warnings`, 20 tests, layer rules, lint headers, asset provenance. `cargo xtask wasm` green for `sortlens-core` + `sortlens-ui`. `docs/BEHAVIOUR.md` written. Not done: fonts, `cargo deny`, snapshot CI, shortcuts dialog. |

@@ -3,6 +3,11 @@
 Purpose: a complete, buildable inventory of what Sortlens does today, so the Rust
 recreation can reach parity deliberately instead of by accident.
 
+> The `M` column is the milestone a feature was *planned* for. It is not a status: some planned rows were
+> delivered later than their letter, and some were deliberately left out. `docs/ROADMAP.md` is the
+> tracker, `CHECKPOINT.md` is the record of what actually shipped, and `cargo xtask docs` keeps the
+> README and PLAN's headline range in step with the tracker.
+
 ## Method and evidence
 
 Sortlens (Topzic/Sortlens, v0.11.0, proprietary, Windows + macOS + iOS) is published

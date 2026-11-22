@@ -1483,13 +1483,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   real window on each platform (macOS dock, Windows taskbar); checked only as pixels and as a decoded PNG,
   plus a rendered preview of the SVG at 200/64/32 px.
 
+## 2026-11-21 — M10 (part 6): the documents checked instead of trusted
+
+- **the drift**: README's badge said `M0–M7 shipped` and its prose said "M0–M8 partially shipped … M9 and
+  M10 are unstarted" while M10 had shipped; `docs/PLAN.md` §12 still listed M8, M9 and M10 as remaining
+  work; `crates/memories` had never been added to the layer diagram; `apps/sortlens-perf` was unknown to it;
+  `docs/PERF.md` existed and the README's document table never mentioned it.
+- **`cargo xtask docs`** (in `ci`) now checks the facts that have one right answer: the shipped milestone
+  range is **computed from `docs/ROADMAP.md`** (the highest milestone with a ticked row) and required in
+  `README.md` twice — prose and the percent-encoded status badge, which is how it silently kept saying
+  M0–M7 — and in `docs/PLAN.md` §12; every `crates/*` package name and every `apps/*` directory must be
+  named in the layer diagram; every `docs/*.md` must be reachable from the README. **Proved to bite** three
+  ways: an edited badge, a deleted `sortlens-memories` line, and each reported its own file.
+- README rewritten where it was wrong: status, the document table (`docs/PERF.md` added), the build
+  commands (`ci` now also runs version, attribution, a11y and docs; `perf` added), and "What is not built
+  yet" — export and AI suggestions were listed as missing after they shipped. The comparison table's
+  Updates row now says `craft-update` is declared and unlinked rather than claiming signed artifacts.
+- PLAN §12 and §5.2 rewritten to the M0–M10 reality; `docs/FEATURES.md` gained a note that its `M` column
+  is a plan, not a status; `docs/TOOLING.md` documents the new gate; ROADMAP's status log has the entry.
+- Duplicated ROADMAP rows **deleted** as the rule requires: the five M10 rows that only said "moved to the
+  table below", the duplicate `craft-update` row, and the accessibility part 2 row, which is now a row in
+  the absent-by-design table (with why a headless test there would assert nothing).
+- 432 tests; ci (exit 0), snapshot, deny green. **Not verified by hand**: nothing here is GUI work.
+
 ## Next
 
-The accessibility part 2 row is not closable here (no public way to read egui's accessibility tree, no
-screen-reader client on this machine), so the remaining work is the **final documentation reconciliation**:
-README's status line and feature list, `PLAN.md` §12, and every stale "State:" line across the docs, so that
-what the repository says about itself matches the 432 tests and the ten milestones that shipped. That is the
-last item before the exit condition ("every ROADMAP box checked or explicitly absent, README/PLAN agree").
-
-After that the M0 debt sweep is already done (`craft-fonts` build input, `cargo deny` allow-list, snapshot
-CI job, goldens, attribution, a11y) — the exit check should confirm it rather than redo it.
+The exit condition needs every ROADMAP box ticked **or** explicitly absent. Around thirty rows still sit as
+plain unchecked boxes, and each needs one of three decisions, milestone by milestone: it is a real feature
+that is still missing (then it belongs in that milestone's "Deliberately absent" table with its unblocker,
+or it is genuinely next work), it is a half-shipped row whose text already says what is missing (then say
+which half and why the rest is out), or it is stale and describes something that shipped (then tick it and
+prove it with a grep). Start with M1–M2 (volume probe, magic-byte sniffing, grid justification/density,
+multi-select, HEIC and video decode, priority scheduling, blur-up, offline badges), then M3–M7, then M9's
+`--json` write verbs, i18n and the keymap editor. That pass is what makes "every box checked or explicitly
+absent" true rather than declared.

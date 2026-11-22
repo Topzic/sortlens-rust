@@ -282,6 +282,11 @@ Notes and gotchas:
   `epaint_default_fonts`. Denied by omission: GPL, AGPL, LGPL, CC-BY-NC. Advisories, yanked crates,
   wildcard version requirements and unknown git sources fail the same job. Install with
   `cargo install cargo-deny --locked`; the task says so rather than passing silently.
+- **The documents are checked, not trusted**: `cargo xtask docs` (in `ci`) computes the shipped milestone
+  range from `docs/ROADMAP.md` and requires it in both `README.md` (prose and status badge) and
+  `docs/PLAN.md` §12, requires every crate and app in the workspace to be named in the layer diagram, and
+  requires every `docs/*.md` to be reachable from the README. It checks facts that have one right answer,
+  not how they are phrased.
 - **Measurements, not budgets, in `perf`**: `cargo xtask perf` runs `apps/sortlens-perf` in release mode
   and prints one table — scan, index, cold and warm thumbnails, the worker service, the suggestion pass,
   library open, headless grid frames. It is deliberately not in `ci`: a timing that fails on a loaded box

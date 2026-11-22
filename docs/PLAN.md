@@ -125,10 +125,11 @@ Hard sequencing rules:
 
 ### 5.2 Milestone work breakdown
 
-> This is the plan as it was written, kept so the shape of each milestone stays visible. M0–M7 are
-> delivered — some rows landed differently (the wasm client is embedded, not served; snapshots are one
-> file plus a log) — and `CHECKPOINT.md` records what each one actually became. Read the M8–M10
-> sections as the remaining scope.
+> This is the plan as it was written, kept so the shape of each milestone stays visible. M0–M10 are
+> delivered — some rows landed differently (no wasm client: there is no remote server to talk to;
+> snapshots are one file plus a log; AI is the no-model half) — and `CHECKPOINT.md` records what each one
+> actually became. `docs/ROADMAP.md` says, per milestone, what was deliberately left out and what would
+> unblock it.
 
 **M0 — Skeleton (1.0 w)**
 - `rust-toolchain.toml`, workspace, 16 crate skeletons, `[lints]`, `xtask` (`ci --quick`,
@@ -358,22 +359,25 @@ through `craft-update`.
 
 ## 12. Where delivery stands
 
-M0–M7 are shipped: the skeleton, indexing, previews, keywords and XMP, culling, collections, insights
-and search, and the safety work (delete modes, bins, backup/restore, audit and compaction, one-writer
-locking, moves with undo, the change viewer). `CHECKPOINT.md` is the authoritative record — what
-shipped, in which commit, what was not verified by hand. `docs/ROADMAP.md` tracks the same work as
-checkboxes; where the two disagree, `CHECKPOINT.md` wins.
+M0–M10 have shipped: the skeleton, indexing, previews, keywords and XMP, culling, collections, insights
+and search, the safety work (delete modes, bins, backup/restore, audit and compaction, one-writer locking,
+moves with undo, the change viewer), export, the no-model half of AI (manifest, verified store, NMS, label
+map, EXIF hints, packs, suggestions, the batch pass), `--json` on the read verbs, the diagnostics bundle,
+the MCP server, one version with `--version`, the measured numbers, the icon, and the gates that keep the
+documents and the manifests honest. `CHECKPOINT.md` is the authoritative record — what shipped, in which
+commit, what was not verified by hand. `docs/ROADMAP.md` tracks the same work as checkboxes, and
+`cargo xtask docs` (in `ci`) fails when this section's milestone range, the README's badge or its document
+table fall behind the tracker.
 
-The M0 list that used to live here is history, kept in git. What remains is:
+What is **not** delivered is listed as decisions rather than gaps: `docs/ROADMAP.md` carries a
+"Deliberately absent" table for each milestone, and the three that matter most are per-platform installers
+and signing (needs identities this repository does not have), a camera-inference session (needs a pinned
+model with a real digest and licence), and the remote/companion server with localisation (needs a second
+device and a translation pass). `docs/PERF.md` lists the budgets this machine cannot measure.
 
-1. **M8 — AI and export.** Pinned ONNX models through `tract`, suggestion caps and the review panel,
-   plus export (original/JPEG/PNG, resize, quality, metadata, collisions, progress).
-2. **M9 — remote and automation.** `sortlens-server` with token auth and pairing, the wasm client,
-   remote album creation, localisation, the keymap editor, `craft-update`.
-3. **M10 — release.** Packaging per platform, the accessibility audit, brand assets, diagnostics.
-
-The gates do not move: every milestone lands with tests, a green `cargo xtask ci`, a golden-output
-diff when the published text changes, and a `CHECKPOINT.md` entry saying what was *not* verified.
+The gates did not move, and they are what makes the paragraph above checkable rather than a claim: every
+milestone landed with tests, a green `cargo xtask ci`, a golden-output diff when published text changed,
+and a `CHECKPOINT.md` entry saying what was *not* verified.
 
 ## 13. What to read first
 

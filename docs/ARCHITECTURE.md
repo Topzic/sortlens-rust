@@ -30,11 +30,13 @@ alternative it beat and the reason, so a later reader can revisit it.
 ## 2. Layers and crates
 
 ```
-L5  sortlens-ui (egui)   sortlens-mcp   apps: sortlens (desktop), -cli, -web, -server, -perf
+L5  sortlens-ui (egui)   sortlens-mcp
+    apps: sortlens (desktop), sortlens-cli, sortlens-perf (measurements)
 L4  sortlens-engine      commands, session, activity, jobs, filters, export, filesystem ops
 L3  sortlens-catalog     op log + snapshot + counters + undo/audit
     sortlens-cull        session state machine
-    sortlens-insights    dashboard + memories
+    sortlens-insights    dashboard, review progress, charts
+    sortlens-memories    deterministic "memories" from capture dates and places
     sortlens-similar     hashing + grouping
     sortlens-remote      optional server API (feature-gated)
 L2  sortlens-thumbs      tiered preview cache + job scheduler
