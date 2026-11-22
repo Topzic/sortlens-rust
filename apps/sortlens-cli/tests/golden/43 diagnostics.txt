@@ -15,18 +15,18 @@ arch = <host>
 read_only = false
 write_sidecars = true
 roots = 2
-photos = 5
+photos = 6
 missing = 0
 rated = 2
 picks = 0
 rejects = 0
 tagged = 2
-bytes = 1622
+bytes = 1950
 warnings = 0
 
 [health]
-checked = 5
-present = 5
+checked = 6
+present = 6
 missing = 0
 changed = 0
 
@@ -34,7 +34,7 @@ changed = 0
 none installed
 
 [recent changes]
-15 tagged · Keyworded 1 photo
+16 tagged · Keyworded 1 photo
 
 [roots]
 2 indexed

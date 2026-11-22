@@ -1,4 +1,4 @@
 exit 0
 --- stdout
-5 of 5 files present, 0 missing
+6 of 6 files present, 0 missing
 --- stderr

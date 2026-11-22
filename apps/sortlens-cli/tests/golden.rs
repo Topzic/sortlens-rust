@@ -362,6 +362,9 @@ fn build_fixture() -> Fixture {
     fixture.jpeg("Photos/Studio/d.jpg", [120, 120, 120], 32, 48);
     // A second folder outside the first root, because roots are the unit of a scan.
     fixture.jpeg("Archive/e.jpg", [90, 200, 90], 24, 24);
+    // A raw whose contents are really a JPEG preview: the scan routes it by its header and says so in the
+    // `add` line, so the golden pins both the correction and the fact that it is reported.
+    fixture.jpeg("Photos/Trip/preview.cr2", [200, 120, 40], 48, 32);
     // A sidecar the scan should import: a rating and a keyword written by another application.
     fixture.sidecar(
         "Photos/Trip/a.jpg",

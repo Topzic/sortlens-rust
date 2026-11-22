@@ -1,5 +1,5 @@
 exit 0
 --- stdout
-looking at 5 photo(s)…
+looking at 6 photo(s)…
 0 photo(s) have something to suggest; nothing was written
 --- stderr

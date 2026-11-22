@@ -458,9 +458,7 @@ fn run() -> Result<(), String> {
                 done.restored,
                 done.elapsed.as_secs_f64()
             );
-            for error in &done.errors {
-                eprintln!("  unreadable: {error}");
-            }
+            report_scan(&done);
             Ok(())
         }
         "roots" => {
@@ -810,6 +808,17 @@ fn run() -> Result<(), String> {
 
     let _ = engine.close();
     result
+}
+
+/// What a scan wants to say beyond its one-line summary: a correction the user can act on, and the files
+/// that could not be read at all.
+fn report_scan(done: &sortlens_engine::ScanFinished) {
+    if done.mislabelled > 0 {
+        println!("  {} routed by content, not name", done.mislabelled);
+    }
+    for error in &done.errors {
+        eprintln!("  unreadable: {error}");
+    }
 }
 
 fn wait(engine: &mut Engine) -> Result<sortlens_engine::ScanFinished, String> {

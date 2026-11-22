@@ -561,6 +561,11 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
             if done.missing > 0 {
                 message.push_str(&format!(" · {} missing", done.missing));
             }
+            if done.mislabelled > 0 {
+                // Named because it is the one scan outcome the user can act on: a file that says one thing
+                // and contains another is a file whose name is wrong, and only they can decide to fix it.
+                message.push_str(&format!(" · {} routed by content, not name", done.mislabelled));
+            }
             if !done.errors.is_empty() {
                 message.push_str(&format!(" · {} unreadable", done.errors.len()));
             }

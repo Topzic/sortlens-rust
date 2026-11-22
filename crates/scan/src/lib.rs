@@ -105,6 +105,8 @@ pub struct Skipped {
     pub symlink: usize,
     /// Entries deeper than [`MAX_DEPTH`].
     pub too_deep: usize,
+    /// Files whose header contradicted their extension; counted, not skipped.
+    pub mislabelled: usize,
 }
 
 impl Skipped {
@@ -309,10 +311,18 @@ pub fn scan_root_with(root: &Path, control: &ScanControl) -> Result<ScanReport> 
                 report.skipped.non_media += 1;
                 continue;
             }
-            let Some(kind) = media_kind(&extension) else {
+            let Some(claimed) = media_kind(&extension) else {
                 report.skipped.non_media += 1;
                 continue;
             };
+            // The header decides when it contradicts the name, because the name is the thing that is wrong:
+            // a raw that is really a JPEG preview draws a broken cell otherwise, and a video named `.jpg`
+            // opens a decoder that cannot read it. Ambiguity (a TIFF, which every raw also is) keeps the
+            // extension's answer.
+            let (kind, corrected) = sortlens_core::media::resolve_kind(claimed, read_magic(&path));
+            if corrected {
+                report.skipped.mislabelled += 1;
+            }
 
             let size = meta.len();
             let modified = meta
@@ -384,6 +394,18 @@ pub fn content_key(path: &Path, size: u64) -> std::io::Result<u64> {
     Ok(hash)
 }
 
+/// The first [`sortlens_core::media::SNIFF_BYTES`] bytes of a file, or an empty slice if it cannot be read.
+///
+/// A read failure here is not an error: `content_key` opens the same file immediately afterwards and reports
+/// the problem once, and a second complaint about the same unreadable file is noise.
+fn read_magic(path: &Path) -> sortlens_core::media::Magic {
+    let mut head = [0_u8; sortlens_core::media::SNIFF_BYTES];
+    match fs::File::open(path).and_then(|mut file| file.read(&mut head)) {
+        Ok(read) => sortlens_core::media::sniff(&head[..read]),
+        Err(_) => sortlens_core::media::Magic::Unknown,
+    }
+}
+
 fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
     for byte in bytes {
         hash ^= u64::from(*byte);
@@ -425,12 +447,17 @@ mod tests {
         }
 
         fn file(&self, rel: &str, bytes: usize) -> PathBuf {
+            self.bytes(rel, &vec![7u8; bytes])
+        }
+
+        /// A file with chosen contents, for the header checks.
+        fn bytes(&self, rel: &str, contents: &[u8]) -> PathBuf {
             let path = self.0.join(rel);
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).expect("parent");
             }
             let mut file = fs::File::create(&path).expect("create");
-            file.write_all(&vec![7u8; bytes]).expect("write");
+            file.write_all(contents).expect("write");
             path
         }
     }
@@ -541,6 +568,44 @@ mod tests {
         assert_eq!(media_kind("cr3"), Some(MediaKind::Raw));
         assert_eq!(media_kind("mov"), Some(MediaKind::Video));
         assert_eq!(media_kind("txt"), None);
+    }
+
+    /// The header wins when it contradicts the name, and the report says how often that happened.
+    ///
+    /// Three files, three contradictions, and one unambiguous TIFF that must be left alone:
+    ///
+    /// * `preview.cr2` holding JPEG bytes is a still, not a raw — the case that drew a broken cell.
+    /// * `clip.jpg` holding an MP4 header is a video, not a still.
+    /// * `still.mov` holding JPEG bytes is a still, not a video.
+    /// * `scan.tif` holding TIFF bytes stays an image: every raw is also a TIFF, so the name decides.
+    #[test]
+    fn a_header_that_contradicts_the_name_corrects_the_kind() {
+        let tree = TempTree::new("magic");
+        let jpeg = [0xff_u8, 0xd8, 0xff, 0xe0, 0, 16, b'J', b'F', b'I', b'F', 0, 1, 1, 0, 0, 1];
+        let mp4 = *b"\0\0\0\x18ftypmp42\0\0\0\0mp42isom";
+        let tiff = *b"II*\0\x08\0\0\0\0\0\0\0";
+        tree.bytes("preview.cr2", &jpeg);
+        tree.bytes("clip.jpg", &mp4);
+        tree.bytes("still.mov", &jpeg);
+        tree.bytes("scan.tif", &tiff);
+        tree.bytes("plain.jpg", &jpeg);
+
+        let report = scan_root(&tree.0).expect("scan");
+        let kind = |rel: &str| {
+            report
+                .files
+                .iter()
+                .find(|file| file.rel == rel)
+                .map(|file| file.kind)
+                .unwrap_or_else(|| panic!("{rel} was not indexed"))
+        };
+        assert_eq!(kind("preview.cr2"), MediaKind::Image, "a JPEG preview is not a raw");
+        assert_eq!(kind("clip.jpg"), MediaKind::Video, "an MP4 header is not a still");
+        assert_eq!(kind("still.mov"), MediaKind::Image, "a JPEG header is not a video");
+        assert_eq!(kind("scan.tif"), MediaKind::Image, "TIFF stays whatever the name said");
+        assert_eq!(kind("plain.jpg"), MediaKind::Image);
+        assert_eq!(report.skipped.mislabelled, 3, "three contradictions, counted not skipped");
+        assert_eq!(report.files.len(), 5, "and nothing was dropped for being mislabelled");
     }
 
     #[test]

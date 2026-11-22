@@ -1,11 +1,11 @@
 exit 0
 --- stdout
-photos    5
+photos    6
 rated     1
 picks     0
 rejects   0
 labelled  0
 tagged    1
 missing   0
-bytes     1.6 kB
+bytes     1.9 kB
 --- stderr

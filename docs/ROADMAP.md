@@ -68,7 +68,14 @@ volume probe and `PathKey`.
 - [x] Virtualised grid with selection, counts and keyboard rating/flags (B)
 - [x] CLI: add, list, rate, flag, undo (E)
 - [x] `craft-metadata` → `PhotoMeta` through `sortlens-meta` (C) — SL-B21 data
-- [ ] Format routing by extension is in (`sortlens-core::media`); magic-byte sniffing is not (C) — SL-B11
+- [x] Format routing by **header as well as name**: `sortlens_core::media::sniff` reads the first 16 bytes
+  (JPEG, PNG, TIFF, HEIF/AVIF, WebP, ISO base-media brands including CR3's `crx ` and the video brands) and
+  `resolve_kind` corrects a file whose header contradicts its extension — a JPEG preview named `.cr2`, an
+  MP4 named `.jpg`, a still named `.mov` — while leaving genuine ambiguity alone (every raw is also a TIFF,
+  so a `.tif` stays an image). The scan counts what it corrected (`Skipped::mislabelled` →
+  `ScanFinished::mislabelled`), and the notice says "3 routed by content, not name", because a correction
+  nobody is told about is a silent rewrite of what their tree means. Unknown ISO brands stay unknown rather
+  than guessed as video, so podcasts and sidecars do not land in the grid (C) — SL-B11
 - [x] `library.addFolder`, `library.rescan`, `library.removeRoot` (A) — SL-A01/A19
 - [ ] Square grid is virtualised (a window of cells over 200k rows); justified rows are not built (B) — SL-B01/B02
 - [ ] Cell size is derived from the window width; there is no density control (B) — SL-B04

@@ -62,6 +62,6 @@ exit 0
     }
   ],
   "sort": "added",
-  "total": 5
+  "total": 6
 }
 --- stderr

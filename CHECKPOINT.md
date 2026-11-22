@@ -1528,11 +1528,30 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   **Not verified by hand**: the badge at small cell sizes, and whether "Rejects" is a source people want
   next to Picks — it is in the list because rejects are still in the library until you delete them.
 
+## 2026-11-21 — M1 row: the header decides when the name is wrong
+
+- **`sortlens_core::media::sniff`** reads the first 16 bytes and names the family: JPEG, PNG, TIFF (+ every
+  raw built on it), HEIF/AVIF, WebP, and ISO base-media brands — including `crx ` for CR3 and the video
+  brands. An **unrecognised** brand comes back `Unknown` rather than "video": guessing would drop podcasts
+  and `.m4a` sidecars into the grid.
+- **`resolve_kind`** corrects only a contradiction: a JPEG preview named `.cr2` is a still, an MP4 named
+  `.jpg` is a video, a still named `.mov` is a still. Ambiguity keeps the extension's answer — every raw is
+  also a TIFF, so a `.tif` stays an image instead of turning the whole scanned tree into raws.
+- The scan counts what it corrected (`Skipped::mislabelled` → `ScanFinished::mislabelled`), the window's
+  notice says "N routed by content, not name", and the CLI prints the same line: a correction nobody is
+  told about is a silent rewrite of what their tree means.
+- **Golden proof**: the fixture gained `Photos/Trip/preview.cr2` holding JPEG bytes, and `01 add photos` now
+  reads "5 added … 1 routed by content, not name" — the correction and the report are pinned as published
+  text. Fourteen goldens moved by exactly the counts one extra photo implies; the diff was read.
+- Files: `crates/core/src/media.rs`, `crates/scan/src/lib.rs`, `crates/engine/src/lib.rs`,
+  `crates/ui/src/shell.rs`, `apps/sortlens-cli/src/main.rs` (+ `report_scan`, after clippy's cognitive
+  complexity gate caught `run()` at 31/30), `apps/sortlens-cli/tests/golden.rs` and the goldens.
+- 440 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: a real camera raw whose header is
+  a TIFF with an embedded JPEG (the `cr2` case is synthetic JPEG bytes), and a real CR3.
+
 ## Next
 
-Continue the row-by-row pass in milestone order. Next: M1's `ContentKey` volume probe and `PathKey`, magic-byte
-sniffing (SL-B11), grid justification and density (SL-B01/B02/B04), multi-select and marquee (SL-B15); then
-M2's priority scheduling and backpressure, HEIC and video decode (both crates are declared and unlinked —
-that is a decoder decision, so it belongs in M2's absent table with its unblocker), blur-up, the bell popover,
-and `craft-ipc`. Each row needs the same treatment as these three: prove it shipped and tick it, ship it, or
-move it to the milestone's table with what would unblock it.
+Keep going in milestone order. Next: M1's `ContentKey` volume probe and `PathKey`, then grid justification,
+density and multi-select (SL-B01/B02/B04/B15); M2's priority scheduling and backpressure, the bell popover,
+`craft-ipc`, and the decoder rows (HEIC, video, blur-up) which belong in M2's absent-by-design table because
+each needs a decoder or a progressive-decode decision this repository has not made.

@@ -112,6 +112,8 @@ pub struct ScanFinished {
     pub restored: usize,
     /// Read failures, as messages.
     pub errors: Vec<String>,
+    /// Files whose header contradicted their extension and were routed by content instead.
+    pub mislabelled: usize,
     /// How long the walk took.
     pub elapsed: std::time::Duration,
     /// The walk was cancelled; nothing was committed.
@@ -1152,6 +1154,7 @@ impl Engine {
                     missing: 0,
                     restored: 0,
                     errors: vec![error.to_string()],
+                    mislabelled: 0,
                     elapsed: pending.started.elapsed(),
                     cancelled: false,
                 })
@@ -1175,6 +1178,7 @@ impl Engine {
                 missing: 0,
                 restored: 0,
                 errors: Vec::new(),
+                mislabelled: 0,
                 elapsed,
                 cancelled: true,
             };
@@ -1215,6 +1219,7 @@ impl Engine {
             self.warnings.push(error.clone());
         }
 
+        let mislabelled = report.skipped.mislabelled;
         let status = if errors.is_empty() { JobStatus::Done } else { JobStatus::Failed };
         self.finish_job(job, status, report.files.len(), report.dirs, errors.len(), errors.first().cloned());
 
@@ -1225,6 +1230,7 @@ impl Engine {
             missing: outcome.missing,
             restored: outcome.restored,
             errors,
+            mislabelled,
             elapsed,
             cancelled: false,
         }
@@ -3909,6 +3915,28 @@ mod tests {
         assert_eq!(jobs[0].status, JobStatus::Done);
         assert_eq!(jobs[0].files, 1);
         assert!(jobs[0].finished.is_some());
+    }
+
+    /// A mislabelled file is indexed as what it is, and the scan says how many were routed that way.
+    ///
+    /// The count reaches the user through `ScanFinished`, which the window shows in its notice and which the
+    /// CLI prints — a correction nobody is told about is a silent rewrite of their tree's meaning.
+    #[test]
+    fn a_mislabelled_file_is_indexed_by_its_header_and_counted() {
+        let folder = Temp::new("mislabelled-folder");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        let jpeg = [0xff_u8, 0xd8, 0xff, 0xe0, 0, 16, b'J', b'F', b'I', b'F', 0, 1, 1, 0, 0, 1];
+        std::fs::write(folder.0.join("preview.cr2"), jpeg).expect("write raw-named jpeg");
+        std::fs::write(folder.0.join("plain.jpg"), jpeg).expect("write jpeg");
+        let (_lib, mut engine) = library("mislabelled");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        let done = wait_for_scan(&mut engine);
+
+        assert_eq!(done.added, 2, "nothing was dropped for being mislabelled");
+        assert_eq!(done.mislabelled, 1, "one header contradicted its extension");
+        let photos = engine.all_photos();
+        let preview = photos.iter().find(|photo| photo.name == "preview.cr2").expect("indexed");
+        assert_eq!(preview.kind, MediaKind::Image, "a JPEG preview is a still, whatever it is called");
     }
 
     #[test]
