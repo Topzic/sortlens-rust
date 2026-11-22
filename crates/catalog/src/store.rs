@@ -630,6 +630,35 @@ impl Catalog {
                 }
                 Ok(Op::Group { ops: inverse })
             }
+            Op::RemapRoot { from, to } => {
+                // Repointing a root is one change to the root list plus one per member, and its
+                // inverse is the same swap in reverse — so a mistake costs one undo.
+                if !self.roots.iter().any(|root| root == from) {
+                    return Err(Error::Invalid(format!("no indexed root {from}")));
+                }
+                if self.roots.iter().any(|root| root == to) {
+                    return Err(Error::Invalid(format!("{to} is already indexed")));
+                }
+                let mut members: Vec<PhotoId> = self
+                    .photos
+                    .values()
+                    .filter(|photo| &photo.root == from)
+                    .map(|photo| photo.id)
+                    .collect();
+                members.sort_by_key(|id| id.0);
+                for id in &members {
+                    if let Some(photo) = self.photos.get_mut(id) {
+                        photo.root = to.clone();
+                    }
+                }
+                if let Some(index) = self.roots.iter().position(|root| root == from) {
+                    self.roots[index] = to.clone();
+                }
+                Ok(Op::RemapRoot {
+                    from: to.clone(),
+                    to: from.clone(),
+                })
+            }
             Op::AddCollection { collection } => {
                 let collection = (**collection).clone();
                 let id = collection.id;

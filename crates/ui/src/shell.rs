@@ -110,6 +110,8 @@ pub enum Action {
     Backup,
     /// Verify an archive and unpack it into a folder the host chooses.
     RestoreBackup,
+    /// Repoint an indexed root, which the host asks a folder for.
+    RemapRoot(String),
 }
 
 /// What Apply does with rejected photos.
@@ -475,7 +477,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
         empty_bin_dialog(ui, state, &t, engine);
     }
     if state.health_open {
-        health_dialog(ui, state, &t, engine);
+        health_dialog(ui, state, &t, engine, &mut actions);
     }
     if state.rename_target.is_some() {
         rename_dialog(ui, state, &t, engine);
@@ -2681,7 +2683,7 @@ fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     state.rename_target = if open { Some((id, name)) } else { None };
 }
 
-fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.health_open;
     egui::Window::new("Library health")
         .open(&mut open)
@@ -2724,6 +2726,34 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             }
             ui.label(
                 RichText::new("Matches missing photos by content key under the same root.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(8.0);
+            // A whole volume that was renamed or moved: every relative path still holds, so the
+            // root can be repointed instead of relocating photos one by one.
+            let roots: Vec<(String, usize)> = engine.counts_by_root();
+            for (root, count) in roots {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(folder_name(&root)).size(11.5).color(t.text));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui
+                            .button(RichText::new("Point at…").size(11.0))
+                            .on_hover_text("This folder moved or its volume was renamed")
+                            .clicked()
+                        {
+                            actions.push(Action::RemapRoot(root.clone()));
+                        }
+                    });
+                });
+                ui.label(
+                    RichText::new(format!("{count} photo(s) under {}", root))
+                        .size(10.0)
+                        .color(t.text_faint),
+                );
+            }
+            ui.label(
+                RichText::new("Repointing checks a sample of photos in the new folder first.")
                     .size(10.5)
                     .color(t.text_faint),
             );

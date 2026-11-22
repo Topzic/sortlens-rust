@@ -611,7 +611,30 @@ are, and nothing on disk is deleted from here. That is what the confirmation say
   refused with nothing written
 - 223 tests, CI and wasm green
 
+## 2026-11-21 — M7: volume remap
+
+The case this exists for: a shoot arrives on a card, is indexed, then the card is renamed or the
+folder moves. Every relative path still holds, so the root can be repointed instead of relocating
+photos one at a time.
+
+- catalog: `Op::RemapRoot { from, to }` — rewrites the root list and every member's root in one op,
+  with `RemapRoot { from: to, to: from }` as the exact inverse, so a mistake costs one undo. It
+  refuses an unindexed `from` and a `to` that is already indexed
+- engine: `remap_root(from, to)` refuses a path that is not a folder, refuses a root with no photos,
+  then checks a **spread** sample of up to `REMAP_SAMPLE = 12` photos (`sample_indices` takes every
+  n-th, not the first twelve, so a sample covers the whole root) for presence *and* size. A wrong
+  folder fails with "<n> of <m> sampled photo(s) were not found" instead of quietly marking the
+  library missing on the next scan
+- engine: `library.remapRoot` command
+- ui: the Library health dialog lists each root with its photo count and a "Point at…" button, since
+  a moved volume is exactly what that dialog is opened for
+- cli: `remap <old> <new>`
+- tests: a renamed folder remapped, roots repointed, health reporting zero missing, and one undo
+  returning to the old root; a wrong folder and a right-name-wrong-size file both refused with the
+  root unchanged; an unindexed root refused; the sample covering 12 of 30 and everything of 3
+- 225 tests, CI and wasm green. Verified by hand over the CLI, including the refusal path.
+
 ## Next
 
-M7: volume remap — pointing an indexed root at a renamed or moved volume, with a sample checked
-before the whole root is repointed.
+M7: library integrity check and compaction — verifying the log and the snapshot agree, and
+rewriting the log from a clean snapshot.

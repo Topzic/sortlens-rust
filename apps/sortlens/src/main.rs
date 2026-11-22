@@ -151,6 +151,15 @@ impl App {
                     }
                 }
             }
+            Action::RemapRoot(from) => {
+                if let Some(folder) = rfd::FileDialog::new().set_title("Where does this folder live now?").pick_folder() {
+                    let to = folder.to_string_lossy().to_string();
+                    match self.engine.remap_root(&from, &to) {
+                        Ok(count) => self.ui.notice(format!("Repointed {count} photo(s) to {}", folder_name(&to))),
+                        Err(error) => self.ui.notice(error.to_string()),
+                    }
+                }
+            }
             Action::Rescan(root) => match self.engine.begin_scan(root.clone()) {
                 Ok(()) => self.ui.notice(format!("Rescanning {}…", folder_name(&root))),
                 Err(error) => self.ui.notice(error.to_string()),

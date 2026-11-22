@@ -324,6 +324,70 @@ impl Engine {
         Ok(health)
     }
 
+    /// Repoint an indexed root at a new location, after checking a sample of its photos.
+    ///
+    /// A renamed or moved volume is the common case: every file keeps its relative path, so the
+    /// whole root can be repointed in one undoable change. The sample — up to [`REMAP_SAMPLE`] photos
+    /// spread through the root, each checked for presence and size — is what makes this safe to offer
+    /// on a path typed by hand: a wrong folder fails loudly here instead of marking the library
+    /// missing on the next scan.
+    pub fn remap_root(&mut self, from: &str, to: &str) -> Result<usize> {
+        let from = from.trim_end_matches('/');
+        let to = to.trim_end_matches('/').to_string();
+        if from.is_empty() || to.is_empty() {
+            return Err(Error::Invalid("both a current and a new folder are required".into()));
+        }
+        if from == to {
+            return Err(Error::Invalid("the folder is already this one".into()));
+        }
+        if !self.roots().iter().any(|root| root.trim_end_matches('/') == from) {
+            return Err(Error::Invalid(format!("{from} is not indexed")));
+        }
+        if self.roots().iter().any(|root| root.trim_end_matches('/') == to) {
+            return Err(Error::Invalid(format!("{to} is already indexed")));
+        }
+        if !Path::new(&to).is_dir() {
+            return Err(Error::Invalid(format!("{to} is not a folder")));
+        }
+
+        let mut members: Vec<Photo> = self
+            .all_photos()
+            .into_iter()
+            .filter(|photo| photo.root.trim_end_matches('/') == from)
+            .collect();
+        members.sort_by(|a, b| a.rel.cmp(&b.rel));
+        if members.is_empty() {
+            return Err(Error::Invalid(format!("no photos are indexed under {from}")));
+        }
+
+        let sampled = sample_indices(members.len(), REMAP_SAMPLE);
+        let mut absent = Vec::new();
+        for index in &sampled {
+            let photo = &members[*index];
+            let candidate = Path::new(&to).join(&photo.rel);
+            match std::fs::metadata(&candidate) {
+                Ok(meta) if meta.len() == photo.size => {}
+                _ => absent.push(photo.rel.clone()),
+            }
+        }
+        if !absent.is_empty() {
+            absent.sort();
+            let list = absent.iter().take(3).cloned().collect::<Vec<_>>().join(", ");
+            return Err(Error::Invalid(format!(
+                "{} of {} sampled photo(s) were not found under {to} ({list})",
+                absent.len(),
+                sampled.len()
+            )));
+        }
+
+        let count = members.len();
+        self.mutate(Op::RemapRoot {
+            from: from.to_string(),
+            to,
+        })?;
+        Ok(count)
+    }
+
     /// Look for missing photos elsewhere under their root and record the new paths.
     ///
     /// Matching is by content key — size plus a hash of the ends — so a moved or renamed file is
@@ -1614,6 +1678,17 @@ impl Engine {
                 }))
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
+            "library.remapRoot" => {
+                let from = args
+                    .get("from")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("the current folder is required".into()))?;
+                let to = args
+                    .get("to")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("the new folder is required".into()))?;
+                Ok(json!({ "remapped": self.remap_root(from, to)? }))
+            }
             "library.removeMissing" => Ok(json!({ "removed": self.remove_missing()? })),
             "library.deleted" => {
                 let batches: Vec<Value> = self
@@ -1824,6 +1899,21 @@ impl Default for Engine {
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// How many spread-out photos a root remap checks before repointing the whole root.
+pub const REMAP_SAMPLE: usize = 12;
+
+/// Up to `count` indices spread evenly through `len`, so a sample covers the whole root rather than
+/// its first folder.
+fn sample_indices(len: usize, count: usize) -> Vec<usize> {
+    if len == 0 || count == 0 {
+        return Vec::new();
+    }
+    if len <= count {
+        return (0..len).collect();
+    }
+    (0..count).map(|slot| slot * len / count).collect()
+}
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
@@ -2167,6 +2257,84 @@ mod tests {
             .run("collection.colour", &json!({ "id": id.0, "colour": "none" }))
             .expect("clear");
         assert!(engine.collections()[0].colour.is_none());
+    }
+
+    #[test]
+    fn a_moved_volume_is_repointed_in_one_undoable_step() {
+        let folder = Temp::new("remap-old");
+        std::fs::create_dir_all(folder.0.join("day one")).expect("dir");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::write(folder.0.join("day one").join(name), name.as_bytes()).expect("write");
+        }
+        let (_lib, mut engine) = library("remap");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        assert_eq!(engine.stats().total, 3);
+
+        // The volume is renamed, keeping the layout.
+        let moved = Temp::new("remap-new");
+        let new_root = moved.0.join("day one");
+        std::fs::create_dir_all(moved.0.clone()).expect("dir");
+        std::fs::rename(folder.0.join("day one"), &new_root).expect("rename");
+
+        let value = engine
+            .run(
+                "library.remapRoot",
+                &json!({ "from": folder.0.to_string_lossy(), "to": moved.0.to_string_lossy() }),
+            )
+            .expect("remap");
+        assert_eq!(value["remapped"], 3);
+        assert_eq!(engine.roots().len(), 1);
+        assert_eq!(engine.roots()[0], moved.0.to_string_lossy());
+        assert_eq!(engine.run("library.health", &json!({})).expect("health")["missing"], 0);
+
+        // One undo puts the library back on the old folder, which is why remap is an op.
+        engine.undo().expect("undo");
+        assert_eq!(engine.roots()[0], folder.0.to_string_lossy());
+    }
+
+    #[test]
+    fn a_remap_refuses_a_folder_that_does_not_hold_the_photos() {
+        let folder = Temp::new("remap-oops");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"aaaa").expect("write");
+        let (_lib, mut engine) = library("lib-remap-oops");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        assert_eq!(engine.stats().total, 1, "the photo indexed");
+
+        let wrong = Temp::new("remap-empty");
+        std::fs::create_dir_all(&wrong.0).expect("dir");
+        let error = engine
+            .run(
+                "library.remapRoot",
+                &json!({ "from": folder.0.to_string_lossy(), "to": wrong.0.to_string_lossy() }),
+            )
+            .expect_err("refused");
+        let text = error.to_string();
+        assert!(text.contains("not found under"), "{text}");
+        assert_eq!(engine.roots()[0], folder.0.to_string_lossy(), "the root is unchanged");
+
+        // A file at the right path but with the wrong size is refused too.
+        std::fs::write(wrong.0.join("a.jpg"), b"different length").expect("write");
+        assert!(
+            engine
+                .run(
+                    "library.remapRoot",
+                    &json!({ "from": folder.0.to_string_lossy(), "to": wrong.0.to_string_lossy() })
+                )
+                .is_err(),
+            "a size mismatch is not the same photo"
+        );
+        assert!(
+            engine
+                .run("library.remapRoot", &json!({ "from": "/nothing", "to": wrong.0.to_string_lossy() }))
+                .is_err(),
+            "an unindexed root cannot be remapped"
+        );
+        assert_eq!(sample_indices(30, 12).len(), 12);
+        assert_eq!(sample_indices(3, 12), vec![0, 1, 2]);
+        assert!(sample_indices(0, 12).is_empty());
     }
 
     #[test]

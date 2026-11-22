@@ -32,6 +32,7 @@ Commands:
   relocate                  find missing files elsewhere under their root
   list [--tag KW]           filter the listing by keyword
   undo                      undo the last change
+  remap <old> <new>         repoint a moved or renamed root, sample checked
   backup <file>             write a verified backup of the index
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
@@ -238,6 +239,13 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "remap" => {
+            let from = rest.first().ok_or("the current folder is required")?;
+            let to = rest.get(1).ok_or("the new folder is required")?;
+            let count = engine.remap_root(from, to).map_err(|error| error.to_string())?;
+            println!("repointed {count} photo(s) to {to}");
             Ok(())
         }
         "backup" => {

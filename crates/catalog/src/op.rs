@@ -38,6 +38,8 @@ pub enum Op {
     RemoveCollection { collection: Box<crate::collection::Collection> },
     /// A collection was renamed.
     RenameCollection { id: CollectionId, name: String },
+    /// A whole root was repointed at a new location, which rewrites every member's root.
+    RemapRoot { from: String, to: String },
     /// Photos were added to and removed from a collection.
     Collect {
         id: CollectionId,
@@ -70,6 +72,7 @@ impl Op {
             Self::Label { .. } => "label",
             Self::Tagged { .. } => "tagged",
             Self::Relocate { .. } => "relocate",
+            Self::RemapRoot { .. } => "remapRoot",
             Self::AddCollection { .. } => "addCollection",
             Self::RemoveCollection { .. } => "removeCollection",
             Self::RenameCollection { .. } => "renameCollection",

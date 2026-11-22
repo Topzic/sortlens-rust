@@ -213,6 +213,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.remapRoot",
+                    label: "Point at a New Folder…",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Point at a New Folder…",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.backup",
                     label: "Back Up Library…",
                     group: Group::Library,
