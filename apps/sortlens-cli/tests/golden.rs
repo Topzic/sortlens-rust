@@ -249,6 +249,13 @@ const STEPS: &[Step] = &[
         args: &["keywords", "--json"],
         file: None,
     },
+    // The diagnostics bundle is a published artefact: its section names are what a maintainer greps, and
+    // the report must never contain the path this test library lives at.
+    Step {
+        name: "43 diagnostics",
+        args: &["diagnostics"],
+        file: None,
+    },
     Step {
         name: "42 a verb with no schema says so",
         args: &["undo", "--json"],
@@ -309,6 +316,29 @@ fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
         }
     }
     stable.push_str(rest);
+    // The diagnostics report records what the machine is, not what the library is: a golden that pinned
+    // "os = macos" would fail on the ubuntu job for a reason that says nothing about the code.
+    let mut portable = String::new();
+    for line in stable.split_inclusive('\n') {
+        let host = ["os = ", "arch = "].iter().find(|prefix| line.starts_with(**prefix)).copied();
+        let version = ["sortlens = ", "engine = "]
+            .iter()
+            .find(|prefix| line.starts_with(**prefix))
+            .copied();
+        match (host, version) {
+            (Some(prefix), _) => {
+                portable.push_str(prefix);
+                portable.push_str("<host>\n");
+            }
+            (None, Some(prefix)) => {
+                portable.push_str(prefix);
+                portable.push_str("<version>\n");
+            }
+            (None, None) => portable.push_str(line),
+        }
+    }
+    stable = portable;
+
     let mut cleaned = stable;
     // A trailing newline is not worth a diff.
     while cleaned.ends_with('\n') || cleaned.ends_with(' ') {
@@ -380,6 +410,31 @@ fn record(step: &Step, library: &Path, fixture_root: &Path) -> String {
         }
         Err(error) => format!("<could not run {}: {error}>\n", binary()),
     }
+}
+
+/// The golden normaliser replaces the library and fixture paths so a diff is about the tool, not the
+/// machine — which means a *leak* of those paths would be hidden from the golden diff. This test reads the
+/// diagnostics output before any normalisation and says the redaction actually happened.
+#[test]
+fn the_diagnostics_bundle_contains_no_absolute_paths() {
+    let fixture = build_fixture();
+    let library = Fixture::new("golden-redaction");
+    let output = Command::new(binary())
+        .arg("--library")
+        .arg(library.root())
+        .arg("diagnostics")
+        .current_dir(fixture.root())
+        .output()
+        .expect("run the binary");
+    assert!(output.status.success(), "diagnostics should succeed");
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    for path in [library.root(), fixture.root()] {
+        let path = path.display().to_string();
+        assert!(!text.contains(&path), "the report leaked {path}:\n{text}");
+    }
+    assert!(text.contains("<library>"), "the library is named by its placeholder");
+    assert!(text.contains("<root-"), "each root is named by its placeholder");
+    assert!(text.contains("[health]"), "the report has its sections");
 }
 
 #[test]

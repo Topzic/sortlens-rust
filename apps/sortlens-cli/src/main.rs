@@ -61,6 +61,7 @@ Commands:
   refresh                   re-read exactly the changed files
   audit                     check the catalog files read back cleanly
   compact                   snapshot and empty the log
+  diagnostics [--out F]     a report to attach to a bug report; absolute paths are redacted
   backup <file>             write a verified backup of the index
 
 --json prints the engine's own answer instead of prose, for the read verbs: roots, list, stats,
@@ -554,6 +555,17 @@ fn run() -> Result<(), String> {
         "suggest" | "accept" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
         "batchsuggest" => batch_suggest(&mut engine),
+        "diagnostics" => {
+            let text = engine.diagnostics().map_err(|error| error.to_string())?;
+            match text_value(rest, "--out") {
+                Some(path) => {
+                    std::fs::write(&path, text.as_bytes()).map_err(|error| format!("{path}: {error}"))?;
+                    println!("wrote {} line(s) to {path}", text.lines().count());
+                }
+                None => print!("{text}"),
+            }
+            Ok(())
+        }
         "keywords" => {
             let vocabulary = engine.tag_vocabulary();
             if vocabulary.is_empty() {

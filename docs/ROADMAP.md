@@ -281,6 +281,10 @@ selection as originals and as JPEG and diff the metadata.
 
 ## M9 — Remote + automation · 2.5 w · tracks E,B
 
+**State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
+bundle. The remote half (a server, a wasm client, remote album edits) is absent by design and listed
+below with what would unblock it; i18n and the keymap editor remain.
+
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
 - [x] CLI parity and stable JSON schemas: `--json` on the read verbs (roots, keywords, stats, list,
   folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs, suggest, jobs)
@@ -289,17 +293,31 @@ selection as originals and as JPEG and diff the metadata.
   — SL-K03/K06
 - [ ] `--json` for the remaining verbs, and a written compatibility note per schema — the write verbs
   need a defined result shape before they can be called from a script safely (E)
-- [ ] `sortlens-server`: token auth, pairing, permissions, upload resume (E) — SL-J01/J03/J04
-- [ ] `sortlens-web` wasm client reusing the UI (B,E) — SL-J02
-- [ ] Remote album/collection create + rescan (E) — SL-J06/J08
 - [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07
 - [ ] Localised numbers/dates (B) — SL-L08
 - [ ] `craft-keymap` editor + import/export (B) — SL-I09
 - [ ] `craft-update` + in-app release notes (E) — SL-I10
-- [ ] Diagnostics bundle (E) — SL-I14
+- [x] Diagnostics bundle: `Engine::diagnostics` writes plain text with versions, library counts, the
+  read-only health check, packs, the last 25 changes and the root list, with **every absolute path
+  replaced** by `<library>`, `<root-N>` or `<home>` (longest match first, so a root under the library is
+  not half-replaced); `diagnostics [--out FILE]` in the CLI, `app.diagnostics` for MCP, a golden, and an
+  end-to-end test that reads the output *before* normalisation and fails if either path leaks (E)
+  — SL-I14
 
-**Demo:** cull 20 photos from a phone over LAN; an agent runs a full cull + report via MCP in
-CI; the UI renders correctly in Arabic and Japanese.
+### Deliberately absent from M9
+
+| Not built | Because | What would unblock it |
+| --- | --- | --- |
+| `sortlens-server`: token auth, pairing, permissions, upload resume (SL-J01/J03/J04) | a server cannot be tested here without a second device and a network peer; shipping an untested auth path is the worst kind of untested code | a test harness with two processes and a loopback socket, plus a decision on pairing (QR, code, or both) |
+| `sortlens-web` wasm client reusing the UI (SL-J02) | the same: it exists to be opened on another device | the server above, and a browser to check it in |
+| Remote album/collection create and rescan (SL-J06/J08) | commands over the wire need the server | the server above |
+
+`docs/ARCHITECTURE.md` §11 keeps the design for all three. The command registry is already the API they
+would expose, which is why the absence is a missing transport rather than a missing design.
+
+**Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
+`--json`; `sortlens-cli diagnostics` produces a bundle a maintainer can read without knowing where the
+photos live; the UI renders correctly in Arabic and Japanese.
 
 ---
 

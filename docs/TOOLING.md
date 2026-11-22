@@ -363,3 +363,17 @@ check, moves, changed, history, audit, memories, shortcuts, registry, packs, job
 MCP is the same registry over stdio, so anything an agent can do there, `--json` can do from a shell —
 and `batchsuggest` deliberately has no schema yet, because a pass that writes nothing is better read as a
 list of proposals than parsed as one.
+
+## Reporting a bug
+
+`sortlens-cli diagnostics` prints a report — or writes it with `--out FILE` — meant to be attached to a
+bug report. It carries the versions, the library counts, the result of the read-only health check, the
+installed keyword packs, the last 25 changes and the number of roots.
+
+Absolute paths are replaced before anything is printed or written: each indexed root becomes `<root-N>`,
+the library folder `<library>`, and the home folder `<home>`. Longest match first, so a root inside the
+library is not half-replaced. Root-relative paths stay, because `Trips/Japan/DSC_0001.jpg` is what a
+maintainer needs and it says nothing about the machine.
+
+There is a test for the promise rather than only for the format: it runs the binary, reads the output
+before the golden normaliser touches it, and fails if either the library or the fixture path appears.

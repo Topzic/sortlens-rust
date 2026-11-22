@@ -501,6 +501,9 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   name that only repeats the camera is not suggested twice, and the output order is fixed so a scan
   order cannot reshuffle the panel. These are proposals like any other: the panel merges them, and only
   accepting one writes a keyword.
+- `diagnostics::redact` is a sorted, longest-first replacement of absolute paths, and
+  `Engine::diagnostics` builds the bundle around it; nothing in the bundle is a decision, so it writes no
+  op and the health check it runs is read-only.
 - `ai::packs` reads a pack from JSON: a name, a licence, and rules whose `when` conditions are ANDed
   over the photo's folder, camera, lens, ISO and focal band. A rule with no conditions is refused,
   because one typo would otherwise tag the whole library; an unknown `when` field is refused rather than

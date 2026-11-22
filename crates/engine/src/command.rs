@@ -333,6 +333,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "app.diagnostics",
+                    label: "Write a Diagnostics Bundle",
+                    group: Group::Help,
+                    shortcut: None,
+                    menu: "Help > Diagnostics Bundle",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.roots",
                     label: "Indexed Folders",
                     group: Group::Library,

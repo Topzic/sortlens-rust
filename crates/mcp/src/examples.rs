@@ -58,6 +58,10 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
     ("suggest.clear", "no arguments; forgets the last pass's proposals"),
     ("suggest.list", "ids: photos; each photo's keyword suggestions from its own EXIF"),
     ("suggest.accept", "id: one photo; tag: a suggestion to write as an ordinary keyword"),
+    (
+        "app.diagnostics",
+        "file: where to write the report; omitted returns the text. Paths are redacted.",
+    ),
     ("app.quit", "no arguments; asks the host to close the window"),
 ];
 
@@ -92,6 +96,11 @@ pub const EXAMPLES: &[Example] = &[
         command: "photo.keyword",
         args: r#"{"ids": [1], "tag": "beach", "add": true}"#,
         note: "add false removes the keyword instead.",
+    },
+    Example {
+        command: "app.diagnostics",
+        args: "{}",
+        note: "file: where to write the report; omitted returns the text. Paths are redacted.",
     },
     Example {
         command: "library.roots",

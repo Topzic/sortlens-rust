@@ -1,0 +1,43 @@
+exit 0
+--- stdout
+# Sortlens diagnostics
+
+This file is meant to be attached to a bug report. Absolute paths are replaced with
+<library>, <root-N> and <home> before anything is written.
+
+[versions]
+sortlens = <version>
+engine = <version>
+os = <host>
+arch = <host>
+
+[library]
+read_only = false
+write_sidecars = true
+roots = 2
+photos = 5
+missing = 0
+rated = 2
+picks = 0
+rejects = 0
+tagged = 2
+bytes = 1622
+warnings = 0
+
+[health]
+checked = 5
+present = 5
+missing = 0
+changed = 0
+
+[packs]
+none installed
+
+[recent changes]
+15 tagged · Keyworded 1 photo
+
+[roots]
+2 indexed
+<root-1>
+<root-2>
+--- stderr

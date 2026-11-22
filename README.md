@@ -59,6 +59,8 @@ scripts and AI agents.
   operations, crash-safe storage, backups and volume remapping.
 - **Script** it: every read verb answers in JSON with `--json`, the CLI and the MCP server speak the
   same command registry, and the schemas are pinned by golden files.
+- **Report** a bug without leaking your folders: `sortlens-cli diagnostics` prints a bundle whose absolute
+  paths are replaced by placeholders before anything is written.
 - **Optionally** suggest tags with CPU-only local models you download yourself (no model is pinned yet,
   which the app says plainly), and reach the library from a phone through a paired, local-network
   client (not built — see the roadmap's absent-by-design table).

@@ -8,6 +8,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
 pub mod command;
+pub mod diagnostics;
 pub mod job;
 pub mod moves;
 
@@ -3062,6 +3063,14 @@ impl Engine {
                 "readyCommands": self.registry.ready_count(),
                 "libraryOpen": self.has_library(),
             })),
+            "app.diagnostics" => {
+                let text = self.diagnostics()?;
+                if let Some(path) = args.get("file").and_then(Value::as_str) {
+                    std::fs::write(path, text.as_bytes()).map_err(|error| Error::io(path.to_string(), error))?;
+                    return Ok(json!({ "written": path, "lines": text.lines().count() }));
+                }
+                Ok(json!({ "text": text, "lines": text.lines().count() }))
+            }
             "app.supportReport" => Ok(json!({
                 "sortlens": sortlens_core::VERSION,
                 "engine": VERSION,
@@ -3523,6 +3532,44 @@ mod tests {
         assert_eq!(suggested.len(), 1);
         assert_eq!(suggested[0].tag, "japan");
         assert_eq!(suggested[0].source, sortlens_ai::Source::Pack);
+    }
+
+    #[test]
+    fn the_diagnostics_bundle_says_what_is_happening_and_where_nothing_is() {
+        let (library_dir, photos, mut engine) = library_with_images("diagnostics", 2);
+        let root = photos.0.display().to_string();
+        let library = library_dir.0.display().to_string();
+        let id = engine.all_photos()[0].id;
+        engine.set_tag(&[id], "harbour", true).expect("tag");
+
+        let text = engine.diagnostics().expect("diagnostics");
+        assert!(text.starts_with("# Sortlens diagnostics"));
+        assert!(text.contains("sortlens = "), "the version is the first thing a maintainer asks");
+        assert!(text.contains("photos = 2"), "{text}");
+        assert!(text.contains("tagged = 1"));
+        assert!(text.contains("[health]"));
+        assert!(text.contains("present = 2"));
+        assert!(text.contains("[recent changes]"));
+        assert!(text.contains("Keyworded"), "the change summary is what a maintainer reads: {text}");
+
+        // The promise of the bundle: no absolute path of this machine is in it.
+        assert!(!text.contains(&root), "the root path leaked: {text}");
+        assert!(!text.contains(&library), "the library path leaked: {text}");
+        assert!(!text.contains("/Users/"), "a home path leaked: {text}");
+
+        // Writing it to a file produces the same text, and the file is what someone attaches.
+        let report = std::env::temp_dir().join(format!("sortlens-diagnostics-{}.txt", std::process::id()));
+        let written = engine
+            .run("app.diagnostics", &json!({ "file": report.display().to_string() }))
+            .expect("write");
+        assert_eq!(written["written"], json!(report.display().to_string()));
+        let on_disk = std::fs::read_to_string(&report).expect("read back");
+        assert_eq!(on_disk, text, "what is written is what was printed");
+        let _ = std::fs::remove_file(&report);
+
+        // And asking for it without a file returns the text, for an agent.
+        let inline = engine.run("app.diagnostics", &json!({})).expect("inline");
+        assert!(inline["text"].as_str().is_some_and(|text| text.contains("[library]")));
     }
 
     #[test]
