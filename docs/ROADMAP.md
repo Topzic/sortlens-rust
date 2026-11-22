@@ -334,7 +334,16 @@ scans headlessly and prints a JSON report.
   - It goes through `set_tag`, so a renamed keyword still resolves, a photo that already carries it is not
     written twice, and the write is one undoable op. Bound to `T`, in the registry as `photo.tagFromPrev` with
     its MCP argument schema, and the UI notice names the keyword rather than the count.
-- [ ] Registry create/rename/merge/alias with a searchable picker is in; deleting a keyword everywhere is not (A) — SL-D06
+- [x] Registry create/rename/merge/alias with a searchable picker, and deleting a keyword everywhere (A) — SL-D06
+  - `tag.delete` in the registry and the MCP examples; `Engine::delete_tag` runs the catalog change, syncs
+    the sidecars of every photo that carried the keyword, and records a `#tag deleted everywhere` job.
+  - `Catalog::delete_tag` is one undoable `Group`: a `Tagged` op (every photo, tags minus the keyword) and
+    an `Aliased` op that forgets the whole rename trail, so re-typing the old name cannot resurrect the
+    keyword. Naming an alias deletes the keyword it stands for, as the rest of the app resolves names.
+  - Deleting a keyword nobody carries and no alias points at is refused, not silently "deleted".
+  - Sidebar keyword rows offer "Delete everywhere"; the notice names the keyword and the count, and a
+    keyword filter pointing at the deleted keyword does not linger. Headless test drives the real handler
+    over a scanned library and undoes it; catalog and engine tests cover refusal and the alias chain.
 - [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
 - [x] Sidecar review imported when a photo is first indexed (A) — SL-D09
 - [x] External-change detection for already-known photos + retry for unreadable metadata (A) — SL-D11

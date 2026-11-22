@@ -1499,6 +1499,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             if vocabulary.is_empty() {
                 hint(ui, t, "Select a photo, press K and type a keyword.");
             }
+            let mut tag_delete: Option<String> = None;
             for (tag, count) in vocabulary.iter().take(12) {
                 let selected = state.tag_filters.iter().any(|active| active == tag);
                 let aliases = engine.registry_aliases_of(tag);
@@ -1521,11 +1522,35 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         state.tag_edit = Some((tag.clone(), tag.clone()));
                         ui.close();
                     }
+                    if ui
+                        .button("Delete everywhere")
+                        .on_hover_text("Take the keyword off every photo; one undo brings it back")
+                        .clicked()
+                    {
+                        tag_delete = Some(tag.clone());
+                        ui.close();
+                    }
                 });
+            }
+            if let Some(tag) = tag_delete {
+                delete_keyword_everywhere(state, engine, &tag);
             }
 
             collections_section(ui, t, state, engine);
         });
+}
+
+/// The context menu's delete: take the keyword off every photo and say what happened.
+fn delete_keyword_everywhere(state: &mut UiState, engine: &mut Engine, tag: &str) {
+    match engine.delete_tag(tag) {
+        Ok(0) => state.notice(format!("#{tag} is not used by any photo")),
+        Ok(count) => {
+            state.notice(format!("#{tag} taken off {count} photo(s) — one undo brings it back"));
+            // A filter pointing at a deleted keyword would show an empty grid forever.
+            state.tag_filters.retain(|active| active != tag);
+        }
+        Err(error) => state.notice_problem(error.to_string()),
+    }
 }
 
 fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
@@ -8599,6 +8624,64 @@ mod tests {
             }),
             0
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The sidebar paints its keyword rows, and the delete-everywhere menu action works over a real
+    /// library: the keyword goes, its filter does not linger, and one undo brings it back.
+    #[test]
+    fn the_sidebar_paints_keywords_and_deleting_one_everywhere_works() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-tag-delete-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-tag-delete");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        std::fs::copy(fixture.jpeg("b.jpg", [40, 200, 40], 64, 64), root.join("b.jpg")).expect("copy b");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "two photos indexed");
+        engine.set_tag(&ids, "beach", true).expect("tag");
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.tag_filters.push("beach".to_string());
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                left_panel(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "painting the sidebar presses nothing");
+        assert!(!engine.tag_vocabulary().is_empty(), "the keyword row is drawn");
+
+        // The menu action the row offers, driven the way the row's own handler runs it.
+        delete_keyword_everywhere(&mut state, &mut engine, "beach");
+        assert!(engine.tag_vocabulary().is_empty(), "the keyword is gone everywhere");
+        assert!(
+            state.tag_filters.is_empty(),
+            "a filter pointing at a deleted keyword does not linger"
+        );
+        assert!(state.notice.is_some(), "the notice says what happened");
+
+        // One undo brings the keyword back on every photo it was on.
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(engine.tag_vocabulary(), vec![("beach".to_string(), 2)]);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

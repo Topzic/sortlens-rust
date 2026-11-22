@@ -128,6 +128,11 @@ pub const EXAMPLES: &[Example] = &[
         note: "Renames everywhere and merges when the new name already exists.",
     },
     Example {
+        command: "tag.delete",
+        args: r#"{"tag": "strand"}"#,
+        note: "Removes the keyword from every photo and forgets its aliases; one undo brings it back.",
+    },
+    Example {
         command: "tag.alias",
         args: r#"{"alias": "seaside", "canonical": "beach"}"#,
         note: "Omit canonical to forget the link.",

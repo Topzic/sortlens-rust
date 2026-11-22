@@ -365,6 +365,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "tag.delete",
+                    label: "Delete Keyword",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Delete Keyword",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "tag.alias",
                     label: "Link Keyword Alias",
                     group: Group::Organise,

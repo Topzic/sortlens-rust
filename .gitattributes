@@ -1,0 +1,6 @@
+# The golden CLI output is byte-compared by `cargo xtask snapshot`; keep it LF on
+# every platform so a Windows checkout does not rewrite every file and fail the run.
+apps/sortlens-cli/tests/golden/*.txt text eol=lf
+
+# Byte-compared generated SVG; keep it LF everywhere.
+assets/icon.svg text eol=lf

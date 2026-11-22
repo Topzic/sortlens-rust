@@ -789,6 +789,58 @@ impl Catalog {
         Ok(count)
     }
 
+    /// Remove a keyword from every photo that carries it, and forget every alias that pointed at it.
+    ///
+    /// Naming an alias deletes the keyword it stands for, the way the rest of the app resolves names.
+    /// The whole change is one `Group` op, so deleting a keyword from two thousand photos undoes in a
+    /// single step rather than a thousand. Returns how many photos lost the keyword.
+    pub fn delete_tag(&mut self, tag: &str) -> Result<usize> {
+        let tag = tag.trim();
+        if tag.is_empty() {
+            return Err(Error::Invalid("a keyword needs a name".into()));
+        }
+        let target = self.resolve_tag(tag);
+        let mut changes = Vec::new();
+        for photo in self.photos.values() {
+            if !photo.has_tag(&target) {
+                continue;
+            }
+            let tags: Vec<String> = photo.tags.iter().filter(|tag| tag.as_str() != target).cloned().collect();
+            changes.push((photo.id, tags));
+        }
+        // The rename trail dies with the keyword: an alias pointing only at a deleted name would be a
+        // link to nowhere, and re-typing the old name must not quietly resurrect the keyword.
+        let alias_changes: Vec<(String, Option<String>)> = self
+            .aliases
+            .iter()
+            .filter(|(_, canonical)| self.resolve_tag(canonical) == target)
+            .map(|(alias, _)| (alias.clone(), None))
+            .collect();
+        if changes.is_empty() && alias_changes.is_empty() {
+            return Err(Error::Invalid(format!("no keyword {tag} is in the library")));
+        }
+        let count = changes.len();
+        let mut ops = Vec::new();
+        if !changes.is_empty() {
+            ops.push(Op::Tagged { changes });
+        }
+        if !alias_changes.is_empty() {
+            ops.push(Op::Aliased { changes: alias_changes });
+        }
+        match ops.len() {
+            0 => {}
+            1 => {
+                if let Some(op) = ops.pop() {
+                    self.commit(op)?;
+                }
+            }
+            _ => {
+                self.commit(Op::Group { ops })?;
+            }
+        }
+        Ok(count)
+    }
+
     /// Immediate subfolders under `prefix` inside `root`, with how many photos each holds.
     ///
     /// `prefix` is a relative path with a trailing slash, or empty for the root itself. Counts are
@@ -2030,6 +2082,69 @@ mod tests {
             orphans.iter().any(|(alias, canonical)| alias == "strand" && canonical == "beach"),
             "{orphans:?}"
         );
+    }
+
+    #[test]
+    fn deleting_a_keyword_removes_it_everywhere_in_one_undo() {
+        let temp = TempCatalog::new("tag-delete");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![
+                    (PhotoId(1), vec!["beach".to_string(), "sand".to_string()]),
+                    (PhotoId(2), vec!["beach".to_string()]),
+                ],
+            })
+            .expect("tag");
+
+        assert_eq!(catalog.delete_tag("beach").expect("delete"), 2, "two photos lose the keyword");
+        assert!(!catalog.photo(PhotoId(1)).expect("photo").has_tag("beach"));
+        assert!(catalog.photo(PhotoId(1)).expect("photo").has_tag("sand"), "other keywords stay");
+        assert_eq!(
+            catalog.tag_vocabulary(),
+            vec![("sand".to_string(), 1)],
+            "only the deleted keyword goes"
+        );
+
+        // One undo brings the keyword back on every photo it was on.
+        catalog.undo().expect("undo");
+        assert!(catalog.photo(PhotoId(1)).expect("photo").has_tag("beach"));
+        assert!(catalog.photo(PhotoId(2)).expect("photo").has_tag("beach"));
+
+        // A keyword nobody carries and no alias points at is refused, not silently "deleted".
+        let error = catalog.delete_tag("harbour").expect_err("refused when nothing matches");
+        assert!(error.to_string().contains("harbour"), "{error}");
+        assert!(catalog.delete_tag("   ").is_err(), "an empty name is refused");
+    }
+
+    #[test]
+    fn deleting_a_keyword_dies_with_its_rename_trail() {
+        let temp = TempCatalog::new("tag-delete-alias");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![(PhotoId(1), vec!["strand".to_string()])],
+            })
+            .expect("tag");
+        catalog.rename_tag("strand", "beach").expect("rename");
+        catalog.rename_tag("beach", "shore").expect("rename again");
+        assert_eq!(catalog.resolve_tag("strand"), "shore", "the chain resolves through both renames");
+        assert_eq!(catalog.aliases_of("shore"), vec!["beach".to_string()]);
+
+        // Deleting under an alias name deletes the keyword the alias stands for, and every
+        // alias in the chain dies with it: re-typing "strand" must not resurrect a keyword.
+        assert_eq!(catalog.delete_tag("strand").expect("delete by alias"), 1);
+        assert_eq!(catalog.tag_vocabulary(), Vec::<(String, usize)>::new());
+        assert_eq!(catalog.resolve_tag("strand"), "strand", "the alias link is gone");
+        assert_eq!(catalog.resolve_tag("beach"), "beach");
+
+        // One undo restores both the photos and the whole rename trail.
+        catalog.undo().expect("undo");
+        assert!(catalog.photo(PhotoId(1)).expect("photo").has_tag("shore"));
+        assert_eq!(catalog.resolve_tag("strand"), "shore", "the chain resolves again");
+        assert_eq!(catalog.resolve_tag("beach"), "shore");
     }
 
     #[test]

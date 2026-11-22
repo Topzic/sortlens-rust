@@ -2240,12 +2240,43 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand**: how a dense gazetteer looks — overlapping labels are the file's density problem and there
   is no declutter pass (named as absent in UX.md) — and how a real GeoNames export performs on load.
 
+## 2026-11-22 (seventeenth) — Registry delete-everywhere: `tag.delete`, wired end to end
+
+- `sortlens-catalog`: `delete_tag` — the keyword comes off every photo that carries it, and the whole
+  rename trail dies with it (aliases whose chain resolves to the keyword are forgotten in the same
+  undoable `Group`), so re-typing the old name cannot resurrect what was deleted. Naming an alias
+  deletes the keyword it stands for, the way `set_alias` resolves names. Deleting a keyword nobody
+  carries and no alias points at is **refused**, not silently "deleted" — a typo should not report
+  success. Two catalog tests: the batch+one-undo case and the alias-chain case.
+- `sortlens-engine`: `Engine::delete_tag` syncs the sidecars of every touched photo (so a deletion is
+  not resurrected by the next file read) and records a `#tag deleted everywhere` job; `tag.delete` is
+  in the command registry and the MCP examples, normalised like every other tag verb.
+- `sortlens-ui`: sidebar keyword rows offer "Delete everywhere"; the handler (`delete_keyword_everywhere`,
+  driven by the test, not a copy of it) prunes a keyword filter pointing at the deleted keyword and
+  names the keyword and the count in the notice. Headless `run_ui` test paints the sidebar over a
+  scanned library, deletes through the real handler, asserts the vocabulary is empty and one undo
+  restores it.
+- Collection delete already had its surface (`collection.delete` context menu, batch variant, tests) —
+  verified, not rebuilt.
+- **Windows environment fixes, needed to make the tree buildable at all here:** the project toolchain
+  was missing, so 1.95.0 was installed into `.toolchain` and `scripts/env.sh` made platform-aware
+  (Homebrew path only where it exists, project cargo bin first). Two checkout bugs that break the
+  CI on Windows only: `core.autocrlf` checked the byte-compared goldens and `assets/icon.svg` out
+  with CRLF — pinned LF for both in `.gitattributes`. And a real bug the macOS runs could not see:
+  `PathKey` split paths on `/` only, so every `Path::join`-built Windows path (`\`) was resolved as
+  one whole component and never case-resolved by the disk. It now splits on the platform separator
+  (`std::path::is_separator`) and spells every key with `/`; a new test holds a joined path and a
+  hand-spelled one to the same key.
+- 580 tests; ci, wasm, snapshot, a11y, docs, layers, roots, attribution, deny green.
+- **Not verified by hand**: the menu item on screen (a right-click menu cannot be driven headlessly
+  here; the handler itself is tested) and the look of the hover text.
+
 ## Next
 
-The map is complete enough to leave alone for a while; take the named-absent tail, one row per run, starting with
-**registry delete-everywhere**: deleting a keyword or collection is a command, but nothing offers it in the UI, so a
-registry entry exists with no surface. Check `crates/engine/src/command.rs` first — the rule is that a command without
-a caller is either wired up or removed, never left on a list. Then, in order: 20-step undo history (the log keeps
-everything; the UI shows one step), inline tagging in the cull stage, and video posters part 2 (needs a poster file to
-be written beside the video, which is the same "files first, then UI" shape as GPS). Keep the same discipline: prove
-the new path with a test that would fail if the behaviour were absent, and tick the ROADMAP row in the same commit.
+Next in the named-absent tail, one row per run: **20-step undo history** — the op log keeps every
+step; the UI offers exactly one. Then inline tagging in the cull stage, then video posters part 2
+(poster file written beside the video first, then the UI, same shape as GPS). Keep the discipline:
+a test that would fail if the behaviour were absent, and the ROADMAP row ticked in the same commit.
+
+Note for the next run: this Windows checkout now has its own toolchain (`.toolchain`, installed this
+run) — `. scripts/env.sh && cargo xtask ci` works as documented; first run takes a few minutes.

@@ -39,7 +39,9 @@ impl PathKey {
     /// The identity of a path written as text.
     ///
     /// The text is normalised, its trailing separators are dropped, and each component is resolved against the
-    /// disk when the disk can answer unambiguously.
+    /// disk when the disk can answer unambiguously. Separators are the platform's: on Windows a `\` separates
+    /// components exactly as a `/` does, and a key is spelled with `/` either way, so a key built from a
+    /// `Path::join` matches the same folder spelled by hand.
     pub fn of_display(text: &str) -> Self {
         let cleaned = text.nfc().collect::<String>();
         let trimmed = trim_separators(&cleaned);
@@ -47,11 +49,9 @@ impl PathKey {
             return Self(String::new());
         }
         let mut resolved = String::new();
-        for component in trimmed.split('/') {
-            if component.is_empty() {
-                continue;
-            }
-            if !resolved.is_empty() || trimmed.starts_with('/') {
+        let rooted = text.starts_with(std::path::is_separator);
+        for component in split_components(trimmed) {
+            if !resolved.is_empty() || rooted {
                 resolved.push('/');
             }
             resolved.push_str(&resolve_component(&resolved, component));
@@ -78,12 +78,18 @@ impl fmt::Display for PathKey {
 
 /// Drop trailing separators, keeping the root of a rooted path as `/`.
 fn trim_separators(text: &str) -> &str {
-    let trimmed = text.trim_end_matches('/');
-    if trimmed.is_empty() && text.starts_with('/') {
+    let trimmed = text.trim_end_matches(std::path::is_separator);
+    if trimmed.is_empty() && text.starts_with(std::path::is_separator) {
         "/"
     } else {
         trimmed
     }
+}
+
+/// Split into components on the platform's separators. On Windows a `Path::join` writes `\`; on Unix a
+/// backslash is an ordinary character in a name and must not split one.
+fn split_components(text: &str) -> impl Iterator<Item = &str> {
+    text.split(std::path::is_separator).filter(|component| !component.is_empty())
 }
 
 /// The on-disk spelling of `component` inside `parent`, when the disk answers unambiguously.
@@ -155,9 +161,11 @@ mod tests {
                 "{spelling} is the same folder"
             );
         }
-        // A path that does not exist yet still has a stable identity, spelled as given.
+        // A path that does not exist yet still has a stable identity, spelled as given apart from the
+        // canonical separator: a key is always spelled with `/`, so a `Path::join` spelling and a hand-written
+        // one come out the same.
         let absent = format!("{}/not-mounted-yet", temp.0.display());
-        assert_eq!(PathKey::of_display(&absent).as_str(), absent);
+        assert_eq!(PathKey::of_display(&absent).as_str(), canonicalise(&absent));
         assert!(PathKey::of_display("").is_empty());
     }
 
@@ -176,9 +184,9 @@ mod tests {
         // Does this volume distinguish case? Ask it, then hold the key to that answer.
         let case_sensitive = std::fs::metadata(&typed).is_err();
         if case_sensitive {
-            assert_eq!(key, typed, "two real folders must not be merged");
+            assert_eq!(key, canonicalise(&typed), "two real folders must not be merged");
         } else {
-            assert_eq!(key, stored, "one real folder resolves to its own spelling");
+            assert_eq!(key, canonicalise(&stored), "one real folder resolves to its own spelling");
             assert_eq!(PathKey::of_display(&stored).as_str(), key);
         }
 
@@ -193,8 +201,18 @@ mod tests {
             assert_eq!(upper, lower, "the volume itself treats them as one file");
         } else {
             assert_ne!(upper, lower, "two files that exist are two keys");
-            assert_eq!(upper.as_str(), first.to_string_lossy(), "and each keeps its own spelling");
+            assert_eq!(
+                upper.as_str(),
+                canonicalise(first.to_string_lossy()),
+                "and each keeps its own spelling"
+            );
         }
+    }
+
+    /// The spelling a path was given, with the platform's separator made canonical — what a key of an
+    /// absent path keeps, and what the tests hold the keys against when the disk does not resolve.
+    fn canonicalise(text: impl std::fmt::Display) -> String {
+        text.to_string().replace(std::path::MAIN_SEPARATOR_STR, "/")
     }
 
     /// The key is normalised at every level, not only in the last component.
@@ -213,5 +231,28 @@ mod tests {
         } else {
             assert_eq!(key.as_str(), typed, "a case-sensitive disk keeps what was typed");
         }
+    }
+
+    /// A path built by `Path::join` is one key with the same folder spelled by hand.
+    ///
+    /// On Windows `join` writes `\`, and a key that kept the separator of the machine it was built on
+    /// would not match the same folder written with `/` in a config file. The separator is not part of
+    /// a folder's identity.
+    #[test]
+    fn a_joined_path_and_a_hand_spelled_one_are_one_key() {
+        let temp = Temp::new("join");
+        std::fs::create_dir_all(temp.0.join("Photos")).expect("dir");
+        let joined = PathKey::of(&temp.0.join("photos"));
+        let hand = PathKey::of_display(&format!("{}/Photos", temp.0.display()));
+        assert_eq!(joined, hand, "the separator is not part of a folder's identity");
+        assert!(joined.as_str().ends_with("/Photos"), "the disk's spelling is adopted: {joined}");
+
+        // A file inside, spelled with the volume's own separator, resolves all the same.
+        let file = temp.0.join("Photos").join("a.jpg");
+        std::fs::write(&file, b"a").expect("write");
+        assert_eq!(
+            PathKey::of(&file),
+            PathKey::of_display(&format!("{}/Photos/a.jpg", temp.0.display()))
+        );
     }
 }

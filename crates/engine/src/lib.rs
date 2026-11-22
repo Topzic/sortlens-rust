@@ -1509,6 +1509,27 @@ impl Engine {
         Ok(count)
     }
 
+    /// Remove a keyword from every photo that carries it, and forget its aliases.
+    ///
+    /// Sidecars follow, so a deletion is not silently resurrected the next time a file is read.
+    pub fn delete_tag(&mut self, tag: &str) -> Result<usize> {
+        let tag = normalize_tag(tag)?;
+        let touched: Vec<PhotoId> = self
+            .all_photos()
+            .into_iter()
+            .filter(|photo| photo.has_tag(&tag))
+            .map(|photo| photo.id)
+            .collect();
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        let count = catalog.delete_tag(&tag)?;
+        if count > 0 {
+            self.sync_sidecars(&touched);
+            let job = self.start_job(JobKind::Sidecar, format!("#{tag} deleted everywhere"));
+            self.finish_job(job, JobStatus::Done, count, 0, 0, None);
+        }
+        Ok(count)
+    }
+
     /// Statistics over the whole library, recomputed each time.
     pub fn insights(&self) -> Insights {
         if let Some(ready) = self.insights_ready.clone() {
@@ -3034,6 +3055,13 @@ impl Engine {
                     .and_then(Value::as_str)
                     .ok_or_else(|| Error::Invalid("a new name is required".into()))?;
                 Ok(json!({ "changed": self.rename_tag(from, to)? }))
+            }
+            "tag.delete" => {
+                let tag = args
+                    .get("tag")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a keyword to delete is required".into()))?;
+                Ok(json!({ "deleted": self.delete_tag(tag)? }))
             }
             "collection.search" => {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
@@ -5137,6 +5165,37 @@ mod tests {
         assert_eq!(engine.photo(ids[0]).expect("photo").tags, vec!["shore".to_string()]);
 
         assert!(engine.run("tag.rename", &json!({ "from": "shore" })).is_err());
+    }
+
+    #[test]
+    fn deleting_a_keyword_through_the_command_touches_every_photo_and_undoes() {
+        let folder = Temp::new("delete-tag-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"b").expect("write");
+        let (_lib, mut engine) = library("delete-tag");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.set_tag(&ids, "Beach", true).expect("tag");
+        engine.set_tag(&ids[..1], "sand", true).expect("tag");
+
+        let value = engine.run("tag.delete", &json!({ "tag": "#BEACH" })).expect("delete");
+        assert_eq!(value["deleted"], 2, "names are normalised before matching");
+        assert_eq!(engine.tag_vocabulary(), vec![("sand".to_string(), 1)]);
+        assert!(engine.photo(ids[1]).expect("photo").tags.is_empty());
+
+        // One undo restores the keyword on every photo it was on.
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(engine.tag_vocabulary(), vec![("beach".to_string(), 2), ("sand".to_string(), 1)]);
+
+        assert!(engine.run("tag.delete", &json!({})).is_err(), "a keyword is required");
+        assert!(engine.run("tag.delete", &json!({ "tag": "harbour" })).is_err(), "nothing to delete");
     }
 
     #[test]
