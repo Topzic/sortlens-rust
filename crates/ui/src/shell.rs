@@ -367,6 +367,53 @@ impl Source {
     }
 }
 
+/// How much a notice matters, so the bell can say whether anything needs attention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoticeKind {
+    /// Something happened and it worked.
+    Info,
+    /// Something the user asked for did not happen.
+    Problem,
+}
+
+impl NoticeKind {
+    /// Stable id for a log line or a test.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Problem => "problem",
+        }
+    }
+}
+
+/// One line in the bell's history.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Notice {
+    /// What happened.
+    pub text: String,
+    /// Whether it matters.
+    pub kind: NoticeKind,
+    /// When it was raised, for the age column.
+    pub at: std::time::Instant,
+    /// Whether the popover has shown it.
+    pub read: bool,
+}
+
+/// How many notices are kept. Long enough to answer "what just happened", short enough that the popover stays a
+/// list rather than an archive — the activity stack is the archive.
+pub const NOTICE_HISTORY: usize = 50;
+
+/// "just now", "4m", "2h", "3d" — the age of a notice, at the precision someone would say it out loud.
+pub fn notice_age(seconds: u64) -> String {
+    match seconds {
+        0..=9 => "just now".to_string(),
+        10..=59 => format!("{seconds}s"),
+        60..=3599 => format!("{}m", seconds / 60),
+        3_600..=86_399 => format!("{}h", seconds / 3_600),
+        _ => format!("{}d", seconds / 86_400),
+    }
+}
+
 /// Everything the shell remembers between frames.
 #[derive(Debug, Clone)]
 pub struct UiState {
@@ -376,6 +423,10 @@ pub struct UiState {
     pub density: Density,
     /// Grid layout, mirrored from settings.
     pub grid_mode: GridMode,
+    /// Every notice raised, newest first, with what has been read.
+    pub notices: std::collections::VecDeque<Notice>,
+    /// Whether the bell popover is open.
+    pub bell_open: bool,
     /// The justified layout, cached so a big library does not re-pack on every frame.
     pub justified: JustifiedPlan,
     /// Current destination.
@@ -519,6 +570,8 @@ impl UiState {
             theme,
             density: Density::default(),
             grid_mode: GridMode::default(),
+            notices: std::collections::VecDeque::new(),
+            bell_open: false,
             justified: JustifiedPlan::default(),
             view: View::Library,
             search: String::new(),
@@ -590,14 +643,59 @@ impl UiState {
 
     /// Show a message in the bottom bar for a few seconds.
     pub fn notice(&mut self, text: impl Into<String>) {
-        self.notice = Some((text.into(), std::time::Instant::now() + std::time::Duration::from_secs(4)));
+        self.record(text.into(), NoticeKind::Info);
     }
 
-    fn live_notice(&self) -> Option<&str> {
-        match &self.notice {
-            Some((text, until)) if std::time::Instant::now() < *until => Some(text),
-            _ => None,
+    /// A notice for something that did not work. Same toast, but it takes an unread badge in the bell and is
+    /// coloured as a problem: a failure that scrolls past after four seconds has not been reported.
+    pub fn notice_problem(&mut self, text: impl Into<String>) {
+        self.record(text.into(), NoticeKind::Problem);
+    }
+
+    fn record(&mut self, text: String, kind: NoticeKind) {
+        self.notice = Some((text.clone(), std::time::Instant::now() + std::time::Duration::from_secs(4)));
+        self.notices.push_front(Notice {
+            text,
+            kind,
+            at: std::time::Instant::now(),
+            read: false,
+        });
+        while self.notices.len() > NOTICE_HISTORY {
+            self.notices.pop_back();
         }
+    }
+
+    /// Unread notices, which is what the bell's badge counts.
+    pub fn unread_notices(&self) -> usize {
+        self.notices.iter().filter(|notice| !notice.read).count()
+    }
+
+    /// Whether any unread notice is a problem, so the badge can be coloured.
+    pub fn unread_problem(&self) -> bool {
+        self.notices.iter().any(|notice| !notice.read && notice.kind == NoticeKind::Problem)
+    }
+
+    /// Mark the whole history read. Called when the popover opens, which is the only way to see it.
+    pub fn mark_notices_read(&mut self) {
+        for notice in &mut self.notices {
+            notice.read = true;
+        }
+    }
+
+    /// Forget the history. Reading is not the same as clearing, so this is a separate action.
+    pub fn clear_notices(&mut self) {
+        self.notices.clear();
+    }
+
+    fn live_notice(&self) -> Option<(&str, NoticeKind)> {
+        let (text, until) = self.notice.as_ref()?;
+        if std::time::Instant::now() >= *until {
+            return None;
+        }
+        // The kind comes from the history entry raised at the same moment, so the toast and the bell cannot
+        // disagree about whether the last thing that happened was a problem.
+        let kind = self.notices.front().map(|notice| notice.kind).unwrap_or(NoticeKind::Info);
+        Some((text, kind))
     }
 
     /// The filter implied by the sidebar, the search field and the filter bar.
@@ -778,9 +876,79 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     actions
 }
 
+/// The bell, which only exists when it has something to say: a permanent "0" is chrome, and a count of
+/// unread notices is the whole point of it being there.
+fn bell_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
+    let unread = state.unread_notices();
+    if unread == 0 && !state.bell_open {
+        return;
+    }
+    let label = if unread > 0 {
+        format!("Alerts {unread}")
+    } else {
+        "Alerts".to_string()
+    };
+    let colour = if state.unread_problem() { t.reject } else { t.accent };
+    let response = ui.add(
+        Button::new(RichText::new(label).size(11.5).color(colour))
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::NONE),
+    );
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, "Alerts", state.bell_open);
+    if response.on_hover_text("What has happened recently").clicked() {
+        state.bell_open = !state.bell_open;
+        if state.bell_open {
+            state.mark_notices_read();
+        }
+    }
+}
+
+/// The bell: what happened recently, newest first, with a clear action.
+///
+/// Opening it marks everything read, which is why the badge is a count of *unread* notices rather than a
+/// total: a number that only goes up is a number people stop looking at.
+fn bell_popover(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
+    let mut open = state.bell_open;
+    egui::Window::new("Alerts")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .default_width(340.0)
+        .anchor(Align2::RIGHT_TOP, vec2(-16.0, 52.0))
+        .show(ui.ctx(), |ui| {
+            if state.notices.is_empty() {
+                ui.label(RichText::new("Nothing has happened yet").size(11.5).color(t.text_muted));
+                return;
+            }
+            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for notice in &state.notices {
+                    ui.horizontal(|ui| {
+                        let colour = match notice.kind {
+                            NoticeKind::Info => t.text,
+                            NoticeKind::Problem => t.reject,
+                        };
+                        ui.label(RichText::new(&notice.text).size(11.5).color(colour));
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            let age = notice_age(notice.at.elapsed().as_secs());
+                            ui.label(RichText::new(age).size(10.5).color(t.text_faint));
+                        });
+                    });
+                }
+            });
+            ui.separator();
+            if ui.button(RichText::new("Clear").size(11.5)).clicked() {
+                state.clear_notices();
+            }
+        });
+    state.bell_open = open;
+}
+
 /// Every dialog, in the order they stack. Extracted so `show` stays a sequence of surfaces rather than a
 /// list of every window the app can open.
 fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    if state.bell_open {
+        bell_popover(ui, state, t);
+    }
     if state.tag_edit.is_some() {
         tag_edit_dialog(ui, state, t, engine);
     }
@@ -857,6 +1025,7 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                     if icon_button(ui, "Settings", t).clicked() {
                         state.settings_open = true;
                     }
+                    bell_button(ui, state, t);
                     if icon_button(ui, "Details", t).clicked() {
                         state.right_open = !state.right_open;
                     }
@@ -954,8 +1123,12 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if let Some(text) = state.live_notice() {
-                        ui.label(RichText::new(text.to_owned()).size(11.5).color(t.accent));
+                    if let Some((text, kind)) = state.live_notice() {
+                        let colour = match kind {
+                            NoticeKind::Info => t.accent,
+                            NoticeKind::Problem => t.reject,
+                        };
+                        ui.label(RichText::new(text.to_owned()).size(11.5).color(colour));
                         ui.add_space(10.0);
                     }
                     if let Some(selected) = state.selection.primary().and_then(|id| engine.photo(id)) {
@@ -1290,7 +1463,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
     if let Some(tag) = remove {
         match engine.set_tag(&[photo.id], &tag, false) {
             Ok(_) => state.notice(format!("Removed keyword {tag}")),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     ui.add_space(6.0);
@@ -1315,7 +1488,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
                     state.notice(format!("Added keyword {}", state.tag_input.trim().to_lowercase()));
                     state.tag_input.clear();
                 }
-                Err(error) => state.notice(error.to_string()),
+                Err(error) => state.notice_problem(error.to_string()),
             }
         }
     });
@@ -1343,7 +1516,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
         if let Some(tag) = add
             && let Err(error) = engine.set_tag(&[photo.id], &tag, true)
         {
-            state.notice(error.to_string());
+            state.notice_problem(error.to_string());
         }
     }
 }
@@ -1387,7 +1560,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         match state.collection_filter {
                             Some(id) => {
                                 if let Err(error) = engine.set_collection_sort(id, chosen) {
-                                    state.notice(error.to_string());
+                                    state.notice_problem(error.to_string());
                                 }
                             }
                             None => state.library_sort = chosen,
@@ -1861,7 +2034,7 @@ fn grid(
     if let Some((photo, collection)) = add_to {
         match engine.add_to_collection(&[photo], collection) {
             Ok(_) => state.notice("Added to collection"),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
 }
@@ -2151,7 +2324,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
                 (None, 1) => "Cleared the label".to_string(),
                 (None, many) => format!("Cleared the label on {many} photos"),
             }),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
 
@@ -2163,7 +2336,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
                 (stars, 1) => format!("Rated {stars}★"),
                 (stars, many) => format!("Rated {stars}★ on {many} photos"),
             }),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     if let Some(flag) = flag {
@@ -2176,7 +2349,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
                 (Flag::Reject, many) => format!("Rejected {many} photos"),
                 (Flag::None, many) => format!("Unflagged {many} photos"),
             }),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
 }
@@ -2569,7 +2742,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         match engine.undo() {
             Ok(true) => state.notice("Undid the last change"),
             Ok(false) => state.notice("Nothing to undo"),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
         return true;
     }
@@ -2596,7 +2769,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
             match engine.begin_similar(state.similar_threshold) {
                 Ok(0) => {}
                 Ok(queued) => state.notice(format!("Hashing {queued} previews")),
-                Err(error) => state.notice(error.to_string()),
+                Err(error) => state.notice_problem(error.to_string()),
             }
         }
         return true;
@@ -2608,7 +2781,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
                 state.collection_filter = Some(id);
                 state.notice(format!("Created {name}"));
             }
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
         return true;
     }
@@ -3432,7 +3605,7 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
             match engine.begin_similar(threshold) {
                 Ok(0) => state.notice("Groups up to date".to_string()),
                 Ok(queued) => state.notice(format!("Hashing {queued} previews")),
-                Err(error) => state.notice(error.to_string()),
+                Err(error) => state.notice_problem(error.to_string()),
             }
         }
         if let Some((done, total)) = progress {
@@ -3597,7 +3770,7 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                     // Nothing to do: the numbers on screen are already final.
                 }
             }
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     let highlights = insights.highlights();
@@ -3766,7 +3939,7 @@ fn remember_search(state: &mut UiState, engine: &mut Engine) {
         return;
     }
     if let Err(error) = engine.set_collection_search(id, &state.search) {
-        state.notice(error.to_string());
+        state.notice_problem(error.to_string());
     }
 }
 
@@ -3837,7 +4010,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
                 Some(label) => format!("Collection is {}", label.label().to_lowercase()),
                 None => "Collection colour cleared".to_string(),
             }),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     if let Some((id, favourite)) = pin {
@@ -3847,7 +4020,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
             } else {
                 "Unpinned".to_string()
             }),
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     if let Some((id, name)) = rename {
@@ -3861,7 +4034,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
                 }
                 state.notice("Collection deleted — the photos stay in the library");
             }
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     if ui
@@ -3874,7 +4047,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
                 state.collection_filter = Some(id);
                 state.rename_target = Some((id, name));
             }
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
 }
@@ -4051,13 +4224,13 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             if let Some(id) = restore {
                 match engine.restore_batch(id) {
                     Ok(count) => state.notice(format!("Restored {count} photo(s)")),
-                    Err(error) => state.notice(error.to_string()),
+                    Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             if let Some(id) = forget {
                 match engine.forget_batch(id) {
                     Ok(files) => state.notice(format!("Forgot a batch of {files} file(s)")),
-                    Err(error) => state.notice(error.to_string()),
+                    Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.add_space(4.0);
@@ -4256,7 +4429,7 @@ fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                 if (ui.button("Save").clicked() || entered) && !name.trim().is_empty() {
                     match engine.rename_collection(id, &name) {
                         Ok(()) => state.notice(format!("Renamed to {}", name.trim())),
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                     open = false;
                 }
@@ -4298,7 +4471,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                             health.checked, health.missing, health.modified
                         ));
                     }
-                    Err(error) => state.notice(error.to_string()),
+                    Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.label(
@@ -4323,7 +4496,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                             state.health_modified = 0;
                             state.notice(format!("Refreshed {count} photo(s)"));
                         }
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
             }
@@ -4332,7 +4505,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                 match engine.relocate_missing() {
                     Ok(0) => state.notice("No moved photos found under their roots"),
                     Ok(count) => state.notice(format!("Relocated {count} photo(s)")),
-                    Err(error) => state.notice(error.to_string()),
+                    Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.label(
@@ -4393,7 +4566,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                         Ok((0, remaining)) => state.notice(format!("Nothing recovered; {remaining} still unreadable")),
                         Ok((updated, 0)) => state.notice(format!("Read metadata for {updated} photo(s)")),
                         Ok((updated, remaining)) => state.notice(format!("Read {updated}; {remaining} still unreadable")),
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
                 let exifless = engine.exifless_count();
@@ -4406,7 +4579,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                 {
                     match engine.retry_metadata(true) {
                         Ok((updated, _)) => state.notice(format!("Read metadata for {updated} photo(s)")),
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
             });
@@ -4427,7 +4600,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                             state.audit = Some((audit.headline(), audit.detail(), audit.is_clean()));
                             state.notice(audit.headline());
                         }
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
                 if ui
@@ -4438,7 +4611,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                     match engine.compact() {
                         Ok(0) => state.notice("Catalog was already compact"),
                         Ok(bytes) => state.notice(format!("Compacted · {} reclaimed", sortlens_core::format_bytes(bytes))),
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
             });
@@ -4452,7 +4625,7 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                 match engine.remove_missing() {
                     Ok(0) => state.notice("Nothing is marked missing"),
                     Ok(count) => state.notice(format!("Removed {count} missing photo(s) — undo restores them")),
-                    Err(error) => state.notice(error.to_string()),
+                    Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.label(
@@ -4628,7 +4801,7 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
                                 String::new()
                             }
                         )),
-                        Err(error) => state.notice(error.to_string()),
+                        Err(error) => state.notice_problem(error.to_string()),
                     }
                     state.apply_open = false;
                 }
@@ -4767,7 +4940,7 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                 state.notice(format!("#{from} is not used by any photo"));
                 state.tag_edit = None;
             }
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
         return;
     }
@@ -4939,7 +5112,7 @@ fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                 state.notice("Restored the batch".to_string());
                 done = true;
             }
-            Err(error) => state.notice(error.to_string()),
+            Err(error) => state.notice_problem(error.to_string()),
         }
     }
     if show_bin {
@@ -5660,6 +5833,97 @@ mod tests {
         plan.prepare(&engine, &Filter::default(), Sort::Natural, 900.0, 300.0, 8.0);
         assert_ne!(plan.rows.len(), 0, "a taller target still produces rows");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The bell counts what is unread, colours itself when something failed, and stops counting when read.
+    #[test]
+    fn the_bell_counts_unread_notices_and_marks_them_read() {
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        assert_eq!(state.unread_notices(), 0, "nothing has happened yet");
+        assert!(!state.unread_problem());
+
+        state.notice("Scanned 12 photos");
+        assert_eq!(state.unread_notices(), 1);
+        assert!(!state.unread_problem(), "an ordinary notice is not a problem");
+        state.notice_problem("Move failed: permission denied");
+        assert_eq!(state.unread_notices(), 2);
+        assert!(state.unread_problem(), "the badge has to show that something failed");
+
+        // Newest first, so the thing that just happened is the thing you read.
+        assert_eq!(
+            state.notices.front().map(|notice| notice.text.as_str()),
+            Some("Move failed: permission denied")
+        );
+        assert_eq!(state.notices.len(), 2);
+
+        state.mark_notices_read();
+        assert_eq!(state.unread_notices(), 0);
+        assert!(!state.unread_problem(), "a read problem does not keep the badge red");
+        assert_eq!(state.notices.len(), 2, "reading is not clearing");
+
+        state.clear_notices();
+        assert!(state.notices.is_empty());
+    }
+
+    /// The history is bounded, and trimming it cannot leave the count wrong.
+    #[test]
+    fn the_history_is_bounded_and_the_count_survives_it() {
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        for index in 0..(NOTICE_HISTORY + 10) {
+            state.notice(format!("notice {index}"));
+        }
+        assert_eq!(state.notices.len(), NOTICE_HISTORY);
+        assert_eq!(state.unread_notices(), NOTICE_HISTORY);
+        let newest = format!("notice {}", NOTICE_HISTORY + 9);
+        assert_eq!(state.notices.front().map(|notice| notice.text.as_str()), Some(newest.as_str()));
+        assert_eq!(
+            state.notices.back().map(|notice| notice.text.as_str()),
+            Some("notice 10"),
+            "the oldest are the ones that went"
+        );
+    }
+
+    /// Ages read the way someone would say them.
+    #[test]
+    fn a_notice_age_is_said_out_loud() {
+        assert_eq!(notice_age(0), "just now");
+        assert_eq!(notice_age(9), "just now");
+        assert_eq!(notice_age(10), "10s");
+        assert_eq!(notice_age(59), "59s");
+        assert_eq!(notice_age(60), "1m");
+        assert_eq!(notice_age(3_599), "59m");
+        assert_eq!(notice_age(3_600), "1h");
+        assert_eq!(notice_age(86_400), "1d");
+    }
+
+    /// The bell paints beside the other top-bar controls and the popover lists what happened.
+    #[test]
+    fn the_bell_paints_and_the_popover_lists_what_happened() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.notice("Scanned 12 photos");
+        state.notice_problem("Move failed");
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                bell_button(ui, &mut state, &tokens);
+            });
+        });
+        output.textures_delta.clear();
+        assert_eq!(state.unread_notices(), 2, "painting the bell does not read them");
+        assert!(!state.bell_open, "and nothing was clicked");
+
+        // Opening the popover is what reads them: it is the only way to see the list.
+        state.bell_open = true;
+        state.mark_notices_read();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                bell_popover(ui, &mut state, &tokens);
+            });
+        });
+        output.textures_delta.clear();
+        assert_eq!(state.unread_notices(), 0);
+        assert_eq!(state.notices.len(), 2, "the list is still there to read");
     }
 
     /// A grid of hundreds of cells at once asks for their thumbnails, and the queue bounds what waits.
@@ -6444,6 +6708,7 @@ mod tests {
         toggle_compare(&mut state, &engine);
         assert_eq!(state.compare, None);
         assert!(state.live_notice().is_some() || state.notice.is_some(), "the reason is not silent");
+        assert_eq!(state.unread_notices(), 1, "and the bell carries it after the toast has gone");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

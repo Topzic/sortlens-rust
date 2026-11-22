@@ -180,7 +180,19 @@ scheduling and blur-up remain.
 - [x] Placeholder cell while decoding, no spinner (B)
 - [ ] Blur-up tier transitions (B)
 - [x] Activity stack: job list, statuses, elapsed, per-item errors, cancel (B) — SL-A18
-- [ ] Bell popover and unread badges (B)
+- [x] Bell popover and unread badges (B)
+  - Every `notice()` is recorded in a bounded history (`NOTICE_HISTORY` = 50, newest first) as well as toasted,
+    so an operation that finished while you were looking elsewhere is still there four seconds later.
+  - The bell appears only when it has something to say, shows a count of **unread** notices, and turns red when
+    any unread one is a `NoticeKind::Problem`. Opening the popover marks everything read — reading is not
+    clearing, so "Clear" is a separate action — and each row carries its age in the form someone would say it
+    ("just now", "4m", "2h", "3d").
+  - The 32 places that toasted a bare engine error now raise a problem, so the badge tells the truth about a
+    failed move or export instead of counting it as news; the toast is coloured by the same kind, so the toast
+    and the bell cannot disagree.
+  - Tested: the count and the red state, trimming past the bound without corrupting the count, the age table,
+    and a headless paint of the bell and the popover. **Not verified by hand**: how the popover sits against the
+    top bar on a real window.
 - [x] Offline/missing badge in the grid: `?` with "File missing — unmounted drive, or moved outside the
   library", and the spoken name already said "file missing" before the badge existed (B) — SL-A12 part 1
 - [ ] Offline/missing, part 2 — cached-thumb behaviour: a thumbnail decoded before the drive went away is

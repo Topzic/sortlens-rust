@@ -1697,7 +1697,30 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   different while scrolling a real library — the ordering is unit-tested on the queue, but only a person can
   say whether a stale scroll still shows decoded cells sooner than it did.
 
+## 2026-11-21 — M2 row: the bell, and notices that outlive their toast
+
+- **The gap**: notices were a four-second toast and nothing else. Anything that happened while you were
+  looking at another part of the window — a scan finishing, a move failing — was gone before you looked back,
+  and a failure read exactly like a success.
+- **`Notice { text, kind, at, read }`** in a bounded `VecDeque` (50, newest first) beside the toast, so the
+  bell is a history of the same events rather than a second system that could disagree with the first.
+  `NoticeKind::{Info, Problem}`; `notice()` is info, `notice_problem()` raises a problem.
+- **The bell** appears only when it has something to say (a permanent "0" is chrome), shows a count of
+  **unread** notices, and goes red when any unread one is a problem. Opening the popover marks them read;
+  reading is not clearing, so "Clear" is separate. Rows carry an age said the way a person would say it.
+- **The toast uses the same kind**, taken from the history entry raised with it, so a failure is red in both
+  places and the two cannot drift.
+- **32 call sites** that toasted a bare `error.to_string()` now raise a problem: a failure that scrolls past
+  after four seconds has not been reported, and the badge should say so.
+- Tests: the count and the red state, reading versus clearing, trimming past `NOTICE_HISTORY` without
+  corrupting the count, the age table, and a headless paint of the bell (asking for nothing, reading nothing)
+  and of the popover. `docs/UX.md`'s component table now describes the bell instead of promising a job list it
+  never was.
+- 473 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: where the popover lands against a
+  real top bar at a real window size, and whether "just now" is the right threshold rather than "now".
+
 ## Next
 
-Continue in milestone order. Next: the bell popover and unread badges (M2), then `craft-ipc` (or its
-absence documented honestly), then the decoder rows, which need a decision this repository has not made.
+Continue in milestone order. Next: `craft-ipc` — either wire it or write its absence down honestly with an
+unblocker; then the decoder rows (HEIC, video, blur-up), which each need a decoder decision this repository has
+not made.

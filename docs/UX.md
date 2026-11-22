@@ -72,7 +72,7 @@ Reading order matches task order: choose scope (left) → narrow (top/filter bar
 | Filter button + badge | Toggles the filter bar; badge counts active filters | `view.filterBar` |
 | Import | Add folder or files; keyboard `⌘O` | `file.addFolder`, `file.addFiles` |
 | Export | Export selection | `dialog.export` |
-| Activity bell | Job list with progress, cancel, errors | `panel.activity` |
+| Activity bell | Unread count of notices, the recent list with ages, and a clear action; appears only when it has something to say and turns red when a notice is a problem | `panel.activity` |
 | Help | Shortcut overlay, docs, diagnostics | `app.shortcuts` |
 | Appearance | Auto/Light/Dark cycle; right-click = theme list | `view.appearance` |
 | Settings | Sectioned settings dialog | `app.settings` |
