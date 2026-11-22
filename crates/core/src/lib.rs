@@ -11,6 +11,7 @@ pub mod error;
 pub mod ids;
 pub mod labels;
 pub mod media;
+pub mod pathkey;
 pub mod reveal;
 pub mod units;
 pub mod volume;

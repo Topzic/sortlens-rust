@@ -533,6 +533,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "folder.mark",
+                    label: "Pin or Colour a Folder",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Pin or Colour a Folder",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "folder.marks",
+                    label: "Folder Marks",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Folder Marks",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "collection.new",
                     label: "New Collection…",
                     group: Group::Organise,

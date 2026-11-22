@@ -566,7 +566,7 @@ fn every_published_output_is_unchanged() {
 fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
     // The mutating verbs the CLI accepts. A read verb can be added without ceremony; a write one cannot.
     let write_verbs = [
-        "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap",
+        "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap", "mark",
     ];
     // A throwaway library: the point is which verbs answer, not what they answer.
     let library = std::env::temp_dir().join(format!("sortlens-cli-schemas-{}", std::process::id()));
@@ -584,7 +584,7 @@ fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
         );
         found += 1;
     }
-    assert_eq!(found, 13, "the list above is the list: no verb was skipped by accident");
+    assert_eq!(found, 14, "the list above is the list: no verb was skipped by accident");
     let _ = fs::remove_dir_all(&library);
 
     // And the table itself is public, machine-readable, and honest about which verbs write.

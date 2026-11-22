@@ -100,6 +100,10 @@ struct Snapshot {
     /// which ones the library is using.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     packs: BTreeSet<String>,
+    /// Folder marks (pin, colour), keyed by path identity. Added after the first format; older snapshots have
+    /// none, and a folder that leaves the disk keeps its mark until the mark is cleared.
+    #[serde(default, skip_serializing_if = "crate::folder::FolderMarks::is_empty")]
+    folders: crate::folder::FolderMarks,
     /// The inverse of the last applied operation, so undo survives a snapshot rollover. Absent in
     /// older snapshots, which simply reopen with nothing to undo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -143,6 +147,7 @@ pub struct Catalog {
     collections: BTreeMap<CollectionId, Collection>,
     aliases: BTreeMap<String, String>,
     packs: BTreeSet<String>,
+    folders: crate::folder::FolderMarks,
     next_collection: u32,
     next_id: u64,
     seq: u64,
@@ -194,6 +199,7 @@ impl Catalog {
         let mut collections: BTreeMap<CollectionId, Collection> = BTreeMap::new();
         let mut aliases: BTreeMap<String, String> = BTreeMap::new();
         let mut packs: BTreeSet<String> = BTreeSet::new();
+        let mut folders: crate::folder::FolderMarks = crate::folder::FolderMarks::new();
         let mut seq = 0u64;
         // The snapshot carries the last inverse; log records that replay after it take precedence.
         let mut restore_undo: Option<Op> = None;
@@ -220,6 +226,7 @@ impl Catalog {
                             .collect();
                         aliases = snapshot.aliases;
                         packs = snapshot.packs;
+                        folders = snapshot.folders;
                         report.snapshot_seq = seq;
                         restore_undo = snapshot.undo;
                     }
@@ -244,6 +251,7 @@ impl Catalog {
                 collections,
                 aliases,
                 packs,
+                folders,
                 next_collection,
                 next_id,
                 seq,
@@ -326,6 +334,7 @@ impl Catalog {
                 collections,
                 aliases,
                 packs,
+                folders,
                 next_collection,
                 next_id,
                 seq,
@@ -606,6 +615,29 @@ impl Catalog {
         .map(|()| true)
     }
 
+    /// Set a folder's sidebar mark. An empty mark removes the entry rather than storing a row that says nothing.
+    ///
+    /// Returns whether anything changed, so a caller that re-applies the same mark is not reported as a write.
+    pub fn set_folder_mark(&mut self, key: &str, mark: crate::folder::FolderMark) -> Result<bool> {
+        if key.is_empty() {
+            return Err(Error::Invalid("a folder mark needs a path".into()));
+        }
+        let current = self.folders.get(key).copied().unwrap_or_default();
+        if current == mark {
+            return Ok(false);
+        }
+        self.commit(Op::SetFolderMark {
+            key: key.to_string(),
+            mark,
+        })?;
+        Ok(true)
+    }
+
+    /// Every folder mark.
+    pub fn folder_marks(&self) -> &crate::folder::FolderMarks {
+        &self.folders
+    }
+
     /// The keyword packs this library has switched on.
     pub fn enabled_packs(&self) -> &BTreeSet<String> {
         &self.packs
@@ -763,6 +795,26 @@ impl Catalog {
     ///
     /// Split out of [`Self::apply`] because the match was one arm past the complexity budget, and
     /// because "replace this field, report what it was" is the shape several ops share.
+    /// Apply a folder mark, returning the op that undoes it.
+    ///
+    /// The inverse is the whole previous mark, or its absence — which is why the op records the whole mark rather
+    /// than the field that moved. An empty mark *removes* the entry, so replaying a clear leaves the map exactly
+    /// as applying it did.
+    fn apply_folder_mark(&mut self, key: &str, mark: crate::folder::FolderMark) -> Result<Op> {
+        if key.is_empty() {
+            return Err(Error::Invalid("a folder mark needs a path".into()));
+        }
+        let previous = if mark.is_empty() {
+            self.folders.remove(key)
+        } else {
+            self.folders.insert(key.to_string(), mark)
+        };
+        Ok(Op::SetFolderMark {
+            key: key.to_string(),
+            mark: previous.unwrap_or_default(),
+        })
+    }
+
     fn apply_captured(&mut self, changes: &[(PhotoId, Option<i64>)]) -> Result<Op> {
         let mut previous = Vec::new();
         for (id, captured) in changes {
@@ -986,6 +1038,7 @@ impl Catalog {
                 collection.sort = sort.clone();
                 Ok(Op::SetCollectionSort { id: *id, sort: previous })
             }
+            Op::SetFolderMark { key, mark } => self.apply_folder_mark(key, *mark),
             Op::SetPack { name, on } => {
                 let previous = self.packs.contains(name);
                 if *on {
@@ -1277,6 +1330,7 @@ impl Catalog {
             collections: self.collections.values().cloned().collect(),
             aliases: self.aliases.clone(),
             packs: self.packs.clone(),
+            folders: self.folders.clone(),
             next_collection: self.next_collection,
             undo: self.undo.last().cloned(),
         };

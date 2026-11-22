@@ -401,12 +401,6 @@ const SCHEMAS: &[Schema] = &[
         note: "a page of photos with the ids that `rate` and `flag` accept; `total` is the filtered total",
     },
     Schema {
-        verb: "folders",
-        command: "library.subfolders",
-        kind: Kind::Read,
-        note: "subfolders under a root or prefix, with recursive counts",
-    },
-    Schema {
         verb: "check",
         command: "library.health",
         kind: Kind::Read,
@@ -471,6 +465,24 @@ const SCHEMAS: &[Schema] = &[
         command: "suggest.list",
         kind: Kind::Read,
         note: "proposals for one photo: keyword, source, confidence. Nothing is written until `accept`",
+    },
+    Schema {
+        verb: "folders",
+        command: "library.subfolders",
+        kind: Kind::Read,
+        note: "subfolders under a root or prefix, with recursive counts",
+    },
+    Schema {
+        verb: "mark",
+        command: "folder.mark",
+        kind: Kind::Write,
+        note: "`changed` is whether the mark moved; `key` is the path identity it was stored under",
+    },
+    Schema {
+        verb: "marks",
+        command: "folder.marks",
+        kind: Kind::Read,
+        note: "`folders`: every marked folder as {key, favourite, colour}, keyed by path identity",
     },
     Schema {
         verb: "rate",
@@ -640,6 +652,21 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
             args
         }
         "suggest" => serde_json::json!({ "ids": [parse_id(rest.first())?.0] }),
+        "mark" => {
+            let path = rest.first().ok_or("a folder path is required")?;
+            let mut args = serde_json::json!({ "path": path });
+            if let Some(state) = text_value(rest, "--favourite") {
+                args["favourite"] = serde_json::Value::Bool(matches!(state.as_str(), "on" | "true" | "yes"));
+            }
+            if let Some(colour) = text_value(rest, "--colour") {
+                args["colour"] = if colour == "none" {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::Value::String(colour)
+                };
+            }
+            args
+        }
         "rate" => {
             let stars: u8 = rest.get(1).ok_or("stars are required")?.parse().map_err(|_| "stars must be 0-5")?;
             serde_json::json!({ "ids": ids()?, "stars": stars })

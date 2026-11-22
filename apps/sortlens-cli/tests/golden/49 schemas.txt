@@ -26,12 +26,6 @@ exit 0
     "verb": "list"
   },
   {
-    "command": "library.subfolders",
-    "kind": "read",
-    "note": "subfolders under a root or prefix, with recursive counts",
-    "verb": "folders"
-  },
-  {
     "command": "library.health",
     "kind": "read",
     "note": "missing files and unreadable ones, with the reason the catalog recorded",
@@ -96,6 +90,24 @@ exit 0
     "kind": "read",
     "note": "proposals for one photo: keyword, source, confidence. Nothing is written until `accept`",
     "verb": "suggest"
+  },
+  {
+    "command": "library.subfolders",
+    "kind": "read",
+    "note": "subfolders under a root or prefix, with recursive counts",
+    "verb": "folders"
+  },
+  {
+    "command": "folder.mark",
+    "kind": "write",
+    "note": "`changed` is whether the mark moved; `key` is the path identity it was stored under",
+    "verb": "mark"
+  },
+  {
+    "command": "folder.marks",
+    "kind": "read",
+    "note": "`folders`: every marked folder as {key, favourite, colour}, keyed by path identity",
+    "verb": "marks"
   },
   {
     "command": "photo.rate",

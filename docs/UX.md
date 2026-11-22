@@ -128,6 +128,10 @@ its colour dot. When two or more are ticked a line appears saying how many, with
 context menu then acts on everything ticked, and Rename/Delete stay single-collection unless you chose
 "Delete N collections" explicitly. A whole batch undoes with one ⌘Z.
 
+Folder rows carry the same marks collections do: a star when pinned and a colour dot beside the name, both
+set from the row's context menu. The mark belongs to the folder's *path identity*, so it survives a rescan and
+a drive that comes back with the same name, and it is one undo step.
+
 ### 4.4 Left panel footer
 
 Storage summary for the selected scope (photo count, on-disk size, cache size), app version,

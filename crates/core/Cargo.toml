@@ -11,6 +11,10 @@ repository.workspace = true
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
+# Already in the tree (through the text stack), and the only reason it is a direct dependency is that a path
+# identity has to normalise Unicode: macOS writes filenames in NFD and a person types NFC, and the same folder
+# must be one folder. Hand-rolling the tables is not an option and ASCII-only folding is a data-loss bug.
+unicode-normalization.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

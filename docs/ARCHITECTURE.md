@@ -328,7 +328,12 @@ decoupled so the grid becomes usable in seconds.
 ```rust
 /// Stable across renames, moves and remounts within a volume.
 pub struct VolumeKey { serial: u64, label: String, kind: VolumeKind }
-pub struct PathKey { volume: VolumeKey, rel: String }        // rel is '/' normalized
+
+// What is built today: a photo is keyed by its root and relative path, and its identity is the content key.
+// `sortlens_core::pathkey::PathKey` is the *folder* identity used for settings that belong to a folder (pin,
+// colour): NFC-normalised, trailing separators dropped, and each component resolved to the disk's own spelling
+// when the disk answers unambiguously. A photo-level PathKey (volume serial + relative path, so a photo survives
+// a drive being remounted elsewhere) is the remaining half of SL-A11.
 
 pub struct Photo {
     pub id: PhotoId,

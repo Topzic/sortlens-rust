@@ -153,6 +153,16 @@ pub const EXAMPLES: &[Example] = &[
         note: "Renames a collection.",
     },
     Example {
+        command: "folder.mark",
+        args: r#"{"path": "/photos/2024", "favourite": true, "colour": "blue"}"#,
+        note: "the key is a path identity: omitted fields keep their current value, and colour null clears it.",
+    },
+    Example {
+        command: "folder.marks",
+        args: "{}",
+        note: "every marked folder as {key, favourite, colour}; keys are normalised paths.",
+    },
+    Example {
         command: "collection.colour",
         args: r#"{"collections": [1, 2], "colour": "blue"}"#,
         note: "one id or several as `collections`; the whole batch is a single undoable change.",

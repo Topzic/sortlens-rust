@@ -46,6 +46,7 @@ These are the crates a manifest actually asks for and the build links.
 | `serde` | MIT OR Apache-2.0 | Op-log, snapshot and settings serialisation |
 | `serde_json` | MIT OR Apache-2.0 | JSON records, the CLI's `--json`, MCP |
 | `thiserror` | MIT OR Apache-2.0 | Error types |
+| `unicode-normalization` | MIT OR Apache-2.0 | Unicode tables for `PathKey`: macOS writes filenames in NFD, a person types NFC, and one folder must be one key |
 | `crc32fast` | MIT OR Apache-2.0 | One checksum per op-log record |
 | `trash` | MIT | Moving rejects to the operating system's trash |
 

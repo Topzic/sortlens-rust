@@ -63,6 +63,13 @@ pub enum Op {
     /// A keyword pack was switched on or off. Packs are vocabulary files, so the log records only the
     /// switch — the words live on disk where someone can read them.
     SetPack { name: String, on: bool },
+    /// A folder's sidebar mark (pin and colour) changed.
+    ///
+    /// The whole mark is recorded rather than the field that moved, because the inverse of "the whole mark" is
+    /// "the previous whole mark": a field-by-field op would need the caller to say which field, and the log
+    /// would then be the only place that knows the other one's value. An empty mark removes the entry, so a
+    /// folder with nothing set costs no space in the snapshot.
+    SetFolderMark { key: String, mark: crate::folder::FolderMark },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -94,6 +101,7 @@ impl Op {
             Self::SetCollectionSort { .. } => "setCollectionSort",
             Self::SetCollectionSearch { .. } => "setCollectionSearch",
             Self::SetPack { .. } => "setPack",
+            Self::SetFolderMark { .. } => "setFolderMark",
             Self::Group { .. } => "group",
         }
     }
@@ -118,6 +126,7 @@ impl Op {
             | Self::SetCollectionFavourite { .. }
             | Self::SetCollectionSort { .. }
             | Self::SetCollectionSearch { .. }
+            | Self::SetFolderMark { .. }
             | Self::SetPack { .. } => false,
             Self::Rate { changes } => changes.is_empty(),
             Self::Flag { changes } => changes.is_empty(),
@@ -194,6 +203,12 @@ impl Op {
             Self::SetCollectionSearch { .. } => "Changed a collection's search".to_string(),
             Self::SetPack { name, on: true } => format!("Switched on the “{name}” keyword pack"),
             Self::SetPack { name, on: false } => format!("Switched off the “{name}” keyword pack"),
+            Self::SetFolderMark { key, mark } => match (mark.favourite, mark.colour) {
+                (true, Some(colour)) => format!("Pinned {key} and set it to {colour:?}"),
+                (true, None) => format!("Pinned {key}"),
+                (false, Some(colour)) => format!("Set {key} to {colour:?}"),
+                (false, None) => format!("Cleared the mark on {key}"),
+            },
             Self::Group { ops } => match ops.first() {
                 Some(first) => {
                     if ops.len() == 1 {

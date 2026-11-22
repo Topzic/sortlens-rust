@@ -69,10 +69,20 @@ volume probe and `PathKey`.
   while treating "cannot tell" as present — a missing answer must never read as a missing drive. The table
   parser and every convention are unit-tested on any platform; the syscall half is honest about what it
   assumes (A) — SL-A11 part 1
-- [ ] `PathKey`, the other half of SL-A11: a path identity that survives macOS's NFD filenames and
-  case-insensitive volumes needs Unicode normalisation tables and a per-volume case-sensitivity probe, which
-  is a dependency decision this project has not made. Lowercasing ASCII and calling it done would silently
-  merge two files called `Ångström.jpg` and `ångström.jpg` on a case-sensitive disk
+- [x] `PathKey` — a path identity for settings that belong to a folder (SL-A11 part 1)
+  - Three things make "the same folder" not the same string: Unicode normalisation (macOS stores NFD, a person
+    types NFC), trailing separators, and case. `sortlens_core::pathkey::PathKey` normalises the first two
+    unconditionally and resolves the third **by asking the disk**: for every component, a case-insensitive
+    lookup is made in its parent, and the on-disk spelling is adopted only when exactly one entry matches. Two
+    matches means the volume can hold both spellings, so nothing is folded — `Ångström.jpg` and `ångström.jpg`
+    on a case-sensitive disk stay two keys, which is the bug the row was blocking on.
+  - The dependency decision the row named was already made for us: `unicode-normalization` was in the tree
+    (through the text stack) and is now a declared, attributed direct dependency. No per-volume probe is needed,
+    because the disk answers the question directly and the answer is cached by the filesystem.
+  - Tested on whatever volume the test directory is on, holding the key to that volume's actual answer rather
+    than to a guess about the platform: NFD/NFC and trailing separators collapse, a case-insensitive volume
+    resolves to the disk's spelling at every component, and a case-sensitive one keeps both spellings. What this
+    does **not** do is replace photo identity: photos are still keyed by root + relative path + `ContentKey`.
 - [x] Walker with skip rules, bounded queue, delta detection (A) — SL-A01/A17
 - [x] `sortlens-catalog`: op log, snapshots, replay, undo, paging, counters (A) — SL-A12/A13
 - [x] Engine scan worker, `library.addFolder`/`rescan`/`page`/`stats` (A)
@@ -413,9 +423,22 @@ same photo; apply 148 rejects to trash; undo restores all 148.
     is how we know the group went in as one entry; photos untouched by a batch delete), and a headless sidebar
     paint with two ticked. **Not verified by hand**: how the dot and the tick read next to each other at real
     size.
-- [ ] Folders in the sidebar: favourites, colours, search and sort — **part 2**, absent because the folder
-  section is a projection of roots and subfolders rather than a stored object, so each of the four needs a place
-  to live (SL-A05..A10 part 2)
+- [x] Folders in the sidebar: favourites and colours (SL-A05..A10 part 2)
+  - A folder's mark is not stored *in* the folder — folders are discovered by the scan and a folder that leaves
+    the disk is gone with its photos — so it is a record keyed by `PathKey`. That is what makes it survive a
+    rescan, a remap, and the same folder arriving by another Unicode spelling.
+  - `Op::SetFolderMark` records the **whole** mark rather than the field that moved, so its inverse is the
+    previous whole mark and one ⌘Z clears a pin *and* a colour together. An empty mark removes the entry, both
+    when applied and when replayed, so a library full of unmarked folders costs nothing in the snapshot.
+  - The sidebar draws a star and the collection colour dot beside the folder name, and its context menu offers
+    pin/unpin and a colour menu. `folder.mark`/`folder.marks` are in the registry (with MCP argument schemas) and
+    in the `--json` table, so a script can read and set the same marks.
+  - Tested: the identity rules (above), the mark round-tripping through the log and undo as one step, an empty
+    path refused, `library.folder_marks` empty for a fresh folder, and a headless sidebar paint with a marked
+    folder.
+- [ ] Folders in the sidebar: per-folder remembered sort and search — **part 3**, needs the same mark record to
+  carry two more fields and a decision about whether a folder's sort follows the folder or the view (SL-A05..A10
+  part 3)
 - [x] Collections: create/rename/delete, add/remove, sidebar, filter (A,B) — SL-G01..G03
 - [x] Collection favourites, colours, per-collection search and sort (B) — SL-G04
 - [x] Batch move with sidecars travelling, receipts and undo (A) — SL-G07

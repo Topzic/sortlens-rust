@@ -1956,9 +1956,34 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 501 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: how the tick dot reads
   next to the colour dot at real size.
 
+## 2026-11-22 (sixth) — SL-A11 part 1: `PathKey`, and folders that remember a pin and a colour
+
+- **`PathKey` exists**, and the row that blocked it was blocking on a dependency decision that had already been
+  made elsewhere in the tree: `unicode-normalization` was a transitive dependency, so the tables were present.
+  It is now a declared, attributed direct dependency and `crates/core/src/pathkey.rs` normalises NFC/NFD and
+  trailing separators unconditionally, and resolves **case by asking the disk**: per component, a
+  case-insensitive lookup in the parent, adopting the on-disk spelling only when exactly one entry matches. Two
+  matches means the volume can hold both, so nothing is folded and `Ångström.jpg`/`ångström.jpg` stay distinct —
+  the silent merge the row was written to prevent. No per-volume probe: the disk answers directly.
+- Tests hold the key to whatever volume the test runs on (`case_is_resolved_by_the_disk_and_never_folded` asks
+  the volume whether it distinguishes case, then asserts *that* answer), rather than to a guess about the
+  platform. NFD/NFC collapse, separators collapse, every component is resolved, absent paths keep what was typed.
+- **Folders in the sidebar now carry a mark**: star + colour dot, set from the row's context menu, stored as
+  `Op::SetFolderMark` which records the *whole* mark so one ⌘Z clears pin and colour together, and an empty mark
+  removes the entry both when applied and when replayed. New `Op`, `crates/catalog/src/folder.rs`, catalog
+  accessors, engine methods (`set_folder_mark` computes the key itself so a UI and a CLI cannot make two marks
+  for one folder), registry commands `folder.mark`/`folder.marks`, MCP argument schemas, and two `--json` schemas.
+- `left_panel`'s closure crossed the cognitive-complexity gate, so the folder list became `folders_section` —
+  splitting because the gate said so, not silencing it.
+- Attribution gate bit as designed: adding `unicode-normalization` failed with "linked but docs/ATTRIBUTION.md
+  does not attribute it" before the row was added.
+- 508 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: how the star plus the
+  colour dot read together on a real sidebar row, and whether resolving case per component is fast enough on a
+  network volume — it is one `read_dir` per component, per mark change, not per frame.
+
 ## Next
 
-M5 part 2 (folders: favourites, colours, search, sort) is the remaining half of that row and needs a decision
-about where a folder's settings live — a stored per-path record, which is also the missing half of `PathKey`
-(`SL-A11`). Candidates after that: `sortlens-quality` sharpness (SL-E01) and the blur scan, which is the biggest
-remaining M6 item. Video posters, the map, AI inference, i18n and the keymap editor stay named absent.
+Folders part 3 — a per-folder remembered sort and search — is now a small extension of the mark record and is
+the honest next step; it needs a decision on whether a folder's sort follows the folder or the view. After that
+`sortlens-quality` sharpness + the blur scan (the biggest remaining M6 item). Video posters, the map, AI
+inference, i18n and the keymap editor stay named absent with their blockers.

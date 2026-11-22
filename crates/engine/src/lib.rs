@@ -16,6 +16,7 @@ pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Suggestion};
 pub use sortlens_catalog::backup::Backup;
+pub use sortlens_catalog::folder::{FolderMark, key_of as folder_key};
 pub use sortlens_catalog::history::Entry as HistoryEntry;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
@@ -378,6 +379,34 @@ impl Engine {
     fn commit_group(&mut self, ops: Vec<Op>) -> Result<()> {
         let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
         catalog.commit(Op::Group { ops })
+    }
+
+    /// Every folder mark: a sidebar pin and colour, keyed by path identity.
+    pub fn folder_marks(&self) -> sortlens_catalog::folder::FolderMarks {
+        self.catalog
+            .as_ref()
+            .map(|catalog| catalog.folder_marks().clone())
+            .unwrap_or_default()
+    }
+
+    /// The mark on one folder, or the default when it has none.
+    pub fn folder_mark(&self, key: &str) -> sortlens_catalog::folder::FolderMark {
+        self.folder_marks().get(key).copied().unwrap_or_default()
+    }
+
+    /// Set a folder's pin and colour as one change, keyed by `sortlens_core::pathkey::PathKey`.
+    ///
+    /// The key is computed from the path *here* rather than taken from the caller, so a UI that passed a typed
+    /// spelling and a CLI that passed a normalised one cannot create two marks for one folder.
+    pub fn set_folder_mark(&mut self, path: &str, mark: sortlens_catalog::folder::FolderMark) -> Result<bool> {
+        let key = sortlens_catalog::folder::key_of(path);
+        if key.is_empty() {
+            return Err(Error::Invalid("a folder mark needs a path".into()));
+        }
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .set_folder_mark(&key, mark)
     }
 
     /// Pin or unpin a collection.
@@ -2591,6 +2620,48 @@ impl Engine {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
                 Ok(json!({ "changed": self.add_to_collection(&ids, id)? }))
             }
+            "folder.mark" => {
+                let path = args
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a folder path is required".into()))?;
+                let current = self.folder_mark(&sortlens_catalog::folder::key_of(path));
+                let favourite = args.get("favourite").and_then(Value::as_bool).unwrap_or(current.favourite);
+                let colour = match args.get("colour") {
+                    // Absent keeps the current colour; an explicit null clears it.
+                    None => current.colour,
+                    Some(Value::Null) => None,
+                    Some(Value::String(name)) if name == "none" => None,
+                    Some(Value::String(name)) => Some(
+                        ColorLabel::ALL
+                            .into_iter()
+                            .find(|label| label.id() == name)
+                            .ok_or_else(|| Error::Invalid(format!("{name} is not a colour label")))?,
+                    ),
+                    Some(_) => return Err(Error::Invalid("colour must be a name or null".into())),
+                };
+                let mark = sortlens_catalog::folder::FolderMark { favourite, colour };
+                Ok(json!({
+                    "changed": self.set_folder_mark(path, mark)?,
+                    "key": sortlens_catalog::folder::key_of(path),
+                    "favourite": mark.favourite,
+                    "colour": mark.colour.map(|label| label.id()),
+                }))
+            }
+            "folder.marks" => {
+                let marks: Vec<Value> = self
+                    .folder_marks()
+                    .into_iter()
+                    .map(|(key, mark)| {
+                        json!({
+                            "key": key,
+                            "favourite": mark.favourite,
+                            "colour": mark.colour.map(|label| label.id()),
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "folders": marks }))
+            }
             "collection.colour" => {
                 let ids = collection_ids_from(args)?;
                 let colour = match args.get("colour").and_then(Value::as_str) {
@@ -3563,6 +3634,55 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("scan did not finish");
+    }
+
+    /// A folder's pin and colour survive a restart, undo as one change, and never become two marks for one folder
+    /// spelled two ways.
+    #[test]
+    fn a_folder_mark_is_keyed_by_path_identity_and_undoes_in_one_step() {
+        let (_cache, photos, mut engine) = library_with_images("folder-mark", 1);
+        let root = photos.0.to_string_lossy().to_string();
+
+        assert!(engine.folder_marks().is_empty(), "a folder starts unmarked");
+        let mark = sortlens_catalog::folder::FolderMark {
+            favourite: true,
+            colour: Some(ColorLabel::Blue),
+        };
+        assert!(engine.set_folder_mark(&root, mark).expect("mark"));
+        assert_eq!(
+            engine.folder_mark(&sortlens_catalog::folder::key_of(&root)).colour,
+            Some(ColorLabel::Blue)
+        );
+
+        // The same folder typed with a trailing separator is the same mark, not a second one.
+        assert!(
+            !engine.set_folder_mark(&format!("{root}/"), mark).expect("again"),
+            "nothing changed"
+        );
+        assert_eq!(engine.folder_marks().len(), 1, "one folder, one mark");
+
+        // One undo clears the whole mark, because the op records the whole mark.
+        assert!(engine.undo().expect("undo"));
+        assert!(engine.folder_marks().is_empty(), "the mark is gone, not half of it");
+
+        // Clearing an empty mark is not a write.
+        assert!(
+            !engine
+                .set_folder_mark(&root, sortlens_catalog::folder::FolderMark::default())
+                .expect("no-op")
+        );
+        // An empty path is refused rather than stored under the empty key.
+        assert!(
+            engine
+                .set_folder_mark(
+                    "",
+                    sortlens_catalog::folder::FolderMark {
+                        favourite: true,
+                        colour: None
+                    }
+                )
+                .is_err()
+        );
     }
 
     /// Recolouring, pinning or deleting several collections is **one** step to undo, and counts only what moved.

@@ -1250,6 +1250,115 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
         });
 }
 
+/// The folder list: one row per root, with its volume state, pin and colour.
+///
+/// Its own function because the sidebar had grown past the point where one closure could hold every section and
+/// stay readable — the complexity gate said so, which is the right time to split rather than to silence it.
+fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
+    nav_section(ui, t, "Folders");
+    // Volumes once per root, not once per photo: an unplugged drive holding ten thousand photos is
+    // one missing volume, and the sidebar says so beside the folder instead of after scrolling.
+    let volumes = engine.root_volumes();
+    if volumes.is_empty() {
+        hint(ui, t, "No folders yet. Add one to index a shoot.");
+    }
+    // Marks are read once per frame rather than per row: the sidebar draws every root, and a key lookup
+    // per row would be one string normalisation per row per frame.
+    let marks = engine.folder_marks();
+    let mut remark: Option<(String, sortlens_engine::FolderMark)> = None;
+    for volume in volumes {
+        let root = volume.root.clone();
+        let count = volume.photos;
+        let selected = state.root.as_deref() == Some(root.as_str());
+        let (count_text, offline) = match volume.mounted {
+            // Only `Some(false)` is evidence: a platform that cannot answer must not be drawn as if
+            // the drive were away.
+            Some(false) => (format!("{count} · away"), true),
+            _ => (format_count(count as u64), false),
+        };
+        let key = sortlens_engine::folder_key(&root);
+        let mark = marks.get(&key).copied().unwrap_or_default();
+        let name = format!("{}{}", if mark.favourite { "★ " } else { "" }, folder_name(&root));
+        let response = nav_row(ui, t, &name, &count_text, selected);
+        if let Some(colour) = mark.colour {
+            // The same dot a collection uses, in the same place: a colour means one thing in this
+            // sidebar, whichever kind of row carries it.
+            let dot = pos2(response.rect.left() + 3.0, response.rect.center().y);
+            ui.painter().circle_filled(dot, 3.0, t.label(colour));
+        }
+        if offline {
+            response.clone().on_hover_text(match &volume.mount {
+                Some(mount) => format!("Not mounted: {mount} is not there right now"),
+                None => "Not mounted".to_string(),
+            });
+        }
+        if response.clicked() {
+            if state.root.as_deref() != Some(root.as_str()) {
+                state.folder.clear();
+            }
+            state.root = Some(root.clone());
+            state.all_photos_selected = false;
+        }
+        response.context_menu(|ui| {
+            let pin_label = if mark.favourite {
+                "Remove from favourites"
+            } else {
+                "Add to favourites"
+            };
+            if ui.button(pin_label).clicked() {
+                remark = Some((
+                    root.clone(),
+                    sortlens_engine::FolderMark {
+                        favourite: !mark.favourite,
+                        colour: mark.colour,
+                    },
+                ));
+                ui.close();
+            }
+            ui.menu_button("Colour", |ui| {
+                let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
+                if ui.button("None").clicked() {
+                    chosen = Some(None);
+                }
+                for label in sortlens_core::ColorLabel::ALL {
+                    if ui.button(label.label()).clicked() {
+                        chosen = Some(Some(label));
+                    }
+                }
+                if let Some(colour) = chosen {
+                    remark = Some((
+                        root.clone(),
+                        sortlens_engine::FolderMark {
+                            favourite: mark.favourite,
+                            colour,
+                        },
+                    ));
+                    ui.close();
+                }
+            });
+            if ui.button("Rescan").clicked() {
+                actions.push(Action::Rescan(root.clone()));
+                ui.close();
+            }
+            if ui.button("Remove from library").clicked() {
+                actions.push(Action::RemoveRoot(root.clone()));
+                ui.close();
+            }
+        });
+    }
+    if let Some((path, mark)) = remark {
+        match engine.set_folder_mark(&path, mark) {
+            Ok(_) => state.notice(match (mark.favourite, mark.colour) {
+                (true, Some(colour)) => format!("Pinned and {} ", colour.label().to_lowercase()),
+                (true, None) => "Pinned to the top".to_string(),
+                (false, Some(colour)) => format!("Folder is {}", colour.label().to_lowercase()),
+                (false, None) => "Folder mark cleared".to_string(),
+            }),
+            Err(error) => state.notice_problem(error.to_string()),
+        }
+    }
+}
+
 fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::Panel::left("left_panel")
         .resizable(true)
@@ -1330,48 +1439,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 state.shortcut_query.clear();
             }
 
-            nav_section(ui, t, "Folders");
-            // Volumes once per root, not once per photo: an unplugged drive holding ten thousand photos is
-            // one missing volume, and the sidebar says so beside the folder instead of after scrolling.
-            let volumes = engine.root_volumes();
-            if volumes.is_empty() {
-                hint(ui, t, "No folders yet. Add one to index a shoot.");
-            }
-            for volume in volumes {
-                let root = volume.root.clone();
-                let count = volume.photos;
-                let selected = state.root.as_deref() == Some(root.as_str());
-                let (count_text, offline) = match volume.mounted {
-                    // Only `Some(false)` is evidence: a platform that cannot answer must not be drawn as if
-                    // the drive were away.
-                    Some(false) => (format!("{count} · away"), true),
-                    _ => (format_count(count as u64), false),
-                };
-                let response = nav_row(ui, t, &folder_name(&root), &count_text, selected);
-                if offline {
-                    response.clone().on_hover_text(match &volume.mount {
-                        Some(mount) => format!("Not mounted: {mount} is not there right now"),
-                        None => "Not mounted".to_string(),
-                    });
-                }
-                if response.clicked() {
-                    if state.root.as_deref() != Some(root.as_str()) {
-                        state.folder.clear();
-                    }
-                    state.root = Some(root.clone());
-                    state.all_photos_selected = false;
-                }
-                response.context_menu(|ui| {
-                    if ui.button("Rescan").clicked() {
-                        actions.push(Action::Rescan(root.clone()));
-                        ui.close();
-                    }
-                    if ui.button("Remove from library").clicked() {
-                        actions.push(Action::RemoveRoot(root.clone()));
-                        ui.close();
-                    }
-                });
-            }
+            folders_section(ui, t, state, engine, actions);
 
             ui.horizontal(|ui| {
                 nav_section(ui, t, "Keywords");
@@ -6433,6 +6501,58 @@ mod tests {
         for step in 0..=40 {
             assert_eq!(overlay_phase(step as f32 * 10.0, Motion::Reduced).slide, 0.0, "never moves");
         }
+    }
+
+    /// A folder row shows its pin and colour, and the mark survives into the painted name.
+    #[test]
+    fn a_marked_folder_paints_its_pin_and_colour() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-foldermark-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-foldermark");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [40, 90, 150], 48, 32), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let root_text = root.to_string_lossy().to_string();
+        engine
+            .set_folder_mark(
+                &root_text,
+                sortlens_engine::FolderMark {
+                    favourite: true,
+                    colour: Some(sortlens_core::ColorLabel::Green),
+                },
+            )
+            .expect("mark");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                folders_section(ui, &tokens, &mut state, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the folder row painted");
+        assert!(actions.is_empty(), "painting asks for nothing");
+        // The mark is what the row is drawn from, so reading it back is the assertion that the row had it.
+        let mark = engine.folder_mark(&sortlens_engine::folder_key(&root_text));
+        assert!(mark.favourite, "the pin is on the row's data");
+        assert_eq!(mark.colour, Some(sortlens_core::ColorLabel::Green), "and so is the colour");
+        // Clearing it through the same path leaves nothing behind.
+        engine
+            .set_folder_mark(&root_text, sortlens_engine::FolderMark::default())
+            .expect("clear");
+        assert!(engine.folder_marks().is_empty(), "an empty mark is not stored");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The sidebar paints its collections with the ticked ones marked, over a real library.
