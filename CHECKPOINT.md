@@ -1303,14 +1303,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **not verified by hand**: the Settings rows in a window; no checkbox was clicked headlessly.
 - 413 tests; `ci` (exit 0), `wasm`, `deny`, `snapshot` green.
 
+## 2026-11-21 — M8 (second half, part 6): the batch pass, and M8 called done honestly
+
+- `Engine::begin_batch_suggest` (+ `batch_progress`, `cancel_batch`, `poll_batch`, `batch_results`,
+  `clear_batch`): the same merge as the detail view, run over the whole library on a worker with the
+  progress/cancel/poll shape the other jobs use. `JobKind::Suggest` labels it "Suggestions".
+- **it writes nothing**, and that is the tested promise: a test snapshots every photo's tags and the
+  change log length, runs a pass over a library where a pack matches all three fixtures, asserts three
+  results and then asserts the tags and the log are byte-identical. Accepting one of the proposals
+  afterwards is what puts a keyword on the photo, through the ordinary tag op.
+- commands `suggest.start`/`progress`/`cancel`/`results`/`clear`; the registry audit refused to pass
+  until `progress` and `clear` were named there too, so no command can be unreachable from a menu; MCP
+  argument notes and examples for all five (executed by the existing test); `batchsuggest` in the CLI
+  with a golden step; a "Suggested keywords" panel opened from Settings, one button per proposal, no
+  apply-all on purpose.
+- `show()` had grown past the complexity gate, so every dialog moved into one `dialogs()` function — a
+  mechanical change, but it is why this commit also touches unrelated-looking lines.
+- **M8 is now called done honestly**: the three rows that need something this repository does not ship
+  (a `tract` session and embeddings need weights; `source = Ai` needs tag provenance in the schema;
+  PNG/TIFF/WebP need an encoder) moved from unchecked boxes into a "Deliberately absent from M8" table
+  with the reason and what would unblock each. The demo line now describes something a person can
+  actually do today.
+- **not verified by hand**: the new panel in a window; the headless test paints it idle and mid-pass, and
+  no click was simulated. 416 tests, ci (exit 0), wasm, deny, snapshot green.
+
 ## Next
 
-M8 has one row left that can be done without weights: **SL-F09, the batch suggest job** — a worker that
-walks the library computing hints (and enabled packs) for photos whose metadata has arrived, with the
-same progress/cancel/poll shape as the other jobs, writing nothing. Then M8's remaining rows (SL-F03
-part 2 `tract` session, SL-F04 embeddings) stay **blocked on a pinned model file** and must be moved out
-of the exit condition rather than left as a trap: rewrite them as "needs weights, deliberately absent"
-and note it in README, so the milestone can be called done honestly.
-
-After that: M9 (remote + automation) then M10 (release), then the M0 debt pass. Both are large; the loop
-should stop splitting M8 further once the batch job lands.
+**M9 — Remote + automation.** Start with what the milestone can honestly contain without a tunnel: the
+automation half. Read `docs/ROADMAP.md` M9 first and pick the smallest row that is real — likely the
+queue/scheduler of library operations driven from the command registry (a scripted sequence with
+progress, cancel and a receipt), since remote access needs a paired client this environment cannot
+exercise. Any row that needs a device or a network peer gets the same treatment M8's model rows got: a
+"Deliberately absent" table entry with the reason, not an empty box pretending to be upcoming work.

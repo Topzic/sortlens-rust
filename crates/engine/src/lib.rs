@@ -80,6 +80,14 @@ struct PendingExport {
     cancel: Arc<std::sync::atomic::AtomicBool>,
 }
 
+struct PendingBatch {
+    job: u64,
+    rx: Receiver<Vec<(PhotoId, Vec<Suggestion>)>>,
+    total: usize,
+    done: Arc<std::sync::atomic::AtomicUsize>,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
 struct PendingHash {
     job: u64,
     rx: Receiver<Vec<SimilarMember>>,
@@ -121,6 +129,8 @@ pub struct Engine {
     pending_hash: Option<PendingHash>,
     hashes: std::collections::HashMap<u64, (sortlens_hash::Hash, sortlens_hash::Colour)>,
     pending_insights: Option<PendingInsights>,
+    pending_batch: Option<PendingBatch>,
+    batch: Vec<(PhotoId, Vec<Suggestion>)>,
     insights_ready: Option<Insights>,
     similar_members: Vec<SimilarMember>,
     similar: Vec<SimilarGroup>,
@@ -150,6 +160,8 @@ impl Engine {
             pending_hash: None,
             hashes: std::collections::HashMap::new(),
             pending_insights: None,
+            pending_batch: None,
+            batch: Vec::new(),
             insights_ready: None,
             similar_members: Vec::new(),
             similar: Vec::new(),
@@ -1433,6 +1445,110 @@ impl Engine {
         Some(total)
     }
 
+    /// Compute suggestions for the whole library on a worker.
+    ///
+    /// Returns how many photos the pass will look at. **Nothing is written**: the result is a list of
+    /// proposals waiting to be read, reviewed and accepted one at a time, exactly like a single photo's
+    /// suggestions in the detail view. A batch that wrote keywords by itself would be a bulk edit nobody
+    /// asked for, and undo would only take back the last one.
+    ///
+    /// Only photos whose metadata arrived take part — a photo with no camera, lens, ISO or focal length,
+    /// in a folder no pack matches, has nothing to suggest and would only slow the pass down.
+    pub fn begin_batch_suggest(&mut self) -> Result<usize> {
+        if self.catalog.is_none() {
+            return Err(Error::Invalid("no library is open".into()));
+        }
+        if self.pending_batch.is_some() {
+            return Err(Error::Invalid("a suggestion pass is already running".into()));
+        }
+        let photos: Vec<Photo> = self.all_photos().to_vec();
+        let packs = self.enabled_pack_rules();
+        let total = photos.len();
+        let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let worker_done = done.clone();
+        let worker_cancel = cancel.clone();
+        let caps = sortlens_ai::Caps::default();
+        let job = self.start_job(JobKind::Suggest, format!("Suggesting · {total} photos"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("sortlens-suggest".into())
+            .spawn(move || {
+                let mut out = Vec::new();
+                for (index, photo) in photos.iter().enumerate() {
+                    if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
+                    let suggestions = suggestions_for(photo, &packs, &caps);
+                    if !suggestions.is_empty() {
+                        out.push((photo.id, suggestions));
+                    }
+                    if index % INSIGHTS_CHUNK == 0 {
+                        worker_done.store(index + 1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+                worker_done.store(total, std::sync::atomic::Ordering::Relaxed);
+                let _ = tx.send(out);
+            })
+            .map_err(|error| Error::Invalid(format!("suggestion worker: {error}")))?;
+        self.pending_batch = Some(PendingBatch {
+            job,
+            rx,
+            total,
+            done,
+            cancel,
+        });
+        Ok(total)
+    }
+
+    /// How far the running suggestion pass has come.
+    pub fn batch_progress(&self) -> Option<(usize, usize)> {
+        self.pending_batch
+            .as_ref()
+            .map(|pending| (pending.done.load(std::sync::atomic::Ordering::Relaxed), pending.total))
+    }
+
+    /// Stop the running suggestion pass. Nothing is written, so there is nothing to clean up.
+    pub fn cancel_batch(&mut self) {
+        if let Some(pending) = &self.pending_batch {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Collect a finished pass: the photos that have something to suggest, and their proposals.
+    pub fn poll_batch(&mut self) -> Option<usize> {
+        let pending = self.pending_batch.as_ref()?;
+        let found = match pending.rx.try_recv() {
+            Ok(found) => found,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                let job = self.pending_batch.take().map(|pending| pending.job);
+                if let Some(job) = job {
+                    self.finish_job(job, JobStatus::Failed, 0, 0, 0, Some("the pass ended early".into()));
+                }
+                return None;
+            }
+        };
+        let pending = self.pending_batch.take()?;
+        let cancelled = pending.cancel.load(std::sync::atomic::Ordering::Relaxed);
+        let count = found.len();
+        let status = if cancelled { JobStatus::Cancelled } else { JobStatus::Done };
+        let error = cancelled.then(|| "stopped".to_string());
+        self.finish_job(pending.job, status, count, 0, 0, error);
+        self.batch = found;
+        Some(count)
+    }
+
+    /// The suggestions from the last finished pass, and nothing while one is running.
+    pub fn batch_results(&self) -> &[(PhotoId, Vec<Suggestion>)] {
+        &self.batch
+    }
+
+    /// Forget the last pass, so the panel does not show proposals forever.
+    pub fn clear_batch(&mut self) {
+        self.batch.clear();
+    }
+
     /// Groups found by the last finished hash pass.
     pub fn similar_groups(&self) -> &[SimilarGroup] {
         &self.similar
@@ -2518,6 +2634,47 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a move id is required".into()))?;
                 Ok(json!({ "restored": self.undo_move(id)? }))
             }
+            "suggest.start" => {
+                let planned = self.begin_batch_suggest()?;
+                Ok(json!({ "photos": planned }))
+            }
+            "suggest.progress" => {
+                let progress = self.batch_progress();
+                Ok(json!({
+                    "running": progress.is_some(),
+                    "done": progress.map(|(done, _)| done),
+                    "total": progress.map(|(_, total)| total),
+                }))
+            }
+            "suggest.cancel" => {
+                self.cancel_batch();
+                Ok(json!({ "cancelled": true }))
+            }
+            "suggest.results" => {
+                let done = self.poll_batch();
+                let results: Vec<Value> = self
+                    .batch_results()
+                    .iter()
+                    .map(|(id, suggestions)| {
+                        json!({
+                            "id": id.0,
+                            "suggestions": suggestions
+                                .iter()
+                                .map(|suggestion| json!({
+                                    "tag": suggestion.tag,
+                                    "score": f64::from(suggestion.score),
+                                    "source": suggestion.source.label(),
+                                }))
+                                .collect::<Vec<Value>>(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "finished": done, "photos": results, "count": results.len() }))
+            }
+            "suggest.clear" => {
+                self.clear_batch();
+                Ok(json!({ "cleared": true }))
+            }
             "packs.list" => {
                 let packs: Vec<Value> = self
                     .packs()
@@ -3350,6 +3507,82 @@ mod tests {
         assert_eq!(suggested.len(), 1);
         assert_eq!(suggested[0].tag, "japan");
         assert_eq!(suggested[0].source, sortlens_ai::Source::Pack);
+    }
+
+    #[test]
+    fn a_suggestion_pass_proposes_without_writing_anything() {
+        let (_library_dir, _photos, mut engine) = library_with_images("batch", 3);
+        let before: Vec<Vec<String>> = engine.all_photos().iter().map(|photo| photo.tags.clone()).collect();
+        let log_before = engine.history(50).expect("history").len();
+
+        assert_eq!(engine.begin_batch_suggest().expect("start"), 3);
+        assert!(engine.batch_progress().is_some(), "the pass reports progress while it runs");
+        assert!(engine.begin_batch_suggest().is_err(), "a second pass is refused while one runs");
+
+        let mut found = None;
+        for _ in 0..400 {
+            if let Some(count) = engine.poll_batch() {
+                found = Some(count);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(found, Some(0), "a fixture JPEG has no metadata, so there is nothing to propose");
+        assert!(engine.batch_progress().is_none(), "the pass is over");
+
+        // Nothing was written: no tag added, no op logged. That is the whole promise of a batch pass.
+        let after: Vec<Vec<String>> = engine.all_photos().iter().map(|photo| photo.tags.clone()).collect();
+        assert_eq!(before, after, "a pass must not tag anything");
+        assert_eq!(
+            engine.history(50).expect("history").len(),
+            log_before,
+            "a pass writes no op either, so the change log is untouched"
+        );
+        assert_eq!(engine.batch_results().len(), 0);
+
+        engine.clear_batch();
+        assert!(engine.batch_results().is_empty());
+    }
+
+    #[test]
+    fn a_suggestion_pass_finds_the_photos_a_pack_applies_to_and_writes_none_of_it() {
+        let (library_dir, _photos, mut engine) = library_with_images("batchpack", 3);
+        std::fs::create_dir_all(library_dir.0.join(PACKS_DIR)).expect("packs dir");
+        // The fixture photos are all `.jpg`, so this rule matches every one of them without EXIF.
+        std::fs::write(
+            library_dir.0.join(PACKS_DIR).join("jpgs.json"),
+            r#"{"name":"JPEGs","licence":"CC0-1.0","keywords":[{"keyword":"jpeg","when":{"folder_contains":".jpg"}}]}"#,
+        )
+        .expect("write pack");
+        let listed = engine.packs();
+        assert_eq!(listed.len(), 1, "the pack is found in the library's own folder");
+        engine.set_pack("JPEGs", true).expect("enable");
+
+        engine.begin_batch_suggest().expect("start");
+        let mut found = None;
+        for _ in 0..400 {
+            if let Some(count) = engine.poll_batch() {
+                found = Some(count);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(found, Some(3), "the pack matches every fixture photo");
+
+        let results = engine.batch_results();
+        assert_eq!(results.len(), 3);
+        for (_, suggestions) in results {
+            assert_eq!(suggestions.len(), 1);
+            assert_eq!(suggestions[0].tag, "jpeg");
+            assert_eq!(suggestions[0].source, sortlens_ai::Source::Pack);
+        }
+        for photo in engine.all_photos() {
+            assert!(photo.tags.is_empty(), "the pass proposed, it did not tag");
+        }
+        // Accepting one proposal afterwards is the only path to a keyword, and it works.
+        let first = results[0].0;
+        assert!(engine.accept_suggestion(first, "jpeg").expect("accept"));
+        assert!(engine.photo(first).is_some_and(|photo| photo.tags == vec!["jpeg".to_string()]));
     }
 
     #[test]

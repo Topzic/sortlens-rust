@@ -20,6 +20,8 @@ pub enum JobKind {
     Hash,
     /// Counting the library for the insights view.
     Insights,
+    /// Proposing keywords for the whole library.
+    Suggest,
 }
 
 impl JobKind {
@@ -32,6 +34,7 @@ impl JobKind {
             Self::Sidecar => "Sidecars",
             Self::Hash => "Similar",
             Self::Insights => "Insights",
+            Self::Suggest => "Suggestions",
         }
     }
 }

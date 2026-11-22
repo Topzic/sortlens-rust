@@ -134,6 +134,12 @@ pub enum Action {
     AcceptSuggestion(PhotoId, String),
     /// Switch a keyword pack on or off.
     SetPack(String, bool),
+    /// Propose keywords for the whole library on a worker.
+    StartSuggest,
+    /// Stop that pass. It has written nothing, so there is nothing to undo.
+    CancelSuggest,
+    /// Forget the proposals from the last pass.
+    ClearSuggest,
 }
 
 /// What Apply does with rejected photos.
@@ -268,6 +274,8 @@ pub struct UiState {
     pub health_open: bool,
     /// Whether the export dialog is showing.
     pub export_open: bool,
+    /// Whether the whole-library suggestion panel is open.
+    pub suggest_open: bool,
     /// What the export dialog is set to write.
     pub export_spec: sortlens_engine::ExportSpec,
     /// The photos the export dialog will write.
@@ -352,6 +360,7 @@ impl UiState {
             deleted_open: false,
             health_open: false,
             export_open: false,
+            suggest_open: false,
             export_spec: sortlens_engine::ExportSpec::default(),
             export_ids: Vec::new(),
             export_receipt: None,
@@ -510,56 +519,65 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if engine.cull_complete() && !state.summary_open && !state.apply_open {
         state.summary_open = true;
     }
-    if state.tag_edit.is_some() {
-        tag_edit_dialog(ui, state, &t, engine);
-    }
-    if state.quit_open {
-        quit_dialog(ui, state, &t, engine, &mut actions);
-    }
-    if state.summary_open {
-        summary_dialog(ui, state, &t, engine);
-    }
-    if state.receipt_open {
-        receipt_dialog(ui, state, &t, engine);
-    }
-    if state.settings_open {
-        settings_dialog(ui, state, &t, engine, &mut actions);
-    }
-    if state.about_open {
-        about_dialog(ui, state, &t, engine);
-    }
-    if state.shortcuts_open {
-        shortcuts_dialog(ui, state, &t);
-    }
-    if state.apply_open {
-        apply_dialog(ui, state, &t, engine);
-    }
-    if state.deleted_open {
-        deleted_dialog(ui, state, &t, engine);
-    }
-    if state.empty_bin_open {
-        empty_bin_dialog(ui, state, &t, engine);
-    }
-    if state.health_open {
-        health_dialog(ui, state, &t, engine, &mut actions);
-    }
-    if state.history_open {
-        history_dialog(ui, state, &t, engine, &mut actions);
-    }
-    if state.export_open || state.export_receipt.is_some() {
-        export_dialog(ui, state, &t, engine, &mut actions);
-    }
-    if state.move_receipt.is_some() {
-        move_receipt_dialog(ui, state, &t, engine, &mut actions);
-    }
-    if state.rename_target.is_some() {
-        rename_dialog(ui, state, &t, engine);
-    }
+    dialogs(ui, state, &t, engine, &mut actions);
 
     if state.live_notice().is_some() {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
     }
     actions
+}
+
+/// Every dialog, in the order they stack. Extracted so `show` stays a sequence of surfaces rather than a
+/// list of every window the app can open.
+fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    if state.tag_edit.is_some() {
+        tag_edit_dialog(ui, state, t, engine);
+    }
+    if state.quit_open {
+        quit_dialog(ui, state, t, engine, actions);
+    }
+    if state.summary_open {
+        summary_dialog(ui, state, t, engine);
+    }
+    if state.receipt_open {
+        receipt_dialog(ui, state, t, engine);
+    }
+    if state.settings_open {
+        settings_dialog(ui, state, t, engine, actions);
+    }
+    if state.about_open {
+        about_dialog(ui, state, t, engine);
+    }
+    if state.shortcuts_open {
+        shortcuts_dialog(ui, state, t);
+    }
+    if state.apply_open {
+        apply_dialog(ui, state, t, engine);
+    }
+    if state.deleted_open {
+        deleted_dialog(ui, state, t, engine);
+    }
+    if state.empty_bin_open {
+        empty_bin_dialog(ui, state, t, engine);
+    }
+    if state.health_open {
+        health_dialog(ui, state, t, engine, actions);
+    }
+    if state.history_open {
+        history_dialog(ui, state, t, engine, actions);
+    }
+    if state.export_open || state.export_receipt.is_some() {
+        export_dialog(ui, state, t, engine, actions);
+    }
+    if state.suggest_open {
+        suggest_dialog(ui, state, t, engine, actions);
+    }
+    if state.move_receipt.is_some() {
+        move_receipt_dialog(ui, state, t, engine, actions);
+    }
+    if state.rename_target.is_some() {
+        rename_dialog(ui, state, t, engine);
+    }
 }
 
 fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
@@ -4210,6 +4228,13 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             ui.separator();
             ui.label(RichText::new("Keyword packs").size(11.0).color(t.text_muted));
             keyword_packs(ui, t, engine, actions);
+            if ui
+                .button(RichText::new("Suggest keywords for the library…").size(12.0))
+                .on_hover_text("Proposes keywords for every photo that has something to say; writes nothing until you accept")
+                .clicked()
+            {
+                state.suggest_open = true;
+            }
             ui.add_space(8.0);
             ui.label(
                 RichText::new("More settings arrive with the features they configure.")
@@ -4256,6 +4281,88 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
             }
         }
     }
+}
+
+/// The whole-library suggestion pass, and its proposals.
+///
+/// The panel can *offer* a hundred keywords and still change nothing: every row is a button, and the
+/// only thing that writes is pressing one. That is why the pass has no "apply all" — a bulk edit nobody
+/// reviewed is the thing this panel exists to avoid.
+fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    let mut open = state.suggest_open;
+    egui::Window::new("Suggested keywords")
+        .open(&mut open)
+        .resizable(true)
+        .collapsible(false)
+        .default_width(420.0)
+        .show(ui.ctx(), |ui| {
+            match engine.batch_progress() {
+                Some((done, total)) => {
+                    let share = if total == 0 { 1.0 } else { done as f32 / total as f32 };
+                    ui.add(
+                        egui::ProgressBar::new(share)
+                            .text(format!("{done} of {total}"))
+                            .desired_width(300.0),
+                    );
+                    if ui.button(RichText::new("Stop").size(12.0)).clicked() {
+                        actions.push(Action::CancelSuggest);
+                    }
+                    ui.label(RichText::new("Nothing is written while this runs.").size(10.5).color(t.text_faint));
+                }
+                None => {
+                    ui.horizontal(|ui| {
+                        if ui.button(RichText::new("Suggest for the whole library").size(12.0)).clicked() {
+                            actions.push(Action::StartSuggest);
+                        }
+                        if !engine.batch_results().is_empty() && ui.button(RichText::new("Clear").size(12.0)).clicked() {
+                            actions.push(Action::ClearSuggest);
+                        }
+                    });
+                    ui.label(
+                        RichText::new("Uses what each file says about itself and any keyword packs you switched on.")
+                            .size(10.5)
+                            .color(t.text_faint),
+                    );
+                }
+            }
+            ui.add_space(6.0);
+            ui.separator();
+
+            let results = engine.batch_results().to_vec();
+            if results.is_empty() {
+                ui.label(RichText::new("No proposals yet.").size(11.0).color(t.text_faint));
+                return;
+            }
+            ui.label(
+                RichText::new(format!("{} photo(s) with something to suggest", results.len()))
+                    .size(11.0)
+                    .color(t.text_muted),
+            );
+            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for (id, suggestions) in results {
+                    let name = engine
+                        .photo(id)
+                        .map(|photo| truncate(&photo.name, 32))
+                        .unwrap_or_else(|| format!("#{}", id.0));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(name).size(11.0).color(t.text_muted));
+                        for suggestion in suggestions {
+                            let response = ui
+                                .add(Button::new(RichText::new(format!("+ {}", suggestion.tag)).size(10.5)).frame(false))
+                                .on_hover_text(format!(
+                                    "{:.0}% from {} — clicking adds it",
+                                    suggestion.score * 100.0,
+                                    suggestion.source.label()
+                                ));
+                            if response.clicked() {
+                                actions.push(Action::AcceptSuggestion(id, suggestion.tag.clone()));
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    state.suggest_open = open;
 }
 
 fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
@@ -4644,6 +4751,52 @@ mod tests {
         });
         output.textures_delta.clear();
         assert!(state.export_receipt.is_some(), "the receipt waits for the user");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The batch panel has to paint with no pass, during a pass, and with proposals to accept — and it
+    /// must not ask for anything until a button is pressed.
+    #[test]
+    fn the_suggest_dialog_paints_idle_running_and_with_results() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-suggest-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.suggest_open = true;
+
+        // Idle: nothing running, no proposals, and no action without a click.
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                suggest_dialog(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "opening the panel asks for nothing");
+        assert!(state.suggest_open, "the window stays open");
+
+        // Running: a progress bar and a Stop, still with no action taken.
+        engine.begin_batch_suggest().expect("start");
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                suggest_dialog(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty());
+        assert!(engine.batch_progress().is_some(), "the dialog was drawn while a pass was live");
+        // Let it finish so the temp library is not deleted out from under a worker.
+        for _ in 0..400 {
+            if engine.poll_batch().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(engine.batch_results().is_empty(), "an empty library proposes nothing");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -25,7 +25,7 @@ scripts and AI agents.
 > gestures and zoom, collections, duplicate and colour matching, insights, memories, detail and
 > side-by-side compare, backup/restore, audit and compaction, one-writer locking, move with undo, and
 > a change viewer, export to originals or JPEG, and keyword suggestions from the file's own EXIF plus
-> optional keyword packs — all driven by one command registry that the CLI and an MCP server also speak.
+> optional keyword packs, and a whole-library suggestion pass that writes nothing — all driven by one command registry that the CLI and an MCP server also speak.
 > What M8 still lacks is a camera-*inference* session (a pinned detector would be a download, and no model
 > is pinned yet) and PNG/TIFF/WebP export. M9 (remote and automation) and M10 (release) are unstarted.
 > What is *not* built is named where it would be used, and in `docs/ROADMAP.md`.

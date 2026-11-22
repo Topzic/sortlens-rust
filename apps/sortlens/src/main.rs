@@ -245,6 +245,19 @@ impl App {
                     }
                 }
             }
+            Action::StartSuggest => match self.engine.begin_batch_suggest() {
+                Ok(0) => self.ui.notice("Nothing to suggest: the library is empty"),
+                Ok(count) => self.ui.notice(format!("Looking at {count} photo(s)…")),
+                Err(error) => self.ui.notice(error.to_string()),
+            },
+            Action::CancelSuggest => {
+                self.engine.cancel_batch();
+                self.ui.notice("Stopping the suggestion pass");
+            }
+            Action::ClearSuggest => {
+                self.engine.clear_batch();
+                self.ui.notice("Cleared the suggestions");
+            }
             Action::SetPack(name, on) => match self.engine.set_pack(&name, on) {
                 Ok(true) => {
                     let verb = if on { "Switched on" } else { "Switched off" };
@@ -362,6 +375,15 @@ impl eframe::App for App {
                 self.ui.export_receipt = Some(format!("{} → {}", report.headline(), report.dest.display()));
             }
             ctx.request_repaint();
+        }
+
+        // The suggestion pass reports on its own thread; notice it finished where the export is noticed.
+        if let Some(count) = self.engine.poll_batch() {
+            self.ui.notice(format!("{count} photo(s) have something to suggest"));
+            ctx.request_repaint();
+        }
+        if self.engine.batch_progress().is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
 
         let actions = sortlens_ui::show(ui, &mut self.ui, &mut self.engine, &mut self.thumbs);

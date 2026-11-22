@@ -222,6 +222,11 @@ const STEPS: &[Step] = &[
         args: &["packs"],
         file: None,
     },
+    Step {
+        name: "37 batch suggest",
+        args: &["batchsuggest"],
+        file: None,
+    },
 ];
 
 fn golden_dir() -> PathBuf {

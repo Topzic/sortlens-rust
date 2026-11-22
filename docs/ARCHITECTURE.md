@@ -507,6 +507,10 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   through `Engine::set_tag`, so a suggestion becomes an ordinary `Tagged` op — in the log, in the
   history, and undone by the same `undo` as a keyword typed by hand. The detail view draws the list as a
   "Suggested" row whose buttons name their score and source.
+- `Engine::begin_batch_suggest` runs the same merge over the whole library on a worker, with progress,
+  cancel, poll, results and clear, and **writes nothing**: the panel offers rows and each row is a
+  button. A test asserts the tags and the change log are identical before and after a pass, because a
+  batch that tagged by itself would be a bulk edit nobody reviewed.
 - `suggest::merge` is where a guess becomes a proposal: a keyword the photo already has is never
   suggested again, two sources proposing the same tag become one at the higher score, a camera hint
   outranks a guess on a tie, tags shorter than three characters are dropped, and the list is capped at

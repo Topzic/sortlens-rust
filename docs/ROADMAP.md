@@ -225,18 +225,16 @@ and recover; export/import a library onto a second machine and remap the volume.
 
 ## M8 — AI + export · 2.5 w · tracks D,A
 
-**State:** export and the whole no-model half of tagging are in — manifest, store, NMS, label map, EXIF
-hints, packs, suggestion panel, accept-and-undo. What is missing is a pinned model and the inference
-session that would use it, and the embedding packs; both need weights this repository does not ship.
+**State:** done for everything that needs no weights — export, manifest, store, NMS, label map, EXIF
+hints, packs, the suggestion panel, accept-and-undo and the batch pass. The rows under "Deliberately
+absent" are not part of "done": each needs something this repository does not ship, and pretending
+otherwise is how a plan starts lying.
 
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
   and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
   — SL-F01; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
 - [x] Non-maximum suppression per class + label map parsing, as pure functions over normalised boxes,
   with the crowd, the empty-box and the tie-order cases tested (D) — SL-F03 part 1
-- [ ] `tract` detector session behind a feature flag — needs a pinned model in the manifest first (D)
-  — SL-F03 part 2
-- [ ] Image/text embedding sessions + precomputed pack prompts (D) — SL-F04
 - [x] EXIF hint rules: camera and lens as keywords, three focal bands, low light and long exposure,
   each a named constant with a stated reason, all feeding the same merger (D) — SL-F05
 - [x] Suggestion merger: dedupe against existing keywords, best score wins, source rank settles ties,
@@ -245,8 +243,6 @@ session that would use it, and the embedding packs; both need weights this repos
   the camera or a model said it, one click writing the keyword through the ordinary tag op; engine
   commands `suggest.list`/`suggest.accept`, MCP examples and `suggest`/`accept` in the CLI (D,B)
   — SL-F06 part 2
-- [ ] `source = Ai` in the keyword filter — the panel records what a keyword came from only in its own
-  row today; the filter needs a per-tag source in the catalog, which is a schema change (D)
 - [x] Packs as data: a JSON file per pack with a name, a licence and rules (`folder_contains`,
   `camera_contains`, `lens_contains`, `min_iso`, `focal_band`, all ANDed), read from `<library>/packs/`,
   refused when a rule has no conditions or a band does not exist, listed with its problem when a file is
@@ -256,16 +252,30 @@ session that would use it, and the embedding packs; both need weights this repos
 - [x] Pack rules feed the same merger, so an enabled pack's keywords appear as proposals and only an
   acceptance writes one — `craft-flags` was not needed: a boolean in the op log already persists and
   undoes, and a feature-flag crate would add a second place for the truth to live (D)
-- [ ] Batch suggest job (D) — SL-F09
+- [x] Batch suggest job: a worker over every photo (EXIF hints plus enabled packs), progress, cancel,
+  poll, results and clear, `suggest.start`/`progress`/`cancel`/`results`/`clear`, `batchsuggest` in the
+  CLI and a "Suggested keywords" panel where each row is a button — **it writes nothing**, which is
+  pinned by a test that asserts the tags and the change log are untouched after a pass (D) — SL-F09
 - [x] No-network assertion for `sortlens-ai`: a source scan for socket APIs and a dependency scan for
   HTTP clients, both proved to fail on a planted hit (D) — SL-F10
 - [x] Export: original copies and JPEG re-encodes, longest-edge resize, quality, EXIF/IPTC carried
   forward, four collision policies, worker progress and cancel, a dialog and a receipt (A) — SL-B24
-- [ ] Export PNG/TIFF/WebP — needs an encoder this workspace does not have yet; the dialog offers only
-  the two formats it can actually write
 
-**Demo:** on a clean machine, download the model, suggest tags for 50 photos offline, accept
-10, filter by `source = Ai`; export a selection three ways and diff metadata.
+### Deliberately absent from M8
+
+Not rows with an empty box — rows that would need something this repository does not ship, kept here so
+the absence is a decision rather than a gap:
+
+| Not built | Because | What would unblock it |
+| --- | --- | --- |
+| `tract` detector session (SL-F03 part 2) | a session needs weights; pinning a model means shipping or fetching a file whose digest and licence must be real, and inventing one would be a lie | a chosen ONNX detector with a known licence and digest, added to `Manifest::shipped()`; the NMS and label map it would use are already tested |
+| Image/text embedding sessions and prompt packs (SL-F04) | same: embeddings are weights | the same, plus a text encoder |
+| `source = Ai` in the keyword filter | the panel shows provenance per suggestion, but filtering by it needs a per-tag source in the catalog — a schema change with a migration, for a filter whose values would be guesses | a decision to store tag provenance |
+| PNG/TIFF/WebP export | the workspace has one encoder (JPEG); a format chip that cannot write its format is a lie | an encoder crate, reviewed for licence and size |
+
+**Demo:** on a clean machine, index 50 photos, run `batchsuggest`, accept ten proposals from the panel,
+undo one, switch on a keyword pack and watch its keywords appear for the matching folders; export a
+selection as originals and as JPEG and diff the metadata.
 
 ---
 

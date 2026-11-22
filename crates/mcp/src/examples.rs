@@ -46,6 +46,16 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
         "no arguments; the keyword packs in the library, with their licence and switch state",
     ),
     ("packs.set", "name: the pack; on: true or false"),
+    (
+        "suggest.start",
+        "no arguments; proposes keywords for the whole library on a worker, writes nothing",
+    ),
+    ("suggest.progress", "no arguments; done and total for the running pass"),
+    (
+        "suggest.cancel",
+        "no arguments; stops the pass, which has written nothing to begin with",
+    ),
+    ("suggest.clear", "no arguments; forgets the last pass's proposals"),
     ("suggest.list", "ids: photos; each photo's keyword suggestions from its own EXIF"),
     ("suggest.accept", "id: one photo; tag: a suggestion to write as an ordinary keyword"),
     ("app.quit", "no arguments; asks the host to close the window"),
@@ -293,6 +303,21 @@ pub const EXAMPLES: &[Example] = &[
         command: "view.similar",
         args: "{}",
         note: "The groups found so far.",
+    },
+    Example {
+        command: "suggest.start",
+        args: "{}",
+        note: "no arguments; proposes keywords for the whole library on a worker, writes nothing",
+    },
+    Example {
+        command: "suggest.progress",
+        args: "{}",
+        note: "no arguments; done and total for the running pass",
+    },
+    Example {
+        command: "suggest.results",
+        args: "{}",
+        note: "no arguments; the photos that have something to suggest, and what",
     },
     Example {
         command: "packs.list",

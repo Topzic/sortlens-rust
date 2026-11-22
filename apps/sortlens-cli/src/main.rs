@@ -30,6 +30,7 @@ Commands:
   accept <id> <keyword>     accept one of those suggestions
   packs                     keyword packs found in the library
   pack <name> on|off        switch a pack on or off
+  batchsuggest             propose keywords for the whole library (writes nothing)
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
   mcp                       serve the command registry over MCP on stdio, then exit
@@ -97,6 +98,36 @@ fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(),
         _ => {
             let keyword = rest.get(1).ok_or("a keyword is required")?;
             apply_keyword(engine, id, keyword, command == "tag")?;
+        }
+    }
+    Ok(())
+}
+
+/// Propose keywords for the whole library. Prints the proposals; writes none of them.
+fn batch_suggest(engine: &mut Engine) -> Result<(), String> {
+    let planned = engine.begin_batch_suggest().map_err(|error| error.to_string())?;
+    println!("looking at {planned} photo(s)…");
+    let mut found = None;
+    for _ in 0..6000 {
+        if let Some(count) = engine.poll_batch() {
+            found = Some(count);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let Some(count) = found else {
+        return Err("the pass did not finish".into());
+    };
+    println!("{count} photo(s) have something to suggest; nothing was written");
+    for (id, suggestions) in engine.batch_results() {
+        for suggestion in suggestions {
+            println!(
+                "{:>6}  {:>5.2}  {:<10}  {}",
+                id.0,
+                suggestion.score,
+                suggestion.source.label(),
+                suggestion.tag
+            );
         }
     }
     Ok(())
@@ -446,6 +477,7 @@ fn run() -> Result<(), String> {
         "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
         "suggest" | "accept" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
+        "batchsuggest" => batch_suggest(&mut engine),
         "keywords" => {
             let vocabulary = engine.tag_vocabulary();
             if vocabulary.is_empty() {
