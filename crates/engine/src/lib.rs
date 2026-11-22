@@ -12,6 +12,7 @@ pub mod job;
 
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
+pub use sortlens_catalog::backup::Backup;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
@@ -426,6 +427,42 @@ impl Engine {
         self.deleted.remove(index);
         self.persist_deleted();
         Ok(batch.items.len())
+    }
+
+    /// Write the library's catalog into one verified archive.
+    ///
+    /// The catalog is flushed first, so the archive matches what is on screen rather than what was
+    /// last written. Photos are never copied — a backup carries the index and the review state.
+    pub fn export_backup(&mut self, path: &Path) -> Result<usize> {
+        let dir = self.dir.clone().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        self.catalog
+            .as_mut()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .flush()?;
+        let created = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|since| since.as_secs() as i64)
+            .unwrap_or_default();
+        let backup = sortlens_catalog::backup::create(&dir, created)?;
+        let bytes = sortlens_catalog::backup::encode(&backup)?;
+        let tmp = path.with_extension("backup.tmp");
+        std::fs::write(&tmp, &bytes).map_err(|error| Error::io(tmp.display().to_string(), error))?;
+        std::fs::rename(&tmp, path).map_err(|error| Error::io(path.display().to_string(), error))?;
+        let files = backup.len();
+        let job = self.start_job(JobKind::Export, format!("Backup · {files} file(s)"));
+        self.finish_job(job, JobStatus::Done, files, 0, 0, None);
+        Ok(files)
+    }
+
+    /// Verify an archive and unpack it into `dest` for opening as a separate library.
+    ///
+    /// Restoring never writes into the open library: a backup older than the current state would
+    /// quietly undo work. The caller opens the restored folder when it is ready.
+    pub fn import_backup(path: &Path, dest: &Path) -> Result<usize> {
+        let bytes = std::fs::read(path).map_err(|error| Error::io(path.display().to_string(), error))?;
+        let backup = sortlens_catalog::backup::read(&bytes)?;
+        let written = sortlens_catalog::backup::restore(&backup, dest)?;
+        Ok(written.len())
     }
 
     /// Forget one applied batch: its files stay where they are, only the restore record goes.
@@ -1596,6 +1633,24 @@ impl Engine {
                     .collect();
                 Ok(json!({ "batches": batches }))
             }
+            "library.backup" => {
+                let path = args
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a destination path is required".into()))?;
+                Ok(json!({ "files": self.export_backup(Path::new(path))? }))
+            }
+            "library.restoreBackup" => {
+                let path = args
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a backup path is required".into()))?;
+                let dest = args
+                    .get("dest")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a destination folder is required".into()))?;
+                Ok(json!({ "files": Self::import_backup(Path::new(path), Path::new(dest))? }))
+            }
             "library.forgetBatch" => {
                 let id = args
                     .get("id")
@@ -2112,6 +2167,57 @@ mod tests {
             .run("collection.colour", &json!({ "id": id.0, "colour": "none" }))
             .expect("clear");
         assert!(engine.collections()[0].colour.is_none());
+    }
+
+    #[test]
+    fn a_backup_round_trips_into_a_separate_library() {
+        let folder = Temp::new("backup-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (lib, mut engine) = library("backup");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        engine.rate(&[id], 5).expect("rate");
+        engine.set_tag(&[id], "keeper", true).expect("tag");
+
+        let archive = lib.0.join("library.backup");
+        let files = engine.export_backup(&archive).expect("export");
+        assert!(files >= 1);
+        assert!(archive.exists());
+
+        let dest = Temp::new("backup-dest");
+        let written = Engine::import_backup(&archive, &dest.0).expect("import");
+        assert!(written >= 1);
+
+        let mut restored = Engine::open(&dest.0).expect("open restored");
+        let photo = restored.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].clone();
+        assert_eq!(photo.rating, 5, "the rating travelled");
+        assert!(photo.has_tag("keeper"), "the keyword travelled");
+        assert_eq!(restored.stats().total, 1);
+
+        // Restoring never writes into the library that is still open.
+        assert_eq!(engine.stats().total, 1);
+        assert!(!lib.0.join(format!("{}.restore", sortlens_catalog::LOG_NAME)).exists());
+    }
+
+    #[test]
+    fn a_damaged_backup_is_refused() {
+        let folder = Temp::new("damaged-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (lib, mut engine) = library("damaged");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+
+        let archive = lib.0.join("broken.backup");
+        engine.export_backup(&archive).expect("export");
+        let text = std::fs::read_to_string(&archive).expect("read");
+        std::fs::write(&archive, text.replace("\"schema\": 1", "\"schema\": 99")).expect("tamper");
+        let dest = Temp::new("damaged-dest");
+        let error = Engine::import_backup(&archive, &dest.0).expect_err("refused");
+        assert!(error.to_string().contains("newer Sortlens"), "{error}");
+        assert!(!dest.0.join(sortlens_catalog::SNAPSHOT_NAME).exists(), "nothing written");
     }
 
     #[test]

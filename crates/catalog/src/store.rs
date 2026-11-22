@@ -887,6 +887,14 @@ impl Catalog {
     }
 
     /// Flush pending records and write a snapshot. Safe to call more than once.
+    /// Push buffered log records to disk without snapshotting.
+    ///
+    /// Used before taking a backup, so the archive matches what the app is showing while the log
+    /// keeps its records.
+    pub fn flush(&mut self) -> Result<()> {
+        self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))
+    }
+
     pub fn close(&mut self) -> Result<()> {
         self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))?;
         self.snapshot()

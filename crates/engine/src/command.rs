@@ -213,6 +213,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.backup",
+                    label: "Back Up Library…",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Back Up Library…",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.restoreBackup",
+                    label: "Restore Backup into Folder…",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Restore Backup into Folder…",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.forgetBatch",
                     label: "Forget Batch",
                     group: Group::Library,

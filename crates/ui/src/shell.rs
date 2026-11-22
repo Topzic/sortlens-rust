@@ -106,6 +106,10 @@ pub enum Action {
     SetSidecars(bool),
     /// The grid order changed and should be remembered.
     SetSort(Sort),
+    /// Write a verified backup of the catalog somewhere the host chooses.
+    Backup,
+    /// Verify an archive and unpack it into a folder the host chooses.
+    RestoreBackup,
 }
 
 /// What Apply does with rejected photos.
@@ -3143,6 +3147,30 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                     state.delete_mode = mode;
                 }
             }
+            ui.add_space(8.0);
+            ui.separator();
+            ui.label(RichText::new("Backup").size(11.0).color(t.text_muted));
+            ui.horizontal(|ui| {
+                if ui
+                    .button(RichText::new("Back up library…").size(12.0))
+                    .on_hover_text("One verified file holding the index and every decision")
+                    .clicked()
+                {
+                    actions.push(Action::Backup);
+                }
+                if ui
+                    .button(RichText::new("Restore into a folder…").size(12.0))
+                    .on_hover_text("Unpack a backup as a separate library; the open one is untouched")
+                    .clicked()
+                {
+                    actions.push(Action::RestoreBackup);
+                }
+            });
+            ui.label(
+                RichText::new("Photos are never copied, so a backup holds the index and the review state, not pixels.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
             ui.add_space(8.0);
             ui.label(
                 RichText::new("More settings arrive with the features they configure.")

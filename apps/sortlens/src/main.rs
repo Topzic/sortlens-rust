@@ -164,6 +164,41 @@ impl App {
             } else {
                 "Sidecar writing off; changes stay in the catalog"
             }),
+            Action::Backup => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Back up the Sortlens library")
+                    .set_file_name("sortlens-library.backup")
+                    .add_filter("Sortlens backup", &["backup"])
+                    .save_file()
+                {
+                    match self.engine.export_backup(&path) {
+                        Ok(files) => self.ui.notice(format!("Backed up {files} file(s)")),
+                        Err(error) => self.ui.notice(error.to_string()),
+                    }
+                }
+            }
+            Action::RestoreBackup => {
+                let Some(path) = rfd::FileDialog::new()
+                    .set_title("Choose a Sortlens backup")
+                    .add_filter("Sortlens backup", &["backup"])
+                    .pick_file()
+                else {
+                    return;
+                };
+                let Some(dest) = rfd::FileDialog::new()
+                    .set_title("Where should the restored library go?")
+                    .pick_folder()
+                else {
+                    return;
+                };
+                match sortlens_engine::Engine::import_backup(&path, &dest) {
+                    Ok(files) => self.ui.notice(format!(
+                        "Restored {files} file(s) into {} — open that folder to use it",
+                        folder_name(&dest.to_string_lossy())
+                    )),
+                    Err(error) => self.ui.notice(error.to_string()),
+                }
+            }
             Action::RemoveRoot(root) => match self.engine.remove_root(&root) {
                 Ok(count) => self.ui.notice(format!("Removed {count} photos from {}", folder_name(&root))),
                 Err(error) => self.ui.notice(error.to_string()),

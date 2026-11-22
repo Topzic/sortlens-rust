@@ -32,6 +32,8 @@ Commands:
   relocate                  find missing files elsewhere under their root
   list [--tag KW]           filter the listing by keyword
   undo                      undo the last change
+  backup <file>             write a verified backup of the index
+  restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
 ";
 
@@ -236,6 +238,21 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "backup" => {
+            let path = rest.first().ok_or("a destination file is required")?;
+            let files = engine
+                .export_backup(std::path::Path::new(path))
+                .map_err(|error| error.to_string())?;
+            println!("backed up {files} file(s) to {path}");
+            Ok(())
+        }
+        "restore" => {
+            let path = rest.first().ok_or("a backup file is required")?;
+            let dest = rest.get(1).ok_or("a destination folder is required")?;
+            let files = Engine::import_backup(std::path::Path::new(path), std::path::Path::new(dest)).map_err(|error| error.to_string())?;
+            println!("restored {files} file(s) into {dest}");
             Ok(())
         }
         "undo" => {

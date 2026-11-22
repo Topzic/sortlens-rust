@@ -588,7 +588,30 @@ are, and nothing on disk is deleted from here. That is what the confirmation say
   emptying an empty bin being harmless
 - 215 tests, CI and wasm green
 
+## 2026-11-21 — M7: backup and restore
+
+- catalog: new `backup` module. A backup is a JSON document carrying the catalog's own text files
+  (`snapshot.json`, `ops.log`) with a CRC32 each, so it reads in `less`, needs no compression
+  dependency and refuses a truncated or hand-edited file. `create`/`encode`/`read`/`restore`; `read`
+  verifies every checksum *and* the schema version before anything is written, and `restore` writes
+  through a `.restore` temporary then renames
+- catalog: `Catalog::flush()` so a backup can be taken from the live state without snapshotting
+- engine: `export_backup(path)` (flushes first, atomic replace, records an Export job) and
+  `import_backup(path, dest)`; commands `library.backup` / `library.restoreBackup`
+- Deliberate limit, stated in the UI and the module docs: photos are never copied. A backup holds the
+  index and the review state, not pixels — and a restore always targets a *separate* folder, because
+  writing an older archive over the open library would silently undo work
+- ui: Settings gains a Backup section ("Back up library…" and "Restore into a folder…"), app wires
+  both to `rfd` dialogs and names the folder the restored library went to
+- cli: `backup <file>` and `restore <file> <folder>`
+- tests: catalog round trip through encode/read/restore with the rating intact, a tampered file
+  refused by checksum, a newer schema refused by name, unexpected files and empty archives refused,
+  an empty library refused, a snapshot-only library restored and reopened; engine round trip into a
+  separate library with rating and keyword intact and the open library untouched; a damaged archive
+  refused with nothing written
+- 223 tests, CI and wasm green
+
 ## Next
 
-M7: backup and restore of the library — exporting the catalog and settings into one verified archive
-and reading it back, so a library can move machines.
+M7: volume remap — pointing an indexed root at a renamed or moved volume, with a sample checked
+before the whole root is repointed.
