@@ -558,6 +558,8 @@ pub struct UiState {
     pub selection: Selection,
     /// Which collections are ticked in the sidebar, for batch colour, pin and delete.
     pub collection_selection: CollectionSelection,
+    /// Whether the confirm dialog for deleting a set chosen in the similarity view is open.
+    pub similar_delete_open: bool,
     /// How much of the library the sharpness review offers to select, in percent.
     ///
     /// The cut is relative on purpose: a sharpness score is unitless and only comparable inside one library, so an
@@ -754,6 +756,7 @@ impl UiState {
             rename_target: None,
             notice: None,
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
+            similar_delete_open: false,
         }
     }
 
@@ -1104,6 +1107,7 @@ fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
     if state.export_open || state.export_receipt.is_some() {
         export_dialog(ui, state, t, engine, actions);
     }
+    similar_delete_dialog(ui, state, t, engine);
     if state.suggest_open {
         suggest_dialog(ui, state, t, engine, actions);
     }
@@ -4093,6 +4097,52 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     ui.add_space(8.0);
 
     let found: Vec<sortlens_engine::SimilarGroup> = engine.similar_groups().to_vec();
+    if !found.is_empty() {
+        ui.horizontal(|ui| {
+            let leftovers: Vec<PhotoId> = {
+                let mut all: Vec<PhotoId> = Vec::new();
+                for group in &found {
+                    for id in group.others() {
+                        if !all.contains(&id) {
+                            all.push(id);
+                        }
+                    }
+                }
+                all
+            };
+            if ui
+                .add_enabled(
+                    !leftovers.is_empty(),
+                    Button::new(RichText::new(format!("Select leftovers in every group ({})", leftovers.len())).size(11.0)),
+                )
+                .on_hover_text("Ticks every photo that is not its group's best, so you can review them together")
+                .clicked()
+            {
+                state.selection.select_many(&leftovers);
+                state.notice(format!("Selected {} leftover(s) across {} group(s)", leftovers.len(), found.len()));
+            }
+            let ticked = state.selection.len();
+            if ticked > 0 {
+                if ui
+                    .button(RichText::new(format!("Delete the {ticked} selected…")).size(11.0))
+                    .on_hover_text("Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets")
+                    .clicked()
+                {
+                    state.similar_delete_open = true;
+                }
+                if ui.small_button("Clear").clicked() {
+                    state.selection.clear();
+                }
+            } else {
+                ui.label(
+                    RichText::new(format!("{} group(s) · nothing selected", found.len()))
+                        .size(10.5)
+                        .color(t.text_faint),
+                );
+            }
+        });
+        ui.add_space(6.0);
+    }
     if found.is_empty() {
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
@@ -4120,12 +4170,27 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                                     .color(t.text_faint),
                             );
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if ui.small_button("Select all but the best").clicked() {
-                                    state.selection.clear();
-                                    if let Some(id) = group.others().into_iter().next() {
-                                        state.selection.replace(id);
+                                if ui
+                                    .small_button("Select all but the best")
+                                    .on_hover_text("Ticks every photo in this group except the one worth keeping")
+                                    .clicked()
+                                {
+                                    let others = group.others();
+                                    // Every one of them, not just the first: the button says "all but the best" and
+                                    // a selection of one would be a different, and quieter, promise.
+                                    state.selection.select_many(&others);
+                                    state.notice(format!("{} set aside", others.len()));
+                                }
+                                // The strongest member is named, so a decision to delete the rest is made with the
+                                // keeper in view rather than guessed from a thumbnail order.
+                                if let Some(keep) = engine.photo(group.best).map(|photo| {
+                                    if photo.name.is_empty() {
+                                        photo.rel.clone()
+                                    } else {
+                                        photo.name.clone()
                                     }
-                                    state.notice(format!("{} set aside", group.len() - 1));
+                                }) {
+                                    ui.label(RichText::new(format!("keeping {keep}")).size(9.5).color(t.text_faint));
                                 }
                             });
                         });
@@ -4888,6 +4953,68 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
 ///
 /// The dialog says the two things a user needs to trust it: which files, and that the originals are
 /// not touched. Progress comes from the engine's worker, so closing and reopening does not lose it.
+/// Confirm deleting a set chosen in the similarity view.
+///
+/// The same three modes a cull batch offers, and the same executor: this dialog exists so that deleting a run of
+/// near-duplicates is one deliberate act with a count in front of it, not a side effect of ticking photos.
+fn similar_delete_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    if !state.similar_delete_open {
+        return;
+    }
+    let ids = state.selection.ids();
+    let mut open = true;
+    let mut close = false;
+    egui::Window::new("Delete selected photos")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(380.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(format!("{} photo(s)", ids.len())).size(13.0).strong());
+            ui.add_space(6.0);
+            ui.label(RichText::new("What happens to them").size(11.0).color(t.text_muted));
+            for mode in DeleteMode::ALL {
+                if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
+                    state.delete_mode = mode;
+                }
+            }
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new("Files that changed on disk since they were indexed stop the whole batch.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(!ids.is_empty(), Button::new(RichText::new("Delete").size(12.0)))
+                    .clicked()
+                {
+                    match engine.delete_photos(&ids, state.delete_mode.mode()) {
+                        Ok(report) => {
+                            state.notice(format!(
+                                "Deleted {} photo(s){}",
+                                report.applied.len(),
+                                if report.has_failures() {
+                                    format!(", {} failed", report.failed.len())
+                                } else {
+                                    String::new()
+                                }
+                            ));
+                            state.selection.clear();
+                        }
+                        Err(error) => state.notice_problem(error.to_string()),
+                    }
+                    close = true;
+                }
+                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                    close = true;
+                }
+            });
+        });
+    state.similar_delete_open = open && !close;
+}
+
 fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     if let Some(receipt) = state.export_receipt.clone() {
         let mut open = true;
@@ -6563,6 +6690,67 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// Choosing leftovers in the similarity view ticks every one of them, and the delete dialog acts on that set.
+    ///
+    /// The button's promise is "all but the best", so the selection has to be all of them: the first version of this
+    /// control selected exactly one photo and announced "N set aside", which is the kind of quiet lie that makes a
+    /// batch delete dangerous. The selection arithmetic and the engine's delete are tested elsewhere; this is the
+    /// wiring between them, plus the dialog opening on a set rather than on nothing.
+    #[test]
+    fn the_similarity_view_selects_every_leftover_and_offers_to_delete_them() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-leftovers-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-leftovers");
+        // Three copies of one colour make a group; one different photo stays alone.
+        for name in ["IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [50, 90, 130], 48, 32), root.join(name)).expect("copy");
+        }
+        std::fs::copy(fixture.jpeg("IMG_0004.jpg", [200, 40, 40], 40, 40), root.join("IMG_0004.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        engine.begin_similar(0).expect("hash");
+        for _ in 0..1200 {
+            if engine.poll_similar(0).is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let groups = engine.similar_groups().to_vec();
+        assert!(!groups.is_empty(), "the three copies form a group");
+        let group = groups.iter().find(|group| group.len() == 3).expect("a three-photo group");
+        let others = group.others();
+        assert_eq!(others.len(), 2);
+
+        // The selection the button makes, and the count it reports.
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.select_many(&others);
+        assert_eq!(state.selection.len(), 2, "both leftovers, not just the first");
+        assert!(!state.selection.contains(group.best), "the keeper is not in the set");
+
+        // The dialog is what acts, and it acts on the selection rather than on a remembered list.
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        state.similar_delete_open = true;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                similar_delete_dialog(ui, &mut state, &tokens, &mut engine);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(state.similar_delete_open, "painting the dialog does not close it");
+        assert!(!output.shapes.is_empty(), "and it painted");
+        assert_eq!(engine.deleted_batches().len(), 0, "nothing is deleted by being shown");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The sharpness review paints over a real library, and the cut it paints is the cut it would select.

@@ -43,7 +43,12 @@ Read: `roots`, `keywords`, `stats`, `list`, `folders`, `check`, `moves`, `change
 `memories`, `shortcuts`, `registry`, `packs`, `jobs`, `suggest`, `relocate`, `schemas`.
 
 Write: `rate`, `flag`, `label`, `tag`, `untag`, `date`, `rename`, `alias`, `accept`, `pack`, `undo`, `retry`,
-`remap`.
+`remap`, `mark`, `delete`.
+
+`delete <ids> [--mode trash|tag|move --target F]` goes through the same audited batch a cull applies: every chosen
+file is checked against the size and modification time the catalog recorded, and one changed file refuses the whole
+batch rather than deleting the others. `--mode tag` moves nothing — it flags the photos as rejects, which is what a
+script that wants to review before acting should use.
 
 Passes (no `--json`): `export`, `sharpen`. `sharpen` measures every photo whose score is missing or came from
 another `SCORE_VERSION`, stores them as one undoable change, and prints how many frames could not be judged —

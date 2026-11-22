@@ -34,6 +34,8 @@ Commands:
   pack <name> on|off        switch a pack on or off
   batchsuggest             propose keywords for the whole library (writes nothing)
   sharpen                  measure how sharp every photo is; unscored photos only
+  delete <id[,id...]>      delete photos after the same safety checks a cull batch gets
+                            --mode trash|tag|move [--target F]
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
   mcp                       serve the command registry over MCP on stdio, then exit
@@ -112,6 +114,29 @@ fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(),
 }
 
 /// Propose keywords for the whole library. Prints the proposals; writes none of them.
+/// Delete a chosen set, through the same executor a cull batch uses.
+///
+/// `--mode tag` is the safe demonstration: it flags the photos as rejects and moves nothing, which is what the
+/// golden harness uses so that a test never drops a file into the machine's real Trash.
+fn delete_photos(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
+    let ids = parse_ids(rest.first().map(String::as_str).unwrap_or_default())?;
+    let mode = match text_value(rest, "--mode").unwrap_or_else(|| "trash".to_string()).as_str() {
+        "trash" => sortlens_cull::trash::Mode::Trash,
+        "tag" => sortlens_cull::trash::Mode::TagOnly,
+        "move" => {
+            let target = text_value(rest, "--target").ok_or("--mode move needs --target")?;
+            sortlens_cull::trash::Mode::Move(std::path::PathBuf::from(target))
+        }
+        other => return Err(format!("unknown mode: {other}")),
+    };
+    let report = engine.delete_photos(&ids, mode).map_err(|error| error.to_string())?;
+    println!("deleted {} photo(s)", report.applied.len());
+    for (id, message) in &report.failed {
+        println!("  {id}: {message}");
+    }
+    Ok(())
+}
+
 /// Measure sharpness for every photo that has no current score, and say what could not be judged.
 ///
 /// A progress verb, like `export`: it starts a pass, waits for it and reports counts, and it deliberately has no
@@ -578,6 +603,12 @@ const SCHEMAS: &[Schema] = &[
         note: "`changed` is 1 when the switch moved, 0 when the pack was already in that state",
     },
     Schema {
+        verb: "delete",
+        command: "photo.delete",
+        kind: Kind::Write,
+        note: "one audited batch: `applied` is how many left their folder, `failed` how many were refused",
+    },
+    Schema {
         verb: "undo",
         command: "edit.undo",
         kind: Kind::Write,
@@ -769,6 +800,15 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
             serde_json::json!({ "name": name, "on": on })
         }
         "retry" => serde_json::json!({ "all": rest.iter().any(|arg| arg == "--all") }),
+        "delete" => {
+            let ids = parse_ids(rest.first().map(String::as_str).unwrap_or_default())?;
+            let ids: Vec<u64> = ids.iter().map(|id| id.0).collect();
+            let mut args = serde_json::json!({ "ids": ids, "mode": text_value(rest, "--mode").unwrap_or_else(|| "trash".into()) });
+            if let Some(target) = text_value(rest, "--target") {
+                args["target"] = serde_json::Value::String(target);
+            }
+            args
+        }
         "remap" => {
             let from = rest.first().ok_or("the old root is required")?;
             let to = rest.get(1).ok_or("the new root is required")?;
@@ -934,6 +974,7 @@ fn run() -> Result<(), String> {
         "suggest" | "accept" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
         "batchsuggest" => batch_suggest(&mut engine),
+        "delete" => delete_photos(&mut engine, rest),
         "sharpen" => sharpen(&mut engine),
         "diagnostics" => {
             let text = engine.diagnostics().map_err(|error| error.to_string())?;

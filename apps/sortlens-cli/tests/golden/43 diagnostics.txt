@@ -19,7 +19,7 @@ photos = 6
 missing = 0
 rated = 2
 picks = 1
-rejects = 0
+rejects = 1
 tagged = 2
 bytes = 1950
 warnings = 0
@@ -34,6 +34,7 @@ changed = 0
 none installed
 
 [recent changes]
+25 group · Flagged 1 photo
 24 scores · Measured the sharpness of 6 photos
 23 tagged · Keyworded 1 photo
 22 label · Labelled 1 photo

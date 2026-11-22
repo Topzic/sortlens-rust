@@ -309,6 +309,11 @@ pub const EXAMPLES: &[Example] = &[
         note: "Counts the library on a worker; poll insights.progress.",
     },
     Example {
+        command: "photo.delete",
+        args: r#"{"ids": [3, 4], "mode": "trash"}"#,
+        note: "mode: trash (default), tag (flags only), or move with a target folder; one audited batch, undoable.",
+    },
+    Example {
         command: "photo.sharpness",
         args: "{}",
         note: "Measures every photo that has no score from the current algorithm; poll photo.sharpnessProgress.",

@@ -2093,10 +2093,33 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand, and named as such in ROADMAP**: whether 10% is a sensible default, and whether the
   histogram is legible at real score ranges. Both need a library of actual photographs, not fixtures.
 
+## 2026-11-22 (eleventh) — similar leftovers: a selection that is what it says, and one delete executor
+
+- **A real bug in shipped code**: "Select all but the best" cleared the selection, selected **one** id, and announced
+  "{n} set aside". A button that names a set and delivers a different one is exactly the quiet lie a batch delete is
+  dangerous with. It now selects `group.others()` through `Selection::select_many`, and the group header names the
+  keeper so the set is chosen with it in view.
+- A batch bar: "Select leftovers in every group (N)" and "Delete the N selected…", the second opening a confirmation
+  with the count and the three modes.
+- **The row needed a delete path that did not exist outside a cull session, and the answer was a refactor, not a
+  second path.** `Engine::apply_candidates` now holds the audit, apply, batch record, flags and job; `apply_session`
+  keeps only the session bookkeeping; `delete_photos(ids, mode)` builds a candidate set and calls the same function.
+  The alternative — a delete that quietly skipped the audit — is the failure this codebase exists to avoid.
+- `photo.delete` in the registry, `delete_mode_from` shared with `cull.apply`, CLI `delete <ids> --mode … --target F`
+  with a `--json` schema, MCP example. The golden uses `--mode tag` so a test never touches the real Trash.
+- **A test-only constraint worth naming**: `Mode::Trash` is not exercised anywhere, because it hands the file to the
+  operating system's trash and a test that does that damages the machine it runs on. My first attempt did exactly
+  that and took **240 seconds** before failing (the macOS trash path under a temp volume). The batch/audit/undo
+  machinery is covered through `Mode::Move`, and the gap is written into ROADMAP rather than papered over.
+- The audit also refused my first test for a *second* reason worth remembering: a rejects folder inside a watched
+  root is refused outright, because rejects there would reappear on the next scan. The test now puts it outside.
+- 542 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers, attribution green.
+
 ## Next
 
-M6 is closed except the deliberately absent map (`sortlens-geo`, basemap) and "batch select of group leftovers" in
-Similar. After that the remaining work is the long tail of named-absent items with their blockers (video posters
-part 2, i18n/RTL, keymap editor, registry delete-everywhere, 20-step undo, `craft-ipc`), each of which needs a
-design decision rather than a checklist tick. The next run should pick the first one it can do honestly and
-completely: **Similar's batch select of leftovers** is the most self-contained of them.
+M6 is now closed except the deliberately absent map (`sortlens-geo` projection/clusters/gazetteer and the offline
+basemap with attribution) — that is a milestone-sized job of its own with a data dependency (a gazetteer and tiles
+that must be attributed), so it should start with the crate and its tests, not with a view. After it, the remaining
+work is the named-absent tail: registry delete-everywhere, stale-revision rejection, 20-step undo history, inline
+tagging in cull, i18n/RTL, keymap editor. Each needs a design decision; the next run should take the first one it can
+finish completely.

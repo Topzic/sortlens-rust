@@ -170,6 +170,12 @@ exit 0
     "verb": "pack"
   },
   {
+    "command": "photo.delete",
+    "kind": "write",
+    "note": "one audited batch: `applied` is how many left their folder, `failed` how many were refused",
+    "verb": "delete"
+  },
+  {
     "command": "edit.undo",
     "kind": "write",
     "note": "`undone` is whether there was anything to undo; false is not an error",

@@ -2384,7 +2384,6 @@ impl Engine {
         if changed.is_empty() {
             return Err(Error::Invalid("nothing is staged yet".into()));
         }
-        let mode_id = mode.id();
         let mut candidates = Vec::new();
         let mut flags = Vec::new();
         let mut previous_flags = Vec::new();
@@ -2407,6 +2406,27 @@ impl Engine {
             });
         }
 
+        let picks = flags.iter().filter(|(_, flag)| *flag == Flag::Pick).count();
+        let report = self.apply_candidates(mode, candidates, flags, previous_flags, picks)?;
+        self.cull = None;
+        self.persist_cull();
+        Ok(report)
+    }
+
+    /// The part of a delete that is the same whoever asked for it: audit, apply, record, notify.
+    ///
+    /// Split out of [`Engine::apply_session`] so a cull batch and a set chosen in the similarity view cannot drift
+    /// apart. The caller keeps the session bookkeeping; everything that touches the disk and the log is here, and
+    /// there is exactly one audit.
+    fn apply_candidates(
+        &mut self,
+        mode: sortlens_cull::trash::Mode,
+        candidates: Vec<sortlens_cull::trash::Candidate>,
+        flags: Vec<(PhotoId, Flag)>,
+        previous_flags: Vec<(PhotoId, Flag)>,
+        picks: usize,
+    ) -> Result<sortlens_cull::trash::Report> {
+        let mode_id = mode.id();
         let batch = sortlens_cull::trash::Batch { mode, candidates };
         if let Err(refusals) = sortlens_cull::trash::audit(&batch) {
             let first = refusals.first().map(sortlens_cull::trash::Refusal::message).unwrap_or_default();
@@ -2420,7 +2440,6 @@ impl Engine {
         }
 
         let report = sortlens_cull::trash::apply(&batch);
-        let picks = flags.iter().filter(|(_, flag)| *flag == Flag::Pick).count();
         let mut ops = vec![Op::Flag { changes: flags }];
         for entry in &report.applied {
             if !matches!(entry.location, sortlens_cull::trash::Location::Kept) {
@@ -2469,10 +2488,38 @@ impl Engine {
         self.deleted.push(batch);
         self.next_batch += 1;
         self.persist_deleted();
-
-        self.cull = None;
-        self.persist_cull();
         Ok(report)
+    }
+
+    /// Move photos to the trash, the rejects folder, or tag them — without a cull session.
+    ///
+    /// This is the same executor a cull batch uses, deliberately: the audit that refuses a file whose bytes moved
+    /// since it was indexed, the batch record the rejects bin restores from, and the `Flag::Reject` that makes an
+    /// undo put the review state back all live in one place rather than in a second delete path. Two ways to delete
+    /// would be two places for the safety check to be wrong.
+    ///
+    /// Nothing is deleted until every candidate passes the audit: a batch with one changed file is refused whole,
+    /// because deleting the other four and reporting "3 of 4" leaves the library describing a disk nobody chose.
+    pub fn delete_photos(&mut self, ids: &[PhotoId], mode: sortlens_cull::trash::Mode) -> Result<sortlens_cull::trash::Report> {
+        if ids.is_empty() {
+            return Err(Error::Invalid("no photos were chosen".into()));
+        }
+        let mut candidates = Vec::with_capacity(ids.len());
+        let mut flags = Vec::with_capacity(ids.len());
+        let mut previous_flags = Vec::with_capacity(ids.len());
+        for id in ids {
+            let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            previous_flags.push((*id, photo.flag));
+            flags.push((*id, Flag::Reject));
+            candidates.push(sortlens_cull::trash::Candidate {
+                id: *id,
+                path: PathBuf::from(&photo.root).join(&photo.rel),
+                root: PathBuf::from(&photo.root),
+                size: photo.size,
+                modified: photo.modified,
+            });
+        }
+        self.apply_candidates(mode, candidates, flags, previous_flags, 0)
     }
 
     /// Counters for the cull action bar, zeroed when no session is running.
@@ -3403,19 +3450,20 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a batch id is required".into()))?;
                 Ok(json!({ "restored": self.restore_batch(id)? }))
             }
+            "photo.delete" => {
+                let ids = ids_from(args)?;
+                if ids.is_empty() {
+                    return Err(Error::Invalid("photo.delete needs ids".into()));
+                }
+                let mode = delete_mode_from(args)?;
+                let report = self.delete_photos(&ids, mode)?;
+                Ok(json!({
+                    "applied": report.applied.len(),
+                    "failed": report.failed.len(),
+                }))
+            }
             "cull.apply" => {
-                let mode = match args.get("mode").and_then(Value::as_str).unwrap_or("trash") {
-                    "trash" => sortlens_cull::trash::Mode::Trash,
-                    "tag" => sortlens_cull::trash::Mode::TagOnly,
-                    "move" => {
-                        let target = args
-                            .get("target")
-                            .and_then(Value::as_str)
-                            .ok_or_else(|| Error::Invalid("move needs a target folder".into()))?;
-                        sortlens_cull::trash::Mode::Move(PathBuf::from(target))
-                    }
-                    other => return Err(Error::Invalid(format!("unknown delete mode: {other}"))),
-                };
+                let mode = delete_mode_from(args)?;
                 let report = self.cull_apply(mode)?;
                 Ok(json!({
                     "applied": report.applied.len(),
@@ -3743,6 +3791,25 @@ impl PackSummary {
             Some(problem) => format!("{}: {problem}", self.file),
             None => format!("{} · {} keyword(s) · {}", self.name, self.keywords, self.licence),
         }
+    }
+}
+
+/// The delete mode a verb asked for, shared by `photo.delete` and `cull.apply` so the two cannot drift.
+///
+/// `trash` is the default because it is the reversible one on every platform this builds for; `move` needs a target
+/// and says so rather than silently deleting in place.
+fn delete_mode_from(args: &Value) -> Result<sortlens_cull::trash::Mode> {
+    match args.get("mode").and_then(Value::as_str).unwrap_or("trash") {
+        "trash" => Ok(sortlens_cull::trash::Mode::Trash),
+        "tag" => Ok(sortlens_cull::trash::Mode::TagOnly),
+        "move" => {
+            let target = args
+                .get("target")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::Invalid("move needs a target folder".into()))?;
+            Ok(sortlens_cull::trash::Mode::Move(PathBuf::from(target)))
+        }
+        other => Err(Error::Invalid(format!("unknown delete mode: {other}"))),
     }
 }
 
@@ -4791,6 +4858,96 @@ mod tests {
         let _ = kept;
         let engine = Engine::open(&library_dir.0).expect("reopen");
         assert!(engine.cull().is_none(), "a session with no surviving photos is discarded");
+    }
+
+    /// A set chosen outside a cull session goes through the same executor: batch, flags, reject bin, undo.
+    #[test]
+    fn deleting_a_chosen_set_records_a_batch_and_undoes_the_flags() {
+        let folder = Temp::new("delete-chosen-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"x").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"y").expect("write");
+        std::fs::write(folder.0.join("c.jpg"), b"z").expect("write");
+        let (_lib, mut engine) = library("delete-chosen");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3);
+
+        // Two of the three, into a rejects folder. `Mode::Trash` is the same code path but hands the file to the
+        // operating system's trash, which in a test would move a real file into the real user's Trash — the batch,
+        // audit and undo machinery is what is being tested here, and `Move` exercises all of it.
+        // The rejects folder lives outside the scanned root on purpose: the audit refuses a destination inside a
+        // watched root, because rejects there would reappear on the next scan.
+        let rejects_dir = Temp::new("delete-chosen-rejects");
+        let rejects = rejects_dir.0.clone();
+        let report = engine
+            .delete_photos(&[ids[0], ids[2]], sortlens_cull::trash::Mode::Move(rejects.clone()))
+            .expect("delete");
+        assert_eq!(report.applied.len(), 2);
+        assert!(engine.cull().is_none(), "no cull session was started");
+        assert_eq!(engine.deleted_batches().len(), 1, "one batch, so the rejects bin can restore it");
+        assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::Reject);
+        assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None, "not chosen, not touched");
+        assert!(!folder.0.join("a.jpg").exists(), "the file left the folder");
+        assert!(
+            rejects.join("a.jpg").exists(),
+            "and is in the rejects folder, where it can be restored"
+        );
+        assert!(folder.0.join("b.jpg").exists());
+
+        // One undo puts the review state back; the file is in the trash, where the rejects bin restores it from.
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
+        assert_eq!(engine.photo(ids[2]).expect("photo").flag, Flag::None);
+        assert_eq!(engine.deleted_batches().len(), 1, "the batch record survives the undo, as it must");
+    }
+
+    /// The audit is shared, so a chosen set gets the same refusal a cull batch gets — and nothing is deleted.
+    #[test]
+    fn deleting_a_chosen_set_refuses_a_file_that_changed() {
+        let folder = Temp::new("delete-changed-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"first").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"second").expect("write");
+        let (_lib, mut engine) = library("delete-changed");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        // The file changes after it was indexed, so its bytes no longer match the record.
+        std::fs::write(folder.0.join("a.jpg"), b"rewritten and longer").expect("rewrite");
+        let rejects_dir = Temp::new("delete-changed-rejects");
+        let refused = engine.delete_photos(&ids, sortlens_cull::trash::Mode::Move(rejects_dir.0.clone()));
+        assert!(refused.is_err(), "a changed file stops the batch");
+        assert!(folder.0.join("a.jpg").exists(), "nothing was deleted");
+        assert!(folder.0.join("b.jpg").exists(), "not even the file that had not changed");
+        assert!(engine.deleted_batches().is_empty(), "and no batch was recorded");
+        assert!(
+            engine
+                .warnings()
+                .iter()
+                .any(|warning| warning.contains("changed since it was indexed"))
+        );
+    }
+
+    #[test]
+    fn deleting_nothing_is_an_error_rather_than_a_silent_no_op() {
+        let (_lib, mut engine) = library("delete-nothing");
+        let error = engine
+            .delete_photos(&[], sortlens_cull::trash::Mode::Move("/tmp/rejects".into()))
+            .expect_err("empty");
+        assert!(error.to_string().contains("no photos were chosen"), "{error}");
     }
 
     #[test]

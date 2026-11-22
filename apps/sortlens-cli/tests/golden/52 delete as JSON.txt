@@ -1,0 +1,7 @@
+exit 0
+--- stdout
+{
+  "applied": 1,
+  "failed": 0
+}
+--- stderr

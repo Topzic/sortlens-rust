@@ -16,6 +16,7 @@ sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 sortlens-mcp = { workspace = true }
 sortlens-memories = { workspace = true }
+sortlens-cull = { workspace = true }
 serde_json = { workspace = true }
 
 [lints]

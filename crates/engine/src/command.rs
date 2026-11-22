@@ -381,6 +381,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "photo.delete",
+                    label: "Delete Photos",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Delete Photos",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "photo.sharpness",
                     label: "Measure Sharpness",
                     group: Group::View,

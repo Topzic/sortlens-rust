@@ -525,7 +525,24 @@ remap a moved drive; run the wizard on a clean machine.
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
 - [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03
 - [x] Similar: side-by-side compare and colour-only matches (B) — SL-E05
-- [ ] Batch select of group leftovers and delete (B) — SL-E05
+- [x] Batch select of group leftovers, and delete them (B) — SL-E05
+  - "Select all but the best" selected **exactly one photo while announcing "N set aside"** — a quieter promise than
+    the button makes, and the kind of lie that makes a batch delete dangerous. It now takes `group.others()` through
+    `Selection::select_many`, and the group header names the photo it is keeping.
+  - A batch bar adds "Select leftovers in every group (N)", and a "Delete the N selected…" action that opens a
+    confirmation naming the count and the three modes (trash, rejects folder, tag only).
+  - **There is one delete executor, and this row refactored rather than added one.** `Engine::apply_candidates` now
+    holds the audit, the apply, the batch record and the flags; `apply_session` keeps the session bookkeeping and
+    `delete_photos(ids, mode)` builds a set and calls the same function. Two ways to delete would be two places for
+    the safety check to be wrong.
+  - `photo.delete` is in the registry (so the window, MCP and the CLI all reach it), with `delete_mode_from` shared
+    with `cull.apply`; CLI `delete <ids> --mode trash|tag|move [--target F]` and a `--json` schema. The golden step
+    uses `--mode tag`, because a golden must not drop a file into the machine's real Trash.
+  - Tested: three engine tests (one batch and one undo, a refused batch deletes nothing at all, an empty set is an
+    error), a headless similarity test that the selection is every leftover and not just the first, and the golden
+    JSON. **`Mode::Trash` is not exercised by a test** — it hands the file to the operating system's trash, and a
+    test that moves a real file into the real user's Trash is a test that damages the machine it runs on; the batch,
+    audit and undo machinery is covered through `Mode::Move`.
 - [ ] `sortlens-geo`: projection, clusters, gazetteer (D) — SL-E06/E07
 - [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08

@@ -299,6 +299,12 @@ const STEPS: &[Step] = &[
         args: &["sharpen"],
         file: None,
     },
+    // Tag-only on purpose: a golden must not drop a test file into the machine's real Trash.
+    Step {
+        name: "52 delete as JSON",
+        args: &["--json", "delete", "5", "--mode", "tag"],
+        file: None,
+    },
     Step {
         name: "41 keywords as JSON",
         args: &["keywords", "--json"],
@@ -576,7 +582,7 @@ fn every_published_output_is_unchanged() {
 fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
     // The mutating verbs the CLI accepts. A read verb can be added without ceremony; a write one cannot.
     let write_verbs = [
-        "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap", "mark",
+        "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap", "mark", "delete",
     ];
     // Writes that are passes rather than single changes: each starts a job, reports progress and can be cancelled, so
     // there is no single object for `--json` to return. They are named here — and required to *refuse* `--json` — so
@@ -598,7 +604,7 @@ fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
         );
         found += 1;
     }
-    assert_eq!(found, 14, "the list above is the list: no verb was skipped by accident");
+    assert_eq!(found, 15, "the list above is the list: no verb was skipped by accident");
     for verb in progress_verbs {
         let output = Command::new(binary())
             .args(["--json", "--library", &library.display().to_string(), verb])

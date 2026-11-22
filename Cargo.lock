@@ -3599,6 +3599,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "sortlens-core",
+ "sortlens-cull",
  "sortlens-engine",
  "sortlens-mcp",
  "sortlens-memories",
