@@ -154,8 +154,9 @@ files → rename a subfolder → no duplicate rows.
 **Goal:** 50k photos, 60 fps, bounded memory, visible activity.
 **State:** JPEG, PNG/TIFF/WebP/GIF/BMP, RAW-preview and **HEIC** thumbnails are in, behind the
 content-addressed cache, the priority-ordered and bounded decode service and the activity stack; metadata is
-read during the scan, including HEIF sizes and video length/rate/codec from their containers. Video **posters**
-and blur-up tier transitions remain, and are named below with what each needs.
+read during the scan, including HEIF sizes and video length/rate/codec from their containers, and an
+already-decoded tier is painted while a sharper one decodes. Video **posters** remain, and are named below with
+what they need.
 
 - [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
 - [x] Cooperative cancellation + live file/folder counters during a scan (C)
@@ -215,7 +216,19 @@ and blur-up tier transitions remain, and are named below with what each needs.
   - Matroska (MKV/WebM) and AVI are not probed either: `craft-media`'s `matroska` and `avi` features are off, and
     reporting their clips with no length would be worse than reporting nothing.
 - [x] Placeholder cell while decoding, no spinner (B)
-- [ ] Blur-up tier transitions (B)
+- [x] Blur-up tier transitions (B)
+  - **A blur-up here is a tier that is already decoded, not a second decode.** The JPEG decoder reconstructs at
+    full resolution and then `resize` reduces, so a 32-pixel "blur tier" would cost exactly what the 128 tier
+    costs — paying twice for the same work to show a softer picture. Instead the detail view, the compare panes
+    and the cull stage ask for `sharp_or_blur`: the tier they want, or the best one already resident painted
+    scaled, while the sharp decode runs in the background and replaces it in place.
+  - The choice is a pure function (`blur_tier`): exact size, else the largest below, else the smallest above
+    (painting a bigger picture into a smaller hole is sharp, merely wasteful), never another photo's tier, and
+    `None` when nothing is resident — an empty rectangle is not a blur, so an undecoded cell keeps its honest
+    placeholder instead of a smear.
+  - Tested as the tier table over every case, and end to end: a real JPEG decoded by the real service at 128,
+    then `sharp_or_blur(1600)` returning the 128 texture and its tier rather than waiting. Plus a headless paint
+    of the detail view before its decode lands.
 - [x] Activity stack: job list, statuses, elapsed, per-item errors, cancel (B) — SL-A18
 - [x] Bell popover and unread badges (B)
   - Every `notice()` is recorded in a bounded history (`NOTICE_HISTORY` = 50, newest first) as well as toasted,

@@ -3029,8 +3029,12 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                     // 1:1 crops to the pane, so keep the shared origin at the pane's centre.
                     sized = sized.intersect(pane.expand2(vec2(4096.0, 4096.0)));
                 }
-                match thumbs.get(ui.ctx(), item, 2000).cloned() {
-                    Some(texture) => {
+                // A soft pile-up of the small tier beats "Loading preview…": the blur is that photo, only
+                // coarse, and it sharpens in place when the full decode lands.
+                match thumbs.sharp_or_blur(ui.ctx(), item, 2000) {
+                    // The tier is not used for painting: a blur is painted exactly like the sharp one, only
+                    // visibly softer, which is the whole point.
+                    Some((texture, _tier)) => {
                         let uv = cover_uv(texture.size_vec2(), sized.size());
                         ui.painter()
                             .with_clip_rect(pane.intersect(clip))
@@ -3043,8 +3047,8 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                 }
             }
         }
-        None => match thumbs.get(ui.ctx(), &photo, 2000).cloned() {
-            Some(texture) => {
+        None => match thumbs.sharp_or_blur(ui.ctx(), &photo, 2000) {
+            Some((texture, _tier)) => {
                 let uv = cover_uv(texture.size_vec2(), target.size());
                 let painter = ui.painter().with_clip_rect(area.intersect(ui.clip_rect()));
                 painter.image(texture.id(), target, uv, Color32::WHITE);
@@ -3436,8 +3440,9 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 fitted
             };
             let painter = painter.with_clip_rect(if zoomed { area } else { painter.clip_rect() });
-            match thumbs.get(ui.ctx(), &photo, if zoomed { 2000 } else { 1600 }).cloned() {
-                Some(texture) => {
+            let wanted = if zoomed { 2000 } else { 1600 };
+            match thumbs.sharp_or_blur(ui.ctx(), &photo, wanted) {
+                Some((texture, _tier)) => {
                     let uv = cover_uv(texture.size_vec2(), shown.size());
                     painter.image(texture.id(), shown, uv, Color32::WHITE);
                 }
@@ -5958,6 +5963,53 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// The detail view paints before its full-size decode lands: the blur-up path runs on a real photo.
+    ///
+    /// The interesting part is that it does not panic, does not ask for anything, and does not paint an empty
+    /// rectangle where a photo belongs — the tier choice itself is tested in `thumbs`, and this is the call site.
+    #[test]
+    fn the_detail_view_paints_while_the_big_decode_is_still_running() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-detail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-detail");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [70, 120, 190], 64, 48), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        let ctx = egui::Context::default();
+        // A two-hundred point tall window is enough to lay the detail view out and paint it.
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 620.0))),
+            ..egui::RawInput::default()
+        };
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.replace(id);
+        state.detail_open = true;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let actions: Vec<Action> = Vec::new();
+        let mut painted = 0;
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, &mut state, &mut engine, &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            painted = output.shapes.len();
+        }
+        assert!(painted > 0, "the detail view painted something");
+        assert!(actions.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A grid of hundreds of cells at once asks for their thumbnails, and the queue bounds what waits.

@@ -1796,8 +1796,30 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 484 tests; ci (exit 0), wasm, deny, docs, snapshot, attribution green. **Not verified by hand**: a real camera
   clip — the fixture is muxed by the same suite, so it exercises the demuxer, not a phone's peculiar `moov`.
 
+## 2026-11-21 — M2 row: blur-up from a tier that already exists
+
+- **The finding first**: a "blur tier" would not be cheaper. `craft-jpeg` reconstructs at full resolution and our
+  `resize` reduces afterwards, so decoding a 32-pixel tier costs exactly what the 128-pixel grid tier costs —
+  paying twice for the same work to show a softer picture. So the blur-up paints a tier that is **already
+  resident**: the detail view, the compare panes and the cull stage ask `sharp_or_blur`, get the 128 grid tier
+  scaled while the 1600–2000 decode runs, and it sharpens in place when that lands.
+- `blur_tier` is pure: exact size, else the largest below, else the smallest above (painting a bigger picture
+  into a smaller hole is sharp, merely wasteful), never another photo's tier, and **`None` when nothing is
+  resident** — an empty rectangle is not a blur, so an undecoded cell keeps its honest placeholder rather than a
+  smear that pretends to be the photograph.
+- Tests: the tier table over every case; an end-to-end run where a real JPEG is decoded by the real service at
+  128 and `sharp_or_blur(1600)` returns that texture and its tier instead of waiting; and a headless paint of the
+  detail view before its decode lands (which caught a `mut` clippy would have failed on).
+- One test lesson: the first version of the end-to-end test asserted "nothing resident yet" on the same
+  thumbnail set it then waited on, making the later assertion a race against a worker. The empty-map case now
+  uses its own instance, so nothing depends on timing.
+- `docs/UX.md` said "skeleton shimmer"; the code has never shimmered, and now the row says what it actually does.
+- 487 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: whether a 128 tier scaled to
+  a 1600-pixel pane reads as "soft photograph" or as "broken" on a real screen — that is a judgement only a
+  person looking at it can make.
+
 ## Next
 
-Continue in milestone order. Next: blur-up tier transitions (the 384 tier exists in the cache; the grid must ask
-for it and paint a small blur until the sharp one arrives). Then the M2 absent-by-design table for video posters
-and the remaining M3–M7 rows.
+M2 has only video **posters** left, and that row now names its blocker (a decoder plus a `ColorTags`-aware
+YUV→RGB conversion). Next: the row-by-row pass through M3–M7 for anything still unticked that does not need an
+absent prerequisite, then M9's `--json` write verbs and M10's remaining gaps.
