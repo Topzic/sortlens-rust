@@ -1,6 +1,6 @@
 exit 0
 --- stdout
-17 bound command(s)
+18 bound command(s)
   Ctrl+O         Library    Add Folder…
   Ctrl+Shift+R   Library    Rescan Folder
   0–5            Review     Set Rating
@@ -8,6 +8,7 @@ exit 0
   6–9            Review     Colour Label
   Ctrl+Z         Review     Undo
   K              Organise   Add Keyword…
+  T              Organise   Apply Last Keyword
   Ctrl+Shift+N   Organise   New Collection…
   C              Review     Start Cull
   ←              Review     Previous Photo

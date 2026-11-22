@@ -290,7 +290,13 @@ scans headlessly and prints a JSON report.
 **Goal:** the library remembers what the photographer decided, on disk and in XMP.
 
 - [x] `photo.rate/flag/label/tag` + batch variants (A) — SL-D01..D05
-- [ ] Tag rename/merge is in; `photo.tagFromPrev` (re-apply the last tags) is not (A) — SL-D05
+- [x] Tag rename/merge, and `photo.tagFromPrev` (re-apply the last keyword) (A) — SL-D05
+  - The memory is the last keyword this session **added**, one of them, and it is deliberately not persisted: a
+    keyword applied last week is not "the last keyword", and pasting somebody else's older tags onto a photo is
+    a wrong write rather than a convenience. Removing a keyword does not become "the last" one either.
+  - It goes through `set_tag`, so a renamed keyword still resolves, a photo that already carries it is not
+    written twice, and the write is one undoable op. Bound to `T`, in the registry as `photo.tagFromPrev` with
+    its MCP argument schema, and the UI notice names the keyword rather than the count.
 - [ ] Registry create/rename/merge/alias with a searchable picker is in; deleting a keyword everywhere is not (A) — SL-D06
 - [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
 - [x] Sidecar review imported when a photo is first indexed (A) — SL-D09

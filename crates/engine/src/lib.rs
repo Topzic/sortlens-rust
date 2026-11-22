@@ -162,6 +162,12 @@ pub struct Engine {
     next_job: u64,
     write_sidecars: bool,
     warnings: Vec<String>,
+    /// The last keyword this session added, for `photo.tagFromPrev`.
+    ///
+    /// Session memory, not persisted: a keyword applied last week is not "the last keyword", and silently
+    /// pasting somebody else's older tags onto a photo is a wrong write rather than a convenience. Only an
+    /// *added* keyword counts — removing one is not something you then want repeated.
+    last_tag: Option<String>,
 }
 
 impl Engine {
@@ -193,6 +199,7 @@ impl Engine {
             next_job: 1,
             write_sidecars: true,
             warnings: Vec::new(),
+            last_tag: None,
         }
     }
 
@@ -1322,8 +1329,29 @@ impl Engine {
         }
         let count = changes.len();
         self.mutate(Op::Tagged { changes })?;
+        if add {
+            self.last_tag = Some(tag);
+        }
         self.sync_sidecars(ids);
         Ok(count)
+    }
+
+    /// The keyword `photo.tagFromPrev` would apply, if any has been applied this session.
+    pub fn last_tag(&self) -> Option<&str> {
+        self.last_tag.as_deref()
+    }
+
+    /// Re-apply the last keyword added this session to `ids`.
+    ///
+    /// This is the second photo of a look: you type "backlit" once, then move and press one key. It goes
+    /// through `set_tag`, so a renamed keyword still means its current name, a photo that already carries it is
+    /// not written twice, and the write is one undoable op like any other.
+    pub fn tag_from_prev(&mut self, ids: &[PhotoId]) -> Result<usize> {
+        let tag = self
+            .last_tag
+            .clone()
+            .ok_or_else(|| Error::Invalid("no keyword has been applied yet this session".into()))?;
+        self.set_tag(ids, &tag, true)
     }
 
     /// Rename a keyword everywhere, merging into an existing one when the name is taken.
@@ -2435,6 +2463,10 @@ impl Engine {
                     .and_then(|name| ColorLabel::ALL.into_iter().find(|label| label.id() == name));
                 Ok(json!({ "changed": self.label(&ids, label)? }))
             }
+            "photo.tagFromPrev" => {
+                let ids = ids_from(args)?;
+                Ok(json!({ "changed": self.tag_from_prev(&ids)?, "tag": self.last_tag() }))
+            }
             "photo.keyword" => {
                 let ids = ids_from(args)?;
                 let tag = args
@@ -3432,6 +3464,45 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("scan did not finish");
+    }
+
+    /// The second photo of a look: one keyword typed once, then the rest of the selection gets it by key.
+    #[test]
+    fn the_last_keyword_can_be_applied_to_another_photo() {
+        let (_cache, _photos, mut engine) = library_with_images("tag-from-prev", 4);
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        // Nothing applied yet: a refusal that says what to do, not a silent no-op.
+        let error = engine.tag_from_prev(&ids[1..]).expect_err("nothing remembered");
+        assert!(error.to_string().contains("no keyword has been applied"));
+        assert_eq!(engine.last_tag(), None);
+
+        engine.set_tag(&ids[..1], "backlit", true).expect("tag");
+        assert_eq!(engine.last_tag(), Some("backlit"));
+        // Removing a keyword is not something you then want repeated: only an add is remembered.
+        engine.set_tag(&ids[..1], "backlit", false).expect("untag");
+        assert_eq!(engine.last_tag(), Some("backlit"), "the add is what is remembered");
+
+        let changed = engine.tag_from_prev(&ids[1..]).expect("apply");
+        assert_eq!(changed, 3, "three photos gained the keyword");
+        for id in &ids[1..] {
+            assert!(engine.photo(*id).expect("photo").tags.contains(&"backlit".to_string()));
+        }
+        // Pressing it twice is not a second write.
+        assert_eq!(engine.tag_from_prev(&ids[1..]).expect("again"), 0);
+        // The first photo had the keyword removed above, so this re-adds it — exactly once, not twice.
+        assert_eq!(engine.tag_from_prev(&ids[..1]).expect("first"), 1);
+        assert_eq!(
+            engine
+                .photo(ids[0])
+                .expect("photo")
+                .tags
+                .iter()
+                .filter(|tag| *tag == "backlit")
+                .count(),
+            1
+        );
+        // And a photo that already carries it is not written again.
+        assert_eq!(engine.tag_from_prev(&ids[..1]).expect("again"), 0);
     }
 
     fn wait_for_export(engine: &mut Engine) -> sortlens_export::Report {

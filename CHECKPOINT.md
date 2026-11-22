@@ -1818,8 +1818,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   a 1600-pixel pane reads as "soft photograph" or as "broken" on a real screen — that is a judgement only a
   person looking at it can make.
 
+## 2026-11-22 — M3 row: apply the last keyword (SL-D05 part 2)
+
+- `photo.tagFromPrev`: type a keyword once, then one key per photo. In the registry (`T`, Organise), routed
+  through the engine, applied from the UI key handler.
+- **What "last" means, decided rather than assumed**: the last keyword this session **added**, one of them,
+  in memory only. Not persisted — a keyword applied last week is not "the last keyword", and silently pasting
+  somebody else's older tags onto a photo is a wrong write rather than a convenience. Removing a keyword does
+  not become "the last" one either (`engine.last_tag()` is set on adds only, and a test asserts the removal
+  leaves it in place).
+- It goes through `set_tag`, so a keyword renamed since still resolves to its current name, a photo that
+  already carries it is not written twice (second press → 0 changes), and the whole batch is one undoable op.
+- With nothing remembered the engine refuses with a sentence rather than a silent no-op, and the UI raises it
+  as a *problem* notice; the success notice names the keyword, because "Tagged 5 photos" leaves you guessing
+  what you just wrote.
+- **Two gates bit, both correctly.** The published golden `24 shortcuts.txt` changed by exactly the one new
+  binding (18 bound commands, `T  Organise  Apply Last Keyword`) — read before committing. And
+  `no_ready_command_is_left_without_an_answer_about_its_arguments` failed for the new tool until its MCP
+  argument schema existed, which is the gate doing its job; the example now states that there is no `tag`
+  argument, which is the point of the command.
+- Tests: engine (refusal with nothing remembered, add/remove ordering, batch apply over 3 photos, idempotent
+  second press), UI (real library, real `Event::Key` for `T` through the real handler: nothing written and the
+  reason in the notice, then the keyword landing on every selected photo with the notice naming it), MCP
+  example. 489 tests; ci (exit 0), wasm, deny, snapshot, docs green.
+- **Not verified by hand**: the notice's tone on screen, and whether `T` collides with any OS-level shortcut on
+  a real keyboard layout (the keymap gate only proves the registry's internal uniqueness).
+
 ## Next
 
-M2 has only video **posters** left, and that row now names its blocker (a decoder plus a `ColorTags`-aware
-YUV→RGB conversion). Next: the row-by-row pass through M3–M7 for anything still unticked that does not need an
-absent prerequisite, then M9's `--json` write verbs and M10's remaining gaps.
+M3–M7 pass, next unticked row that needs no absent prerequisite. Good candidates, in the order I would take
+them: `Offline/missing part 2` (cached-thumb behaviour when a drive leaves — needs a decision about what a cell
+shows, not a missing dependency) and `--json` write verbs (M9). Video posters stay named absent; the map, AI
+inference, i18n and the keymap editor rows each carry their own blocker.

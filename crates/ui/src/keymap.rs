@@ -105,6 +105,12 @@ pub const BINDINGS: &[Binding] = &[
     ),
     binding("K", "Jump to the keyword field", Context::Library, Some("photo.keyword")),
     binding(
+        "T",
+        "Apply the keyword you last added to the selection",
+        Context::Library,
+        Some("photo.tagFromPrev"),
+    ),
+    binding(
         "Click",
         "Select one photo; ⌘-click adds or removes, ⇧-click takes the run",
         Context::Library,

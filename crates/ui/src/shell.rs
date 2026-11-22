@@ -2269,6 +2269,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     let mut label = None;
     let mut flag = None;
     let mut keyword = false;
+    let mut from_prev = false;
     let culling = engine.cull().is_some();
     ui.input(|input| {
         for (key, stars) in [
@@ -2308,6 +2309,9 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         if input.key_pressed(Key::K) && !input.modifiers.command {
             keyword = true;
         }
+        if input.key_pressed(Key::T) && !input.modifiers.command {
+            from_prev = true;
+        }
     });
 
     if !state.detail_open && ui.input(|input| input.key_pressed(Key::D) && !input.modifiers.command) {
@@ -2320,8 +2324,24 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         state.right_open = true;
         state.tag_focus = true;
     }
-
     let count = targets.len();
+    // The second photo of a look: the keyword you just typed, one key away. Saying *which* keyword it applied
+    // matters more here than elsewhere — "Tagged 5 photos" would leave you guessing what you just wrote.
+    if from_prev {
+        match engine.tag_from_prev(&targets) {
+            Ok(changed) => {
+                let tag = engine.last_tag().unwrap_or_default().to_string();
+                state.notice(match (changed, count) {
+                    (0, 1) => format!("Already tagged “{tag}”"),
+                    (0, many) => format!("All {many} already tagged “{tag}”"),
+                    (_, 1) => format!("Tagged “{tag}”"),
+                    (_, many) => format!("Tagged “{tag}” on {many} photos"),
+                });
+            }
+            Err(error) => state.notice_problem(error.to_string()),
+        }
+    }
+
     if let Some(colour) = label {
         // Toggling on a batch clears only when the primary already carries it, so pressing the same key twice
         // over a mixed selection sets rather than clears — the predictable direction.
@@ -5963,6 +5983,87 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// The `T` key applies the keyword you last added, through the real key handler over a real library.
+    ///
+    /// This is the cull loop the shortcut exists for: keyword one photo, arrow to the next, press T. It goes
+    /// through `Engine::tag_from_prev`, so the notice names the keyword — "Tagged 3 photos" would leave you
+    /// guessing what you just wrote.
+    #[test]
+    fn pressing_t_applies_the_last_keyword_to_the_selection() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-tagprev-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-tagprev");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40 * index as u8, 90, 150], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let order: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(order.len(), 3);
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+
+        // With nothing remembered, the notice explains rather than writing anything.
+        state.selection.replace(order[0]);
+        let press_t = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![egui::Event::Key {
+                key: Key::T,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..egui::RawInput::default()
+        };
+        let mut output = ctx.run_ui(press_t.clone(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                show(ui, &mut state, &mut engine, &mut thumbs);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(engine.photo(order[0]).expect("photo").tags.is_empty(), "nothing was written");
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert!(told.contains("no keyword"), "the notice says why: {told}");
+
+        // Type a keyword on the first photo, tick the other two, then press T.
+        engine.set_tag(&order[..1], "backlit", true).expect("tag");
+        state.selection.set_many(&order);
+        let mut output = ctx.run_ui(press_t, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                show(ui, &mut state, &mut engine, &mut thumbs);
+            });
+        });
+        output.textures_delta.clear();
+        for id in &order {
+            assert!(
+                engine.photo(*id).expect("photo").tags.contains(&"backlit".to_string()),
+                "every photo in the selection carries the keyword"
+            );
+        }
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert!(told.contains("backlit"), "the notice names the keyword: {told}");
+        assert!(actions.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The detail view paints before its full-size decode lands: the blur-up path runs on a real photo.

@@ -98,6 +98,11 @@ pub const EXAMPLES: &[Example] = &[
         note: "add false removes the keyword instead.",
     },
     Example {
+        command: "photo.tagFromPrev",
+        args: r#"{"ids": [1]}"#,
+        note: "re-applies the keyword added earlier this session; there is no tag argument, which is the point.",
+    },
+    Example {
         command: "app.diagnostics",
         args: "{}",
         note: "file: where to write the report; omitted returns the text. Paths are redacted.",

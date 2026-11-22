@@ -525,6 +525,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "photo.tagFromPrev",
+                    label: "Apply Last Keyword",
+                    group: Group::Organise,
+                    shortcut: Some("T"),
+                    menu: "Organise > Apply Last Keyword",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "collection.new",
                     label: "New Collection…",
                     group: Group::Organise,
