@@ -10,7 +10,7 @@
 
 use crate::charts::{self, Column};
 use crate::keymap::{self, Context};
-use crate::theme::{ThemeKind, Tokens};
+use crate::theme::{Density, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
     Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
@@ -121,6 +121,8 @@ pub enum Action {
     /// Write the change report somewhere the host chooses.
     ExportHistory,
     /// Move these photos into a folder the host chooses.
+    /// Persist a grid density the shell has already applied to its own state.
+    SetDensity(Density),
     MovePicks(Vec<PhotoId>),
     /// Put a moved batch back.
     UndoMove(u64),
@@ -227,6 +229,8 @@ impl Source {
 pub struct UiState {
     /// Active theme, mirrored from settings.
     pub theme: ThemeKind,
+    /// Grid density, mirrored from settings.
+    pub density: Density,
     /// Current destination.
     pub view: View,
     /// Search query.
@@ -361,6 +365,7 @@ impl UiState {
         let t = theme.tokens();
         Self {
             theme,
+            density: Density::default(),
             view: View::Library,
             search: String::new(),
             root: None,
@@ -697,6 +702,16 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                     }
                     if icon_button(ui, state.theme.label(), t).clicked() {
                         actions.push(Action::SetTheme(next_theme(state.theme)));
+                    }
+                    // Density lives next to the theme because both are "how the library looks", and it is
+                    // one click, not a settings trip, to change how many photos you can see at once.
+                    if icon_button(ui, state.density.label(), t)
+                        .on_hover_text("Grid density: Compact, Comfortable, Roomy")
+                        .clicked()
+                    {
+                        let next = state.density.next();
+                        state.density = next;
+                        actions.push(Action::SetDensity(next));
                     }
                     if icon_button(ui, "Add Folder…", t).clicked() {
                         actions.push(Action::PickFolder);
@@ -1273,6 +1288,20 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         });
 }
 
+/// How many cells fit across a width, and how wide each one ends up.
+///
+/// Kept pure because this is the whole of "density": the setting names a minimum cell, and the grid divides
+/// what is left so the last cell in a row reaches the right edge instead of leaving a ragged margin. The 64
+/// point floor is the point below which the caption and the stars stop being legible, so a very narrow
+/// window gets a horizontal scroll rather than unreadable cells.
+fn grid_layout(available: f32, gap: f32, min_cell: f32) -> (usize, f32) {
+    let columns = (((available + gap) / (min_cell + gap)).floor() as usize).max(1);
+    let cell = ((available - gap * (columns.saturating_sub(1)) as f32) / columns as f32)
+        .floor()
+        .max(64.0);
+    (columns, cell)
+}
+
 fn grid(
     ui: &mut Ui,
     t: &Tokens,
@@ -1283,12 +1312,7 @@ fn grid(
     actions: &mut Vec<Action>,
 ) {
     let gap = t.grid_gap;
-    let available = ui.available_width();
-    let min_cell = 132.0;
-    let columns = (((available + gap) / (min_cell + gap)).floor() as usize).max(1);
-    let cell = ((available - gap * (columns.saturating_sub(1)) as f32) / columns as f32)
-        .floor()
-        .max(64.0);
+    let (columns, cell) = grid_layout(ui.available_width(), gap, state.density.min_cell());
     let caption = 24.0;
     let row_height = cell + caption + gap;
     let total = engine.count(filter);
@@ -5001,6 +5025,95 @@ mod tests {
             "and the spoken name says what the badge shows"
         );
         photo.missing = false;
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Density changes how many photos fit across the same window, and the row still fills it exactly.
+    #[test]
+    fn a_denser_grid_fits_more_photos_across_the_same_window() {
+        let width = 1200.0;
+        let gap = 10.0;
+        let compact = grid_layout(width, gap, Density::Compact.min_cell());
+        let comfortable = grid_layout(width, gap, Density::Comfortable.min_cell());
+        let roomy = grid_layout(width, gap, Density::Roomy.min_cell());
+        assert!(
+            compact.0 > comfortable.0,
+            "compact fits more across: {compact:?} vs {comfortable:?}"
+        );
+        assert!(comfortable.0 > roomy.0, "roomy fits fewer: {comfortable:?} vs {roomy:?}");
+
+        // Every density divides the width evenly: the last cell in a row reaches the right edge, give or take
+        // the rounding to whole points.
+        for (columns, cell) in [compact, comfortable, roomy] {
+            let used = cell * columns as f32 + gap * (columns.saturating_sub(1)) as f32;
+            let slack = width - used;
+            assert!((0.0..=gap + 1.0).contains(&slack), "slack {slack} at {columns} columns");
+        }
+    }
+
+    /// A very narrow window still gets one readable column rather than cells too small to read.
+    #[test]
+    fn a_narrow_window_keeps_one_column_and_a_legible_cell() {
+        let (columns, cell) = grid_layout(80.0, 10.0, Density::Roomy.min_cell());
+        assert_eq!(columns, 1, "never zero columns");
+        assert_eq!(cell, 80.0, "one cell takes the width");
+        // Below the legibility floor the cell stops shrinking and the row scrolls instead.
+        let (columns, cell) = grid_layout(40.0, 10.0, Density::Compact.min_cell());
+        assert_eq!(columns, 1);
+        assert_eq!(cell, 64.0, "the 64 point floor");
+    }
+
+    /// The three steps cycle, round-trip through their ids, and default to Comfortable.
+    #[test]
+    fn density_steps_cycle_and_survive_a_settings_round_trip() {
+        assert_eq!(Density::default(), Density::Comfortable);
+        assert_eq!(Density::Compact.next(), Density::Comfortable);
+        assert_eq!(Density::Comfortable.next(), Density::Roomy);
+        assert_eq!(Density::Roomy.next(), Density::Compact, "the chip wraps");
+        for step in Density::ALL {
+            assert_eq!(Density::from_id(step.id()), step);
+            assert!(!step.label().is_empty());
+        }
+        assert_eq!(Density::from_id("enormous"), Density::Comfortable, "an unknown id is the default");
+        assert!(Density::Compact.min_cell() < Density::Comfortable.min_cell());
+        assert!(Density::Comfortable.min_cell() < Density::Roomy.min_cell());
+    }
+
+    /// The grid paints at every density, over a real library, without asking for anything.
+    #[test]
+    fn the_grid_paints_at_every_density() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-density-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-density");
+        for index in 0..3 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [60 + index * 40, 90, 140], 64, 48), root.join(&name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        for step in Density::ALL {
+            state.density = step;
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    grid(ui, &tokens, &mut state, &mut engine, &mut thumbs, &Filter::default(), &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            assert!(output.shapes.len() > 2, "{} painted a grid", step.label());
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 

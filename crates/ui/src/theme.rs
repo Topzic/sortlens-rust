@@ -24,6 +24,69 @@ pub enum ThemeKind {
     Paper,
 }
 
+/// How big a grid cell is, which is the only thing that decides how many photos fit.
+///
+/// Three steps rather than a slider: a photographer picks a way of looking at a shoot, and the difference
+/// between 104 and 108 pixels is not a choice anybody wants to make. The numbers are the *minimum* cell
+/// width; the grid then divides the window evenly so the right edge is never ragged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Density {
+    /// Many small cells, for triaging a whole shoot.
+    Compact,
+    /// The default: five or six across a laptop window.
+    #[default]
+    Comfortable,
+    /// Large cells, for judging a frame without opening it.
+    Roomy,
+}
+
+impl Density {
+    /// Every step, in the order the chip cycles through them.
+    pub const ALL: [Self; 3] = [Self::Compact, Self::Comfortable, Self::Roomy];
+
+    /// Stable id used in settings.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Compact => "compact",
+            Self::Comfortable => "comfortable",
+            Self::Roomy => "roomy",
+        }
+    }
+
+    /// Label for the chip and Settings.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Compact => "Compact",
+            Self::Comfortable => "Comfortable",
+            Self::Roomy => "Roomy",
+        }
+    }
+
+    /// Smallest cell edge in points.
+    pub const fn min_cell(self) -> f32 {
+        match self {
+            Self::Compact => 104.0,
+            Self::Comfortable => 132.0,
+            Self::Roomy => 184.0,
+        }
+    }
+
+    /// Parse a persisted id. An unknown value is the default, not an error: a settings file written by a
+    /// later build must not stop this one from opening.
+    pub fn from_id(id: &str) -> Self {
+        Self::ALL.into_iter().find(|step| step.id() == id).unwrap_or_default()
+    }
+
+    /// The next step, wrapping — what the chip does when clicked.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Compact => Self::Comfortable,
+            Self::Comfortable => Self::Roomy,
+            Self::Roomy => Self::Compact,
+        }
+    }
+}
+
 impl ThemeKind {
     /// Every preset, in menu order.
     pub const ALL: [Self; 4] = [Self::Charcoal, Self::Midnight, Self::Silver, Self::Paper];

@@ -12,7 +12,7 @@ use craft_window::Prefix;
 use craft_window::policy::{Backend, Frame, TitleBarPref, apply as apply_titlebar, decide_for};
 use settings::Prefs;
 use sortlens_engine::{Engine, Sort};
-use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme};
+use sortlens_ui::{Action, Density, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 
 /// Left inset that clears the traffic lights in an integrated title bar.
 const MAC_TRAFFIC_LIGHTS: f32 = 78.0;
@@ -129,6 +129,7 @@ impl App {
         apply_theme(&cc.egui_ctx, kind);
 
         let mut ui = UiState::new(kind, title_inset);
+        ui.density = Density::from_id(&store.get().appearance.density);
         ui.sort = saved_sort;
         ui.library_sort = saved_sort;
         if report.has_problems() {
@@ -198,6 +199,9 @@ impl App {
 
     fn apply(&mut self, ctx: &egui::Context, action: Action) {
         match action {
+            Action::SetDensity(density) => {
+                self.store.update(|prefs| prefs.appearance.density = density.id().to_owned());
+            }
             Action::SetTheme(kind) => {
                 if kind != self.applied_theme {
                     apply_theme(ctx, kind);

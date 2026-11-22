@@ -15,7 +15,7 @@ pub mod theme;
 pub mod thumbs;
 
 pub use shell::{Action, RightTab, Source, UiState, View, show};
-pub use theme::{ThemeKind, Tokens, apply};
+pub use theme::{Density, ThemeKind, Tokens, apply};
 pub use thumbs::Thumbnails;
 
 /// Crate version, from `Cargo.toml`.

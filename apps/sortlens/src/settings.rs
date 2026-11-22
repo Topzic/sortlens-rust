@@ -23,7 +23,8 @@ pub struct Prefs {
 pub struct Appearance {
     /// Theme preset id: `charcoal`, `midnight`, `silver`, `paper`.
     pub theme: String,
-    /// Grid density: `comfortable` or `compact`.
+    /// Grid density id: `compact`, `comfortable` or `roomy`. An unknown value reads as the default, so a
+    /// settings file written by a later build cannot stop this one from opening.
     pub density: String,
     /// Interface scale, 1.0 is 100%.
     pub ui_scale: f32,
@@ -127,12 +128,32 @@ mod tests {
     fn defaults_are_the_documented_ones() {
         let prefs = Prefs::default();
         assert_eq!(prefs.appearance.theme, "charcoal");
+        assert_eq!(prefs.appearance.density, "comfortable");
         assert!(prefs.review.auto_advance);
         assert!(prefs.library.write_sidecars, "XMP sidecars are on by default");
         assert_eq!(prefs.library.sort, "added");
         assert_eq!(prefs.library.delete_mode, "trash");
         assert!(!prefs.ai.enabled, "models are opt-in");
         assert!(!prefs.remote.enabled, "the server is opt-in");
+    }
+
+    /// Every density the grid knows about survives a trip through the settings file, and an unknown one reads
+    /// as the default rather than stopping the app from opening.
+    #[test]
+    fn every_density_round_trips_and_a_future_one_falls_back() {
+        for step in sortlens_ui::Density::ALL {
+            let mut prefs = Prefs::default();
+            prefs.appearance.density = step.id().to_owned();
+            let text = toml::to_string(&prefs).expect("serialise");
+            let read: Prefs = toml::from_str(&text).expect("parse");
+            assert_eq!(sortlens_ui::Density::from_id(&read.appearance.density), step);
+        }
+        let read: Prefs = toml::from_str("[appearance]\ndensity = \"gigantic\"\n").expect("parse");
+        assert_eq!(
+            sortlens_ui::Density::from_id(&read.appearance.density),
+            sortlens_ui::Density::Comfortable,
+            "a settings file from a later build must not stop this one opening"
+        );
     }
 
     #[test]

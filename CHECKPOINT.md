@@ -1572,9 +1572,31 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   **Not verified by hand**: a real unplugged drive on macOS (the "away" path is exercised only through the
   decision function here), and a Windows machine.
 
+## 2026-11-21 — M1 row: density, and a settings field that finally does something
+
+- **the finding**: `appearance.density` had existed in `config.toml` since M0 with a comment saying
+  "comfortable or compact", and **nothing read it** — the grid hard-coded `min_cell = 132.0`. A persisted
+  setting nothing consumes is the same lie as a button that looks enabled and does nothing.
+- **`Density`** (`crates/ui/src/theme.rs`): Compact / Comfortable / Roomy, each naming a minimum cell
+  (104/132/184), with `id()`, `label()`, `from_id()` (an unknown id reads as the default so a settings file
+  from a later build cannot stop this one opening) and `next()` for the chip's cycle.
+- **`grid_layout(available, gap, min_cell)`** is the whole of density, extracted and pure: it divides the
+  window so the last cell in a row reaches the right edge, and floors a cell at 64 pt — below that the
+  caption and stars stop being legible, so a narrow window gets one column that does not shrink rather than
+  five that are unreadable.
+- The chip sits beside the theme (both are "how the library looks") and the choice persists through
+  `Action::SetDensity` → `appearance.density`, applied at startup from the store.
+- Tests: layout (more columns when dense, exact fit at each step, the 64 pt floor and one-column minimum),
+  the step cycle and id round trip, a settings round trip for all three ids **plus an unknown id falling
+  back**, and a headless paint of the real grid at all three densities over a three-photo library.
+- Files: `crates/ui/src/theme.rs`, `crates/ui/src/shell.rs`, `crates/ui/src/lib.rs`,
+  `apps/sortlens/src/main.rs`, `apps/sortlens/src/settings.rs`, `docs/ROADMAP.md`. 454 tests; ci (exit 0),
+  wasm, snapshot green. **Not verified by hand**: how the three steps feel on a real display — the numbers
+  are a judgement call, and the only way to judge them is to scroll a shoot.
+
 ## Next
 
-Continue in milestone order. Next: grid justification, density and multi-select (SL-B01/B02/B04/B15); then
-M2's priority scheduling and backpressure, the bell popover and `craft-ipc`, then the decoder rows (HEIC,
-video, blur-up) which belong in M2's absent-by-design table because each needs a decoder or a
-progressive-decode decision this repository has not made.
+Continue in milestone order. Next: multi-select, marquee and ⇧-range in the grid (SL-B15) — the largest
+remaining M1 row, and the one that makes batch actions on a selection possible; then grid justification
+(SL-B01/B02); then M2's priority scheduling and backpressure, the bell popover, `craft-ipc`, and the decoder
+rows (HEIC, video, blur-up) which belong in M2's absent-by-design table.

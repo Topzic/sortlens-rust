@@ -89,7 +89,15 @@ volume probe and `PathKey`.
   than guessed as video, so podcasts and sidecars do not land in the grid (C) — SL-B11
 - [x] `library.addFolder`, `library.rescan`, `library.removeRoot` (A) — SL-A01/A19
 - [ ] Square grid is virtualised (a window of cells over 200k rows); justified rows are not built (B) — SL-B01/B02
-- [ ] Cell size is derived from the window width; there is no density control (B) — SL-B04
+- [x] Cell size is derived from the window width **and** from a density setting: `Density::Compact /
+  Comfortable / Roomy` names a minimum cell (104/132/184), `grid_layout` divides the window so the last cell
+  in a row reaches the right edge, and a very narrow window keeps one legible 64 pt column instead of shrinking
+  into unreadable cells. The chip sits beside the theme because both are "how the library looks"; the choice
+  persists through `appearance.density`, whose field had existed since M0 while nothing read it — the setting
+  was a string nothing used, which is the same lie as a disabled button that looks enabled. Tested as pure
+  layout (more columns when dense, exact fit at each step, floor on a narrow window), as a settings round
+  trip including an unknown id falling back to the default, and as a headless paint at all three densities (B)
+  — SL-B04
 - [ ] One selected photo plus the cull follow-selection; no multi-select, marquee or ⇧-range (B) — SL-B15
 - [x] Sources, part 1 — **Picks**, **Rated** and **Rejects** rows in the sidebar, each showing its own count
   rather than the library total, and each replacing the whole question rather than nudging it (picking Picks
