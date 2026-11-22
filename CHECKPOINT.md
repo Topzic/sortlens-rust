@@ -2271,12 +2271,47 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand**: the menu item on screen (a right-click menu cannot be driven headlessly
   here; the handler itself is tested) and the look of the hover text.
 
+## 2026-11-22 (eighteenth) — Twenty steps of undo and redo, kept across a restart
+
+- `sortlens-catalog`: the undo stack is bounded at `UNDO_DEPTH` = 20 and a `redo` stack walks the
+  undone steps forward. A new commit abandons the redo branch — stepping forward again would
+  replay a past that no longer matches what was just written. `redo()` is a real operation: it
+  applies, logs with its inverse, and puts the inverse back on the undo stack, so a redo is
+  itself undoable.
+- **The history survives a restart, not just the last step**: the snapshot now carries
+  `undo_history` (oldest first) next to the old single-level `undo` field, which is still written
+  so an older build reads the snapshot it knows; a snapshot with only `undo` opens with that one
+  step (a test rewinds the file to prove it). Log records replaying after the snapshot append
+  their inverses to the stack, so a reopen keeps twenty steps, not one. Redo as a stack is
+  per-session; after a restart the same steps stay reachable by undoing the undo entries the log
+  holds in order — the "never a one-way door" property, now across the whole depth.
+- `sortlens-engine`: `Engine::redo`, `edit.redo` in the registry and dispatch, and an MCP example.
+  The example is published *before* `edit.undo` on purpose: the published examples run in order
+  against one library, and the undo below it clears a decision the later examples need cleared —
+  redoing it back handed `library.restoreBatch` a photo that was already rejected, and
+  `every_published_example_actually_runs` caught it.
+- `sortlens-ui`: `Ctrl+Shift+Z` in the keymap and the shell, notices "Redid the last undone
+  change" / "Nothing to redo". Two orderings matter and only the headless test could catch them:
+  egui's `consume_shortcut` matches with extra Shift and Alt **ignored**, so the shell must
+  consume Ctrl+Shift+Z before Ctrl+Z — and the tuple's destructure is positional, so renaming the
+  consumption order without renaming the bindings silently swaps the two. The test drives real key
+  events through `run_ui` over a scanned library: undo steps the rating back, redo steps it
+  forward, a second redo says so.
+- ROADMAP M3's undo row ticked in the same commit, rewritten to say what is true now. README and
+  PLAN §12 already reconciled (the 2026-11-21 pass); `cargo xtask docs` gates it.
+- 586 tests; ci, wasm, deny, snapshot (two goldens updated: the shortcut list gained a row, the
+  snapshot golden gained `undo_history`), a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: the keypress on a real keyboard (the key events are synthetic, though
+  routed through the shell's own input handling) and how twenty-step notices read over a long
+  session.
+
 ## Next
 
-Next in the named-absent tail, one row per run: **20-step undo history** — the op log keeps every
-step; the UI offers exactly one. Then inline tagging in the cull stage, then video posters part 2
-(poster file written beside the video first, then the UI, same shape as GPS). Keep the discipline:
-a test that would fail if the behaviour were absent, and the ROADMAP row ticked in the same commit.
+Next in the named-absent tail, one row per run: **inline tagging + re-apply last tags in the cull
+stage** (ROADMAP M4 row — SL-C11/C12). Then video posters part 2 (poster file written beside the
+video first, then the UI, same shape as GPS), then the M3 rows still open: stale-revision
+rejection and the XMP round-trip/filter-algebra test row. Keep the discipline: a test that would
+fail if the behaviour were absent, and the ROADMAP row ticked in the same commit.
 
-Note for the next run: this Windows checkout now has its own toolchain (`.toolchain`, installed this
-run) — `. scripts/env.sh && cargo xtask ci` works as documented; first run takes a few minutes.
+Note for the next run: this Windows checkout now has its own toolchain (`.toolchain`) —
+`. scripts/env.sh && cargo xtask ci` works as documented.

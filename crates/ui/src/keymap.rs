@@ -93,6 +93,7 @@ pub const BINDINGS: &[Binding] = &[
     binding("Ctrl+,", "Open settings", Context::Any, Some("app.settings")),
     binding("Ctrl+Q", "Quit, asking about unsaved work", Context::Any, Some("app.quit")),
     binding("Ctrl+Z", "Undo the last change", Context::Any, Some("edit.undo")),
+    binding("Ctrl+Shift+Z", "Redo the last undone change", Context::Any, Some("edit.redo")),
     binding("P", "Flag as picked", Context::Library, Some("photo.flag")),
     binding("X", "Flag as rejected", Context::Library, Some("photo.flag")),
     binding("U", "Clear the flag", Context::Library, None),
@@ -197,7 +198,7 @@ mod tests {
         assert!(zoom.iter().any(|binding| binding.keys == "Z"), "{zoom:?}");
         assert_eq!(search("ZOOM").len(), zoom.len());
         let shifted = search("ctrl+shift");
-        assert_eq!(shifted.len(), 2, "rescan and new collection: {shifted:?}");
+        assert_eq!(shifted.len(), 3, "rescan, new collection and redo: {shifted:?}");
         assert_eq!(search("   ").len(), len(), "a blank query shows everything");
         assert!(search("nothing-is-bound-to-this").is_empty());
     }

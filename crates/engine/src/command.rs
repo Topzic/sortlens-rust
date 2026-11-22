@@ -173,6 +173,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "edit.redo",
+                    label: "Redo",
+                    group: Group::Review,
+                    shortcut: Some("Ctrl+Shift+Z"),
+                    menu: "Review > Redo",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.removeRoot",
                     label: "Remove Folder",
                     group: Group::Library,

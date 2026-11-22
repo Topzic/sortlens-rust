@@ -355,7 +355,18 @@ scans headlessly and prints a JSON report.
 - [x] Detail view: large canvas, counter, fit/1:1, arrow navigation, facts line (B) — SL-B18..B20
 - [x] Detail lookahead strip + 64-bin luminance histogram (B) — SL-B21
 - [x] Shortcut overlay + keymap wiring (B) — SL-B23: `crates/ui/src/keymap.rs` is the table, checked against the command registry in both directions
-- [ ] One persisted, reversible undo level + the change viewer are in; a 20-step undo/redo history is not (A) — SL-D10/H04
+- [x] One persisted, reversible undo level + the change viewer; the history is now 20 steps of undo and redo (A) — SL-D10/H04
+  - `Catalog` keeps up to `UNDO_DEPTH` (20) inverses, oldest first; a 21st step is dropped from the bottom, not
+    silently unbounded. `redo` walks the same steps forward, and a new change abandons the redo branch — stepping
+    forward again would replay a past that no longer matches what was just written.
+  - The history travels through a restart: the snapshot now carries `undo_history` (oldest first, still writing the
+    old single-level `undo` field for an older reader), and the log replay after it appends the rest, so a reopen
+    keeps twenty steps. Redo as a stack is per-session; after a restart the same steps are reachable by undoing the
+    undo entries, which the log holds in order — the pre-existing "an undo is never a one-way door" behaviour.
+  - `edit.redo` is in the command registry and the MCP examples; `Ctrl+Shift+Z` is in the keymap and the shell.
+    egui's shortcut matching ignores extra Shift and Alt, so the shell consumes Ctrl+Shift+Z before Ctrl+Z — the
+    headless test drives both through real key events and catches the undo branch firing for redo's press when the
+    order is wrong. An older snapshot (single `undo` field) still opens with its one step.
 - [x] `photo.reveal` / `photo.open`: argv built in `sortlens-core::reveal` (pure, per-desktop, tested), executed by the app and the CLI (A) — SL-B22
 - [ ] XMP round-trip and filter-algebra tests are in; stale-revision and badge-contrast tests are not
 

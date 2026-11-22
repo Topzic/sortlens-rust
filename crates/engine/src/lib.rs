@@ -2780,6 +2780,14 @@ impl Engine {
         }
     }
 
+    /// Redo the last undone catalog operation.
+    pub fn redo(&mut self) -> Result<bool> {
+        match self.catalog.as_mut() {
+            Some(catalog) => catalog.redo(),
+            None => Ok(false),
+        }
+    }
+
     /// Remove a root and its photos.
     pub fn remove_root(&mut self, root: &str) -> Result<usize> {
         match self.catalog.as_mut() {
@@ -3563,6 +3571,7 @@ impl Engine {
                 }))
             }
             "edit.undo" => Ok(json!({ "undone": self.undo()? })),
+            "edit.redo" => Ok(json!({ "redone": self.redo()? })),
             "library.stats" => Ok(serde_json::to_value(self.stats()).unwrap_or(Value::Null)),
             "library.jobs" => {
                 let jobs: Vec<Value> = self
@@ -6522,5 +6531,35 @@ mod tests {
         let (_lib, mut engine) = library("stats-json");
         let stats = engine.run("library.stats", &json!({})).expect("stats");
         assert_eq!(stats["total"], 0);
+    }
+
+    /// Undo and redo are both registry commands, so the MCP surface and the UI keymap drive the
+    /// same twenty-step history the catalog keeps.
+    #[test]
+    fn undo_and_redo_run_as_commands() {
+        let folder = Temp::new("undo-redo-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"aaaa").expect("write");
+        let (_lib, mut engine) = library("undo-redo");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .first()
+            .expect("photo")
+            .id;
+        engine.rate(&[id], 4).expect("rate");
+
+        let undone = engine.run("edit.undo", &json!({})).expect("undo");
+        assert_eq!(undone["undone"], true);
+        assert_eq!(engine.photo(id).expect("photo").rating, 0);
+
+        let redone = engine.run("edit.redo", &json!({})).expect("redo");
+        assert_eq!(redone["redone"], true);
+        assert_eq!(engine.photo(id).expect("photo").rating, 4);
+
+        let nothing = engine.run("edit.redo", &json!({})).expect("redo again");
+        assert_eq!(nothing["redone"], false);
     }
 }

@@ -31,6 +31,11 @@ pub const SNAPSHOT_NAME: &str = "snapshot.json";
 pub const LOCK_NAME: &str = "library.lock";
 /// Records between automatic snapshots.
 pub const SNAPSHOT_EVERY: usize = 256;
+
+/// How many steps of undo history are kept. Every step lives in the log and in the snapshot's
+/// history, so a restart does not shorten it; the bound is about memory and about how far back
+/// a person is ever asked to walk.
+pub const UNDO_DEPTH: usize = 20;
 /// Snapshot schema, bumped when the record layout changes.
 pub const SCHEMA: u32 = 1;
 
@@ -108,6 +113,10 @@ struct Snapshot {
     /// older snapshots, which simply reopen with nothing to undo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     undo: Option<Op>,
+    /// The undo history, oldest first, up to [`UNDO_DEPTH`] entries. Added after the single-level
+    /// format; an older reader ignores this field and keeps the one step `undo` carries.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    undo_history: Vec<Op>,
 }
 
 /// What a scan of one root changed.
@@ -152,6 +161,10 @@ pub struct Catalog {
     next_id: u64,
     seq: u64,
     undo: Vec<Op>,
+    /// Inverses of the undos performed in this session, so `redo` can step forward again. Not
+    /// persisted as a stack: after a restart the same steps are reachable by undoing the undo
+    /// entries, which the log holds in order.
+    redo: Vec<Op>,
     log: File,
     unlogged: usize,
     /// Depth of batch operations that take their own snapshot at the end instead of one every 256 ops.
@@ -201,8 +214,8 @@ impl Catalog {
         let mut packs: BTreeSet<String> = BTreeSet::new();
         let mut folders: crate::folder::FolderMarks = crate::folder::FolderMarks::new();
         let mut seq = 0u64;
-        // The snapshot carries the last inverse; log records that replay after it take precedence.
-        let mut restore_undo: Option<Op> = None;
+        // The snapshot carries the undo history; log records that replay after it take precedence.
+        let mut restore_undo: Vec<Op> = Vec::new();
 
         if snapshot_path.exists() {
             match fs::read_to_string(&snapshot_path) {
@@ -228,7 +241,13 @@ impl Catalog {
                         packs = snapshot.packs;
                         folders = snapshot.folders;
                         report.snapshot_seq = seq;
-                        restore_undo = snapshot.undo;
+                        // A snapshot from this version carries the whole history; an older one
+                        // carries only the last inverse, which is still worth one step.
+                        if snapshot.undo_history.is_empty() {
+                            restore_undo = snapshot.undo.clone().into_iter().collect();
+                        } else {
+                            restore_undo = snapshot.undo_history;
+                        }
                     }
                     Err(error) => report
                         .warnings
@@ -255,7 +274,8 @@ impl Catalog {
                 next_collection,
                 next_id,
                 seq,
-                undo: restore_undo.clone().into_iter().collect(),
+                undo: restore_undo.clone(),
+                redo: Vec::new(),
                 log: if writable {
                     OpenOptions::new()
                         .append(true)
@@ -305,11 +325,10 @@ impl Catalog {
                     break;
                 }
                 catalog.seq = record_seq;
-                // Keep one level of undo across the restart: the inverse as it was written, which is
+                // Keep the history across the restart: the inverse as it was written, which is
                 // authoritative even when the op no longer means the same thing to this version.
                 if let Some(inverse) = inverse {
-                    catalog.undo.clear();
-                    catalog.undo.push(inverse);
+                    catalog.push_undo(inverse);
                 }
                 report.replayed += 1;
             }
@@ -338,7 +357,8 @@ impl Catalog {
                 next_collection,
                 next_id,
                 seq,
-                undo: restore_undo.clone().into_iter().collect(),
+                undo: restore_undo,
+                redo: Vec::new(),
                 log,
                 unlogged: 0,
                 batching: 0,
@@ -1222,7 +1242,10 @@ impl Catalog {
         }
         self.seq += 1;
         self.append(self.seq, &op, Some(&inverse))?;
-        self.undo.push(inverse);
+        self.push_undo(inverse);
+        // A new change abandons the redo branch: stepping forward again would replay a past that
+        // no longer matches what was just written.
+        self.redo.clear();
         self.unlogged += 1;
         // A snapshot rewrites every photo, so taking one every 256 ops makes a large import quadratic:
         // ten thousand files meant thirty-nine rewrites of a growing file. A batch takes one at the end
@@ -1233,7 +1256,7 @@ impl Catalog {
         Ok(())
     }
 
-    /// Undo the last committed operation. One level per call.
+    /// Undo the last committed operation. One step per call, up to [`UNDO_DEPTH`] steps kept.
     pub fn undo(&mut self) -> Result<bool> {
         let Some(inverse) = self.undo.pop() else {
             return Ok(false);
@@ -1241,13 +1264,40 @@ impl Catalog {
         let redo = self.apply(&inverse)?;
         self.seq += 1;
         self.append(self.seq, &inverse, Some(&redo))?;
+        self.redo.push(redo);
         self.unlogged += 1;
         Ok(true)
+    }
+
+    /// Redo the last undone operation. One step per call; a new change abandons the redo branch.
+    pub fn redo(&mut self) -> Result<bool> {
+        let Some(op) = self.redo.pop() else {
+            return Ok(false);
+        };
+        let inverse = self.apply(&op)?;
+        self.seq += 1;
+        self.append(self.seq, &op, Some(&inverse))?;
+        self.push_undo(inverse);
+        self.unlogged += 1;
+        if self.batching == 0 && self.unlogged >= SNAPSHOT_EVERY {
+            self.snapshot()?;
+        }
+        Ok(true)
+    }
+
+    /// Remember an inverse, oldest first, keeping at most [`UNDO_DEPTH`] steps.
+    fn push_undo(&mut self, inverse: Op) {
+        self.undo.push(inverse);
+        if self.undo.len() > UNDO_DEPTH {
+            let excess = self.undo.len() - UNDO_DEPTH;
+            self.undo.drain(..excess);
+        }
     }
 
     /// Drop the in-memory undo history, e.g. when the document closes.
     pub fn forget_undo(&mut self) {
         self.undo.clear();
+        self.redo.clear();
     }
 
     /// Bring one root up to date with a completed scan.
@@ -1448,6 +1498,7 @@ impl Catalog {
             folders: self.folders.clone(),
             next_collection: self.next_collection,
             undo: self.undo.last().cloned(),
+            undo_history: self.undo.clone(),
         };
         let text = serde_json::to_string(&snapshot).map_err(|error| Error::Invalid(error.to_string()))?;
         let tmp = self.dir.join("snapshot.json.tmp");
@@ -1947,6 +1998,126 @@ mod tests {
         let (mut again, _) = temp.open();
         assert!(again.undo().expect("undo the undo"));
         assert_eq!(again.photo(PhotoId(1)).expect("photo").rating, 4);
+    }
+
+    /// Twenty steps of undo and redo, and not one more: the history has a floor, and the steps
+    /// beneath it are gone for good rather than silently unbounded.
+    #[test]
+    fn undo_keeps_twenty_steps_and_redo_walks_back_forward() {
+        let temp = TempCatalog::new("undo-twenty");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        // Ratings clamp at five, so the sequence cycles to keep every commit a real change.
+        let mut values = Vec::new();
+        for step in 0..25u8 {
+            let stars = step % 5 + 1;
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), stars)],
+                })
+                .expect("rate");
+            values.push(stars);
+        }
+
+        // Twenty-five rate commits plus the two scan commits make twenty-seven steps; the floor
+        // keeps the newest twenty, so the deepest reachable rating is the fifth commit's, and
+        // each undo restores the rating the step before it had set.
+        for step in 1..=20usize {
+            assert!(catalog.undo().expect("undo"));
+            assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, values[24 - step]);
+        }
+        assert!(!catalog.undo().expect("the history is spent"), "the 21st step is gone");
+
+        // Redo walks back up the same steps, and stops when it reaches the newest change.
+        for &value in &values[5..] {
+            assert!(catalog.redo().expect("redo"));
+            assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, value);
+        }
+        assert!(!catalog.redo().expect("the redo branch is spent"));
+    }
+
+    /// A new change after an undo abandons the redo branch: stepping forward again would replay
+    /// a past that no longer matches what was just written.
+    #[test]
+    fn a_new_change_abandons_the_redo_branch() {
+        let temp = TempCatalog::new("undo-branch");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(1), 4)],
+            })
+            .expect("rate");
+        assert!(catalog.undo().expect("undo"));
+
+        catalog
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(1), 2)],
+            })
+            .expect("rate over the undo");
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, 2);
+        assert!(!catalog.redo().expect("no redo after a new change"), "the 4-star past is gone");
+    }
+
+    /// The whole history travels through a reopen — the snapshot seeds it and the log replays
+    /// the rest — not just the single level the old snapshot format carried.
+    #[test]
+    fn twenty_steps_of_undo_survive_a_reopen() {
+        let temp = TempCatalog::new("undo-reopen-twenty");
+        // Ratings clamp at five, so the sequence cycles to keep every commit a real change.
+        let mut values = Vec::new();
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            for step in 0..25u8 {
+                let stars = step % 5 + 1;
+                catalog
+                    .commit(Op::Rate {
+                        changes: vec![(PhotoId(1), stars)],
+                    })
+                    .expect("rate");
+                values.push(stars);
+            }
+        }
+
+        let (mut reopened, report) = temp.open();
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
+        // The snapshot seeds the history with what it covers and the log replays the rest, so the
+        // reopened library keeps the newest twenty steps, not just the one the old format carried.
+        for step in 1..=20usize {
+            assert!(reopened.undo().expect("undo in a new process"));
+            assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, values[24 - step]);
+        }
+        assert!(!reopened.undo().expect("the history is spent"));
+    }
+
+    /// A snapshot written by an older build carries only the last inverse; opening it keeps that
+    /// one step rather than failing or reopening with nothing to undo.
+    #[test]
+    fn a_single_level_snapshot_still_opens_with_its_undo() {
+        let temp = TempCatalog::new("undo-old-snapshot");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                })
+                .expect("rate");
+            catalog.snapshot().expect("snapshot");
+        }
+
+        // Rewind the file to the older format: the history field did not exist yet.
+        let path = temp.0.join(SNAPSHOT_NAME);
+        let mut text: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("read snapshot")).expect("parse snapshot");
+        text.as_object_mut().expect("object").remove("undo_history");
+        std::fs::write(&path, serde_json::to_string(&text).expect("serialise")).expect("write snapshot");
+
+        let (mut reopened, _) = temp.open();
+        assert!(reopened.undo().expect("the one level came back"));
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
     }
 
     #[test]

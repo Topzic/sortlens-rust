@@ -223,10 +223,18 @@ pub const EXAMPLES: &[Example] = &[
         args: "{}",
         note: "Steps back one photo in an open session.",
     },
+    // Redo is published before Undo on purpose: these examples run in order against one library,
+    // and the undo below clears a decision the later examples need cleared — redoing it back would
+    // hand them a state they refuse. On its own a redo with nothing behind it answers, not errors.
+    Example {
+        command: "edit.redo",
+        args: "{}",
+        note: "Redoes the last undone change; a new change abandons the redo branch.",
+    },
     Example {
         command: "edit.undo",
         args: "{}",
-        note: "Undoes the last change; one level, and the undo is itself reversible.",
+        note: "Undoes the last change; 20 steps are kept, and each undo is itself reversible.",
     },
     Example {
         command: "library.history",

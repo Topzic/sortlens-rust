@@ -1,12 +1,13 @@
 exit 0
 --- stdout
-18 bound command(s)
+19 bound command(s)
   Ctrl+O         Library    Add Folder…
   Ctrl+Shift+R   Library    Rescan Folder
   0–5            Review     Set Rating
   P / X          Review     Pick or Reject
   6–9            Review     Colour Label
   Ctrl+Z         Review     Undo
+  Ctrl+Shift+Z   Review     Redo
   K              Organise   Add Keyword…
   T              Organise   Apply Last Keyword
   Ctrl+Shift+N   Organise   New Collection…

@@ -3011,10 +3011,13 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
 /// key handlers behind it do not also react to the same press.
 fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) -> bool {
     let detail_open = &state.detail_open;
-    let (open, rescan, undo, collection, settings, quit, apply, view) = ui.input_mut(|input| {
+    let (open, rescan, redo, undo, collection, settings, quit, apply, view) = ui.input_mut(|input| {
         (
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::R)),
+            // Most specific first: egui ignores extra Shift and Alt when matching, so Ctrl+Shift+Z
+            // must be consumed before Ctrl+Z sees the same press.
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::Z)),
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z)),
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::N)),
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma)),
@@ -3045,6 +3048,16 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         match root {
             Some(root) => actions.push(Action::Rescan(root)),
             None => state.notice("Add a folder before rescanning"),
+        }
+        return true;
+    }
+    // egui's shortcut matching ignores extra Shift and Alt, so the more specific binding is
+    // consumed first: Ctrl+Shift+Z is redo, and must not also fire Ctrl+Z's undo.
+    if redo {
+        match engine.redo() {
+            Ok(true) => state.notice("Redid the last undone change"),
+            Ok(false) => state.notice("Nothing to redo"),
+            Err(error) => state.notice_problem(error.to_string()),
         }
         return true;
     }
@@ -7975,6 +7988,73 @@ mod tests {
         let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
         assert!(told.contains("backlit"), "the notice names the keyword: {told}");
         assert!(actions.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Ctrl+Z and Ctrl+Shift+Z drive the real history through the shell's own shortcut handling —
+    /// undo steps back, redo steps forward, and a redo with nothing behind it says so.
+    #[test]
+    fn ctrl_z_and_ctrl_shift_z_drive_the_real_history() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-undoredo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-undoredo");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [40, 90, 150], 48, 32), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .first()
+            .expect("photo")
+            .id;
+        engine.rate(&[id], 4).expect("rate");
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        let press = |key: Key, modifiers: egui::Modifiers| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            }],
+            ..egui::RawInput::default()
+        };
+        let mut frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+        };
+
+        frame(&mut state, press(Key::Z, egui::Modifiers::COMMAND));
+        assert_eq!(engine_cell.borrow().photo(id).expect("photo").rating, 0, "undo stepped back");
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Undid the last change");
+
+        frame(&mut state, press(Key::Z, egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT)));
+        assert_eq!(engine_cell.borrow().photo(id).expect("photo").rating, 4, "redo stepped forward");
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Redid the last undone change");
+
+        frame(&mut state, press(Key::Z, egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT)));
+        assert_eq!(engine_cell.borrow().photo(id).expect("photo").rating, 4, "nothing changed");
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Nothing to redo");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
