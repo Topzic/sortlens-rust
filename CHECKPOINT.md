@@ -1620,9 +1620,28 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Split, not ticked whole**: marquee is its own row. It needs cell rectangles collected during paint and a
   drag that does not fight the scroll area's own, which is a piece of work rather than a footnote.
 
+## 2026-11-21 — M1 row: marquee, without stealing the grid's clicks
+
+- **the hazard**: a drag rectangle over a grid is easy to add badly — if the drag is allocated on top of the
+  cells, clicking a photo stops working. So the drag only *starts* on the background, decided against the
+  cell rects painted on the previous frame: the pointer may cross cells this frame that it had not reached
+  when the press happened, and the press is the moment that decides which gesture you are in.
+- `marquee()` paints the band, selects the cells it touches (a graze counts), notices the count only when the
+  set actually changes — a notice every frame would spam the live region sixty times a second — and clears
+  its own state on release without clearing the selection it made.
+- `cells_in()` is the hit test as a pure function: intersects, sorted by id so a log reads the same twice.
+  Tested on a 2×2 of cells, including the edge graze that the first version of the test got wrong (it grazed
+  105, and cell two starts at 110 — the test was fixed, not the code).
+- `Selection::set_many` is what a marquee and a future "select these" command share; an empty band clears,
+  because dragging over nothing means nothing selected.
+- Two headless tests: the pure hit test, and the gesture driven with real pointer events — press, move,
+  release — asserting the band paints while the pointer is down and the selection survives the release.
+  `keymap.rs` documents the drag so the shortcut sheet is not silent about it.
+- 460 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: how the band feels while dragging a
+  real grid, and whether the 0.35-alpha fill reads on the light themes.
+
 ## Next
 
-Continue in milestone order. Next: marquee (SL-B15 part 2) or grid justification (SL-B01/B02); then M2's
-priority scheduling and backpressure, the bell popover, `craft-ipc`, and the decoder rows (HEIC, video,
-blur-up), which belong in M2's absent-by-design table because each needs a decoder decision this repository
-has not made.
+Continue in milestone order. Next: grid justification (SL-B01/B02); then M2's priority scheduling and
+backpressure, the bell popover, `craft-ipc`, and the decoder rows (HEIC, video, blur-up), which belong in
+M2's absent-by-design table because each needs a decoder decision this repository has not made.

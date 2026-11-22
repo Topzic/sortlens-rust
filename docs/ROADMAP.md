@@ -106,9 +106,15 @@ volume probe and `PathKey`.
   and label keys write every ticked photo and the notice says how many ("Rated 4★ on 12 photos"). The
   selection is pruned each frame against the library, so a delete cannot leave the inspector on a ghost. All
   of it tested as logic plus one headless paint with a three-photo selection (B) — SL-B15 part 1
-- [ ] Multi-select, part 2 — **marquee**: dragging a rectangle over the grid to select what it touches. It
-  needs cell rectangles collected during paint and a drag that does not fight the scroll area's own drag, so
-  it is its own piece of work rather than a footnote to this one
+- [x] Multi-select, part 2 — **marquee**: dragging from the grid's background paints a band and selects the
+  cells it touches (a graze counts), and releasing ends the gesture without clearing what it made. The drag
+  only starts on the background — a press inside a cell belongs to that cell, and stealing it would make the
+  grid unclickable — which is decided against the rects painted last frame, because the pointer may cross
+  cells this frame it had not reached when the drag began. Plain drag replaces, with no ⌘-drag variant: two
+  ways to combine one gesture is one too many when ⇧-range already means "these and the ones before them".
+  The hit test is a pure function (`cells_in`, edge-touching included, sorted so a log reads the same twice),
+  and the gesture is driven through real pointer events in a headless test that presses, moves, and releases (B)
+  — SL-B15 part 2
 - [x] Sources, part 1 — **Picks**, **Rated** and **Rejects** rows in the sidebar, each showing its own count
   rather than the library total, and each replacing the whole question rather than nudging it (picking Picks
   with three stars and a keyword active used to leave them on, so the row meant "picks among the ones you

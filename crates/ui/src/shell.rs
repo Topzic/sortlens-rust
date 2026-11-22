@@ -283,6 +283,20 @@ impl Selection {
         }
     }
 
+    /// Replace the ticks with exactly these photos, the way a marquee does.
+    ///
+    /// An empty list clears: dragging over nothing means nothing selected, which is what the gesture says.
+    pub fn set_many(&mut self, ids: &[PhotoId]) {
+        self.ids = ids.iter().copied().collect();
+        match ids.first() {
+            Some(first) => {
+                self.primary = Some(*first);
+                self.anchor = Some(*first);
+            }
+            None => self.clear(),
+        }
+    }
+
     /// Drop the selection, keeping nothing — including the anchor.
     pub fn clear(&mut self) {
         self.ids.clear();
@@ -384,6 +398,11 @@ pub struct UiState {
     pub shortcut_query: String,
     /// What the grid has ticked; the inspector shows its primary.
     pub selection: Selection,
+    /// Where a marquee drag started, while the pointer is still down.
+    pub marquee: Option<egui::Pos2>,
+    /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
+    /// against cells the pointer has not passed over yet.
+    pub cell_rects: Vec<(PhotoId, egui::Rect)>,
     /// Sidebar row for "All Photos".
     pub all_photos_selected: bool,
     /// Minimum stars, 0 for any.
@@ -506,6 +525,8 @@ impl UiState {
             shortcuts_open: false,
             shortcut_query: String::new(),
             selection: Selection::default(),
+            marquee: None,
+            cell_rects: Vec::new(),
             all_photos_selected: true,
             min_rating: 0,
             flag_filter: None,
@@ -1415,6 +1436,64 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         });
 }
 
+/// Drag a rectangle over the grid to select what it touches.
+///
+/// The drag has to start on the *background*, not on a cell: a press inside a cell belongs to that cell, and
+/// stealing it would make the grid impossible to click. "Background" is decided against the rects painted last
+/// frame, because the pointer may pass over cells this frame that it had not reached when the drag began.
+///
+/// Plain drag replaces the selection. There is no ⌘-drag to add to it: two ways to combine a gesture is one
+/// way too many, and the range gesture already covers "these and the ones before them".
+fn marquee(ui: &mut Ui, state: &mut UiState, t: &Tokens, grid_rect: Rect) {
+    let (pressed_at, pointer, down) = ui.input(|input| {
+        (
+            input.pointer.press_origin(),
+            input.pointer.interact_pos(),
+            input.pointer.primary_down(),
+        )
+    });
+    if state.marquee.is_none()
+        && down
+        && let Some(origin) = pressed_at
+        && grid_rect.contains(origin)
+        && !state.cell_rects.iter().any(|(_, rect)| rect.contains(origin))
+    {
+        state.marquee = Some(origin);
+    }
+    let Some(origin) = state.marquee else {
+        return;
+    };
+    if !down {
+        // Releasing ends the drag. The selection was already applied on the frame the pointer moved, so a
+        // click that turns out to be a drag has not yet selected anything.
+        state.marquee = None;
+        return;
+    }
+    let Some(pointer) = pointer else {
+        return;
+    };
+    let band = Rect::from_two_pos(origin, pointer);
+    ui.painter().rect_filled(band, 2.0, t.selection.gamma_multiply(0.35));
+    ui.painter().rect_stroke(band, 2.0, Stroke::new(1.0, t.accent), StrokeKind::Inside);
+    let hits = cells_in(&state.cell_rects, band);
+    if hits != state.selection.ids() {
+        // Only when the set actually changes: a notice every frame of a drag would spam the live region with
+        // the same sentence sixty times a second.
+        let count = hits.len();
+        state.selection.set_many(&hits);
+        if count > 0 {
+            state.notice(format!("{count} selected"));
+        }
+    }
+}
+
+/// Which cells a marquee band touches. Pure, so the hit test is testable without a pointer.
+fn cells_in(cells: &[(PhotoId, Rect)], band: Rect) -> Vec<PhotoId> {
+    let mut hits: Vec<PhotoId> = cells.iter().filter(|(_, rect)| rect.intersects(band)).map(|(id, _)| *id).collect();
+    hits.sort_unstable();
+    hits
+}
+
 /// How many cells fit across a width, and how wide each one ends up.
 ///
 /// Kept pure because this is the whole of "density": the setting names a minimum cell, and the grid divides
@@ -1446,9 +1525,13 @@ fn grid(
     let rows = total.div_ceil(columns);
     let mut add_to: Option<(sortlens_core::PhotoId, sortlens_core::CollectionId)> = None;
 
+    state.cell_rects.clear();
+    let mut painted_rects: Vec<(PhotoId, Rect)> = Vec::new();
+    let mut grid_rect = Rect::NOTHING;
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show_rows(ui, row_height, rows, |ui, range| {
+            grid_rect = ui.max_rect();
             ui.spacing_mut().item_spacing = vec2(gap, 0.0);
             let offset = range.start * columns;
             let limit = (range.end - range.start) * columns;
@@ -1461,6 +1544,7 @@ fn grid(
                             Some(photo) => {
                                 let selected = state.selection.contains(photo.id);
                                 let response = photo_cell(ui, t, photo, selected, cell, caption, thumbs);
+                                painted_rects.push((photo.id, response.rect));
                                 if response.clicked() {
                                     // Three gestures, three meanings: click replaces, ⌘-click toggles, and
                                     // ⇧-click takes the run from the anchor in the order the grid shows —
@@ -1523,6 +1607,9 @@ fn grid(
                 ui.add_space(gap);
             }
         });
+
+    state.cell_rects = painted_rects;
+    marquee(ui, state, t, grid_rect);
 
     if let Some((photo, collection)) = add_to {
         match engine.add_to_collection(&[photo], collection) {
@@ -5202,6 +5289,85 @@ mod tests {
         );
         photo.missing = false;
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A marquee selects what it touches and only what it touches, and it sorts for a stable log.
+    #[test]
+    fn a_marquee_band_selects_the_cells_it_touches() {
+        let rect = |x: f32, y: f32| Rect::from_min_size(pos2(x, y), vec2(100.0, 100.0));
+        let cells = vec![
+            (PhotoId(1), rect(0.0, 0.0)),
+            (PhotoId(2), rect(110.0, 0.0)),
+            (PhotoId(3), rect(0.0, 110.0)),
+            (PhotoId(4), rect(110.0, 110.0)),
+        ];
+        // A band around the first two cells only.
+        let band = Rect::from_two_pos(pos2(-5.0, -5.0), pos2(205.0, 50.0));
+        assert_eq!(cells_in(&cells, band), vec![PhotoId(1), PhotoId(2)]);
+        // Touching an edge counts: a drag that grazes a cell selects it, which is what a person expects.
+        let graze = Rect::from_two_pos(pos2(99.0, 0.0), pos2(112.0, 10.0));
+        assert_eq!(cells_in(&cells, graze), vec![PhotoId(1), PhotoId(2)]);
+        // A band over empty space selects nothing, and selects nothing in id order either.
+        let empty = Rect::from_two_pos(pos2(300.0, 300.0), pos2(400.0, 400.0));
+        assert!(cells_in(&cells, empty).is_empty());
+        // The order is by id, not by the order cells happened to be painted in.
+        let all = Rect::from_two_pos(pos2(-10.0, -10.0), pos2(400.0, 400.0));
+        assert_eq!(cells_in(&cells, all), vec![PhotoId(1), PhotoId(2), PhotoId(3), PhotoId(4)]);
+    }
+
+    /// The marquee draws its band, and releasing it ends the gesture.
+    #[test]
+    fn the_marquee_band_paints_and_release_ends_it() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.marquee = Some(pos2(10.0, 10.0));
+        state.cell_rects = vec![(PhotoId(1), Rect::from_min_size(pos2(40.0, 40.0), vec2(80.0, 80.0)))];
+        state.selection.set_many(&[PhotoId(1)]);
+
+        // Pointer down and moving: the band is painted and the selection follows it.
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))),
+            events: vec![
+                egui::Event::PointerMoved(pos2(120.0, 120.0)),
+                egui::Event::PointerButton {
+                    pos: pos2(120.0, 120.0),
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        let mut output = ctx.run_ui(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let rect = ui.max_rect();
+                marquee(ui, &mut state, &tokens, rect);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(state.marquee.is_some(), "the gesture is still running");
+        assert!(!output.shapes.is_empty(), "the band is painted");
+
+        // Release: the band goes, the selection stays.
+        let input = egui::RawInput {
+            events: vec![egui::Event::PointerButton {
+                pos: pos2(120.0, 120.0),
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..egui::RawInput::default()
+        };
+        let mut output = ctx.run_ui(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let rect = ui.max_rect();
+                marquee(ui, &mut state, &tokens, rect);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(state.marquee.is_none(), "releasing ends the drag");
+        assert!(!state.selection.is_empty(), "and the selection it made stays");
     }
 
     /// Click, ⌘-click and ⇧-click are three different gestures, and each has to leave the inspector sane.
