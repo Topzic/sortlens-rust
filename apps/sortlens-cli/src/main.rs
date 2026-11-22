@@ -28,6 +28,8 @@ Commands:
   untag <id> <keyword>      remove a keyword
   suggest <id>              what the file's own EXIF suggests
   accept <id> <keyword>     accept one of those suggestions
+  packs                     keyword packs found in the library
+  pack <name> on|off        switch a pack on or off
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
   mcp                       serve the command registry over MCP on stdio, then exit
@@ -97,6 +99,31 @@ fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(),
             apply_keyword(engine, id, keyword, command == "tag")?;
         }
     }
+    Ok(())
+}
+
+/// List the keyword packs in the library, or switch one on or off.
+fn packs(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(), String> {
+    if command == "packs" {
+        let found = engine.packs();
+        if found.is_empty() {
+            println!("no packs installed");
+        }
+        for pack in found {
+            let state = if pack.enabled { "on " } else { "off" };
+            println!("{state}  {}", pack.line());
+        }
+        return Ok(());
+    }
+    let name = rest.first().ok_or("a pack name is required")?;
+    let on = match rest.get(1).map(String::as_str) {
+        Some("on") => true,
+        Some("off") => false,
+        _ => return Err("say on or off".into()),
+    };
+    let changed = engine.set_pack(name, on).map_err(|error| error.to_string())?;
+    let verb = if changed { "switched" } else { "already" };
+    println!("{name}: {verb} {}", if on { "on" } else { "off" });
     Ok(())
 }
 
@@ -418,6 +445,7 @@ fn run() -> Result<(), String> {
         // command table stays a table.
         "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
         "suggest" | "accept" => suggestions(&mut engine, &command, rest),
+        "packs" | "pack" => packs(&mut engine, &command, rest),
         "keywords" => {
             let vocabulary = engine.tag_vocabulary();
             if vocabulary.is_empty() {

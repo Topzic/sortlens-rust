@@ -237,6 +237,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "packs.list",
+                    label: "Keyword Packs",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Keyword Packs",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "packs.set",
+                    label: "Switch a Keyword Pack On or Off",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Switch a Keyword Pack On or Off",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "suggest.list",
                     label: "Suggest Keywords",
                     group: Group::Organise,

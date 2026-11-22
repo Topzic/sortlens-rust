@@ -1444,18 +1444,49 @@ impl Engine {
     /// high ISO and a slow shutter are all in the EXIF. Every suggestion is a proposal — nothing is
     /// written until [`Engine::accept_suggestion`] is called.
     pub fn suggestions(&self, id: PhotoId) -> Vec<Suggestion> {
+        let packs = self.enabled_pack_rules();
         match self.photo(id) {
-            Some(photo) => suggestions_for(photo, &sortlens_ai::Caps::default()),
+            Some(photo) => suggestions_for(photo, &packs, &sortlens_ai::Caps::default()),
             None => Vec::new(),
         }
     }
 
+    /// The rules of every switched-on pack, parsed and ready. Unreadable packs are simply absent here:
+    /// [`Engine::packs`] is where their problem is reported.
+    fn enabled_pack_rules(&self) -> Vec<sortlens_ai::Pack> {
+        self.packs()
+            .into_iter()
+            .filter(|summary| summary.enabled)
+            .filter_map(|summary| summary.pack)
+            .collect()
+    }
+
+    /// One keyword pack as the library sees it: what it is, and whether it is switched on.
+    ///
+    /// A pack whose file could not be read is reported with its problem rather than being dropped —
+    /// someone who copied a pack with a typo needs to be told which file and what is wrong.
+    pub fn packs(&self) -> Vec<PackSummary> {
+        let enabled = self
+            .catalog
+            .as_ref()
+            .map(|catalog| catalog.enabled_packs().clone())
+            .unwrap_or_default();
+        load_packs(self.dir.as_deref(), &enabled)
+    }
+
+    /// Switch a keyword pack on or off, through the op log so it persists and undoes.
+    pub fn set_pack(&mut self, name: &str, on: bool) -> Result<bool> {
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        catalog.set_pack(name, on)
+    }
+
     /// Suggested keywords for several photos at once, for a panel that shows a selection.
     pub fn suggestions_for_all(&self, ids: &[PhotoId]) -> Vec<(PhotoId, Vec<Suggestion>)> {
+        let packs = self.enabled_pack_rules();
         ids.iter()
             .filter_map(|id| {
                 self.photo(*id)
-                    .map(|photo| (*id, suggestions_for(photo, &sortlens_ai::Caps::default())))
+                    .map(|photo| (*id, suggestions_for(photo, &packs, &sortlens_ai::Caps::default())))
             })
             .collect()
     }
@@ -2487,6 +2518,35 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a move id is required".into()))?;
                 Ok(json!({ "restored": self.undo_move(id)? }))
             }
+            "packs.list" => {
+                let packs: Vec<Value> = self
+                    .packs()
+                    .iter()
+                    .map(|pack| {
+                        json!({
+                            "name": pack.name,
+                            "file": pack.file,
+                            "licence": pack.licence,
+                            "keywords": pack.keywords,
+                            "enabled": pack.enabled,
+                            "problem": pack.problem,
+                        })
+                    })
+                    .collect();
+                let folder = self.dir.as_ref().map(|dir| dir.join(PACKS_DIR).display().to_string());
+                Ok(json!({ "packs": packs, "folder": folder }))
+            }
+            "packs.set" => {
+                let name = args
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a pack name is required".into()))?;
+                let on = args
+                    .get("on")
+                    .and_then(Value::as_bool)
+                    .ok_or_else(|| Error::Invalid("on is required, true or false".into()))?;
+                Ok(json!({ "changed": self.set_pack(name, on)? }))
+            }
             "suggest.list" => {
                 let ids = ids_from(args)?;
                 let photos: Vec<Value> = self
@@ -2921,9 +2981,108 @@ fn collection_id_from(args: &Value) -> Result<u32> {
 ///
 /// Kept free-standing and pure so it can be tested against a constructed `Photo` — scanning a fixture
 /// JPEG cannot produce EXIF, and a test that needs a camera in the file would be a test of the scanner.
-fn suggestions_for(photo: &Photo, caps: &sortlens_ai::Caps) -> Vec<Suggestion> {
+fn suggestions_for(photo: &Photo, packs: &[sortlens_ai::Pack], caps: &sortlens_ai::Caps) -> Vec<Suggestion> {
     let hints = sortlens_ai::Hints::new(&photo.camera, &photo.lens, photo.iso, photo.shutter, photo.focal);
-    sortlens_ai::merge(&sortlens_ai::hints(&hints), &photo.tags, *caps)
+    let mut candidates = sortlens_ai::hints(&hints);
+    if !packs.is_empty() {
+        let context = sortlens_ai::PackContext {
+            folder: photo.rel.clone(),
+            camera: photo.camera.clone(),
+            lens: photo.lens.clone(),
+            iso: photo.iso,
+            focal: photo.focal,
+        };
+        for pack in packs {
+            candidates.extend(pack.candidates(&context));
+        }
+    }
+    sortlens_ai::merge(&candidates, &photo.tags, *caps)
+}
+
+/// Where pack files live inside a library.
+pub const PACKS_DIR: &str = "packs";
+
+/// Every pack file in a library, read or refused.
+///
+/// Never fails: a folder with no packs and a folder with a broken file are both answers, and the broken
+/// file comes back labelled with what is wrong. Nothing is switched off because a file was mistyped —
+/// that would silently drop keywords someone had been relying on.
+pub fn load_packs(dir: Option<&Path>, enabled: &std::collections::BTreeSet<String>) -> Vec<PackSummary> {
+    let Some(dir) = dir else {
+        return Vec::new();
+    };
+    let folder = dir.join(PACKS_DIR);
+    let Ok(entries) = std::fs::read_dir(&folder) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+            continue;
+        }
+        let file = path.file_name().and_then(|name| name.to_str()).unwrap_or("?").to_string();
+        match std::fs::read_to_string(&path) {
+            Ok(text) => match sortlens_ai::Pack::parse(&text) {
+                Ok(pack) => out.push(PackSummary {
+                    enabled: enabled.contains(&pack.name),
+                    name: pack.name.clone(),
+                    licence: pack.licence.clone(),
+                    keywords: pack.len(),
+                    file,
+                    problem: None,
+                    pack: Some(pack),
+                }),
+                Err(error) => out.push(PackSummary::broken(&file, error.to_string())),
+            },
+            Err(error) => out.push(PackSummary::broken(&file, error.to_string())),
+        }
+    }
+    out.sort_by(|left, right| left.name.cmp(&right.name).then_with(|| left.file.cmp(&right.file)));
+    out
+}
+
+/// One keyword pack, as listed in settings.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PackSummary {
+    /// The pack's name.
+    pub name: String,
+    /// What its words may be used under.
+    pub licence: String,
+    /// How many keywords it can propose.
+    pub keywords: usize,
+    /// The file it came from, for when it needs fixing.
+    pub file: String,
+    /// Whether the library has it switched on.
+    pub enabled: bool,
+    /// Why it could not be read, when it could not.
+    pub problem: Option<String>,
+    /// The parsed pack, absent when it could not be read.
+    pub pack: Option<sortlens_ai::Pack>,
+}
+
+impl PackSummary {
+    /// A pack file that could not be used.
+    fn broken(file: &str, problem: String) -> PackSummary {
+        PackSummary {
+            name: file.to_string(),
+            licence: String::new(),
+            keywords: 0,
+            file: file.to_string(),
+            enabled: false,
+            problem: Some(problem),
+            pack: None,
+        }
+    }
+
+    /// One line for the settings row.
+    #[must_use]
+    pub fn line(&self) -> String {
+        match &self.problem {
+            Some(problem) => format!("{}: {problem}", self.file),
+            None => format!("{} · {} keyword(s) · {}", self.name, self.keywords, self.licence),
+        }
+    }
 }
 
 fn ids_from(args: &Value) -> Result<Vec<PhotoId>> {
@@ -3110,7 +3269,7 @@ mod tests {
     #[test]
     fn a_photos_own_metadata_becomes_suggestions() {
         let photo = photo_with("Nikon Z6", "NIKKOR Z 24-70mm f/4 S", Some(6400), Some(2.0), Some(24.0), &[]);
-        let suggestions = suggestions_for(&photo, &sortlens_ai::Caps::default());
+        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default());
         let tags: Vec<&str> = suggestions.iter().map(|suggestion| suggestion.tag.as_str()).collect();
         // The merger ranks by score, then alphabetically — not in the order the rules fired.
         assert_eq!(
@@ -3131,7 +3290,7 @@ mod tests {
     #[test]
     fn a_keyword_the_photo_already_has_is_not_suggested_again() {
         let photo = photo_with("Nikon Z6", "", Some(6400), None, None, &["Nikon Z6"]);
-        let suggestions = suggestions_for(&photo, &sortlens_ai::Caps::default());
+        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default());
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].tag, "low light");
     }
@@ -3139,7 +3298,101 @@ mod tests {
     #[test]
     fn a_photo_with_no_metadata_gets_no_suggestions() {
         let photo = photo_with("", "", None, None, None, &[]);
-        assert!(suggestions_for(&photo, &sortlens_ai::Caps::default()).is_empty());
+        assert!(suggestions_for(&photo, &[], &sortlens_ai::Caps::default()).is_empty());
+    }
+
+    #[test]
+    fn a_pack_on_disk_is_listed_switched_on_and_survives_a_restart() {
+        let dir = std::env::temp_dir().join(format!("sortlens-engine-packs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(PACKS_DIR)).expect("packs dir");
+        std::fs::write(
+            dir.join(PACKS_DIR).join("travel.json"),
+            r#"{"name":"Travel","licence":"CC0-1.0","keywords":[{"keyword":"japan","when":{"folder_contains":"Japan"}}]}"#,
+        )
+        .expect("write pack");
+        std::fs::write(dir.join(PACKS_DIR).join("broken.json"), "{ nocode").expect("write broken");
+
+        let mut engine = Engine::open(&dir).expect("open");
+        let listed = engine.packs();
+        assert_eq!(listed.len(), 2, "a broken file is listed, not hidden");
+        let travel = listed.iter().find(|pack| pack.name == "Travel").expect("travel");
+        assert_eq!(travel.keywords, 1);
+        assert_eq!(travel.licence, "CC0-1.0");
+        assert!(!travel.enabled, "a pack is off until it is switched on");
+        let broken = listed.iter().find(|pack| pack.name == "broken.json").expect("broken");
+        assert!(broken.problem.as_deref().is_some_and(|problem| !problem.is_empty()));
+        assert!(broken.line().contains("broken.json"));
+
+        assert!(engine.set_pack("Travel", true).expect("enable"));
+        assert!(engine.packs().iter().find(|pack| pack.name == "Travel").expect("travel").enabled);
+        drop(engine);
+
+        let engine = Engine::open(&dir).expect("reopen");
+        assert!(
+            engine.packs().iter().find(|pack| pack.name == "Travel").expect("travel").enabled,
+            "the switch is in the log, so it survives a restart"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_enabled_pack_adds_keywords_for_a_photo_in_the_folder_it_names() {
+        let photo = photo_with("", "", None, None, None, &[]);
+        let pack = sortlens_ai::Pack::parse(
+            r#"{"name":"Travel","licence":"CC0-1.0","keywords":[{"keyword":"japan","when":{"folder_contains":"Japan"}}]}"#,
+        )
+        .expect("parse");
+        let mut in_japan = photo.clone();
+        in_japan.rel = "Trips/Japan/DSC1.jpg".to_string();
+        assert!(suggestions_for(&photo, std::slice::from_ref(&pack), &sortlens_ai::Caps::default()).is_empty());
+        let suggested = suggestions_for(&in_japan, std::slice::from_ref(&pack), &sortlens_ai::Caps::default());
+        assert_eq!(suggested.len(), 1);
+        assert_eq!(suggested[0].tag, "japan");
+        assert_eq!(suggested[0].source, sortlens_ai::Source::Pack);
+    }
+
+    #[test]
+    fn the_pack_commands_list_and_switch_a_pack() {
+        let dir = std::env::temp_dir().join(format!("sortlens-engine-packcmds-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(PACKS_DIR)).expect("packs dir");
+        std::fs::write(
+            dir.join(PACKS_DIR).join("travel.json"),
+            r#"{"name":"Travel","licence":"CC0-1.0","keywords":[{"keyword":"japan","when":{"folder_contains":"Japan"}}]}"#,
+        )
+        .expect("write pack");
+        let mut engine = Engine::open(&dir).expect("open");
+
+        let listed = engine.run("packs.list", &json!({})).expect("list");
+        assert_eq!(listed["packs"][0]["name"], json!("Travel"));
+        assert_eq!(listed["packs"][0]["enabled"], json!(false));
+        assert_eq!(listed["packs"][0]["keywords"], json!(1));
+        assert_eq!(listed["packs"][0]["problem"], json!(null));
+
+        assert_eq!(
+            engine.run("packs.set", &json!({ "name": "Travel", "on": true })).expect("on")["changed"],
+            json!(true)
+        );
+        assert_eq!(
+            engine.run("packs.list", &json!({})).expect("list")["packs"][0]["enabled"],
+            json!(true)
+        );
+        assert_eq!(
+            engine.run("packs.set", &json!({ "name": "Travel", "on": true })).expect("again")["changed"],
+            json!(false),
+            "switching on a pack that is already on says it changed nothing"
+        );
+        // And the switch is in the op log, so it undoes.
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(
+            engine.run("packs.list", &json!({})).expect("list")["packs"][0]["enabled"],
+            json!(false)
+        );
+
+        assert!(engine.run("packs.set", &json!({ "name": "Travel" })).is_err(), "on is required");
+        assert!(engine.run("packs.set", &json!({ "on": true })).is_err(), "a name is required");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

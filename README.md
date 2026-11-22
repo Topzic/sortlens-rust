@@ -20,12 +20,14 @@ ArtCraft Craft Apps: native on macOS, Windows and Linux, in the same visual and 
 language as LightCraft, PhotoCraft and the rest of the suite, and drivable end to end by
 scripts and AI agents.
 
-> **Status: M0–M7 shipped.** A working local photo library: scanning and indexing, a virtualised
+> **Status: M0–M8 partially shipped.** A working local photo library: scanning and indexing, a virtualised
 > grid, filters and search, keywords with an alias registry, XMP sidecars, the cull machine with
 > gestures and zoom, collections, duplicate and colour matching, insights, memories, detail and
 > side-by-side compare, backup/restore, audit and compaction, one-writer locking, move with undo, and
-> a change viewer — all driven by one command registry that the CLI and an MCP server also speak.
-> The remaining milestones are M8 (AI and export), M9 (remote and automation) and M10 (release).
+> a change viewer, export to originals or JPEG, and keyword suggestions from the file's own EXIF plus
+> optional keyword packs — all driven by one command registry that the CLI and an MCP server also speak.
+> What M8 still lacks is a camera-*inference* session (a pinned detector would be a download, and no model
+> is pinned yet) and PNG/TIFF/WebP export. M9 (remote and automation) and M10 (release) are unstarted.
 > What is *not* built is named where it would be used, and in `docs/ROADMAP.md`.
 
 ## Read the plan
@@ -40,6 +42,7 @@ scripts and AI agents.
 | Fonts | egui's own faces by default; craft-fonts fallbacks when `CRAFT_FONTS_DIR` is set (see below) |
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Deep audit: getartcraft.com, craft-libs, craft-fonts, craft-extensions, rustup, and the Sortlens repo |
 | [`docs/BEHAVIOUR.md`](docs/BEHAVIOUR.md) | Normative contracts: cull states, delete modes, XMP, scan identity, previews, crash safety |
+| [`docs/PACKS.md`](docs/PACKS.md) | The keyword pack format: what a rule may match, what is refused, and why |
 
 ## What it will do
 

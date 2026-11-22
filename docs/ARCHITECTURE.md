@@ -496,7 +496,13 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   name that only repeats the camera is not suggested twice, and the output order is fixed so a scan
   order cannot reshuffle the panel. These are proposals like any other: the panel merges them, and only
   accepting one writes a keyword.
-- `Engine::suggestions` maps a `Photo` to `ai::Hints`, merges, and returns proposals; `suggest.list` and
+- `ai::packs` reads a pack from JSON: a name, a licence, and rules whose `when` conditions are ANDed
+  over the photo's folder, camera, lens, ISO and focal band. A rule with no conditions is refused,
+  because one typo would otherwise tag the whole library; an unknown `when` field is refused rather than
+  ignored. `Engine::packs` lists every file in `<library>/packs/` including the broken ones, and
+  `Catalog::set_pack` records the switch as an op, so it persists and undoes like anything else.
+- `Engine::suggestions` maps a `Photo` to `ai::Hints`, adds the enabled packs' candidates for that photo,
+  merges, and returns proposals; `suggest.list` and
   `suggest.accept` expose it, and the CLI has `suggest <id>` / `accept <id> <tag>`. Accepting goes
   through `Engine::set_tag`, so a suggestion becomes an ordinary `Tagged` op — in the log, in the
   history, and undone by the same `undo` as a keyword typed by hand. The detail view draws the list as a

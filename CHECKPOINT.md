@@ -1274,17 +1274,43 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   button's action is covered by the engine test and the app's handler by the compiler.
 - 400 tests; `cargo xtask ci`, `wasm`, `deny` and `snapshot` green.
 
+## 2026-11-21 — M8 (second half, part 5): keyword packs are data
+
+- `ai::packs`: a pack is JSON — a name, a licence, and rules whose `when` conditions (folder, camera,
+  lens, minimum ISO, focal band) are **ANDed**. The ones that would misbehave quietly are refused: a rule
+  with no conditions (one typo would tag the whole library), a blank name/licence/keyword, a pack with no
+  keywords, a band that is not `wide`/`normal`/`telephoto`, and — via `deny_unknown_fields` — a
+  misspelled condition, which is otherwise a condition that silently never matches.
+- "No value on the photo" is a non-match, not a wildcard: a photo with no ISO does not match `min_iso`,
+  and one with no focal length does not match a band. Pinned by tests.
+- `Catalog::set_pack`: the switch is an op (`SetPack`), so it persists across restarts, appears in the
+  history, and undoes; switching to the state it is already in changes nothing and does not spend the
+  undo level. Tested across two reopens, with the log being what carries it — the first version of that
+  test asserted a snapshot had carried it, which is not what happens (snapshots roll over every 256
+  records), so the assertion now says "one record in the log".
+- `Engine::packs` lists every file in `<library>/packs/`, **including the broken ones**, each with its
+  problem: a mistyped pack someone was relying on must say so rather than vanish. Enabled packs feed
+  `suggestions` through the same merger, so a pack keyword is a proposal like any other.
+- `packs.list`/`packs.set` commands, MCP examples (executed), `packs`/`pack <name> on|off` in the CLI,
+  a golden step, and Settings ▸ Keyword packs with a switch per pack and the licence beside it.
+- `docs/PACKS.md` documents the format, the table of what is refused and why, and what a pack cannot do.
+  `craft-flags` was deliberately not used: a boolean in the op log already persists and undoes, and a
+  flag crate would add a second place for the truth to live — recorded on the ROADMAP row.
+- **the golden test caught the same mistake twice**: slicing the CLI arms by index deleted the
+  `keywords` arm again, and `06 keywords` failed with `unknown command: keywords` before either commit
+  existed. Restored both times. The lesson is in the diff, not just in this file: the CLI match is
+  long, and a text slice that ends at the next arm is not a safe edit.
+- **not verified by hand**: the Settings rows in a window; no checkbox was clicked headlessly.
+- 413 tests; `ci` (exit 0), `wasm`, `deny`, `snapshot` green.
+
 ## Next
 
-M8's remaining unchecked rows, in this order:
+M8 has one row left that can be done without weights: **SL-F09, the batch suggest job** — a worker that
+walks the library computing hints (and enabled packs) for photos whose metadata has arrived, with the
+same progress/cancel/poll shape as the other jobs, writing nothing. Then M8's remaining rows (SL-F03
+part 2 `tract` session, SL-F04 embeddings) stay **blocked on a pinned model file** and must be moved out
+of the exit condition rather than left as a trap: rewrite them as "needs weights, deliberately absent"
+and note it in README, so the milestone can be called done honestly.
 
-1. **Packs as data** (SL-F07/F08): a keyword pack as a small TOML/JSON file on disk with a name, a
-   licence and its keywords; counts in the suggestion panel; a toggle per pack that lives in the op log
-   so it survives a restart and is undoable. This is data plus a settings surface, not a model.
-2. **Batch suggest job** (SL-F09): a worker that walks the library computing hints for photos whose
-   metadata has arrived, with progress and cancel like the other jobs — it must not write.
-3. `source = Ai` in the filter only if a per-tag provenance is worth the schema change; otherwise say
-   in ROADMAP that suggestions are visible per photo and not filterable, and leave it.
-
-M9 (remote + automation) and M10 (release) are still entirely unstarted, so M8 should not take more
-than one or two more runs before moving on to them.
+After that: M9 (remote + automation) then M10 (release), then the M0 debt pass. Both are large; the loop
+should stop splitting M8 further once the batch job lands.

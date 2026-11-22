@@ -225,6 +225,10 @@ and recover; export/import a library onto a second machine and remap the volume.
 
 ## M8 — AI + export · 2.5 w · tracks D,A
 
+**State:** export and the whole no-model half of tagging are in — manifest, store, NMS, label map, EXIF
+hints, packs, suggestion panel, accept-and-undo. What is missing is a pinned model and the inference
+session that would use it, and the embedding packs; both need weights this repository does not ship.
+
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
   and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
   — SL-F01; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
@@ -243,7 +247,15 @@ and recover; export/import a library onto a second machine and remap the volume.
   — SL-F06 part 2
 - [ ] `source = Ai` in the keyword filter — the panel records what a keyword came from only in its own
   row today; the filter needs a per-tag source in the catalog, which is a schema change (D)
-- [ ] Packs as data + counts in settings + toggles (`craft-flags`) (D,B) — SL-F07/F08
+- [x] Packs as data: a JSON file per pack with a name, a licence and rules (`folder_contains`,
+  `camera_contains`, `lens_contains`, `min_iso`, `focal_band`, all ANDed), read from `<library>/packs/`,
+  refused when a rule has no conditions or a band does not exist, listed with its problem when a file is
+  broken; counts and a switch per pack in Settings, the switch an op-log entry so it persists and undoes;
+  `packs`/`pack <name> on|off` in the CLI, `packs.list`/`packs.set` for MCP, and `docs/PACKS.md` (D,B)
+  — SL-F07/F08
+- [x] Pack rules feed the same merger, so an enabled pack's keywords appear as proposals and only an
+  acceptance writes one — `craft-flags` was not needed: a boolean in the op log already persists and
+  undoes, and a feature-flag crate would add a second place for the truth to live (D)
 - [ ] Batch suggest job (D) — SL-F09
 - [x] No-network assertion for `sortlens-ai`: a source scan for socket APIs and a dependency scan for
   HTTP clients, both proved to fail on a planted hit (D) — SL-F10

@@ -41,6 +41,11 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
     ("photo.setCaptured", "changes: [{ id, captured }], captured in Unix seconds or null"),
     ("photo.reveal", "id: one photo; returns the command to run, does not run it"),
     ("photo.open", "id: one photo; returns the command to run, does not run it"),
+    (
+        "packs.list",
+        "no arguments; the keyword packs in the library, with their licence and switch state",
+    ),
+    ("packs.set", "name: the pack; on: true or false"),
     ("suggest.list", "ids: photos; each photo's keyword suggestions from its own EXIF"),
     ("suggest.accept", "id: one photo; tag: a suggestion to write as an ordinary keyword"),
     ("app.quit", "no arguments; asks the host to close the window"),
@@ -288,6 +293,16 @@ pub const EXAMPLES: &[Example] = &[
         command: "view.similar",
         args: "{}",
         note: "The groups found so far.",
+    },
+    Example {
+        command: "packs.list",
+        args: "{}",
+        note: "no arguments; the keyword packs in the library, with their licence and switch state",
+    },
+    Example {
+        command: "packs.set",
+        args: r#"{"name": "Travel", "on": true}"#,
+        note: "name: the pack; on: true or false",
     },
     Example {
         command: "suggest.list",

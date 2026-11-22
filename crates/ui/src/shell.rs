@@ -132,6 +132,8 @@ pub enum Action {
     Export(Vec<PhotoId>, sortlens_engine::ExportSpec),
     /// Accept a suggested keyword, which the host writes through the ordinary tag op.
     AcceptSuggestion(PhotoId, String),
+    /// Switch a keyword pack on or off.
+    SetPack(String, bool),
 }
 
 /// What Apply does with rejected photos.
@@ -4205,6 +4207,10 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                     .color(t.text_faint),
             );
             ui.add_space(8.0);
+            ui.separator();
+            ui.label(RichText::new("Keyword packs").size(11.0).color(t.text_muted));
+            keyword_packs(ui, t, engine, actions);
+            ui.add_space(8.0);
             ui.label(
                 RichText::new("More settings arrive with the features they configure.")
                     .size(11.0)
@@ -4212,6 +4218,44 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             );
         });
     state.settings_open = open;
+}
+
+/// The keyword packs found in the library, each with a switch.
+///
+/// A pack is a file someone wrote; this row shows how many keywords it can propose and the licence those
+/// words come under, because a keyword's provenance is the reason to trust it. A file that cannot be read
+/// is shown with its problem instead of vanishing, so a typo is fixable from here.
+fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
+    let packs = engine.packs();
+    if packs.is_empty() {
+        ui.label(RichText::new("No packs installed.").size(10.5).color(t.text_faint));
+        ui.label(
+            RichText::new("Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.")
+                .size(10.5)
+                .color(t.text_faint),
+        );
+        return;
+    }
+    for pack in packs {
+        match &pack.problem {
+            Some(problem) => {
+                ui.label(RichText::new(format!("{}: {problem}", pack.file)).size(10.5).color(t.reject));
+            }
+            None => {
+                let mut on = pack.enabled;
+                let response = ui.checkbox(&mut on, pack.name.as_str());
+                if response.changed() {
+                    actions.push(Action::SetPack(pack.name.clone(), on));
+                }
+                response.on_hover_text(pack.licence.clone());
+                ui.label(
+                    RichText::new(format!("{} keyword(s) · {}", pack.keywords, pack.licence))
+                        .size(10.0)
+                        .color(t.text_faint),
+                );
+            }
+        }
+    }
 }
 
 fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
@@ -4600,6 +4644,49 @@ mod tests {
         });
         output.textures_delta.clear();
         assert!(state.export_receipt.is_some(), "the receipt waits for the user");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The packs row has to survive three real states: no packs at all, a pack switched off, and a
+    /// pack file someone mistyped — the last one must name the file rather than disappear.
+    #[test]
+    fn the_keyword_pack_rows_paint_with_none_off_and_broken() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-packs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("packs")).expect("packs dir");
+
+        // No packs: the row explains where they go instead of showing an empty list.
+        let engine = Engine::open(&dir).expect("open");
+        let mut actions = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                keyword_packs(ui, &tokens, &engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "nothing can be switched without a pack");
+
+        // One good pack (off) and one broken file.
+        std::fs::write(
+            dir.join("packs").join("travel.json"),
+            r#"{"name":"Travel","licence":"CC0-1.0","keywords":[{"keyword":"japan","when":{"folder_contains":"Japan"}}]}"#,
+        )
+        .expect("write");
+        std::fs::write(dir.join("packs").join("typo.json"), "{ nope").expect("write");
+        let engine = Engine::open(&dir).expect("open");
+        let mut actions = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                keyword_packs(ui, &tokens, &engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "a checkbox that is not clicked asks for nothing");
+        assert_eq!(engine.packs().len(), 2, "both are listed, one with its problem");
+        assert!(engine.packs().iter().any(|pack| pack.problem.is_some()));
 
         let _ = std::fs::remove_dir_all(&dir);
     }

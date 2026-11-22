@@ -60,6 +60,9 @@ pub enum Op {
     SetCollectionSort { id: CollectionId, sort: Option<String> },
     /// The search a collection was last narrowed with was remembered.
     SetCollectionSearch { id: CollectionId, search: Option<String> },
+    /// A keyword pack was switched on or off. Packs are vocabulary files, so the log records only the
+    /// switch — the words live on disk where someone can read them.
+    SetPack { name: String, on: bool },
     /// Several operations that must undo together, such as applying a cull batch.
     Group { ops: Vec<Op> },
 }
@@ -90,6 +93,7 @@ impl Op {
             Self::SetCollectionFavourite { .. } => "setCollectionFavourite",
             Self::SetCollectionSort { .. } => "setCollectionSort",
             Self::SetCollectionSearch { .. } => "setCollectionSearch",
+            Self::SetPack { .. } => "setPack",
             Self::Group { .. } => "group",
         }
     }
@@ -113,7 +117,8 @@ impl Op {
             | Self::SetCollectionColour { .. }
             | Self::SetCollectionFavourite { .. }
             | Self::SetCollectionSort { .. }
-            | Self::SetCollectionSearch { .. } => false,
+            | Self::SetCollectionSearch { .. }
+            | Self::SetPack { .. } => false,
             Self::Rate { changes } => changes.is_empty(),
             Self::Flag { changes } => changes.is_empty(),
             Self::Captured { changes } => changes.is_empty(),
@@ -187,6 +192,8 @@ impl Op {
             }
             Self::SetCollectionSort { .. } => "Changed a collection's sort".to_string(),
             Self::SetCollectionSearch { .. } => "Changed a collection's search".to_string(),
+            Self::SetPack { name, on: true } => format!("Switched on the “{name}” keyword pack"),
+            Self::SetPack { name, on: false } => format!("Switched off the “{name}” keyword pack"),
             Self::Group { ops } => match ops.first() {
                 Some(first) => {
                     if ops.len() == 1 {

@@ -217,6 +217,11 @@ const STEPS: &[Step] = &[
         args: &[],
         file: Some("snapshot.json"),
     },
+    Step {
+        name: "36 packs",
+        args: &["packs"],
+        file: None,
+    },
 ];
 
 fn golden_dir() -> PathBuf {

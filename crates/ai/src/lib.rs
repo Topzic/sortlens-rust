@@ -22,6 +22,7 @@ pub mod hints;
 pub mod manifest;
 #[cfg(test)]
 mod no_network;
+pub mod packs;
 pub mod sha256;
 pub mod store;
 pub mod suggest;
@@ -29,6 +30,7 @@ pub mod suggest;
 pub use detect::{Box, Detection, LabelMap, suppress};
 pub use hints::{Hints, focal_band, hints};
 pub use manifest::{Manifest, Model, ModelKind};
+pub use packs::{Context as PackContext, Pack, PackError, Rule as PackRule, When as PackWhen};
 pub use sha256::Digest;
 pub use store::{Install, Status, Store};
 pub use suggest::{Candidate, Caps, Source, Suggestion, merge, summary};

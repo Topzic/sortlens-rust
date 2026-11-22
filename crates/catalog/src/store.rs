@@ -18,7 +18,7 @@ use crate::query::{Filter, Page, Sort, TagOrder};
 use serde::{Deserialize, Serialize};
 use sortlens_core::{CollectionId, ColorLabel, Error, Flag, MediaKind, PhotoId, Result, Review};
 use sortlens_meta::PhotoMeta;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -96,6 +96,10 @@ struct Snapshot {
     /// Next collection id, defaulted for older snapshots.
     #[serde(default)]
     next_collection: u32,
+    /// Keyword packs switched on, by name. The packs themselves live in files; the log records only
+    /// which ones the library is using.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    packs: BTreeSet<String>,
     /// The inverse of the last applied operation, so undo survives a snapshot rollover. Absent in
     /// older snapshots, which simply reopen with nothing to undo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -138,6 +142,7 @@ pub struct Catalog {
     roots: Vec<String>,
     collections: BTreeMap<CollectionId, Collection>,
     aliases: BTreeMap<String, String>,
+    packs: BTreeSet<String>,
     next_collection: u32,
     next_id: u64,
     seq: u64,
@@ -184,6 +189,7 @@ impl Catalog {
         let mut next_collection = 1u32;
         let mut collections: BTreeMap<CollectionId, Collection> = BTreeMap::new();
         let mut aliases: BTreeMap<String, String> = BTreeMap::new();
+        let mut packs: BTreeSet<String> = BTreeSet::new();
         let mut seq = 0u64;
         // The snapshot carries the last inverse; log records that replay after it take precedence.
         let mut restore_undo: Option<Op> = None;
@@ -209,6 +215,7 @@ impl Catalog {
                             .map(|collection| (collection.id, collection))
                             .collect();
                         aliases = snapshot.aliases;
+                        packs = snapshot.packs;
                         report.snapshot_seq = seq;
                         restore_undo = snapshot.undo;
                     }
@@ -232,6 +239,7 @@ impl Catalog {
                 roots,
                 collections,
                 aliases,
+                packs,
                 next_collection,
                 next_id,
                 seq,
@@ -311,6 +319,7 @@ impl Catalog {
                 roots,
                 collections,
                 aliases,
+                packs,
                 next_collection,
                 next_id,
                 seq,
@@ -576,6 +585,24 @@ impl Catalog {
     }
 
     /// Pin or unpin a collection.
+    /// Switch a keyword pack on or off. A pack that is already in that state changes nothing, so the
+    /// undo level is not spent on a no-op.
+    pub fn set_pack(&mut self, name: &str, on: bool) -> Result<bool> {
+        if self.packs.contains(name) == on {
+            return Ok(false);
+        }
+        self.commit(Op::SetPack {
+            name: name.to_string(),
+            on,
+        })
+        .map(|()| true)
+    }
+
+    /// The keyword packs this library has switched on.
+    pub fn enabled_packs(&self) -> &BTreeSet<String> {
+        &self.packs
+    }
+
     pub fn set_collection_favourite(&mut self, id: CollectionId, favourite: bool) -> Result<()> {
         if self.collections.get(&id).map(|collection| collection.favourite) == Some(favourite) {
             return Ok(());
@@ -951,6 +978,18 @@ impl Catalog {
                 collection.sort = sort.clone();
                 Ok(Op::SetCollectionSort { id: *id, sort: previous })
             }
+            Op::SetPack { name, on } => {
+                let previous = self.packs.contains(name);
+                if *on {
+                    self.packs.insert(name.clone());
+                } else {
+                    self.packs.remove(name);
+                }
+                Ok(Op::SetPack {
+                    name: name.clone(),
+                    on: previous,
+                })
+            }
             Op::SetCollectionSearch { id, search } => {
                 let collection = self.collections.get_mut(id).ok_or(Error::NoSuchCollection(*id))?;
                 let previous = collection.search.clone();
@@ -1205,6 +1244,7 @@ impl Catalog {
             photos: self.photos.values().cloned().collect(),
             collections: self.collections.values().cloned().collect(),
             aliases: self.aliases.clone(),
+            packs: self.packs.clone(),
             next_collection: self.next_collection,
             undo: self.undo.last().cloned(),
         };
@@ -1574,6 +1614,37 @@ mod tests {
         assert!(catalog.undo().expect("undo"));
         let trip_now = catalog.collections().into_iter().find(|item| item.id == trip).expect("trip");
         assert_eq!(trip_now.colour, None, "clearing the colour is its own inverse");
+    }
+
+    #[test]
+    fn a_switched_on_pack_survives_a_restart_and_undoes_like_anything_else() {
+        let temp = TempCatalog::new("packs");
+        {
+            let (mut catalog, _) = temp.open();
+            assert!(catalog.enabled_packs().is_empty());
+            assert!(catalog.set_pack("Travel", true).expect("enable"));
+            assert!(
+                !catalog.set_pack("Travel", true).expect("again"),
+                "switching on a pack that is already on changes nothing"
+            );
+            assert!(catalog.enabled_packs().contains("Travel"));
+        }
+        {
+            let (mut catalog, report) = temp.open();
+            assert_eq!(report.replayed, 1, "the switch is one record in the log, not a snapshot");
+            assert!(catalog.enabled_packs().contains("Travel"), "the switch is remembered");
+            assert!(catalog.undo().expect("undo"));
+            assert!(catalog.enabled_packs().is_empty(), "undo switches it off again");
+            assert!(
+                !catalog.set_pack("Travel", false).expect("off again"),
+                "switching off a pack that is already off changes nothing"
+            );
+            assert!(catalog.set_pack("Travel", true).expect("redone"), "and can be switched on again");
+        }
+        {
+            let (catalog, _) = temp.open();
+            assert!(catalog.enabled_packs().contains("Travel"));
+        }
     }
 
     #[test]

@@ -245,6 +245,14 @@ impl App {
                     }
                 }
             }
+            Action::SetPack(name, on) => match self.engine.set_pack(&name, on) {
+                Ok(true) => {
+                    let verb = if on { "Switched on" } else { "Switched off" };
+                    self.ui.notice(format!("{verb} the “{name}” pack"));
+                }
+                Ok(false) => {}
+                Err(error) => self.ui.notice(error.to_string()),
+            },
             Action::AcceptSuggestion(id, tag) => match self.engine.accept_suggestion(id, &tag) {
                 Ok(true) => self.ui.notice(format!("Tagged “{tag}”")),
                 Ok(false) => self.ui.notice(format!("Already tagged “{tag}”")),
