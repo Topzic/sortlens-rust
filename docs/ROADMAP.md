@@ -225,14 +225,17 @@ and recover; export/import a library onto a second machine and remap the volume.
 
 ## M8 — AI + export · 2.5 w · tracks D,A
 
-- [ ] Model manifest + content-addressed store + digest verify (D) — SL-F01/F02
+- [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
+  and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
+  — SL-F01; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
 - [ ] `tract` detector session + NMS + label map (D) — SL-F03
 - [ ] Image/text embedding sessions + precomputed pack prompts (D) — SL-F04
 - [ ] EXIF hint rules (D) — SL-F05
 - [ ] Suggestion merger + caps + UI panel + accept → tag (D,B) — SL-F06
 - [ ] Packs as data + counts in settings + toggles (`craft-flags`) (D,B) — SL-F07/F08
 - [ ] Batch suggest job (D) — SL-F09
-- [ ] No-network assertion test for `sortlens-ai` (D) — SL-F10
+- [x] No-network assertion for `sortlens-ai`: a source scan for socket APIs and a dependency scan for
+  HTTP clients, both proved to fail on a planted hit (D) — SL-F10
 - [x] Export: original copies and JPEG re-encodes, longest-edge resize, quality, EXIF/IPTC carried
   forward, four collision policies, worker progress and cancel, a dialog and a receipt (A) — SL-B24
 - [ ] Export PNG/TIFF/WebP — needs an encoder this workspace does not have yet; the dialog offers only

@@ -43,7 +43,7 @@ L1  sortlens-meta        craft-metadata → neutral PhotoMeta
     sortlens-media       format routing, embedded previews, video posters
     sortlens-sidecar     XMP read/merge/write
     sortlens-geo         gazetteer, clustering, projection
-    sortlens-ai          model store + inference (feature-gated)
+    sortlens-ai          model manifest, content-addressed store, digest verification (inference: next)
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
     sortlens-quality     sharpness, exposure, clipping metrics
@@ -475,9 +475,18 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   Adding a pack is a JSON file, not a code change.
 - Accepting a suggestion is the only way an AI tag enters the catalog, so the library never
   fills with machine guesses the user did not ask for.
-- `sortlens-ai` has no network code. Downloads are in `sortlens-engine`'s `model.install`
-  job, which is the single audited place that fetches bytes, and it verifies the digest
-  before the file becomes visible to the inference path.
+- `sortlens-ai` has no network code, and `crates/ai/src/no_network.rs` checks that rather than
+  trusting review: a source scan for socket APIs and a dependency scan for HTTP clients, both proved
+  to fail on a planted hit. The plan is that downloads live in `sortlens-engine`'s `model.install`
+  job — the single audited place that fetches bytes — and verify the digest before the file becomes
+  visible to the inference path. Neither the job nor the downloader exists yet.
+- As built: `manifest::Manifest` (id, kind, licence, SHA-256, size, optional input edge) parsed from
+  JSON with a newer schema refused and a missing digest or licence treated as an error;
+  `store::Store` names each file after its digest, verifies size then digest before anything is
+  written, writes through `.incoming` and re-verifies the bytes that landed before renaming; a file
+  that fails verification is reported and **left alone**, because it may be someone's download in
+  progress, and `remove()` refuses to delete what it cannot identify. The shipped manifest is empty:
+  no model has been chosen, pinned and licensed for redistribution, so there is nothing to describe.
 
 ## 10. Remote and web
 

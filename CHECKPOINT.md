@@ -1170,11 +1170,39 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   "Choose folder…" in front of a person.
 - 336 tests, `cargo xtask ci` green, `cargo xtask wasm` green.
 
+## 2026-11-21 — M8 (second half, part 1): the model store, and the promise it cannot reach the net
+
+- `crates/ai` is no longer a scaffold. Three modules, no inference and no downloader — both stated in
+  the crate docs so nobody assumes the other half exists.
+- `sha256`: its own implementation rather than a dependency, checked against every FIPS vector
+  (empty, `abc`, the 56-byte two-block case, the 64-byte aligned case, 1000 bytes), cross-checked
+  against Python's `hashlib` while writing it, plus hex round-trip and a one-bit-change test.
+- `manifest`: `Model { id, label, kind, licence, sha256, bytes, url, input_edge }`, `ModelKind`
+  (Detector/Embedder/Captioner), `Manifest::parse` that refuses a newer schema and treats a missing
+  digest, a zero size or a blank licence as errors. `verify()` checks **size first** (free) then the
+  digest, and distinguishes a truncated file from a wrong one because the fixes differ.
+- `store`: files are named `<sha256>.<kind>`, so a model cannot be silently replaced and two models
+  cannot collide. `install` verifies in memory, writes `.incoming`, **reads it back and verifies
+  again** (a short write is what a full disk looks like), then renames. `remove` refuses to delete a
+  file it cannot identify — that file may be someone's download in progress.
+- the shipped manifest is **empty**, on purpose: no model has been chosen, pinned and licensed for
+  redistribution, so there is nothing to describe and no command or menu item was added. A settings
+  row that lists nothing is better than a "Suggest tags" button that cannot work.
+- `no_network.rs`: a source scan for socket APIs and a dependency scan for HTTP clients, proved to
+  bite by planting `std::net::TcpStream` in `lib.rs` — it failed with the file name and the symbol, and
+  was reverted. The file also carries a test that the scan *can* match real code, because a check that
+  cannot fail is not a check.
+- ROADMAP: the manifest/store row (SL-F01) and the no-network row (SL-F10) are ticked, with the
+  downloader (SL-F02) called out as unbuilt and unlisted; ARCHITECTURE's ai section describes what
+  exists and keeps the download plan clearly in the future tense.
+- 362 tests, `cargo xtask ci`, `wasm`, `deny` and `snapshot` green.
+
 ## Next
 
-M8, the AI half. Start with the parts that need no model download so the shape is right before a
-dependency arrives: a **model manifest** (id, licence, sha256, size, scripts) and a
-**content-addressed store** that verifies a digest before use, plus the **no-network assertion test**
-that `sortlens-ai` cannot open a socket. Then `tract` sessions, NMS and the label map, and finally the
-suggestion merger with caps and the review panel. `crates/ai` is still the M0 scaffold, so this starts
-from zero — say so in the entry rather than implying the manifest half exists.
+M8 continues with the detector path, which needs a model before a session can exist. Order that keeps
+the honesty rule: **first** the label map and non-maximum suppression as pure functions over tensors
+(testable with synthetic boxes, no model at all), **then** the `tract` session behind a feature flag so
+the default build stays dependency-light, **then** a real pinned model entry in `MANIFEST` with its
+licence and digest. Only after that: the suggestion merger with caps, and the review panel where
+accepting a suggestion is what writes a tag. If `tract` cannot be fetched or built in this environment,
+say so in the entry and ship the NMS/label half alone rather than half-wiring a session.
