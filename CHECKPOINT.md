@@ -862,6 +862,31 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 263 tests, CI and wasm green. Verified by hand: rename, retype the old name, registry showing
   `2 beach <- strand`, and the CLI naming the alias
 
+## 2026-11-21 — M7: the shortcut overlay and a wired keymap
+
+- new `crates/ui/src/keymap.rs`: the keymap as a table — `Binding { keys, action, context, command }`
+  over five contexts (Anywhere, Library, Detail, Cull, Compare), `search()`, `in_context()`, and a
+  header that says how many bindings the overlay lists
+- the overlay is `?` (or the sidebar "Shortcuts" row): a search field that takes focus on open, then
+  each context with a one-line note and keycap-aligned rows
+- **the table is checked against the command registry in both directions** — a binding that names a
+  command must agree with that command's declared shortcut and be ready, and every ready command with
+  a shortcut must appear in the table. It found four real drifts on its first run:
+  `library.importSidecars` does not exist (the id is `library.import`), `library.import` is still M1 so
+  Ctrl+Shift+I is not a live shortcut, `photo.flag` is declared `P / X` not `P`, and `cull.back` was
+  written `Left` where the overlay writes `←`
+- **the registry was claiming shortcuts the shell never handled.** `Ctrl+O`, `Ctrl+Shift+R`,
+  `Ctrl+Shift+N`, `Ctrl+Z`, `Ctrl+,`, `Ctrl+Q`, `Ctrl+Enter` and the `I`/`S`/`D`/`C` view keys are now
+  wired in `command_keyboard`, which consumes the press so the plain-key handlers behind it do not
+  also fire; the view letters are refused while the detail view or a cull session owns them, so `S`
+  still swaps a compare
+- colour labels get their keys: `6–9` for red, yellow, green, blue (pressing again clears), and `0`
+  stays "clear the rating" — `ColorLabel::KEYED` documents why purple is left off the row. The
+  registry's `6–0` was wrong and is now `6–9`
+- cli: `shortcuts` prints the bound commands (17 today) from the `app.shortcuts` command, so the
+  wiring is checkable without the GUI
+- 268 tests (5 keymap tests), CI and wasm green
+
 ## Next
 
-M7: shortcut overlay — a searchable list of every binding, so the keymap is discoverable.
+M7: memories — "on this day" and other resurfacing cards, built on the insights accumulator.

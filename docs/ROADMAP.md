@@ -43,7 +43,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [x] `craft-settings` v1 type, damaged-file notice, unknown-key preservation (A)
 - [x] Command registry skeleton; `Engine::run` returns typed errors (A)
 - [x] Commands: `app.about`, `app.settings`, `app.quit`, `app.supportReport`; 17 planned commands carry their milestone (A,B)
-- [ ] `app.shortcuts` dialog and `view.theme` as a command (A,B)
+- [x] `app.shortcuts` — the keymap table, the searchable overlay, and every command shortcut wired (A,B)
 - [x] Empty-library state (B)
 - [ ] CI: 3 OSes + wasm check + snapshot job (E) — 3 OSes and wasm are in; no snapshot job
 
@@ -130,7 +130,7 @@ scans headlessly and prints a JSON report.
 - [x] Sort keys: added/name/newest/oldest/largest/rating, persisted (B) — SL-B06
 - [x] Detail view: large canvas, counter, fit/1:1, arrow navigation, facts line (B) — SL-B18..B20
 - [x] Detail lookahead strip + 64-bin luminance histogram (B) — SL-B21
-- [ ] Shortcut overlay + full keymap wiring (B) — SL-B23
+- [x] Shortcut overlay + keymap wiring (B) — SL-B23: `crates/ui/src/keymap.rs` is the table, checked against the command registry in both directions
 - [ ] Undo/redo (20+) + audit log + viewer skeleton (A) — SL-D10/H04
 - [ ] `photo.reveal/open` (A) — SL-B22
 - [ ] Tests: XMP golden, filter algebra, stale revision, contrast of badges

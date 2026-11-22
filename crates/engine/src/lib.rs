@@ -2375,6 +2375,22 @@ impl Engine {
                     .collect();
                 Ok(json!({ "jobs": jobs }))
             }
+            "app.shortcuts" => {
+                let registry = command::Registry::v0();
+                Ok(json!({
+                    "count": registry.ready().filter(|command| command.shortcut.is_some()).count(),
+                    "bindings": registry
+                        .ready()
+                        .filter(|command| command.shortcut.is_some())
+                        .map(|command| json!({
+                            "id": command.id,
+                            "label": command.label,
+                            "keys": command.shortcut,
+                            "group": command.group.label(),
+                        }))
+                        .collect::<Vec<_>>(),
+                }))
+            }
             "app.about" => Ok(json!({
                 "name": "Sortlens",
                 "version": sortlens_core::VERSION,

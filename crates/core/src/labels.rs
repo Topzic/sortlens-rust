@@ -14,8 +14,14 @@ pub enum ColorLabel {
 }
 
 impl ColorLabel {
-    /// Every label, in shortcut order (6–0 on the number row above the letters).
+    /// Every label, in menu order.
     pub const ALL: [Self; 5] = [Self::Red, Self::Yellow, Self::Green, Self::Blue, Self::Purple];
+
+    /// The labels that carry a number key: 6–9, in that order.
+    ///
+    /// Purple is deliberately left off the number row: `0` is the "clear the rating" key that
+    /// Sortlens has always used, and a label on the same key would make one of them unreachable.
+    pub const KEYED: [Self; 4] = [Self::Red, Self::Yellow, Self::Green, Self::Blue];
 
     /// Stable lowercase name, used in the op log and in XMP.
     pub const fn id(self) -> &'static str {

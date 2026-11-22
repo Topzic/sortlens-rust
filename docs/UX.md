@@ -311,7 +311,7 @@ Everything in this bar is also a menu item and a command, so nothing is only-her
 | Dialog | Trigger | Contents |
 | --- | --- | --- |
 | Settings | `⌘,` | Left nav: General, Review, Appearance, Library, AI, Remote, Shortcuts, Updates, About |
-| Shortcuts | `?` / `⌘/` | Searchable table, click to rebind, conflict warning, import/export |
+| Shortcuts | `?` | Searchable table, grouped by mode; rebinding and import/export arrive with `craft-keymap` (M7+) |
 | Apply cull decisions | `Apply` | Mode, counts, size, file list, primary/secondary |
 | Delete permanently | second confirmation for the `Permanent` mode | Type-to-confirm, counts |
 | Export | selection | Format (original/JPEG/PNG), size, quality, metadata, destination, collision policy |

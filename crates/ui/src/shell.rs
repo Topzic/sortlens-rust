@@ -8,13 +8,14 @@
 //! through [`Engine`]; anything that changes the process (theme, folder picker, quit) is returned
 //! as an [`Action`] for the host to apply.
 
+use crate::keymap::{self, Context};
 use crate::theme::{ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
-    Align, Align2, Button, Color32, FontId, Frame, Key, Layout, Margin, Rect, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2,
-    pos2, vec2,
+    Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
+    Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
 };
-use sortlens_core::{Flag, MediaKind, PhotoId};
+use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
 use sortlens_cull::gesture::Gesture;
 use sortlens_engine::{Decision, Engine, Filter, Photo, Sort, TagOrder};
 
@@ -176,6 +177,10 @@ pub struct UiState {
     pub settings_open: bool,
     /// About dialog visibility.
     pub about_open: bool,
+    /// Shortcut overlay visibility.
+    pub shortcuts_open: bool,
+    /// Filter typed into the shortcut overlay.
+    pub shortcut_query: String,
     /// Selected photo.
     pub selected: Option<PhotoId>,
     /// Sidebar row for "All Photos".
@@ -286,6 +291,8 @@ impl UiState {
             title_inset,
             settings_open: false,
             about_open: false,
+            shortcuts_open: false,
+            shortcut_query: String::new(),
             selected: None,
             all_photos_selected: true,
             min_rating: 0,
@@ -494,6 +501,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if state.about_open {
         about_dialog(ui, state, &t, engine);
     }
+    if state.shortcuts_open {
+        shortcuts_dialog(ui, state, &t);
+    }
     if state.apply_open {
         apply_dialog(ui, state, &t, engine);
     }
@@ -700,6 +710,13 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             }
             if nav_row(ui, t, "Changes", "", false).clicked() {
                 state.history_open = true;
+            }
+            if nav_row(ui, t, "Shortcuts", "?", false)
+                .on_hover_text("Every binding, searchable")
+                .clicked()
+            {
+                state.shortcuts_open = true;
+                state.shortcut_query.clear();
             }
 
             nav_section(ui, t, "Folders");
@@ -1088,7 +1105,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
                 other => planned_view(ui, t, other),
             }
-            keyboard(ui, state, engine);
+            keyboard(ui, state, engine, actions);
         });
 }
 
@@ -1218,8 +1235,23 @@ fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32,
     response
 }
 
-fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
+fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
     if ui.memory(|memory| memory.focused()).is_some() {
+        return;
+    }
+    if command_keyboard(ui, state, engine, actions) {
+        return;
+    }
+    if state.shortcuts_open {
+        // The overlay owns Escape and the search field; nothing behind it should react to keys.
+        if ui.input(|input| input.key_pressed(Key::Escape) && state.shortcut_query.is_empty()) {
+            state.shortcuts_open = false;
+        }
+        return;
+    }
+    if ui.input(|input| input.key_pressed(Key::Questionmark) && !input.modifiers.command) {
+        state.shortcuts_open = true;
+        state.shortcut_query.clear();
         return;
     }
     if state.detail_open {
@@ -1247,6 +1279,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     };
 
     let mut rating = None;
+    let mut label = None;
     let mut flag = None;
     let mut keyword = false;
     let culling = engine.cull().is_some();
@@ -1261,6 +1294,17 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         ] {
             if input.key_pressed(key) && !input.modifiers.command {
                 rating = Some(stars);
+            }
+        }
+        for (key, colour) in [
+            (Key::Num6, ColorLabel::Red),
+            (Key::Num7, ColorLabel::Yellow),
+            (Key::Num8, ColorLabel::Green),
+            (Key::Num9, ColorLabel::Blue),
+        ] {
+            if input.key_pressed(key) && !input.modifiers.command {
+                // Pressing the same key again clears it, the way a toggle should.
+                label = Some(Some(colour));
             }
         }
         // In a cull session P/X/U belong to the session, which stages decisions instead of
@@ -1288,6 +1332,18 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         state.right_tab = RightTab::Tags;
         state.right_open = true;
         state.tag_focus = true;
+    }
+
+    if let Some(colour) = label {
+        let cleared = engine.photo(id).and_then(|photo| photo.label) == colour;
+        let wanted = if cleared { None } else { colour };
+        match engine.label(&[id], wanted) {
+            Ok(_) => state.notice(match wanted {
+                Some(colour) => format!("{} label", colour.label()),
+                None => "Cleared the label".to_string(),
+            }),
+            Err(error) => state.notice(error.to_string()),
+        }
     }
 
     if let Some(stars) = rating {
@@ -1653,6 +1709,97 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         }
         state.selected = Some(next);
     }
+}
+
+/// The modifier shortcuts the command registry promises. Returns whether one fired, so the plain
+/// key handlers behind it do not also react to the same press.
+fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) -> bool {
+    let detail_open = &state.detail_open;
+    let (open, rescan, undo, collection, settings, quit, apply, view) = ui.input_mut(|input| {
+        (
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::R)),
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z)),
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::N)),
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma)),
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Q)),
+            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Enter)),
+            // The view keys are only view keys when no modifier is held and no mode owns the letter:
+            // S swaps a compare and P/X judge a cull session, so those stay theirs.
+            if input.modifiers.command || *detail_open || engine.cull().is_some() {
+                None
+            } else if input.key_pressed(Key::I) {
+                Some(View::Insights)
+            } else if input.key_pressed(Key::S) {
+                Some(View::Similar)
+            } else {
+                None
+            },
+        )
+    });
+    if open {
+        actions.push(Action::PickFolder);
+        return true;
+    }
+    if rescan {
+        let root = state
+            .root
+            .clone()
+            .or_else(|| engine.counts_by_root().first().map(|(root, _)| root.clone()));
+        match root {
+            Some(root) => actions.push(Action::Rescan(root)),
+            None => state.notice("Add a folder before rescanning"),
+        }
+        return true;
+    }
+    if undo {
+        match engine.undo() {
+            Ok(true) => state.notice("Undid the last change"),
+            Ok(false) => state.notice("Nothing to undo"),
+            Err(error) => state.notice(error.to_string()),
+        }
+        return true;
+    }
+    if settings {
+        state.settings_open = true;
+        return true;
+    }
+    if quit {
+        state.quit_open = true;
+        return true;
+    }
+    if apply {
+        if engine.cull().is_some_and(|session| session.summary().rejects > 0) {
+            state.apply_open = true;
+        } else {
+            state.notice("Nothing staged: start a cull session and reject something first");
+        }
+        return true;
+    }
+    if let Some(view) = view {
+        state.view = view;
+        // A similar search needs hashes; asking for the view from a key should start the work.
+        if view == View::Similar && engine.similar_groups().is_empty() && engine.hash_progress().is_none() {
+            match engine.begin_similar(state.similar_threshold) {
+                Ok(0) => {}
+                Ok(queued) => state.notice(format!("Hashing {queued} previews")),
+                Err(error) => state.notice(error.to_string()),
+            }
+        }
+        return true;
+    }
+    if collection {
+        let name = format!("Collection {}", engine.collections().len() + 1);
+        match engine.create_collection(&name) {
+            Ok(id) => {
+                state.collection_filter = Some(id);
+                state.notice(format!("Created {name}"));
+            }
+            Err(error) => state.notice(error.to_string()),
+        }
+        return true;
+    }
+    false
 }
 
 /// Open a compare against the next photo in order, or close one that is open.
@@ -3795,6 +3942,85 @@ fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
             );
         });
     state.about_open = open;
+}
+
+/// Every shortcut, searchable, grouped by where it applies.
+fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
+    let mut open = state.shortcuts_open;
+    egui::Window::new("Keyboard shortcuts")
+        .open(&mut open)
+        .resizable(true)
+        .collapsible(false)
+        .default_width(430.0)
+        .max_height(560.0)
+        .show(ui.ctx(), |ui| {
+            let field = ui.add(
+                TextEdit::singleline(&mut state.shortcut_query)
+                    .hint_text("Search keys or actions")
+                    .desired_width(f32::INFINITY),
+            );
+            if !field.has_focus() && state.shortcut_query.is_empty() {
+                field.request_focus();
+            }
+            let matches = keymap::search(&state.shortcut_query);
+            let query = state.shortcut_query.trim();
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(if query.is_empty() {
+                    format!("{} bindings", keymap::len())
+                } else {
+                    format!("{} of {} bound", matches.len(), keymap::len())
+                })
+                .size(10.0)
+                .color(t.text_faint),
+            );
+            ui.separator();
+            egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
+                if matches.is_empty() {
+                    hint(ui, t, "Nothing is bound to that.");
+                    return;
+                }
+                for context in Context::ALL {
+                    let rows: Vec<&keymap::Binding> = matches.iter().copied().filter(|binding| binding.context == context).collect();
+                    if rows.is_empty() {
+                        continue;
+                    }
+                    ui.add_space(6.0);
+                    ui.label(RichText::new(context.label()).size(11.0).strong().color(t.text));
+                    ui.label(RichText::new(context.note()).size(9.5).color(t.text_faint));
+                    for binding in rows {
+                        keymap_row(ui, t, binding);
+                    }
+                }
+            });
+        });
+    state.shortcuts_open = open;
+}
+
+/// One keycap and its action, aligned so the keys form a column.
+fn keymap_row(ui: &mut Ui, t: &Tokens, binding: &keymap::Binding) {
+    ui.horizontal(|ui| {
+        ui.allocate_ui(vec2(96.0, 18.0), |ui| {
+            let rect = ui.available_rect_before_wrap();
+            let width = ui
+                .painter()
+                .layout_no_wrap(binding.keys.to_string(), FontId::monospace(10.5), t.text)
+                .size()
+                .x;
+            let key = Rect::from_min_size(rect.min, vec2(width + 10.0, 16.0));
+            ui.painter().rect(
+                key,
+                CornerRadius::same(3),
+                t.thumb_bg,
+                Stroke::new(1.0, t.border),
+                egui::StrokeKind::Inside,
+            );
+            ui.painter()
+                .text(key.center(), Align2::CENTER_CENTER, binding.keys, FontId::monospace(10.5), t.text);
+            ui.allocate_space(vec2(width + 10.0, 18.0));
+        });
+        ui.label(RichText::new(binding.action).size(11.5).color(t.text_muted));
+    });
 }
 
 fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {

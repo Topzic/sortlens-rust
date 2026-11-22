@@ -5,6 +5,7 @@
 
 #![forbid(unsafe_code)]
 
+use serde_json::Value;
 use sortlens_core::Flag;
 use sortlens_engine::{Engine, Filter, Sort};
 use std::path::PathBuf;
@@ -26,6 +27,7 @@ Commands:
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
+  shortcuts                 every command that has a keyboard shortcut
   registry                  keywords, the names they swallowed, and orphaned aliases
   alias <name> [canonical]  link a keyword to another, or forget the link
   folders [--root R] [--in PREFIX]
@@ -407,6 +409,19 @@ fn run() -> Result<(), String> {
             let dest = rest.get(1).ok_or("a destination folder is required")?;
             let files = Engine::import_backup(std::path::Path::new(path), std::path::Path::new(dest)).map_err(|error| error.to_string())?;
             println!("restored {files} file(s) into {dest}");
+            Ok(())
+        }
+        "shortcuts" => {
+            let value = engine.run("app.shortcuts", &Value::Null).map_err(|error| error.to_string())?;
+            println!("{} bound command(s)", value["count"]);
+            for binding in value["bindings"].as_array().into_iter().flatten() {
+                println!(
+                    "  {:14} {:10} {}",
+                    binding["keys"].as_str().unwrap_or("-"),
+                    binding["group"].as_str().unwrap_or("-"),
+                    binding["label"].as_str().unwrap_or("-")
+                );
+            }
             Ok(())
         }
         "registry" => {
