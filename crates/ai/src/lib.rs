@@ -31,7 +31,7 @@ pub use hints::{Hints, focal_band, hints};
 pub use manifest::{Manifest, Model, ModelKind};
 pub use sha256::Digest;
 pub use store::{Install, Status, Store};
-pub use suggest::{Candidate, Caps, Suggestion, merge, summary};
+pub use suggest::{Candidate, Caps, Source, Suggestion, merge, summary};
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

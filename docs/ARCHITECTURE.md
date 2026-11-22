@@ -496,6 +496,11 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   name that only repeats the camera is not suggested twice, and the output order is fixed so a scan
   order cannot reshuffle the panel. These are proposals like any other: the panel merges them, and only
   accepting one writes a keyword.
+- `Engine::suggestions` maps a `Photo` to `ai::Hints`, merges, and returns proposals; `suggest.list` and
+  `suggest.accept` expose it, and the CLI has `suggest <id>` / `accept <id> <tag>`. Accepting goes
+  through `Engine::set_tag`, so a suggestion becomes an ordinary `Tagged` op — in the log, in the
+  history, and undone by the same `undo` as a keyword typed by hand. The detail view draws the list as a
+  "Suggested" row whose buttons name their score and source.
 - `suggest::merge` is where a guess becomes a proposal: a keyword the photo already has is never
   suggested again, two sources proposing the same tag become one at the higher score, a camera hint
   outranks a guess on a tie, tags shorter than three characters are dropped, and the list is capped at

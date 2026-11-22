@@ -245,6 +245,11 @@ impl App {
                     }
                 }
             }
+            Action::AcceptSuggestion(id, tag) => match self.engine.accept_suggestion(id, &tag) {
+                Ok(true) => self.ui.notice(format!("Tagged “{tag}”")),
+                Ok(false) => self.ui.notice(format!("Already tagged “{tag}”")),
+                Err(error) => self.ui.notice(error.to_string()),
+            },
             Action::UndoMove(id) => match self.engine.undo_move(id) {
                 Ok(count) => {
                     self.ui.move_receipt = None;

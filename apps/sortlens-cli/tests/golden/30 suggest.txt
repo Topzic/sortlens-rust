@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+1: nothing in the file to suggest
+--- stderr

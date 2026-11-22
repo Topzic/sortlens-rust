@@ -26,6 +26,8 @@ Commands:
   date <id> <YYYY-MM-DD|->  set (or clear, with -) the capture date
   tag <id> <keyword>        add a keyword
   untag <id> <keyword>      remove a keyword
+  suggest <id>              what the file's own EXIF suggests
+  accept <id> <keyword>     accept one of those suggestions
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
   mcp                       serve the command registry over MCP on stdio, then exit
@@ -95,6 +97,26 @@ fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(),
             apply_keyword(engine, id, keyword, command == "tag")?;
         }
     }
+    Ok(())
+}
+
+/// List what a photo's own metadata suggests, or accept one of those suggestions.
+fn suggestions(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(), String> {
+    let id = parse_id(rest.first())?;
+    if command == "suggest" {
+        let offered = engine.suggestions(id);
+        if offered.is_empty() {
+            println!("{id}: nothing in the file to suggest");
+        }
+        for suggestion in offered {
+            println!("{:>5.2}  {:<16}  {}", suggestion.score, suggestion.source.label(), suggestion.tag);
+        }
+        return Ok(());
+    }
+    let keyword = rest.get(1).ok_or("a keyword is required")?;
+    let changed = engine.accept_suggestion(id, keyword).map_err(|error| error.to_string())?;
+    let verb = if changed { "tagged" } else { "already tagged" };
+    println!("{id}: {verb} {keyword}");
     Ok(())
 }
 
@@ -395,6 +417,7 @@ fn run() -> Result<(), String> {
         // The photo-field verbs are all "read the id, read the value, write it" — one helper, so the
         // command table stays a table.
         "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
+        "suggest" | "accept" => suggestions(&mut engine, &command, rest),
         "keywords" => {
             let vocabulary = engine.tag_vocabulary();
             if vocabulary.is_empty() {

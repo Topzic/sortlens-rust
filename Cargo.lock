@@ -3587,6 +3587,7 @@ dependencies = [
  "craft-jpeg",
  "serde",
  "serde_json",
+ "sortlens-ai",
  "sortlens-catalog",
  "sortlens-core",
  "sortlens-cull",

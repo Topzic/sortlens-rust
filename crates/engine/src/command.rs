@@ -237,6 +237,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "suggest.list",
+                    label: "Suggest Keywords",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Suggest Keywords",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "suggest.accept",
+                    label: "Accept a Suggested Keyword",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Accept a Suggested Keyword",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "edit.export",
                     label: "Export Picks…",
                     group: Group::Organise,

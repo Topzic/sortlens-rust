@@ -13,6 +13,7 @@ pub mod moves;
 
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
+pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Suggestion};
 pub use sortlens_catalog::backup::Backup;
 pub use sortlens_catalog::history::Entry as HistoryEntry;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
@@ -1437,6 +1438,45 @@ impl Engine {
         &self.similar
     }
 
+    /// Suggested keywords for one photo, from what the file already says about itself.
+    ///
+    /// This is the half of tagging that needs no model: the camera, the lens, the focal length band, a
+    /// high ISO and a slow shutter are all in the EXIF. Every suggestion is a proposal — nothing is
+    /// written until [`Engine::accept_suggestion`] is called.
+    pub fn suggestions(&self, id: PhotoId) -> Vec<Suggestion> {
+        match self.photo(id) {
+            Some(photo) => suggestions_for(photo, &sortlens_ai::Caps::default()),
+            None => Vec::new(),
+        }
+    }
+
+    /// Suggested keywords for several photos at once, for a panel that shows a selection.
+    pub fn suggestions_for_all(&self, ids: &[PhotoId]) -> Vec<(PhotoId, Vec<Suggestion>)> {
+        ids.iter()
+            .filter_map(|id| {
+                self.photo(*id)
+                    .map(|photo| (*id, suggestions_for(photo, &sortlens_ai::Caps::default())))
+            })
+            .collect()
+    }
+
+    /// Accept one suggestion: add the keyword, through the same op every other tag uses.
+    ///
+    /// Returns whether anything changed, so the caller can say "already there" rather than reporting a
+    /// tag it did not add.
+    pub fn accept_suggestion(&mut self, id: PhotoId, tag: &str) -> Result<bool> {
+        let photo = self.photo(id).ok_or(Error::NoSuchPhoto(id))?;
+        let normalised = tag.trim().to_lowercase();
+        if normalised.is_empty() {
+            return Err(Error::Invalid("a suggestion needs a keyword".into()));
+        }
+        if photo.tags.iter().any(|existing| existing == &normalised) {
+            return Ok(false);
+        }
+        let changed = self.set_tag(&[id], &normalised, true)?;
+        Ok(changed > 0)
+    }
+
     /// Start writing photos out to `dest`.
     ///
     /// The plan is built before anything is written, so a name clash is decided up front and the
@@ -2447,6 +2487,39 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a move id is required".into()))?;
                 Ok(json!({ "restored": self.undo_move(id)? }))
             }
+            "suggest.list" => {
+                let ids = ids_from(args)?;
+                let photos: Vec<Value> = self
+                    .suggestions_for_all(&ids)
+                    .into_iter()
+                    .map(|(id, suggestions)| {
+                        json!({
+                            "id": id.0,
+                            "suggestions": suggestions
+                                .iter()
+                                .map(|suggestion| json!({
+                                    "tag": suggestion.tag,
+                                    "score": f64::from(suggestion.score),
+                                    "source": suggestion.source.label(),
+                                }))
+                                .collect::<Vec<Value>>(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "photos": photos }))
+            }
+            "suggest.accept" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_u64)
+                    .map(PhotoId)
+                    .ok_or_else(|| Error::Invalid("a photo id is required".into()))?;
+                let tag = args
+                    .get("tag")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a keyword is required".into()))?;
+                Ok(json!({ "tagged": self.accept_suggestion(id, tag)? }))
+            }
             "edit.export" => {
                 let dest = args
                     .get("dest")
@@ -2844,6 +2917,15 @@ fn collection_id_from(args: &Value) -> Result<u32> {
         .ok_or_else(|| Error::Invalid("a collection id is required".into()))
 }
 
+/// What a photo's own metadata suggests, merged with what it already has.
+///
+/// Kept free-standing and pure so it can be tested against a constructed `Photo` — scanning a fixture
+/// JPEG cannot produce EXIF, and a test that needs a camera in the file would be a test of the scanner.
+fn suggestions_for(photo: &Photo, caps: &sortlens_ai::Caps) -> Vec<Suggestion> {
+    let hints = sortlens_ai::Hints::new(&photo.camera, &photo.lens, photo.iso, photo.shutter, photo.focal);
+    sortlens_ai::merge(&sortlens_ai::hints(&hints), &photo.tags, *caps)
+}
+
 fn ids_from(args: &Value) -> Result<Vec<PhotoId>> {
     let ids = args
         .get("ids")
@@ -2992,6 +3074,100 @@ mod tests {
         engine.begin_scan(photos.0.to_string_lossy().to_string()).expect("scan");
         wait_for_scan(&mut engine);
         (library_dir, photos, engine)
+    }
+
+    fn photo_with(camera: &str, lens: &str, iso: Option<u32>, shutter: Option<f64>, focal: Option<f64>, tags: &[&str]) -> Photo {
+        let mut photo = Photo {
+            id: PhotoId(1),
+            root: "/photos".into(),
+            rel: "a.jpg".into(),
+            name: "a.jpg".into(),
+            size: 1,
+            modified: Some(0),
+            kind: MediaKind::Image,
+            key: 1,
+            rating: 0,
+            flag: Flag::None,
+            label: None,
+            missing: false,
+            width: 0,
+            height: 0,
+            captured: None,
+            camera: camera.into(),
+            lens: lens.into(),
+            iso,
+            aperture: None,
+            shutter,
+            focal,
+            tags: tags.iter().map(|tag| tag.to_string()).collect(),
+            edited: false,
+            retry: false,
+        };
+        photo.tags.sort_unstable();
+        photo
+    }
+
+    #[test]
+    fn a_photos_own_metadata_becomes_suggestions() {
+        let photo = photo_with("Nikon Z6", "NIKKOR Z 24-70mm f/4 S", Some(6400), Some(2.0), Some(24.0), &[]);
+        let suggestions = suggestions_for(&photo, &sortlens_ai::Caps::default());
+        let tags: Vec<&str> = suggestions.iter().map(|suggestion| suggestion.tag.as_str()).collect();
+        // The merger ranks by score, then alphabetically — not in the order the rules fired.
+        assert_eq!(
+            tags,
+            vec!["nikkor z 24-70mm f/4 s", "nikon z6", "long exposure", "low light", "wide"]
+        );
+        assert!(
+            suggestions.windows(2).all(|pair| pair[0].score >= pair[1].score),
+            "the best suggestion is first"
+        );
+        assert!(
+            suggestions
+                .iter()
+                .all(|suggestion| suggestion.source == sortlens_ai::Source::ExifHint)
+        );
+    }
+
+    #[test]
+    fn a_keyword_the_photo_already_has_is_not_suggested_again() {
+        let photo = photo_with("Nikon Z6", "", Some(6400), None, None, &["Nikon Z6"]);
+        let suggestions = suggestions_for(&photo, &sortlens_ai::Caps::default());
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0].tag, "low light");
+    }
+
+    #[test]
+    fn a_photo_with_no_metadata_gets_no_suggestions() {
+        let photo = photo_with("", "", None, None, None, &[]);
+        assert!(suggestions_for(&photo, &sortlens_ai::Caps::default()).is_empty());
+    }
+
+    #[test]
+    fn suggestions_are_listed_through_the_command_and_accepting_one_writes_the_keyword() {
+        let (_library_dir, _photos, mut engine) = library_with_images("suggest", 1);
+        let id = engine.all_photos()[0].id;
+        // A fixture JPEG carries no EXIF, so there is nothing to propose — the command still answers.
+        let listed = engine.run("suggest.list", &json!({ "ids": [id.0] })).expect("list");
+        assert_eq!(listed["photos"][0]["id"], json!(id.0));
+        assert_eq!(listed["photos"][0]["suggestions"], json!([]));
+
+        // Accepting writes a keyword through the ordinary op, so it is in the log and undoable.
+        let accepted = engine
+            .run("suggest.accept", &json!({ "id": id.0, "tag": "Low Light" }))
+            .expect("accept");
+        assert_eq!(accepted["tagged"], json!(true));
+        assert!(engine.photo(id).is_some_and(|photo| photo.tags.contains(&"low light".to_string())));
+        // Accepting the same suggestion twice says it changed nothing.
+        let again = engine
+            .run("suggest.accept", &json!({ "id": id.0, "tag": "low light" }))
+            .expect("accept again");
+        assert_eq!(again["tagged"], json!(false));
+        // And it is undoable like any other tag, because it *is* any other tag.
+        assert!(engine.undo().expect("undo"));
+        assert!(engine.photo(id).is_some_and(|photo| !photo.tags.contains(&"low light".to_string())));
+        // A refusal is an error, not a silent no-op.
+        assert!(engine.run("suggest.accept", &json!({ "id": id.0, "tag": "  " })).is_err());
+        assert!(engine.run("suggest.accept", &json!({ "id": 9999, "tag": "dog" })).is_err());
     }
 
     #[test]

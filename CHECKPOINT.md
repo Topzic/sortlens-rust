@@ -1246,15 +1246,45 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   that already has that camera keyword, and gets only `low light` back.
 - ROADMAP's SL-F05 row is ticked; 395 tests, `cargo xtask ci`, `wasm` and `deny` green.
 
+## 2026-11-21 — M8 (second half, part 4): the suggestion pipeline reaches the app
+
+- engine: `Engine::suggestions` (one photo), `suggestions_for_all` (a selection) and
+  `accept_suggestion`. The mapping from `Photo` to `ai::Hints` is a free function, `suggestions_for`,
+  so it can be tested against a constructed photo — a fixture JPEG carries no EXIF, and a test that
+  needed a camera in the file would be testing the scanner instead.
+- commands `suggest.list` (ids → each photo's offers, with tag, score and source) and `suggest.accept`
+  (id + tag). **Accepting goes through `Engine::set_tag`**, so it is an ordinary `Tagged` op: it is in
+  the log, it is in the history, and `undo` takes it back exactly like a keyword typed by hand — tested,
+  including that accepting twice reports `tagged: false` rather than claiming work it did not do, and
+  that an empty tag or an unknown id is an error rather than a silent no-op.
+- CLI `suggest <id>` prints score, source and tag; `accept <id> <keyword>` writes it.
+- UI: a "Suggested" row in the detail view, one button per offer, hover saying the score and whether the
+  camera or a model said it. The row is drawn by `suggestions_row`, which takes the offers rather than
+  the engine, so the headless test paints it with real suggestions and headless egui proves it draws.
+- MCP examples for both commands — executed, not remembered, by the existing test.
+- **the golden test earned its keep again**: while extracting the CLI arm I sliced out the `keywords`
+  arm by accident, and `06 keywords` failed immediately with `unknown command: keywords` before the
+  commit existed. Restored, and three new goldens (`30 suggest`, `31/32 accept`, renumbered exports and
+  snapshot after them) now pin the new surface. Renamed goldens were deleted first, so the orphan check
+  never had to be loosened.
+- ROADMAP: SL-F06 part 2 ticked. A new row records what is *not* done: `source = Ai` in the keyword
+  filter needs a per-tag provenance in the catalog, which is a schema change, so the panel shows
+  provenance in its own row only.
+- **not verified by hand**: how the row looks in a window. No click was simulated headlessly — the
+  button's action is covered by the engine test and the app's handler by the compiler.
+- 400 tests; `cargo xtask ci`, `wasm`, `deny` and `snapshot` green.
+
 ## Next
 
-The AI half now has everything except a model and a panel. Two honest options, in order of value:
+M8's remaining unchecked rows, in this order:
 
-1. **Wire what exists into the app** — an engine command that computes EXIF hints for the selected
-   photos and a review panel where accepting a suggestion writes the keyword through the existing
-   `photo.keyword` op (so it lands in the op log and the undo history like any other tag). That makes
-   the whole suggestion pipeline real, testable end to end, and useful without a single download.
-2. Only then a session: pin a model whose weights can actually be hashed in this environment, behind a
-   `session` feature, or leave `tract` out and say so.
+1. **Packs as data** (SL-F07/F08): a keyword pack as a small TOML/JSON file on disk with a name, a
+   licence and its keywords; counts in the suggestion panel; a toggle per pack that lives in the op log
+   so it survives a restart and is undoable. This is data plus a settings surface, not a model.
+2. **Batch suggest job** (SL-F09): a worker that walks the library computing hints for photos whose
+   metadata has arrived, with progress and cancel like the other jobs — it must not write.
+3. `source = Ai` in the filter only if a per-tag provenance is worth the schema change; otherwise say
+   in ROADMAP that suggestions are visible per photo and not filterable, and leave it.
 
-Do (1) first: it also gives the panel a place to show detector boxes when a model does arrive.
+M9 (remote + automation) and M10 (release) are still entirely unstarted, so M8 should not take more
+than one or two more runs before moving on to them.

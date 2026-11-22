@@ -177,12 +177,12 @@ const STEPS: &[Step] = &[
         file: None,
     },
     Step {
-        name: "30 export",
+        name: "33 export",
         args: &["export", "%PHOTOS%/Export", "1", "2"],
         file: None,
     },
     Step {
-        name: "31 export again",
+        name: "34 export again",
         args: &[
             "export",
             "%PHOTOS%/Export",
@@ -198,7 +198,22 @@ const STEPS: &[Step] = &[
         file: None,
     },
     Step {
-        name: "32 snapshot",
+        name: "30 suggest",
+        args: &["suggest", "1"],
+        file: None,
+    },
+    Step {
+        name: "31 accept a suggestion",
+        args: &["accept", "1", "low light"],
+        file: None,
+    },
+    Step {
+        name: "32 accept it again",
+        args: &["accept", "1", "low light"],
+        file: None,
+    },
+    Step {
+        name: "35 snapshot",
         args: &[],
         file: Some("snapshot.json"),
     },

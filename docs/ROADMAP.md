@@ -237,8 +237,12 @@ and recover; export/import a library onto a second machine and remap the volume.
   each a named constant with a stated reason, all feeding the same merger (D) — SL-F05
 - [x] Suggestion merger: dedupe against existing keywords, best score wins, source rank settles ties,
   caps at 8 per photo, deterministic order (D) — SL-F06 part 1
-- [ ] Suggestion panel + accept → tag, with `source = Ai` in the filter — needs the engine and UI half (D,B)
+- [x] Suggestion panel: a "Suggested" row in the detail view, each offer showing its score and whether
+  the camera or a model said it, one click writing the keyword through the ordinary tag op; engine
+  commands `suggest.list`/`suggest.accept`, MCP examples and `suggest`/`accept` in the CLI (D,B)
   — SL-F06 part 2
+- [ ] `source = Ai` in the keyword filter — the panel records what a keyword came from only in its own
+  row today; the filter needs a per-tag source in the catalog, which is a schema change (D)
 - [ ] Packs as data + counts in settings + toggles (`craft-flags`) (D,B) — SL-F07/F08
 - [ ] Batch suggest job (D) — SL-F09
 - [x] No-network assertion for `sortlens-ai`: a source scan for socket APIs and a dependency scan for

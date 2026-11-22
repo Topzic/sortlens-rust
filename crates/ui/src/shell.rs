@@ -130,6 +130,8 @@ pub enum Action {
     OpenExternal(PhotoId),
     /// Write these photos out. The host asks for the folder, because only it can show a picker.
     Export(Vec<PhotoId>, sortlens_engine::ExportSpec),
+    /// Accept a suggested keyword, which the host writes through the ordinary tag op.
+    AcceptSuggestion(PhotoId, String),
 }
 
 /// What Apply does with rejected photos.
@@ -2127,6 +2129,10 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         });
     }
 
+    // What the file's own metadata suggests. Offers only — the keyword is written when one is
+    // accepted, which is the same op as typing it by hand, so undo and the log behave the same.
+    suggestions_row(ui, t, id, &engine.suggestions(id), actions);
+
     ui.horizontal(|ui| {
         if let Some(histogram) = thumbs.histogram(&photo) {
             histogram_widget(ui, t, histogram);
@@ -2167,6 +2173,32 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             .size(10.0)
             .color(t.text_faint),
     );
+}
+
+/// One row of suggested keywords, each a button that accepts it.
+///
+/// The row says where each suggestion came from and how sure it is, because "the camera said so" and
+/// "a model guessed" are different kinds of claim and the person deciding deserves to know which.
+fn suggestions_row(ui: &mut Ui, t: &Tokens, id: PhotoId, suggestions: &[sortlens_engine::Suggestion], actions: &mut Vec<Action>) {
+    if suggestions.is_empty() {
+        return;
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("Suggested").size(10.0).color(t.text_faint));
+        for suggestion in suggestions {
+            let response = ui
+                .add(Button::new(RichText::new(format!("+ {}", suggestion.tag)).size(10.5)).frame(false))
+                .on_hover_text(format!(
+                    "{} · {:.0}% from {}",
+                    suggestion.tag,
+                    suggestion.score * 100.0,
+                    suggestion.source.label()
+                ));
+            if response.clicked() {
+                actions.push(Action::AcceptSuggestion(id, suggestion.tag.clone()));
+            }
+        }
+    });
 }
 
 /// A 64-bin luminance histogram, drawn as bars scaled to the tallest bin.
@@ -4570,6 +4602,63 @@ mod tests {
         assert!(state.export_receipt.is_some(), "the receipt waits for the user");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The suggestion row draws every offer, and an empty list draws nothing at all — an "Suggested"
+    /// heading with no suggestions under it would be a promise with nothing behind it.
+    #[test]
+    fn the_suggestion_row_paints_its_offers_and_stays_silent_when_there_are_none() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let id = PhotoId(7);
+        let suggestions = vec![
+            sortlens_engine::Suggestion {
+                tag: "low light".to_string(),
+                score: 0.8,
+                source: sortlens_engine::SuggestionSource::ExifHint,
+                found: None,
+            },
+            sortlens_engine::Suggestion {
+                tag: "wide".to_string(),
+                score: 0.7,
+                source: sortlens_engine::SuggestionSource::ExifHint,
+                found: None,
+            },
+        ];
+
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                suggestions_row(ui, &tokens, id, &suggestions, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "nothing is written without a click");
+
+        let painted = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(300.0, 40.0))),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    suggestions_row(ui, &tokens, id, &suggestions, &mut actions);
+                });
+            },
+        );
+        let mut painted = painted;
+        painted.textures_delta.clear();
+        assert!(!painted.shapes.is_empty(), "the row draws text when there is something to offer");
+
+        // No suggestions: no heading, no buttons, nothing to click.
+        let mut empty_actions: Vec<Action> = Vec::new();
+        let mut empty = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                suggestions_row(ui, &tokens, id, &[], &mut empty_actions);
+            });
+        });
+        empty.textures_delta.clear();
+        assert!(empty_actions.is_empty());
     }
 
     #[test]

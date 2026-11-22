@@ -41,6 +41,8 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
     ("photo.setCaptured", "changes: [{ id, captured }], captured in Unix seconds or null"),
     ("photo.reveal", "id: one photo; returns the command to run, does not run it"),
     ("photo.open", "id: one photo; returns the command to run, does not run it"),
+    ("suggest.list", "ids: photos; each photo's keyword suggestions from its own EXIF"),
+    ("suggest.accept", "id: one photo; tag: a suggestion to write as an ordinary keyword"),
     ("app.quit", "no arguments; asks the host to close the window"),
 ];
 
@@ -286,6 +288,16 @@ pub const EXAMPLES: &[Example] = &[
         command: "view.similar",
         args: "{}",
         note: "The groups found so far.",
+    },
+    Example {
+        command: "suggest.list",
+        args: r#"{"ids": [1]}"#,
+        note: "ids: photos; each photo's keyword suggestions from its own EXIF",
+    },
+    Example {
+        command: "suggest.accept",
+        args: r#"{"id": 1, "tag": "low light"}"#,
+        note: "id: one photo; tag: a suggestion to write as an ordinary keyword",
     },
     Example {
         command: "edit.cancelExport",

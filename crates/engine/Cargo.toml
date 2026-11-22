@@ -13,6 +13,7 @@ sortlens-core = { workspace = true }
 sortlens-meta = { workspace = true }
 sortlens-catalog = { workspace = true }
 sortlens-cull = { workspace = true }
+sortlens-ai = { workspace = true }
 sortlens-export = { workspace = true }
 sortlens-similar = { workspace = true }
 sortlens-insights = { workspace = true }
