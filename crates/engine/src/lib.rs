@@ -19,7 +19,7 @@ pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, Ta
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
 pub use sortlens_cull::{Decision, Summary as CullSummary};
-pub use sortlens_insights::{Insights, Row as InsightRow};
+pub use sortlens_insights::{Highlight as InsightHighlight, Insights, Row as InsightRow, month_name};
 pub use sortlens_similar::{
     DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Match as SimilarMatch,
     Member as SimilarMember,
@@ -92,6 +92,8 @@ pub struct Engine {
     pending: Option<PendingScan>,
     pending_hash: Option<PendingHash>,
     hashes: std::collections::HashMap<u64, (sortlens_hash::Hash, sortlens_hash::Colour)>,
+    pending_insights: Option<PendingInsights>,
+    insights_ready: Option<Insights>,
     similar_members: Vec<SimilarMember>,
     similar: Vec<SimilarGroup>,
     receipt: Option<ApplyReceipt>,
@@ -117,6 +119,8 @@ impl Engine {
             pending: None,
             pending_hash: None,
             hashes: std::collections::HashMap::new(),
+            pending_insights: None,
+            insights_ready: None,
             similar_members: Vec::new(),
             similar: Vec::new(),
             receipt: None,
@@ -1251,10 +1255,76 @@ impl Engine {
 
     /// Statistics over the whole library, recomputed each time.
     pub fn insights(&self) -> Insights {
+        if let Some(ready) = self.insights_ready.clone() {
+            return ready;
+        }
         match self.catalog.as_ref() {
             Some(catalog) => Insights::compute(catalog.photos()),
             None => Insights::empty(),
         }
+    }
+
+    /// Start counting the library on a worker, so a large library does not freeze the view.
+    ///
+    /// The photos are cloned once and folded in chunks; progress is published every chunk. Returns
+    /// how many photos the pass will cover.
+    pub fn begin_insights(&mut self) -> Result<usize> {
+        if self.pending_insights.is_some() {
+            return Err(Error::Invalid("an insights pass is already running".into()));
+        }
+        let photos: Vec<Photo> = match self.catalog.as_ref() {
+            Some(catalog) => catalog.photos().cloned().collect(),
+            None => Vec::new(),
+        };
+        let total = photos.len();
+        let progress = std::sync::Arc::new(InsightsProgress::new());
+        let worker_progress = progress.clone();
+        let job = self.start_job(JobKind::Insights, format!("Counting · {total} photos"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("sortlens-insights".into())
+            .spawn(move || {
+                let mut accumulator = sortlens_insights::Accumulator::new();
+                for (index, photo) in photos.iter().enumerate() {
+                    accumulator.push(photo);
+                    if index % INSIGHTS_CHUNK == 0 {
+                        worker_progress.publish(index + 1);
+                    }
+                }
+                worker_progress.publish(total);
+                let _ = tx.send(accumulator.finish());
+            })
+            .map_err(|error| Error::Invalid(format!("insights worker: {error}")))?;
+        self.pending_insights = Some(PendingInsights { rx, progress, job, total });
+        Ok(total)
+    }
+
+    /// How far the running insights pass has come, if one is running.
+    pub fn insights_progress(&self) -> Option<(usize, usize)> {
+        self.pending_insights
+            .as_ref()
+            .map(|pending| (pending.progress.done(), pending.total))
+    }
+
+    /// Collect a finished pass. Returns the photo count once it lands.
+    pub fn poll_insights(&mut self) -> Option<usize> {
+        let pending = self.pending_insights.as_ref()?;
+        let insights = match pending.rx.try_recv() {
+            Ok(insights) => insights,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                let job = self.pending_insights.take().map(|pending| pending.job);
+                if let Some(job) = job {
+                    self.finish_job(job, JobStatus::Failed, 0, 0, 0, Some("the pass ended early".into()));
+                }
+                return None;
+            }
+        };
+        let pending = self.pending_insights.take()?;
+        let total = insights.stats.total;
+        self.finish_job(pending.job, JobStatus::Done, total, 0, 0, None);
+        self.insights_ready = Some(insights);
+        Some(total)
     }
 
     /// Groups found by the last finished hash pass.
@@ -2003,6 +2073,11 @@ impl Engine {
                 "lenses": rows(&insights.lenses),
                 "keywords": rows(&insights.keywords),
                 "years": insights.years.iter().map(|year| json!({ "year": year.year, "count": year.count })).collect::<Vec<_>>(),
+                "byMonth": insights.by_month,
+                "peakMonth": insights.peak_month(),
+                "peakSeason": insights.peak_season(),
+                "busiestDay": insights.busiest_day.map(|day| json!({ "at": day.at, "count": day.count })),
+                "highlights": insights.highlights().iter().map(|highlight| json!({ "label": highlight.label, "value": highlight.value })).collect::<Vec<_>>(),
                 }))
             }
             "library.subfolders" => {
@@ -2064,6 +2139,16 @@ impl Engine {
                     })
                     .collect();
                 Ok(json!({ "moves": receipts }))
+            }
+            "insights.start" => Ok(json!({ "queued": self.begin_insights()? })),
+            "insights.progress" => {
+                let progress = self.insights_progress();
+                let _ = self.poll_insights();
+                Ok(json!({
+                    "running": progress.is_some(),
+                    "done": progress.map(|(done, _)| done).unwrap_or(0),
+                    "total": progress.map(|(_, total)| total).unwrap_or(0),
+                }))
             }
             "library.changed" => {
                 let health = self.check_health()?;
@@ -2356,6 +2441,42 @@ fn prop_is_inside(path: &Path, folder: &Path) -> bool {
 
 /// Seconds of modification-time drift treated as "the file did not change".
 pub const MODIFIED_TOLERANCE: i64 = 2;
+
+/// How many photos an insights pass folds in between progress updates.
+pub const INSIGHTS_CHUNK: usize = 512;
+
+/// Progress shared between the insights worker and the poller.
+#[derive(Debug)]
+pub struct InsightsProgress {
+    done: std::sync::atomic::AtomicUsize,
+}
+
+impl InsightsProgress {
+    fn new() -> Self {
+        Self {
+            done: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    /// Publish how far the pass has come.
+    pub fn publish(&self, done: usize) {
+        self.done.store(done, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// How far the pass has come.
+    pub fn done(&self) -> usize {
+        self.done.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+/// An insights pass running on a worker.
+#[derive(Debug)]
+struct PendingInsights {
+    rx: std::sync::mpsc::Receiver<Insights>,
+    progress: std::sync::Arc<InsightsProgress>,
+    job: u64,
+    total: usize,
+}
 
 /// How many recent changes the change viewer and the support report cover.
 pub const HISTORY_LIMIT: usize = 200;
@@ -2777,6 +2898,46 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn insights_can_be_counted_in_the_background() {
+        let folder = Temp::new("insights-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::write(folder.0.join(name), b"x").expect("write");
+        }
+        let (_lib, mut engine) = library("lib-insights");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        engine.rate(&[id], 5).expect("rate");
+
+        let queued = engine.run("insights.start", &json!({})).expect("start");
+        assert_eq!(queued["queued"], 3);
+
+        // The pass reports progress and lands, and the numbers agree with a one-shot count.
+        let mut landed = None;
+        for _ in 0..200 {
+            if let Some(count) = engine.poll_insights() {
+                landed = Some(count);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(landed, Some(3));
+        assert!(engine.insights_progress().is_none(), "the pass is over");
+        let insights = engine.insights();
+        assert_eq!(insights.stats.total, 3);
+        assert_eq!(insights.stats.rated, 1);
+        assert_eq!(insights.highlights().len(), 1, "three undated photos and no camera");
+        assert_eq!(insights.highlights()[0].label, "No capture date");
+
+        let progress = engine.run("insights.progress", &json!({})).expect("progress");
+        assert_eq!(progress["running"], false);
+        let insights_json = engine.run("view.insights", &json!({})).expect("view");
+        assert_eq!(insights_json["total"], 3);
+        assert_eq!(insights_json["highlights"][0]["label"], "No capture date");
     }
 
     #[test]

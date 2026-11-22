@@ -1077,7 +1077,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     }
                 }
                 View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
-                View::Insights => insights_view(ui, t, engine),
+                View::Insights => insights_view(ui, t, state, engine),
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
                 other => planned_view(ui, t, other),
             }
@@ -2503,8 +2503,43 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
 }
 
 /// Totals, distributions and breakdowns, all recomputed from the catalog.
-fn insights_view(ui: &mut Ui, t: &Tokens, engine: &mut Engine) {
+fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    let _ = engine.poll_insights();
     let insights = engine.insights();
+    if let Some((done, total)) = engine.insights_progress() {
+        // A library of thousands is not instant, so the pass says how far it has come instead of
+        // freezing the view.
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Counting").size(11.0).color(t.text_muted));
+            ui.add(egui::ProgressBar::new(if total == 0 { 0.0 } else { done as f32 / total as f32 }).desired_width(220.0));
+            ui.label(RichText::new(format!("{done} of {total}")).size(10.5).color(t.text_faint));
+        });
+        ui.add_space(8.0);
+    } else if ui
+        .button(RichText::new("Recount").size(11.0))
+        .on_hover_text("Count the library again on a worker, reporting progress as it goes")
+        .clicked()
+    {
+        match engine.begin_insights() {
+            Ok(count) => {
+                if count == 0 {
+                    // Nothing to do: the numbers on screen are already final.
+                }
+            }
+            Err(error) => state.notice(error.to_string()),
+        }
+    }
+    let highlights = insights.highlights();
+    if !highlights.is_empty() {
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            for highlight in &highlights {
+                ui.label(RichText::new(&highlight.label).size(10.0).color(t.text_faint));
+                ui.label(RichText::new(&highlight.value).size(11.0).color(t.text));
+                ui.add_space(14.0);
+            }
+        });
+    }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             figure(ui, t, "Photos", &format_count(insights.stats.total as u64));
@@ -2566,6 +2601,40 @@ fn insights_view(ui: &mut Ui, t: &Tokens, engine: &mut Engine) {
                         RichText::new(format!("{} with no capture date", insights.undated))
                             .size(10.5)
                             .color(t.text_faint),
+                    );
+                }
+                ui.add_space(14.0);
+                // Seasonality: which months the library leans towards, in one row of twelve.
+                ui.label(RichText::new("Months").size(12.0).strong());
+                let peak = insights.by_month.iter().copied().max().unwrap_or(0);
+                if peak == 0 {
+                    ui.label(RichText::new("Nothing dated yet").size(11.0).color(t.text_faint));
+                } else {
+                    ui.horizontal(|ui| {
+                        for (index, count) in insights.by_month.iter().enumerate() {
+                            let month = index as u32 + 1;
+                            let height = 44.0 * (*count as f32 / peak as f32);
+                            let (rect, response) = ui.allocate_exact_size(vec2(14.0, 44.0), Sense::hover());
+                            let colour = if insights.peak_month() == Some(month) { t.accent } else { t.border };
+                            ui.painter().rect_filled(
+                                Rect::from_min_max(pos2(rect.left(), rect.bottom() - height), rect.right_bottom()),
+                                1.0,
+                                colour,
+                            );
+                            response.on_hover_text(format!("{} — {} photo(s)", sortlens_engine::month_name(month), count));
+                        }
+                    });
+                    ui.label(
+                        RichText::new(format!(
+                            "Busiest: {}{}",
+                            insights.peak_month().map(sortlens_engine::month_name).unwrap_or("none"),
+                            insights
+                                .peak_season()
+                                .map(|season| format!(" · mostly {season}"))
+                                .unwrap_or_default()
+                        ))
+                        .size(10.5)
+                        .color(t.text_faint),
                     );
                 }
             });

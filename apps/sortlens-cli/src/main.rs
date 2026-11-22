@@ -177,6 +177,17 @@ fn run() -> Result<(), String> {
                     println!("  {:>6}  {}", year.count, year.year);
                 }
             }
+            if insights.by_month.iter().any(|count| *count > 0) {
+                println!("months");
+                for (index, count) in insights.by_month.iter().enumerate() {
+                    if *count > 0 {
+                        println!("  {:>6}  {}", count, sortlens_engine::month_name(index as u32 + 1));
+                    }
+                }
+            }
+            for highlight in insights.highlights() {
+                println!("{:<18} {}", highlight.label.to_lowercase(), highlight.value);
+            }
             Ok(())
         }
         "rate" => {

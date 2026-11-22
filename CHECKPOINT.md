@@ -816,7 +816,31 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   group and regrouping leaves the hash cache untouched
 - 255 tests, CI and wasm green
 
+## 2026-11-21 — M7: insights progress, highlights, seasonality
+
+- insights: `Accumulator` — the same folding code behind both `Insights::compute` and the engine's
+  background pass, so a progress bar can never disagree with the numbers it is progressing towards
+- insights: `by_month: [usize; 12]`, `busiest_day: Option<Day>`, `peak_month()`, `peak_season()`
+  (northern reading of winter/spring/summer/autumn, stated in the docs) and `highlights()` — up to four
+  facts the charts cannot say: busiest month with its share and dominant season, the single busiest day,
+  the most-used camera, and how much of the library has no capture date at all
+- insights: `civil()` now returns year, month, day-of-month **and** the day's first second — the first
+  version returned the day number in seconds where a day-of-month belonged, which the highlights test
+  caught ("2024-02-1707523200")
+- engine: `begin_insights()` (worker over a cloned photo list, progress every `INSIGHTS_CHUNK = 512`),
+  `insights_progress()`, `poll_insights()`, a `JobKind::Insights` row in the activity stack, commands
+  `insights.start` / `insights.progress`; `insights()` returns the finished pass when there is one and
+  computes on demand otherwise; `view.insights` gains `byMonth`, `peakMonth`, `peakSeason`, `busiestDay`
+  and `highlights`
+- ui: the Insights view polls the pass, shows a progress bar with "done of total" and a Recount button,
+  puts the highlights on one wrapped line and draws a twelve-bar month strip with the busiest month in
+  the accent colour. cli: `insights` prints months and highlights
+- tests: months and seasons from real timestamps (two February frames, a winter peak, leap-day and
+  1970 handling), highlights including the busiest day, and the accumulator agreeing field for field
+  with the one-shot pass; engine-level, the pass lands with the right count, reports no progress
+  afterwards and agrees with `view.insights`
+- 259 tests, CI and wasm green
+
 ## Next
 
-M7: insights progress and highlights — a pass that reports progress over a large library, and
-seasonality in the year chart.
+M7: a tag registry — one place that knows every keyword, its aliases and where it came from.

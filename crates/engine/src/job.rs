@@ -18,6 +18,8 @@ pub enum JobKind {
     Sidecar,
     /// Hashing previews to find near-duplicates.
     Hash,
+    /// Counting the library for the insights view.
+    Insights,
 }
 
 impl JobKind {
@@ -29,6 +31,7 @@ impl JobKind {
             Self::Export => "Export",
             Self::Sidecar => "Sidecars",
             Self::Hash => "Similar",
+            Self::Insights => "Insights",
         }
     }
 }

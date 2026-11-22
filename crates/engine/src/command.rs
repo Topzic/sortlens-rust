@@ -237,6 +237,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "insights.progress",
+                    label: "Insights Progress",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Insights Progress",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "insights.start",
+                    label: "Count the Library",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Count the Library",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.changed",
                     label: "Photos Changed on Disk",
                     group: Group::Library,
