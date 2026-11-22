@@ -473,7 +473,17 @@ same photo; apply 148 rejects to trash; undo restores all 148.
 - [x] Collection favourites, colours, per-collection search and sort (B) — SL-G04
 - [x] Batch move with sidecars travelling, receipts and undo (A) — SL-G07
 - [x] Persistent undo across restarts: the inverse travels in the log record and in the snapshot (A) — SL-A13
-- [ ] Inline tagging + re-apply last tags in cull (B) — SL-C11/C12
+- [x] Inline tagging + re-apply last tags in cull (B) — SL-C11/C12
+  - The cull stage gained an inline keyword strip: chips for the keywords the photo on screen carries
+    (click takes one off, one undoable op) and a field that adds one with Enter, so keywording happens
+    while the same photo is on screen instead of a round trip through the sidebar. The field owns the
+    keys while it is focused — `keyboard()` stands down for any focused widget, so P and T type letters,
+    not decisions. `T` re-applies the keyword you last added to the photo on screen, the same one-key
+    repeat the grid has, with the notice naming the keyword. Fixed on the way: the top-bar search
+    evaluated `has_focus()` inside `ui.input`, which deadlocks the egui fork's lock whenever Enter was
+    pressed anywhere — the inline field's Enter exposed it.
+  - Tested: a headless `run_ui` session that keywords the photo on screen from the real field, decides
+    it, presses T on the next, and removes the chip through a real click on its painted rect.
 - [x] Library doctor: check, find-moved-by-content-key, remove-missing, all undoable (A,B) — SL-H07/H08/A13
 - [x] First-run wizard: welcome → add a folder → indexing (B) — SL-I12; the remote test waits for M9
 - [x] Tag rename/merge UI, plus aliases in the keyword registry (B) — SL-D06

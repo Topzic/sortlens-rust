@@ -136,6 +136,12 @@ pub const BINDINGS: &[Binding] = &[
     binding("Space", "Leave it undecided and move on", Context::Cull, None),
     binding("U", "Mark undecided again", Context::Cull, None),
     binding("←", "Step back one photo", Context::Cull, Some("cull.back")),
+    binding(
+        "T",
+        "Apply the keyword you last added to this photo",
+        Context::Cull,
+        Some("photo.tagFromPrev"),
+    ),
     binding("Ctrl+Enter", "Apply the staged rejections", Context::Cull, Some("cull.apply")),
     binding("Z", "Zoom to fit or 2×", Context::Cull, None),
     binding("Alt+drag", "Pan while zoomed", Context::Cull, None),

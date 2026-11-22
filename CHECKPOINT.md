@@ -2305,13 +2305,41 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   routed through the shell's own input handling) and how twenty-step notices read over a long
   session.
 
+## 2026-11-22 (nineteenth) — Inline tagging in the cull stage, `T` re-applies there, and a deadlocked shell
+
+- **SL-C11/C12, ROADMAP M4's last open row — M4 is now fully checked.** The cull stage gained an inline
+  keyword strip under the action bar: chips for the keywords the photo on screen carries (click takes one
+  off through `set_tag(.., false)`, one undoable op) and a field that adds one with Enter. Keywording now
+  happens while the same photo is on screen instead of a round trip through the right panel. While the
+  field is focused it owns the keys — `keyboard()` stands down for any focused widget — so P and T type
+  letters, not decisions.
+- `T` in a cull session re-applies the keyword you last added to the photo on screen (the grid's one-key
+  repeat, aimed at the stage's own target), with the notice naming the keyword: "Tagged “backlit”" /
+  "Already tagged “backlit”". Keymap gained a Context::Cull row for it; the empty-stage hint line mentions it.
+- **A real latent deadlock the headless test exposed:** the top-bar search called `search.has_focus()`
+  *inside* `ui.input(...)`. In this egui fork nested context access deadlocks the lock the closure runs
+  under — meaning any Enter keypress anywhere in the app (the details-panel keyword field, the search box
+  itself) could freeze the shell. `has_focus` is now read outside the closure; the search still commits
+  when Enter is pressed while the box is focused. Found because the new test drives a real Enter for the
+  inline field and hung for 10 s.
+- Test details worth keeping: `egui::Button` in the fork has no `.id()`, so the chip is located the way a
+  person sees it — by the text it paints ("backlit" bare; the toast repeats the keyword in quotes and the
+  sidebar lists it too, both distinguished). And `keyboard()` runs after the view paints, so the strip
+  catches up one frame after the key: the chip is asserted on the following frame.
+- ROADMAP M4's inline-tagging row ticked in the same commit with a truthful description; UX.md §5.5 now
+  names the strip and says `T` targets the photo on screen in cull.
+- 587 tests; ci, wasm green.
+- **Not verified by hand**: typing a long keyword over several photos on a real keyboard, and how the strip
+  wraps when a photo carries many keywords (horizontal_wrapped lays it out; nobody has looked at it).
+
 ## Next
 
-Next in the named-absent tail, one row per run: **inline tagging + re-apply last tags in the cull
-stage** (ROADMAP M4 row — SL-C11/C12). Then video posters part 2 (poster file written beside the
-video first, then the UI, same shape as GPS), then the M3 rows still open: stale-revision
-rejection and the XMP round-trip/filter-algebra test row. Keep the discipline: a test that would
-fail if the behaviour were absent, and the ROADMAP row ticked in the same commit.
+M4 is fully checked. Next in the named-absent tail, one row per run: **video posters part 2** —
+poster file written beside the video first (scan/media + catalog), then the UI (grid cells and
+detail), same shape as GPS: ROADMAP M2 row, absent by design with a named blocker. Then the M3
+rows still open: stale-revision rejection (SL-D11) and the XMP round-trip / filter-algebra test
+row. Keep the discipline: a test that would fail if the behaviour were absent, and the ROADMAP row
+ticked in the same commit.
 
 Note for the next run: this Windows checkout now has its own toolchain (`.toolchain`) —
 `. scripts/env.sh && cargo xtask ci` works as documented.

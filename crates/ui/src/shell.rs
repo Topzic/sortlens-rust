@@ -640,6 +640,10 @@ pub struct UiState {
     pub tag_input: String,
     /// Ask the keyword field for focus on the next frame.
     pub tag_focus: bool,
+    /// Text in the cull stage's inline keyword field.
+    pub cull_tag_input: String,
+    /// Ask the cull keyword field for focus on the next frame.
+    pub cull_tag_focus: bool,
     /// What Apply does with rejects.
     pub delete_mode: DeleteMode,
     /// Whether the Apply confirmation is showing.
@@ -741,6 +745,8 @@ impl UiState {
             quit_open: false,
             tag_input: String::new(),
             tag_focus: false,
+            cull_tag_input: String::new(),
+            cull_tag_focus: false,
             delete_mode: DeleteMode::Trash,
             apply_open: false,
             deleted_open: false,
@@ -1208,8 +1214,11 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                         state.selection.clear();
                     }
                     // Commit the search to the collection when the box is left or Enter is pressed,
-                    // rather than writing an op for every keystroke.
-                    if search.lost_focus() || ui.input(|input| input.key_pressed(Key::Enter) && search.has_focus()) {
+                    // rather than writing an op for every keystroke. `has_focus` is read *outside*
+                    // `ui.input`: nested context access deadlocks the lock this fork holds while the
+                    // closure runs, and any Enter keypress — not only one in this box — reached it.
+                    let enter_on_search = ui.input(|input| input.key_pressed(Key::Enter)) && search.has_focus();
+                    if search.lost_focus() || enter_on_search {
                         remember_search(state, engine);
                     }
                     if state.collection_filter.is_none() {
@@ -3657,6 +3666,7 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
     }
     let mut decision = None;
     let mut back = false;
+    let mut tag_prev = false;
     ui.input(|input| {
         if input.key_pressed(Key::P) && !input.modifiers.command {
             decision = Some(Decision::Pick);
@@ -3672,6 +3682,11 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
         }
         if input.key_pressed(Key::ArrowLeft) {
             back = true;
+        }
+        // The same one-key repeat the grid has, aimed at the photo on screen: keyword one photo, decide,
+        // press T on the next. The notice names the keyword, like everywhere else it is applied.
+        if input.key_pressed(Key::T) && !input.modifiers.command {
+            tag_prev = true;
         }
     });
     if let Some(decision) = decision {
@@ -3693,6 +3708,19 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
     } else if back {
         engine.cull_back();
         state.announce = Some("Back one photo".to_string());
+    }
+    if tag_prev && let Some(current) = engine.cull().and_then(|session| session.current()) {
+        match engine.tag_from_prev(&[current]) {
+            Ok(changed) => {
+                let tag = engine.last_tag().unwrap_or_default().to_string();
+                state.notice(if changed == 0 {
+                    format!("Already tagged \u{201c}{tag}\u{201d}")
+                } else {
+                    format!("Tagged \u{201c}{tag}\u{201d}")
+                });
+            }
+            Err(error) => state.notice_problem(error.to_string()),
+        }
     }
     true
 }
@@ -3791,7 +3819,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             }
             ui.add_space(6.0);
             ui.label(
-                RichText::new("P pick · X reject · Space defer · U clear · ← back · drag up/down")
+                RichText::new("P pick · X reject · Space defer · U clear · ← back · T last keyword · drag up/down")
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -4031,6 +4059,62 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             }
         });
     });
+    // Inline tagging (SL-C11): the photo on screen can be keyworded without leaving the cull loop.
+    // Chips show what it already carries and come off with a click; the field adds one, so deciding
+    // and keywording both happen while the same photo is on screen. Focused here, the field owns the
+    // keys: keyboard() stands down while any widget has focus, so P and T type letters, not decisions.
+    if let Some(id) = current
+        && let Some(photo) = engine.photo(id).cloned()
+    {
+        ui.add_space(6.0);
+        let mut remove = None;
+        if !photo.tags.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                for tag in &photo.tags {
+                    let chip = Button::new(RichText::new(format!("{tag}  ×")).size(11.0).color(t.text))
+                        .fill(t.card)
+                        .stroke(Stroke::new(1.0, t.border))
+                        .corner_radius(t.corner());
+                    if ui.add(chip).on_hover_text("Remove keyword from this photo").clicked() {
+                        remove = Some(tag.clone());
+                    }
+                }
+            });
+        }
+        ui.horizontal(|ui| {
+            let field = ui.add(
+                TextEdit::singleline(&mut state.cull_tag_input)
+                    .id(egui::Id::unique("cull-tag-field"))
+                    .hint_text("Add keyword to this photo")
+                    .desired_width(150.0)
+                    .font(egui::TextStyle::Small),
+            );
+            if state.cull_tag_focus {
+                field.request_focus();
+                state.cull_tag_focus = false;
+            }
+            let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
+            let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
+            if (entered || clicked) && !state.cull_tag_input.trim().is_empty() {
+                let tag = state.cull_tag_input.trim().to_string();
+                match engine.set_tag(&[photo.id], &tag, true) {
+                    Ok(0) => state.notice("That keyword is already on this photo"),
+                    Ok(_) => {
+                        state.notice(format!("Tagged \u{201c}{}\u{201d}", tag.to_lowercase()));
+                        state.cull_tag_input.clear();
+                    }
+                    Err(error) => state.notice_problem(error.to_string()),
+                }
+            }
+        });
+        if let Some(tag) = remove {
+            match engine.set_tag(&[photo.id], &tag, false) {
+                Ok(_) => state.notice(format!("Removed keyword {tag}")),
+                Err(error) => state.notice_problem(error.to_string()),
+            }
+        }
+    }
+
     // Spoken feedback: the queue position and what the photo now carries. Assistive technology
     // reads this politely, so it never interrupts anything else being read.
     let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
@@ -7988,6 +8072,172 @@ mod tests {
         let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
         assert!(told.contains("backlit"), "the notice names the keyword: {told}");
         assert!(actions.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Inline tagging in the cull stage (SL-C11) and `T` re-applying the last keyword there (SL-C12),
+    /// both through the real view and key handler over a real library.
+    ///
+    /// The loop the row describes: keyword the photo on screen from the strip's field, decide it, press
+    /// T on the next. The chip on the photo on screen comes off through a real click on its rect.
+    #[test]
+    fn cull_stage_tags_the_photo_on_screen_inline() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-culltag-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-culltag");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40 * index as u8, 90, 150], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        assert_eq!(engine_cell.borrow().count(&Filter::default()), 3);
+
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let key = |key: Key, modifiers: egui::Modifiers| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            }],
+            ..egui::RawInput::default()
+        };
+        let mut frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let current = |cell: &std::cell::RefCell<&mut Engine>| {
+            cell.borrow()
+                .cull()
+                .and_then(|session| session.current())
+                .expect("a photo on screen")
+        };
+
+        // The session starts the way the key does it, and nothing is tagged yet.
+        frame(&mut state, key(Key::C, egui::Modifiers::NONE));
+        assert!(engine_cell.borrow().cull().is_some(), "the session is open");
+        let first = current(&engine_cell);
+        assert!(engine_cell.borrow().photo(first).expect("photo").tags.is_empty());
+
+        // Focus the inline field, type a keyword, and Enter commits it to the photo on screen.
+        state.cull_tag_focus = true;
+        state.cull_tag_input = "backlit".to_string();
+        frame(&mut state, egui::RawInput::default());
+        frame(&mut state, key(Key::Enter, egui::Modifiers::NONE));
+        assert!(
+            engine_cell
+                .borrow()
+                .photo(first)
+                .expect("photo")
+                .tags
+                .contains(&"backlit".to_string()),
+            "the field added the keyword to the photo on screen"
+        );
+        assert!(state.cull_tag_input.is_empty(), "the field cleared after committing");
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Tagged “backlit”");
+
+        // Decide the photo; the next one comes on screen carrying nothing.
+        frame(&mut state, key(Key::P, egui::Modifiers::NONE));
+        let second = current(&engine_cell);
+        assert_ne!(second, first, "the queue advanced");
+        assert!(engine_cell.borrow().photo(second).expect("photo").tags.is_empty());
+
+        // T re-applies the keyword to the photo now on screen, and names it.
+        frame(&mut state, key(Key::T, egui::Modifiers::NONE));
+        assert!(
+            engine_cell
+                .borrow()
+                .photo(second)
+                .expect("photo")
+                .tags
+                .contains(&"backlit".to_string()),
+            "T applied the last keyword to the current photo"
+        );
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Tagged “backlit”");
+
+        // The key handler runs after the view paints, so the strip catches up on the next frame.
+        let output = frame(&mut state, egui::RawInput::default());
+
+        // The toast in the bottom bar repeats the keyword with quotes and the sidebar lists the
+        // keyword too; the chip paints the bare word inside the cull panel, right of the sidebar.
+        let chip = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text)
+                    if text.galley.text().starts_with("backlit") && text.galley.rect.translate(text.pos.to_vec2()).min.x > 260.0 =>
+                {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .expect("the keyword chip painted its text");
+        let at = chip.center();
+        let pressed = egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        };
+        let released = egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        };
+        frame(
+            &mut state,
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+                events: vec![egui::Event::PointerMoved(at), pressed],
+                ..Default::default()
+            },
+        );
+        frame(
+            &mut state,
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+                events: vec![released],
+                ..Default::default()
+            },
+        );
+        assert!(
+            engine_cell.borrow().photo(second).expect("photo").tags.is_empty(),
+            "the click removed the keyword"
+        );
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Removed keyword backlit");
+
+        // And the strip is honest about the removal: one more frame paints no chip for the keyword
+        // that was just taken off the photo on screen.
+        let out = frame(&mut state, egui::RawInput::default());
+        let still_painted = out.shapes.iter().any(|clipped| {
+            matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text().starts_with("backlit")
+                    && text.galley.rect.translate(text.pos.to_vec2()).min.x > 260.0)
+        });
+        assert!(!still_painted, "the removed keyword has no chip left");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

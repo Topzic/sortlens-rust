@@ -251,9 +251,12 @@ only signal.
   Apply menu. All are real buttons, not painted text, so they are focusable and named.
 - Session summary line under the bar, updating live.
 - Right panel stays available (Tags/Suggestions), so culling and keywording are one pass.
-- `T` applies the keyword you last added to the current photo (or the whole selection), so a look gets one
-  name typed once and then a key per photo. The notice names the keyword — "Tagged 5 photos" would leave you
-  guessing what was written.
+- Inline keyword strip under the action bar: chips for the keywords the photo on screen carries (click
+  takes one off) and a field that adds one with Enter. While the field is focused it owns the keys, so
+  P and T type letters rather than decide.
+- `T` applies the keyword you last added — to the selection in the library, to the photo on screen in
+  a cull session — so a look gets one name typed once and then a key per photo. The notice names the
+  keyword — "Tagged 5 photos" would leave you guessing what was written.
 - `Apply ▾` opens the plan dialog: mode (trash / rejects folder / permanent), count, total size,
   collapsible file list, primary action "Move 148 to Rejects Bin", secondary "Cancel".
 - Resuming: entering Cull on the same scope offers "Resume where you left off · photo 313" or
