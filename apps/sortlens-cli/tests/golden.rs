@@ -18,6 +18,9 @@ use std::process::Command;
 const UPDATE_ENV: &str = "SORTLENS_UPDATE_GOLDEN";
 
 /// One recorded invocation.
+///
+/// `%PHOTOS%` in an argument is replaced with the fixture folder at run time, so a step can name an
+/// absolute destination without the golden depending on where the fixture landed.
 struct Step {
     /// Also the golden file's name.
     name: &'static str,
@@ -174,7 +177,28 @@ const STEPS: &[Step] = &[
         file: None,
     },
     Step {
-        name: "30 snapshot",
+        name: "30 export",
+        args: &["export", "%PHOTOS%/Export", "1", "2"],
+        file: None,
+    },
+    Step {
+        name: "31 export again",
+        args: &[
+            "export",
+            "%PHOTOS%/Export",
+            "1",
+            "2",
+            "--format",
+            "jpeg",
+            "--max",
+            "24",
+            "--collision",
+            "rename",
+        ],
+        file: None,
+    },
+    Step {
+        name: "32 snapshot",
         args: &[],
         file: Some("snapshot.json"),
     },
@@ -278,10 +302,15 @@ fn record(step: &Step, library: &Path, fixture_root: &Path) -> String {
             Err(error) => format!("<missing: {file}: {error}>\n"),
         };
     }
+    let args: Vec<String> = step
+        .args
+        .iter()
+        .map(|arg| arg.replace("%PHOTOS%", &fixture_root.display().to_string()))
+        .collect();
     let output = Command::new(binary())
         .arg("--library")
         .arg(library)
-        .args(step.args)
+        .args(&args)
         .current_dir(fixture_root)
         .output();
     match output {

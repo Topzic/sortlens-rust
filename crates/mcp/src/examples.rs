@@ -34,6 +34,10 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
     ("library.restoreBackup", "file: an archive, dest: an empty folder to restore into"),
     ("library.remapRoot", "from: the old folder, to: the new one"),
     ("edit.movePicks", "dest: the folder to move into, ids: photos to move"),
+    (
+        "edit.export",
+        "dest: an absolute folder; ids: photos; optional format (original|jpeg), maxEdge, quality, metadata, collision (skip|rename|overwrite)",
+    ),
     ("photo.setCaptured", "changes: [{ id, captured }], captured in Unix seconds or null"),
     ("photo.reveal", "id: one photo; returns the command to run, does not run it"),
     ("photo.open", "id: one photo; returns the command to run, does not run it"),
@@ -282,6 +286,11 @@ pub const EXAMPLES: &[Example] = &[
         command: "view.similar",
         args: "{}",
         note: "The groups found so far.",
+    },
+    Example {
+        command: "edit.cancelExport",
+        args: "{}",
+        note: "Stops a running export; files already written stay written.",
     },
     Example {
         command: "edit.moves",

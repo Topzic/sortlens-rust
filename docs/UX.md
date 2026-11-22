@@ -432,3 +432,19 @@ same library look different at different window sizes and makes two screenshots 
   without hovering it.
 - Every column and row carries a hover tooltip with the exact count and share, because a chart you
   cannot read a number off is decoration.
+
+## The export dialog
+
+Reachable from the cull view ("Export picks…"), the grid's context menu and the detail header, so it
+is available wherever someone has decided what to keep.
+
+It shows, in one place: how many files and what they will be (always in words, never a bare format
+code), the format as two chips, the longest edge and quality for a re-encode, whether metadata travels,
+and the collision policy as three words — *Skip*, *Keep both*, *Replace* — because "rename" and
+"overwrite" are terms about files, not about photos. A copy says so plainly: "same bytes, same name, no
+resize and no re-encode".
+
+While it runs, the dialog shows a progress bar with "n of total" and a **Stop** button, and the activity
+panel shows the same job. When it finishes, a receipt replaces the dialog with what was written, into
+which folder, and the sentence that matters: the originals are where they were.
+

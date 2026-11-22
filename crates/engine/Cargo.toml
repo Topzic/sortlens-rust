@@ -13,6 +13,7 @@ sortlens-core = { workspace = true }
 sortlens-meta = { workspace = true }
 sortlens-catalog = { workspace = true }
 sortlens-cull = { workspace = true }
+sortlens-export = { workspace = true }
 sortlens-similar = { workspace = true }
 sortlens-insights = { workspace = true }
 sortlens-memories = { workspace = true }
@@ -23,6 +24,7 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+sortlens-testkit = { workspace = true }
 craft-jpeg = { workspace = true }
 
 [lints]

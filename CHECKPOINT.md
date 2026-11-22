@@ -1134,10 +1134,47 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - README's badge and status block say M0–M7, list what works, and have a "what is not built yet"
   section so the absences are stated rather than implied.
 
+## 2026-11-21 — M8 (half): export
+
+- new crate `sortlens-export` (25 workspace crates). Planning is separate from writing, so every
+  destination and every collision is decided before a byte moves: `plan()` takes the folder's existing
+  names and returns jobs with a `skip` reason, which is what lets the UI say "0 written, 1 skipped"
+  instead of starting a bar that never fills.
+- **Format::Original** is a byte copy that keeps the source's extension case (`IMG_0001.CR3` stays
+  `.CR3`); **Format::Jpeg** decodes, optionally clamps the *long* edge, re-encodes at a validated
+  quality, and carries only APP1 (EXIF) and APP13 (IPTC) forward — forwarding every application
+  segment would carry another program's editing state. PNG/TIFF/WebP are **not** offered: the
+  workspace has one encoder, and a format chip that cannot write its format is a lie.
+- collision policy is `Skip` / `Rename` (`name-2.jpg`, up to `RENAME_LIMIT = 1000` then reported) /
+  `Overwrite`; two same-named photos inside one export collide with each other, not just with the folder.
+- engine: `begin_export` / `export_progress` / `cancel_export` / `poll_export` / `last_export`, a
+  worker thread and `JobKind::Export` in the activity stack. A photo that is no longer on disk is
+  named and the export refuses. **No op is logged** — an export changes nothing about the library, so
+  `docs/BEHAVIOUR.md` says why it cannot be undone: there is nothing to undo.
+- commands `edit.export` and `edit.cancelExport` (+ MCP examples, which are executed by
+  `every_published_example_actually_runs`); `all_photos()` became public for whole-library operations,
+  with the doc comment that had drifted onto `key_for` put back.
+- CLI `export <dest> [ids…] [--format] [--max] [--quality] [--collision] [--no-metadata]`, waiting for
+  the worker and printing the receipt.
+- UI: "Export picks…" in the cull bar, "Export…" in the grid context menu and the detail header, and an
+  `export_dialog` with format chips, edge/quality, metadata, three collision words, progress, Stop, and
+  a receipt that repeats that the originals were not touched.
+- **the golden job caught a real bug the first time the verb was recorded**: `--max 24` was read as
+  photo 24 (`no such photo: 24`), because the id list was `filter_map(parse)` over every argument. The
+  CLI now walks arguments and skips flag values. New goldens: `30 export`, `31 export again` (JPEG,
+  `--max 24`, `--collision rename`), and the `%PHOTOS%` placeholder that lets a step name an absolute
+  path without the golden depending on where the fixture landed.
+- **not verified by hand**: the dialog in a real window (no screenshot, same as every UI commit here);
+  the headless `Context::run_ui` test paints it with nothing selected, with a full JPEG spec and with a
+  receipt, and the engine tests exercise the worker against real JPEGs — but nobody has clicked
+  "Choose folder…" in front of a person.
+- 336 tests, `cargo xtask ci` green, `cargo xtask wasm` green.
+
 ## Next
 
-M8 — AI and export. Start with the half that needs no model: **export** (`FEATURES.md` §M, SL-B24) —
-original/JPEG/PNG, resize, quality, metadata carry-over, collision policy, progress and cancellation —
-because it is engine + UI work with no new dependency, and it exercises the colliding-name rules the
-catalog already has. Then the AI half: a model manifest, `tract` sessions, and the no-network
-assertion test. Keep the golden job updated for any new CLI verb.
+M8, the AI half. Start with the parts that need no model download so the shape is right before a
+dependency arrives: a **model manifest** (id, licence, sha256, size, scripts) and a
+**content-addressed store** that verifies a digest before use, plus the **no-network assertion test**
+that `sortlens-ai` cannot open a socket. Then `tract` sessions, NMS and the label map, and finally the
+suggestion merger with caps and the review panel. `crates/ai` is still the M0 scaffold, so this starts
+from zero — say so in the entry rather than implying the manifest half exists.

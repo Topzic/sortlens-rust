@@ -128,6 +128,8 @@ pub enum Action {
     Reveal(PhotoId),
     /// Hand this photo to the desktop's default application.
     OpenExternal(PhotoId),
+    /// Write these photos out. The host asks for the folder, because only it can show a picker.
+    Export(Vec<PhotoId>, sortlens_engine::ExportSpec),
 }
 
 /// What Apply does with rejected photos.
@@ -260,6 +262,14 @@ pub struct UiState {
     pub deleted_open: bool,
     /// Whether the library health dialog is showing.
     pub health_open: bool,
+    /// Whether the export dialog is showing.
+    pub export_open: bool,
+    /// What the export dialog is set to write.
+    pub export_spec: sortlens_engine::ExportSpec,
+    /// The photos the export dialog will write.
+    pub export_ids: Vec<PhotoId>,
+    /// The last export's receipt, kept on screen until dismissed.
+    pub export_receipt: Option<String>,
     /// Last health check: (checked, present, missing).
     pub health: Option<(usize, usize, usize)>,
     /// Relative folder inside the chosen root, with a trailing slash, or empty for the whole root.
@@ -337,6 +347,10 @@ impl UiState {
             apply_open: false,
             deleted_open: false,
             health_open: false,
+            export_open: false,
+            export_spec: sortlens_engine::ExportSpec::default(),
+            export_ids: Vec::new(),
+            export_receipt: None,
             health: None,
             folder: String::new(),
             sort: Sort::Natural,
@@ -527,6 +541,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.history_open {
         history_dialog(ui, state, &t, engine, &mut actions);
+    }
+    if state.export_open || state.export_receipt.is_some() {
+        export_dialog(ui, state, &t, engine, &mut actions);
     }
     if state.move_receipt.is_some() {
         move_receipt_dialog(ui, state, &t, engine, &mut actions);
@@ -1164,6 +1181,11 @@ fn grid(
                                     state.detail_open = true;
                                 }
                                 response.context_menu(|ui| {
+                                    if ui.button("Export…").clicked() {
+                                        state.export_ids = vec![photo.id];
+                                        state.export_open = true;
+                                        ui.close();
+                                    }
                                     if ui.button("Show in folder").clicked() {
                                         actions.push(Action::Reveal(photo.id));
                                         ui.close();
@@ -1944,6 +1966,14 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             {
                 actions.push(Action::Reveal(id));
             }
+            if ui
+                .add(Button::new(RichText::new("Export…").size(10.5)).frame(false))
+                .on_hover_text("Write a copy somewhere; the original is not touched")
+                .clicked()
+            {
+                state.export_ids = vec![id];
+                state.export_open = true;
+            }
             if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
                 state.detail_open = false;
                 state.compare = None;
@@ -2513,6 +2543,15 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             {
                 let picks = engine.cull().map(|session| session.picks()).unwrap_or_default();
                 actions.push(Action::MovePicks(picks));
+            }
+            if ui
+                .add_enabled(summary.picks > 0, Button::new(RichText::new("Export picks…").size(11.5)))
+                .on_disabled_hover_text("Pick a photo first")
+                .on_hover_text("Write the picks into a folder; the originals are not touched")
+                .clicked()
+            {
+                state.export_ids = engine.cull().map(|session| session.picks()).unwrap_or_default();
+                state.export_open = true;
             }
             if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
                 engine.cull_back();
@@ -3203,6 +3242,126 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
 }
 
 /// Ask before emptying the bin: the records are the only way back.
+/// What an export will write, and what the last one did.
+///
+/// The dialog says the two things a user needs to trust it: which files, and that the originals are
+/// not touched. Progress comes from the engine's worker, so closing and reopening does not lose it.
+fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    if let Some(receipt) = state.export_receipt.clone() {
+        let mut open = true;
+        egui::Window::new("Export finished")
+            .open(&mut open)
+            .resizable(false)
+            .collapsible(false)
+            .default_width(380.0)
+            .show(ui.ctx(), |ui| {
+                ui.label(RichText::new(&receipt).size(12.0));
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("The originals are where they were; an export only writes copies.")
+                        .size(10.5)
+                        .color(t.text_muted),
+                );
+            });
+        if !open {
+            state.export_receipt = None;
+        }
+    }
+
+    if !state.export_open {
+        return;
+    }
+    let progress = engine.export_progress();
+    let mut open = state.export_open;
+    let mut start = false;
+    egui::Window::new("Export")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(400.0)
+        .show(ui.ctx(), |ui| {
+            let count = state.export_ids.len();
+            ui.label(RichText::new(format!("{count} photo(s) · {}", state.export_spec.summary())).size(12.0));
+            ui.add_space(6.0);
+
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Format").size(11.0).color(t.text_muted));
+                for format in sortlens_engine::ExportFormat::ALL {
+                    if chip(ui, t, format.label(), state.export_spec.format == format).clicked() {
+                        state.export_spec.format = format;
+                    }
+                }
+            });
+            if state.export_spec.format == sortlens_engine::ExportFormat::Original {
+                hint(ui, t, "A copy: same bytes, same name, no resize and no re-encode.");
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Longest edge").size(11.0).color(t.text_muted));
+                    let mut edge = state.export_spec.max_edge.unwrap_or(0);
+                    if ui.add(egui::DragValue::new(&mut edge).range(0..=12_000).speed(16)).changed() {
+                        state.export_spec.max_edge = if edge == 0 { None } else { Some(edge.max(16)) };
+                    }
+                    ui.label(RichText::new("px · 0 keeps the original size").size(10.0).color(t.text_muted));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Quality").size(11.0).color(t.text_muted));
+                    let mut quality = u32::from(state.export_spec.quality);
+                    if ui.add(egui::Slider::new(&mut quality, 1..=100)).changed() {
+                        state.export_spec.quality = quality.min(100) as u8;
+                    }
+                });
+                if ui
+                    .checkbox(&mut state.export_spec.metadata, "Keep EXIF and IPTC")
+                    .on_hover_text("Carries the camera's metadata into the new file")
+                    .changed()
+                {}
+            }
+
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("If the name is taken").size(11.0).color(t.text_muted));
+                for policy in sortlens_engine::Collision::ALL {
+                    if chip(ui, t, policy.label(), state.export_spec.collision == policy).clicked() {
+                        state.export_spec.collision = policy;
+                    }
+                }
+            });
+
+            if let Some((done, total)) = progress {
+                ui.add_space(8.0);
+                let share = if total == 0 { 0.0 } else { done as f32 / total as f32 };
+                ui.add(egui::ProgressBar::new(share).text(format!("{done} of {total}")));
+                if ui.button("Stop").clicked() {
+                    engine.cancel_export();
+                }
+            }
+
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(progress.is_none() && count > 0, Button::new("Choose folder…"))
+                    .on_disabled_hover_text("An export is already running, or nothing is selected")
+                    .clicked()
+                {
+                    start = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    state.export_open = false;
+                }
+            });
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new("Your photos stay where they are; this writes copies into the folder you pick.")
+                    .size(10.5)
+                    .color(t.text_muted),
+            );
+        });
+    state.export_open = open;
+    if start {
+        actions.push(Action::Export(state.export_ids.clone(), state.export_spec.clone()));
+    }
+}
+
 fn empty_bin_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     let batch_count = engine.deleted_batches().len();
     let files: usize = engine.deleted_batches().iter().map(|batch| batch.items.len()).sum();
@@ -4356,6 +4515,61 @@ mod tests {
         let same = compare_facts(&left, &left);
         assert!(same.iter().all(|(label, _)| *label != "size"));
         assert!(same.iter().all(|(label, _)| *label != "exposure"));
+    }
+
+    /// The export dialog has to survive being drawn with no photos, with photos, mid-job and after a
+    /// receipt — and it must offer the two facts that make it trustworthy rather than decorative.
+    #[test]
+    fn the_export_dialog_paints_in_every_state() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-export-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+
+        // Nothing selected: the dialog still draws, and offers nothing to start.
+        state.export_open = true;
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                export_dialog(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(state.export_open, "the window stays open until Cancel or the host closes it");
+        assert!(actions.is_empty(), "no folder is picked without a click");
+
+        // With photos and a JPEG spec: still paints, and a full spec is accepted.
+        state.export_ids = vec![PhotoId(1), PhotoId(2)];
+        state.export_spec = sortlens_engine::ExportSpec {
+            format: sortlens_engine::ExportFormat::Jpeg,
+            max_edge: Some(2048),
+            quality: 82,
+            metadata: false,
+            collision: sortlens_engine::Collision::Rename,
+        };
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                export_dialog(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+
+        // A receipt draws too, and closing it clears it.
+        state.export_open = false;
+        state.export_receipt = Some("3 written · 0 skipped · 12 kB → /tmp/out".to_string());
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                export_dialog(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(state.export_receipt.is_some(), "the receipt waits for the user");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

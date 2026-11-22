@@ -190,3 +190,26 @@ Two actions, `photo.reveal` and `photo.open`, and one rule about who does what.
   is not an edit, and it must not appear in the change history.
 - Windows `explorer` exits non-zero even when it worked, so a non-zero exit is only treated as a
   failure when the program could not be started at all.
+
+## Exporting
+
+An export is a **read of the library and a write somewhere else**. It never moves, edits or deletes an
+original, and it writes **no operation** to the log: nothing about the library changed, so nothing is
+recorded, and an export cannot be undone because there is nothing to undo.
+
+- **Original** copies the bytes as they are: same extension in the source's case, no re-encode, no
+  resize. Asking for a longest edge with this format is refused by the UI rather than silently ignored —
+  copying cannot resize.
+- **JPEG** decodes, optionally downscales so the *long* edge is the requested size, and re-encodes at
+  the requested quality (1–100, validated not clamped). Upscaling never happens. With metadata on, the
+  source's APP1 (EXIF) and APP13 (IPTC) blocks are carried into the new file; other application
+  segments are not, because forwarding every one of them would carry another program's editing state.
+- **Collisions** are decided before anything is written, in the order the photos are given, so two
+  files with the same name inside one export collide with each other and not only with the folder:
+  `skip` leaves the existing file alone, `keep both` writes `name-2.jpg` upward (up to 1000, then it
+  reports rather than loops), `replace` overwrites.
+- A photo that is no longer on disk is named and the export refuses, rather than writing part of the
+  set quietly.
+- Progress is per file and the export can be stopped; files already written stay written, and the
+  report says how many of each.
+

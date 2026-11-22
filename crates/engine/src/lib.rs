@@ -19,6 +19,7 @@ pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, Ta
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
 pub use sortlens_cull::{Decision, Summary as CullSummary};
+pub use sortlens_export::{Collision, Format as ExportFormat, Report as ExportReport, Spec as ExportSpec};
 pub use sortlens_insights::{Highlight as InsightHighlight, Insights, Row as InsightRow, month_name};
 pub use sortlens_similar::{
     DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Match as SimilarMatch,
@@ -69,6 +70,15 @@ struct PendingScan {
 }
 
 /// A hash pass in flight.
+/// An export running on its own thread.
+struct PendingExport {
+    job: u64,
+    rx: Receiver<sortlens_export::Report>,
+    total: usize,
+    done: Arc<std::sync::atomic::AtomicUsize>,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
 struct PendingHash {
     job: u64,
     rx: Receiver<Vec<SimilarMember>>,
@@ -105,6 +115,8 @@ pub struct Engine {
     last_effect: Effect,
     catalog: Option<Catalog>,
     pending: Option<PendingScan>,
+    pending_export: Option<PendingExport>,
+    last_export: Option<sortlens_export::Report>,
     pending_hash: Option<PendingHash>,
     hashes: std::collections::HashMap<u64, (sortlens_hash::Hash, sortlens_hash::Colour)>,
     pending_insights: Option<PendingInsights>,
@@ -132,6 +144,8 @@ impl Engine {
             dir: None,
             catalog: None,
             pending: None,
+            pending_export: None,
+            last_export: None,
             pending_hash: None,
             hashes: std::collections::HashMap::new(),
             pending_insights: None,
@@ -780,13 +794,16 @@ impl Engine {
         }
     }
 
-    /// Every photo in the library, whatever the filters.
     /// Content key for a photo, so a renamed file keeps its hash.
     fn key_for(&self, id: PhotoId) -> Option<u64> {
         self.catalog.as_ref()?.photo(id).map(|photo| photo.key)
     }
 
-    fn all_photos(&self) -> Vec<Photo> {
+    /// Every photo in the library, whatever the filters.
+    ///
+    /// Used by the whole-library operations — exports, hashing, insights — which need the set, not a
+    /// page of it.
+    pub fn all_photos(&self) -> Vec<Photo> {
         match &self.catalog {
             Some(catalog) => catalog.page(&Filter::default(), Sort::Natural, 0, 1_000_000).photos,
             None => Vec::new(),
@@ -1418,6 +1435,149 @@ impl Engine {
     /// Groups found by the last finished hash pass.
     pub fn similar_groups(&self) -> &[SimilarGroup] {
         &self.similar
+    }
+
+    /// Start writing photos out to `dest`.
+    ///
+    /// The plan is built before anything is written, so a name clash is decided up front and the
+    /// caller can be told how many files will be skipped before a byte moves. Returns the number of
+    /// files the plan will write.
+    pub fn begin_export(&mut self, dest: &Path, ids: &[PhotoId], spec: &sortlens_export::Spec) -> Result<usize> {
+        if self.catalog.is_none() {
+            return Err(Error::Invalid("no library is open".into()));
+        }
+        if self.pending_export.is_some() {
+            return Err(Error::Invalid("an export is already running".into()));
+        }
+        spec.check()?;
+        if dest.as_os_str().is_empty() {
+            return Err(Error::Invalid("an export needs a destination folder".into()));
+        }
+        if !dest.is_absolute() {
+            return Err(Error::Invalid(format!("{} is not an absolute path", dest.display())));
+        }
+        let mut sources = Vec::with_capacity(ids.len());
+        for id in ids {
+            let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
+            let path = PathBuf::from(photo.path());
+            if !path.exists() {
+                return Err(Error::Invalid(format!(
+                    "{} is not on disk any more; rescan or relocate the folder first",
+                    photo.rel
+                )));
+            }
+            sources.push(path);
+        }
+        let existing = sortlens_export::existing_names(dest);
+        let jobs: Vec<sortlens_export::Job> = sortlens_export::plan(spec, &sources, dest, &existing);
+        let writing = jobs.iter().filter(|job| job.skip.is_none()).count();
+        let skipped = jobs.len() - writing;
+        if writing == 0 {
+            // Nothing to write is a result, not a job: say so instead of showing a bar that never moves.
+            let mut done = sortlens_export::Report {
+                dest: dest.to_path_buf(),
+                skipped,
+                ..sortlens_export::Report::default()
+            };
+            done.written = 0;
+            self.last_export = Some(done);
+            return Ok(0);
+        }
+
+        let spec = spec.clone();
+        let dest = dest.to_path_buf();
+        let (tx, rx) = channel();
+        let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let worker_done = Arc::clone(&done);
+        let worker_cancel = Arc::clone(&cancel);
+        let total = jobs.len();
+        std::thread::Builder::new()
+            .name("sortlens-export".into())
+            .spawn(move || {
+                let mut report = sortlens_export::Report {
+                    dest,
+                    skipped,
+                    ..sortlens_export::Report::default()
+                };
+                for job in &jobs {
+                    if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                        break;
+                    }
+                    match sortlens_export::export_one(&spec, job) {
+                        Ok(_) if job.skip.is_some() => {}
+                        Ok(bytes) => {
+                            report.written += 1;
+                            report.bytes += bytes;
+                        }
+                        Err(error) => report.failures.push(format!(
+                            "{}: {error}",
+                            job.source
+                                .file_name()
+                                .map(|name| name.to_string_lossy().to_string())
+                                .unwrap_or_default()
+                        )),
+                    }
+                    worker_done.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                let _ = tx.send(report);
+            })
+            .map_err(|error| Error::Invalid(format!("could not start the export worker: {error}")))?;
+
+        let job = self.start_job(JobKind::Export, format!("{writing} files"));
+        self.pending_export = Some(PendingExport {
+            job,
+            rx,
+            total,
+            done,
+            cancel,
+        });
+        Ok(writing)
+    }
+
+    /// How far a running export got: files dealt with, and how many there were.
+    pub fn export_progress(&self) -> Option<(usize, usize)> {
+        self.pending_export
+            .as_ref()
+            .map(|pending| (pending.done.load(std::sync::atomic::Ordering::Relaxed), pending.total))
+    }
+
+    /// Stop a running export. Files already written stay written.
+    pub fn cancel_export(&mut self) {
+        if let Some(pending) = &self.pending_export {
+            pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    /// Take the report of a finished export, or `None` while it is still running.
+    pub fn poll_export(&mut self) -> Option<sortlens_export::Report> {
+        let pending = self.pending_export.as_ref()?;
+        let report = match pending.rx.try_recv() {
+            Ok(report) => report,
+            Err(TryRecvError::Empty) => return None,
+            Err(TryRecvError::Disconnected) => {
+                self.pending_export = None;
+                return None;
+            }
+        };
+        let pending = self.pending_export.take()?;
+        let cancelled = pending.cancel.load(std::sync::atomic::Ordering::Relaxed);
+        let status = if cancelled {
+            JobStatus::Cancelled
+        } else if report.is_clean() {
+            JobStatus::Done
+        } else {
+            JobStatus::Failed
+        };
+        let error = report.failures.first().cloned();
+        self.finish_job(pending.job, status, report.written, 0, report.failures.len(), error);
+        self.last_export = Some(report.clone());
+        Some(report)
+    }
+
+    /// The most recent export, for the dialog's receipt.
+    pub fn last_export(&self) -> Option<&sortlens_export::Report> {
+        self.last_export.as_ref()
     }
 
     /// Start hashing every photo, reusing hashes already computed for unchanged files.
@@ -2287,6 +2447,41 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a move id is required".into()))?;
                 Ok(json!({ "restored": self.undo_move(id)? }))
             }
+            "edit.export" => {
+                let dest = args
+                    .get("dest")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a destination folder is required".into()))?;
+                let ids = ids_from(args)?;
+                let mut spec = sortlens_export::Spec::default();
+                if let Some(format) = args.get("format").and_then(Value::as_str) {
+                    spec.format =
+                        sortlens_export::Format::parse(format).ok_or_else(|| Error::Invalid(format!("there is no {format} export")))?;
+                }
+                if let Some(edge) = args.get("maxEdge").and_then(Value::as_u64) {
+                    spec.max_edge = Some(u32::try_from(edge).map_err(|_| Error::Invalid("that edge is out of range".into()))?);
+                }
+                if let Some(quality) = args.get("quality").and_then(Value::as_u64) {
+                    spec.quality = u8::try_from(quality).map_err(|_| Error::Invalid("that quality is out of range".into()))?;
+                }
+                if let Some(metadata) = args.get("metadata").and_then(Value::as_bool) {
+                    spec.metadata = metadata;
+                }
+                if let Some(collision) = args.get("collision").and_then(Value::as_str) {
+                    spec.collision = sortlens_export::Collision::parse(collision)
+                        .ok_or_else(|| Error::Invalid(format!("there is no {collision} collision policy")))?;
+                }
+                let planned = self.begin_export(Path::new(dest), &ids, &spec)?;
+                Ok(json!({
+                    "dest": dest,
+                    "planned": planned,
+                    "summary": spec.summary(),
+                }))
+            }
+            "edit.cancelExport" => {
+                self.cancel_export();
+                Ok(json!({ "cancelled": true }))
+            }
             "edit.moves" => {
                 let receipts: Vec<Value> = self
                     .moves
@@ -2770,6 +2965,118 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("scan did not finish");
+    }
+
+    fn wait_for_export(engine: &mut Engine) -> sortlens_export::Report {
+        for _ in 0..600 {
+            if let Some(report) = engine.poll_export() {
+                return report;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("export did not finish");
+    }
+
+    /// A library with `count` real JPEGs indexed, and the folder they live in.
+    fn library_with_images(name: &str, count: usize) -> (Temp, Temp, Engine) {
+        let library_dir = Temp::new(name);
+        let photos = Temp::new(&format!("{name}-photos"));
+        let fixture = sortlens_testkit::Fixture::new(name);
+        for tick in 0..count {
+            let source = fixture.jpeg(&format!("IMG_{tick:04}.jpg"), [40 + tick as u8 * 40, 80, 160], 48, 32);
+            let target = photos.0.join(format!("IMG_{tick:04}.jpg"));
+            std::fs::create_dir_all(&photos.0).expect("dir");
+            std::fs::copy(&source, &target).expect("copy fixture");
+        }
+        let mut engine = Engine::open(&library_dir.0).expect("open");
+        engine.begin_scan(photos.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        (library_dir, photos, engine)
+    }
+
+    #[test]
+    fn an_export_writes_the_picks_and_reports_what_it_did() {
+        let (library_dir, photos, mut engine) = library_with_images("export", 3);
+        let dest = Temp::new("export-dest");
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        let spec = sortlens_export::Spec::default();
+        let planned = engine.begin_export(&dest.0, &ids, &spec).expect("begin");
+        assert_eq!(planned, 3);
+        // Progress is observable while it runs, and the job appears in the activity stack.
+        assert!(engine.export_progress().is_some());
+        assert!(engine.jobs().iter().any(|job| job.kind == JobKind::Export));
+        let report = wait_for_export(&mut engine);
+        assert_eq!(report.written, 3);
+        assert!(report.is_clean(), "{:?}", report.failures);
+        assert!(report.bytes > 0);
+        let written: Vec<String> = std::fs::read_dir(&dest.0)
+            .expect("dest")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(written.len(), 3);
+        // A copy is byte-identical, which is the whole promise of "Original".
+        let source = std::fs::read(photos.0.join("IMG_0001.jpg")).expect("source");
+        let copy = std::fs::read(dest.0.join("IMG_0001.jpg")).expect("copy");
+        assert_eq!(source, copy);
+        // Exporting does not touch the library.
+        assert_eq!(engine.stats().total, 3);
+        assert_eq!(engine.last_export().map(|report| report.written), Some(3));
+        drop(library_dir);
+    }
+
+    #[test]
+    fn a_second_export_into_the_same_folder_does_not_eat_the_first() {
+        let (_library_dir, _photos, mut engine) = library_with_images("export-twice", 1);
+        let dest = Temp::new("export-twice-dest");
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        let skip = sortlens_export::Spec::default();
+        engine.begin_export(&dest.0, &ids, &skip).expect("first");
+        assert_eq!(wait_for_export(&mut engine).written, 1);
+        let mut rename = sortlens_export::Spec {
+            collision: sortlens_export::Collision::Rename,
+            ..Default::default()
+        };
+        engine.begin_export(&dest.0, &ids, &rename).expect("second");
+        let report = wait_for_export(&mut engine);
+        assert_eq!(report.written, 1);
+        assert!(dest.0.join("IMG_0000-2.jpg").exists(), "the second file got its own name");
+        // And the skip policy leaves the folder alone.
+        rename.collision = sortlens_export::Collision::Skip;
+        assert_eq!(engine.begin_export(&dest.0, &ids, &rename).expect("third"), 0, "nothing to write");
+        let report = engine.last_export().cloned().expect("a receipt");
+        assert_eq!(report.written, 0);
+        assert_eq!(report.skipped, 1);
+        assert_eq!(std::fs::read_dir(&dest.0).expect("dest").count(), 2);
+    }
+
+    #[test]
+    fn an_export_refuses_a_relative_folder_and_a_missing_photo() {
+        let (_library_dir, _photos, mut engine) = library_with_images("export-refuse", 1);
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        let spec = sortlens_export::Spec::default();
+        assert!(engine.begin_export(Path::new("relative"), &ids, &spec).is_err());
+        // A photo whose file has gone is named rather than silently dropped from the plan.
+        std::fs::remove_file(engine.photo(ids[0]).expect("photo").path()).expect("remove");
+        let dest = Temp::new("export-refuse-dest");
+        let error = engine.begin_export(&dest.0, &ids, &spec).expect_err("missing file");
+        assert!(error.to_string().contains("is not on disk"), "{error}");
+    }
+
+    #[test]
+    fn an_export_with_nothing_to_write_says_so_instead_of_starting_a_job() {
+        let (_library_dir, _photos, mut engine) = library_with_images("export-empty", 1);
+        let dest = Temp::new("export-empty-dest");
+        std::fs::create_dir_all(&dest.0).expect("dest");
+        std::fs::write(dest.0.join("IMG_0000.jpg"), b"in the way").expect("existing");
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        let spec = sortlens_export::Spec::default();
+        assert_eq!(engine.begin_export(&dest.0, &ids, &spec).expect("begin"), 0);
+        assert!(engine.export_progress().is_none(), "no bar for a job that writes nothing");
+        let report = engine.last_export().expect("a receipt");
+        assert_eq!(report.skipped, 1);
+        assert_eq!(report.written, 0);
+        assert_eq!(std::fs::read(dest.0.join("IMG_0000.jpg")).expect("read"), b"in the way");
     }
 
     #[test]

@@ -49,6 +49,9 @@ Commands:
   move <dest> <id...>       move photos into a folder, keeping their review state
   moves                     list recent moves with their ids
   unmove <id>               put a moved batch back where it came from
+  export <dest> [ids...]    write picks out; no ids means the whole library
+                            --format original|jpeg --max N --quality N
+                            --collision skip|rename|overwrite --no-metadata
   changed                   list files whose size or time no longer matches the index
   refresh                   re-read exactly the changed files
   audit                     check the catalog files read back cleanly
@@ -188,6 +191,72 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Write picks out of the library, and wait for the worker to finish.
+///
+/// Pulled out of `run` because the argument reading is longer than the other verbs and the command
+/// table should stay a table.
+fn export(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
+    let dest = rest.first().ok_or("a destination folder is required")?;
+    // Values belong to flags, not to the photo list: `--max 24` is a size, and reading it as "photo
+    // 24" was a real bug the golden job caught the moment the verb was recorded.
+    let mut ids: Vec<sortlens_core::PhotoId> = Vec::new();
+    let mut index = 1;
+    while index < rest.len() {
+        let arg = &rest[index];
+        if let Some(flag) = arg.strip_prefix("--") {
+            let takes_value = matches!(flag, "format" | "max" | "quality" | "collision" | "library");
+            index += if takes_value { 2 } else { 1 };
+            continue;
+        }
+        if let Ok(value) = arg.parse::<u64>() {
+            ids.push(sortlens_core::PhotoId(value));
+        }
+        index += 1;
+    }
+    if ids.is_empty() {
+        // No ids means "everything the filters would show" — the common case from a script.
+        ids = engine.all_photos().iter().map(|photo| photo.id).collect();
+    }
+    let mut spec = sortlens_engine::ExportSpec::default();
+    if let Some(format) = text_value(rest, "--format") {
+        spec.format = sortlens_engine::ExportFormat::parse(&format).ok_or_else(|| format!("there is no {format} export"))?;
+    }
+    if let Some(edge) = flag_value(rest, "--max") {
+        spec.max_edge = Some(u32::try_from(edge).map_err(|_| "that edge is out of range".to_string())?);
+    }
+    if let Some(quality) = flag_value(rest, "--quality") {
+        spec.quality = u8::try_from(quality).map_err(|_| "that quality is out of range".to_string())?;
+    }
+    if rest.iter().any(|arg| arg == "--no-metadata") {
+        spec.metadata = false;
+    }
+    if let Some(collision) = text_value(rest, "--collision") {
+        spec.collision =
+            sortlens_engine::Collision::parse(&collision).ok_or_else(|| format!("there is no {collision} collision policy"))?;
+    }
+    let planned = engine
+        .begin_export(std::path::Path::new(dest), &ids, &spec)
+        .map_err(|error| error.to_string())?;
+    if planned == 0 {
+        match engine.last_export() {
+            Some(report) => println!("nothing to write · {}", report.headline()),
+            None => println!("nothing to write"),
+        }
+        return Ok(());
+    }
+    for _ in 0..1200 {
+        if let Some(report) = engine.poll_export() {
+            for failure in &report.failures {
+                eprintln!("  failed: {failure}");
+            }
+            println!("{} -> {}", report.headline(), report.dest.display());
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    Err("the export did not finish".into())
 }
 
 fn run() -> Result<(), String> {
@@ -378,6 +447,7 @@ fn run() -> Result<(), String> {
             println!("moved {count} photo(s) to {dest}");
             Ok(())
         }
+        "export" => export(&mut engine, rest),
         "moves" => {
             if engine.move_receipts().is_empty() {
                 println!("no moves recorded");

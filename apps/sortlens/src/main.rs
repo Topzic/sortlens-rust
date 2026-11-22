@@ -222,6 +222,29 @@ impl App {
                     }
                 }
             }
+            Action::Export(ids, spec) => {
+                if ids.is_empty() {
+                    self.ui.notice("Pick a photo first");
+                    return;
+                }
+                if let Some(folder) = rfd::FileDialog::new().set_title("Export into…").pick_folder() {
+                    match self.engine.begin_export(&folder, &ids, &spec) {
+                        Ok(0) => {
+                            let receipt = self
+                                .engine
+                                .last_export()
+                                .map(|report| report.headline())
+                                .unwrap_or_else(|| "nothing to write".to_string());
+                            self.ui.export_open = false;
+                            self.ui.export_receipt = Some(receipt);
+                        }
+                        Ok(planned) => {
+                            self.ui.notice(format!("Exporting {planned} file(s)…"));
+                        }
+                        Err(error) => self.ui.notice(error.to_string()),
+                    }
+                }
+            }
             Action::UndoMove(id) => match self.engine.undo_move(id) {
                 Ok(count) => {
                     self.ui.move_receipt = None;
@@ -316,6 +339,16 @@ impl eframe::App for App {
         let tick = self.store.tick(std::time::Instant::now());
         if let Some(deadline) = tick.next_deadline {
             ctx.request_repaint_after(deadline.saturating_duration_since(std::time::Instant::now()));
+        }
+
+        // The export worker reports on its own thread; this is the only place that notices it
+        // finished, so the dialog can show the receipt without the UI knowing about threads.
+        if let Some(report) = self.engine.poll_export() {
+            self.ui.export_open = false;
+            if self.ui.export_receipt.is_none() {
+                self.ui.export_receipt = Some(format!("{} → {}", report.headline(), report.dest.display()));
+            }
+            ctx.request_repaint();
         }
 
         let actions = sortlens_ui::show(ui, &mut self.ui, &mut self.engine, &mut self.thumbs);

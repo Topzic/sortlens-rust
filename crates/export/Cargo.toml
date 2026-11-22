@@ -1,0 +1,20 @@
+[package]
+name = "sortlens-export"
+description = "Writing picks out of the library: planning, collision policy, copy and re-encode"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-thumbs = { workspace = true }
+craft-jpeg = { workspace = true }
+
+[dev-dependencies]
+sortlens-testkit = { workspace = true }
+
+[lints]
+workspace = true

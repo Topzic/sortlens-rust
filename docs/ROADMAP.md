@@ -233,7 +233,10 @@ and recover; export/import a library onto a second machine and remap the volume.
 - [ ] Packs as data + counts in settings + toggles (`craft-flags`) (D,B) — SL-F07/F08
 - [ ] Batch suggest job (D) — SL-F09
 - [ ] No-network assertion test for `sortlens-ai` (D) — SL-F10
-- [ ] Export: original/JPEG/PNG, resize, quality, metadata, collisions, progress (A) — SL-B24
+- [x] Export: original copies and JPEG re-encodes, longest-edge resize, quality, EXIF/IPTC carried
+  forward, four collision policies, worker progress and cancel, a dialog and a receipt (A) — SL-B24
+- [ ] Export PNG/TIFF/WebP — needs an encoder this workspace does not have yet; the dialog offers only
+  the two formats it can actually write
 
 **Demo:** on a clean machine, download the model, suggest tags for 50 photos offline, accept
 10, filter by `source = Ai`; export a selection three ways and diff metadata.

@@ -3588,6 +3588,7 @@ dependencies = [
  "sortlens-catalog",
  "sortlens-core",
  "sortlens-cull",
+ "sortlens-export",
  "sortlens-hash",
  "sortlens-insights",
  "sortlens-memories",
@@ -3595,6 +3596,17 @@ dependencies = [
  "sortlens-scan",
  "sortlens-sidecar",
  "sortlens-similar",
+ "sortlens-testkit",
+]
+
+[[package]]
+name = "sortlens-export"
+version = "0.1.0"
+dependencies = [
+ "craft-jpeg",
+ "sortlens-core",
+ "sortlens-testkit",
+ "sortlens-thumbs",
 ]
 
 [[package]]

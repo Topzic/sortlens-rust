@@ -47,6 +47,7 @@ L1  sortlens-meta        craft-metadata → neutral PhotoMeta
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
     sortlens-quality     sharpness, exposure, clipping metrics
+    sortlens-export      export planning, collision policy, copy and re-encode
     sortlens-testkit     synthetic libraries, fixtures, assertions
 ```
 

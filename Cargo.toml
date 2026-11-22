@@ -30,6 +30,7 @@ sortlens-cull = { path = "crates/cull" }
 sortlens-insights = { path = "crates/insights" }
 sortlens-memories = { path = "crates/memories" }
 sortlens-similar = { path = "crates/similar" }
+sortlens-export = { path = "crates/export" }
 sortlens-remote = { path = "crates/remote" }
 sortlens-engine = { path = "crates/engine" }
 sortlens-ui = { path = "crates/ui" }

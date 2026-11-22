@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+2 written · 0 skipped · 650 B -> <photos>/Export
+--- stderr

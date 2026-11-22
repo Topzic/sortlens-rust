@@ -237,6 +237,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "edit.export",
+                    label: "Export Picks…",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Export Picks…",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "edit.cancelExport",
+                    label: "Stop Exporting",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Stop Exporting",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "edit.moves",
                     label: "Recent Moves",
                     group: Group::Organise,
