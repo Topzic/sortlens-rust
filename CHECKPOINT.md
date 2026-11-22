@@ -557,7 +557,21 @@ Found while smoke-testing: **one-level undo does not survive a restart** — the
 memory, so a fresh process reports "nothing to undo". That is a real gap, now listed as the next task
 rather than glossed over.
 
+## 2026-11-21 — M7: undo survives a restart
+
+- catalog: log records gain an optional `inverse` field (serde default, omitted when absent), so a
+  replayed record restores one undo level; `undo()` logs its own inverse too, which makes an undo
+  itself reversible from a fresh process; the snapshot carries the last inverse because closing
+  snapshots and empties the log — that was the actual hole the first attempt hit
+- engine: nothing new; `edit.undo` was already wired
+- cleaned up: the stale duplicate `cull.undo` command (Planned("M4"), same Ctrl+Z as `edit.undo`) and
+  its planned-message entry are gone, so one command owns undo
+- tests: rating undone after a reopen with records replayed, a snapshot rollover (empty log) keeping
+  one level, a record written without an inverse still replaying, and the CLI undoing a tag in a
+  process that never saw the change
+- 214 tests, CI and wasm green
+
 ## Next
 
-M7: persistent undo across restarts — store the inverse alongside each log entry so undo works in a
-new process, with the same one-step semantics.
+M7: empty the rejects bin — deleting batches from the bin for good, with the flags left alone and a
+confirmation that names how many files go.

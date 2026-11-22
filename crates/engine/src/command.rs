@@ -373,14 +373,6 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
-                    id: "cull.undo",
-                    label: "Undo",
-                    group: Group::Review,
-                    shortcut: Some("Ctrl+Z"),
-                    menu: "Review > Undo",
-                    status: Status::Planned("M4"),
-                },
-                CommandSpec {
                     id: "view.detail",
                     label: "Detail",
                     group: Group::View,

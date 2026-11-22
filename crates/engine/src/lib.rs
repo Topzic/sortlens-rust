@@ -1298,7 +1298,6 @@ impl Engine {
                 "library.import" => "card import arrives in M2",
                 "photo.keyword" => "keywords arrive in M3",
                 "collection.new" | "collection.addTo" => "collections arrive in M5",
-                "cull.start" | "cull.apply" | "cull.undo" => "culling arrives in M4",
                 "view.detail" => "the detail view arrives in M4",
                 "view.places" => "the map arrives in M5",
                 "library.findMissing" => "missing-file repair arrives in M7",

@@ -37,6 +37,10 @@ pub const SCHEMA: u32 = 1;
 struct Record {
     seq: u64,
     op: Op,
+    /// The inverse of `op`, so undo survives a restart. Absent in records written before this
+    /// existed, which simply leave nothing to undo instead of failing to load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inverse: Option<Op>,
 }
 
 /// What opening a catalog had to say.
@@ -64,6 +68,10 @@ struct Snapshot {
     /// Next collection id, defaulted for older snapshots.
     #[serde(default)]
     next_collection: u32,
+    /// The inverse of the last applied operation, so undo survives a snapshot rollover. Absent in
+    /// older snapshots, which simply reopen with nothing to undo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    undo: Option<Op>,
 }
 
 /// What a scan of one root changed.
@@ -120,6 +128,8 @@ impl Catalog {
         let mut next_collection = 1u32;
         let mut collections: BTreeMap<CollectionId, Collection> = BTreeMap::new();
         let mut seq = 0u64;
+        // The snapshot carries the last inverse; log records that replay after it take precedence.
+        let mut restore_undo: Option<Op> = None;
 
         if snapshot_path.exists() {
             match fs::read_to_string(&snapshot_path) {
@@ -142,6 +152,7 @@ impl Catalog {
                             .map(|collection| (collection.id, collection))
                             .collect();
                         report.snapshot_seq = seq;
+                        restore_undo = snapshot.undo;
                     }
                     Err(error) => report
                         .warnings
@@ -162,7 +173,7 @@ impl Catalog {
                 next_collection,
                 next_id,
                 seq,
-                undo: Vec::new(),
+                undo: restore_undo.clone().into_iter().collect(),
                 log: OpenOptions::new()
                     .append(true)
                     .create(true)
@@ -182,7 +193,7 @@ impl Catalog {
                 if line.trim().is_empty() {
                     continue;
                 }
-                let (record_seq, op) = match decode(&line) {
+                let (record_seq, op, inverse) = match decode(&line) {
                     Some(record) => record,
                     None => {
                         report.warnings.push("log record failed its checksum; earlier records kept".into());
@@ -194,6 +205,12 @@ impl Catalog {
                 }
                 let _ = catalog.apply(&op)?;
                 catalog.seq = record_seq;
+                // Keep one level of undo across the restart: the inverse as it was written, which is
+                // authoritative even when the op no longer means the same thing to this version.
+                if let Some(inverse) = inverse {
+                    catalog.undo.clear();
+                    catalog.undo.push(inverse);
+                }
                 report.replayed += 1;
             }
             return Ok((catalog, report));
@@ -213,7 +230,7 @@ impl Catalog {
                 next_collection,
                 next_id,
                 seq,
-                undo: Vec::new(),
+                undo: restore_undo.clone().into_iter().collect(),
                 log,
                 unlogged: 0,
                 stats: None,
@@ -725,10 +742,13 @@ impl Catalog {
     }
 
     /// Apply an operation, append it to the log and remember how to undo it.
+    ///
+    /// The inverse travels in the log record, so a fresh process can undo the last change instead of
+    /// starting with an empty history.
     pub fn commit(&mut self, op: Op) -> Result<()> {
         let inverse = self.apply(&op)?;
         self.seq += 1;
-        self.append(self.seq, &op)?;
+        self.append(self.seq, &op, Some(&inverse))?;
         self.undo.push(inverse);
         self.unlogged += 1;
         if self.unlogged >= SNAPSHOT_EVERY {
@@ -742,9 +762,9 @@ impl Catalog {
         let Some(inverse) = self.undo.pop() else {
             return Ok(false);
         };
-        let _ = self.apply(&inverse)?;
+        let redo = self.apply(&inverse)?;
         self.seq += 1;
-        self.append(self.seq, &inverse)?;
+        self.append(self.seq, &inverse, Some(&redo))?;
         self.unlogged += 1;
         Ok(true)
     }
@@ -842,6 +862,7 @@ impl Catalog {
             photos: self.photos.values().cloned().collect(),
             collections: self.collections.values().cloned().collect(),
             next_collection: self.next_collection,
+            undo: self.undo.last().cloned(),
         };
         let text = serde_json::to_string(&snapshot).map_err(|error| Error::Invalid(error.to_string()))?;
         let tmp = self.dir.join("snapshot.json.tmp");
@@ -871,8 +892,8 @@ impl Catalog {
         self.snapshot()
     }
 
-    fn append(&mut self, seq: u64, op: &Op) -> Result<()> {
-        let line = encode(seq, op)?;
+    fn append(&mut self, seq: u64, op: &Op, inverse: Option<&Op>) -> Result<()> {
+        let line = encode(seq, op, inverse)?;
         self.log
             .write_all(line.as_bytes())
             .and_then(|()| self.log.flush())
@@ -881,22 +902,26 @@ impl Catalog {
 }
 
 /// Encode one record as `<crc32> <json>\n`.
-fn encode(seq: u64, op: &Op) -> Result<String> {
-    let record = Record { seq, op: op.clone() };
+fn encode(seq: u64, op: &Op, inverse: Option<&Op>) -> Result<String> {
+    let record = Record {
+        seq,
+        op: op.clone(),
+        inverse: inverse.cloned(),
+    };
     let json = serde_json::to_string(&record).map_err(|error| Error::Invalid(error.to_string()))?;
     let crc = crc32fast::hash(json.as_bytes());
     Ok(format!("{crc:08x} {json}\n"))
 }
 
 /// Decode one line, returning `None` when the checksum or the JSON does not hold.
-fn decode(line: &str) -> Option<(u64, Op)> {
+fn decode(line: &str) -> Option<(u64, Op, Option<Op>)> {
     let (crc_text, json) = line.split_once(' ')?;
     let crc = u32::from_str_radix(crc_text, 16).ok()?;
     if crc32fast::hash(json.as_bytes()) != crc {
         return None;
     }
     let record: Record = serde_json::from_str(json).ok()?;
-    Some((record.seq, record.op))
+    Some((record.seq, record.op, record.inverse))
 }
 
 #[cfg(test)]
@@ -1134,6 +1159,75 @@ mod tests {
 
         // A sort the app no longer knows falls back to the natural order when read back.
         assert_eq!(Sort::parse("nonsense"), Sort::Natural);
+    }
+
+    #[test]
+    fn undo_survives_a_reopen() {
+        let temp = TempCatalog::new("undo-reopen");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                })
+                .expect("rate");
+        }
+
+        // A fresh process: the inverse came back from the log, not from memory.
+        let (mut reopened, report) = temp.open();
+        assert!(report.replayed >= 2);
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 4);
+        assert!(reopened.undo().expect("undo"));
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0, "undo works in a new process");
+
+        // The undo was itself a logged change with its own inverse, so a reopen can step forward
+        // again — undo stays one level, but it is never a one-way door.
+        let (mut again, _) = temp.open();
+        assert!(again.undo().expect("undo the undo"));
+        assert_eq!(again.photo(PhotoId(1)).expect("photo").rating, 4);
+    }
+
+    #[test]
+    fn a_snapshot_rollover_keeps_one_undo_level() {
+        let temp = TempCatalog::new("undo-snapshot");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), 5)],
+                })
+                .expect("rate");
+            // Closing writes a snapshot and empties the log, which is where the inverse used to be
+            // lost.
+            catalog.snapshot().expect("snapshot");
+        }
+        assert_eq!(std::fs::read_to_string(temp.0.join("ops.log")).expect("log").trim(), "");
+
+        let (mut reopened, report) = temp.open();
+        assert_eq!(report.replayed, 0, "everything came from the snapshot");
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
+        assert!(reopened.undo().expect("undo"));
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
+    }
+
+    #[test]
+    fn a_record_without_an_inverse_still_loads() {
+        // Records written before inverses travelled in the log must keep replaying.
+        let record = Record {
+            seq: 7,
+            op: Op::Rate {
+                changes: vec![(PhotoId(1), 2)],
+            },
+            inverse: None,
+        };
+        let json = serde_json::to_string(&record).expect("encode");
+        assert!(!json.contains("inverse"), "absent inverses are not written");
+        let crc = crc32fast::hash(json.as_bytes());
+        let decoded = decode(&format!("{crc:08x} {json}")).expect("decode");
+        assert_eq!(decoded.0, 7);
+        assert!(decoded.2.is_none(), "nothing to undo, but the op still replays");
     }
 
     #[test]
