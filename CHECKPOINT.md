@@ -680,7 +680,29 @@ photos one at a time.
 - 237 tests, CI and wasm green. Verified by hand: history across three CLI processes and an undo
   still working afterwards.
 
+## 2026-11-21 — M7: one writer per library
+
+- catalog: opening takes an OS file lock on `<library>/library.lock` (`File::try_lock`, stable in
+  1.89, no dependency and no `unsafe`). A second process opens **read-only**: it replays the log and
+  reads everything, but `commit()` refuses with "this library is open read-only because another
+  window is using it". The log is opened for reading in that mode, so an append cannot slip through
+- catalog: `Catalog::read_only()`, `OpenReport.read_only`, `LOCK_NAME`. The lock is an OS lock, so a
+  crashed window releases it on exit — there is no stale-lock timeout to get wrong
+- engine: `read_only()`, `library.readOnly` command, `begin_scan` refuses, and the cull-session and
+  rejects-bin side files are not written in read-only mode (writing them would lose them silently)
+- ui: the title bar shows "Read-only · another window has this library" with a hover explaining what
+  to do, so the state is visible rather than discovered by a failed keystroke
+- Fixed a real bug found by the first test run: field initialisation order meant `lock.take()` ran
+  before the log was opened, so the writer opened its own log read-only and every append failed with
+  EBADF. The flag is now read before the struct is built
+- tests: catalog-level — second open is read-only, reads fine, refuses a commit, and the lock is free
+  after the first closes; engine-level — a second window refuses rating and rescanning while the
+  writer is unaffected, and a third window can write once the writer is gone; the existing undo-reopen
+  test now drops its first catalog, which is the new rule
+- 239 tests, CI and wasm green. Verified by hand with an OS lock held by another process: writes
+  refused with the read-only message, reads fine, writes working again after the holder exits.
+
 ## Next
 
-M7: read-only library mode — opening a library that another window (or another machine) is writing,
-without pretending changes will stick.
+M7: external-change detection — noticing a photo that changed on disk since it was indexed, and
+sending its metadata back through extraction instead of trusting the old values.

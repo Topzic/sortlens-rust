@@ -27,6 +27,8 @@ use std::path::{Path, PathBuf};
 pub const LOG_NAME: &str = "ops.log";
 /// Snapshot file name.
 pub const SNAPSHOT_NAME: &str = "snapshot.json";
+/// Held for as long as a process has the library open for writing.
+pub const LOCK_NAME: &str = "library.lock";
 /// Records between automatic snapshots.
 pub const SNAPSHOT_EVERY: usize = 256;
 /// Snapshot schema, bumped when the record layout changes.
@@ -73,6 +75,8 @@ pub struct OpenReport {
     pub torn_tail: bool,
     /// Records the log held that were already in the snapshot.
     pub skipped: usize,
+    /// Another process has this library open for writing, so this one cannot change anything.
+    pub read_only: bool,
 }
 
 /// The persisted state.
@@ -123,6 +127,8 @@ pub struct Seed {
 #[derive(Debug)]
 pub struct Catalog {
     dir: PathBuf,
+    /// Held for the life of the catalog when this process is the writer. `None` when read-only.
+    lock: Option<File>,
     photos: BTreeMap<PhotoId, Photo>,
     roots: Vec<String>,
     collections: BTreeMap<CollectionId, Collection>,
@@ -141,6 +147,29 @@ impl Catalog {
         let dir = dir.as_ref().to_path_buf();
         fs::create_dir_all(&dir).map_err(|error| Error::io(dir.display().to_string(), error))?;
         let mut report = OpenReport::default();
+
+        // One writer per library. The lock is an OS file lock, so it is released when this process
+        // ends — no stale-lock heuristics, and a crashed window cannot leave the library locked.
+        let lock_path = dir.join(LOCK_NAME);
+        let lock_file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&lock_path)
+            .map_err(|error| Error::io(lock_path.display().to_string(), error))?;
+        let mut lock = match lock_file.try_lock() {
+            Ok(()) => Some(lock_file),
+            Err(std::fs::TryLockError::WouldBlock) => {
+                report.read_only = true;
+                report
+                    .warnings
+                    .push("another window has this library open, so it is read-only".into());
+                None
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(Error::io(lock_path.display().to_string(), error));
+            }
+        };
 
         let snapshot_path = dir.join(SNAPSHOT_NAME);
         let mut photos = BTreeMap::new();
@@ -186,8 +215,11 @@ impl Catalog {
         let log_path = dir.join(LOG_NAME);
         if log_path.exists() {
             let file = File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?;
+            // Read the flag before the struct moves the lock into it.
+            let writable = lock.is_some();
             let mut catalog = Self {
                 dir: dir.clone(),
+                lock: lock.take(),
                 photos,
                 roots,
                 collections,
@@ -195,11 +227,16 @@ impl Catalog {
                 next_id,
                 seq,
                 undo: restore_undo.clone().into_iter().collect(),
-                log: OpenOptions::new()
-                    .append(true)
-                    .create(true)
-                    .open(&log_path)
-                    .map_err(|error| Error::io(log_path.display().to_string(), error))?,
+                log: if writable {
+                    OpenOptions::new()
+                        .append(true)
+                        .create(true)
+                        .open(&log_path)
+                        .map_err(|error| Error::io(log_path.display().to_string(), error))?
+                } else {
+                    // Read-only: open for reading so replay works and nothing can be appended.
+                    File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?
+                },
                 unlogged: 0,
                 stats: None,
             };
@@ -239,14 +276,19 @@ impl Catalog {
             return Ok((catalog, report));
         }
 
-        let log = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&log_path)
-            .map_err(|error| Error::io(log_path.display().to_string(), error))?;
+        let log = if lock.is_some() {
+            OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(&log_path)
+                .map_err(|error| Error::io(log_path.display().to_string(), error))?
+        } else {
+            File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?
+        };
         Ok((
             Self {
                 dir,
+                lock,
                 photos,
                 roots,
                 collections,
@@ -260,6 +302,11 @@ impl Catalog {
             },
             report,
         ))
+    }
+
+    /// Whether this process may change the catalog.
+    pub fn read_only(&self) -> bool {
+        self.lock.is_none()
     }
 
     /// Directory holding the catalog files.
@@ -798,6 +845,11 @@ impl Catalog {
     /// The inverse travels in the log record, so a fresh process can undo the last change instead of
     /// starting with an empty history.
     pub fn commit(&mut self, op: Op) -> Result<()> {
+        if self.read_only() {
+            return Err(Error::Invalid(
+                "this library is open read-only because another window is using it".into(),
+            ));
+        }
         let inverse = self.apply(&op)?;
         self.seq += 1;
         self.append(self.seq, &op, Some(&inverse))?;
@@ -1273,6 +1325,7 @@ mod tests {
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 4);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0, "undo works in a new process");
+        drop(reopened); // one writer per library, so the next process waits for this one
 
         // The undo was itself a logged change with its own inverse, so a reopen can step forward
         // again — undo stays one level, but it is never a one-way door.
@@ -1303,6 +1356,38 @@ mod tests {
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
+    }
+
+    #[test]
+    fn a_second_writer_gets_a_read_only_library_until_the_first_lets_go() {
+        let temp = TempCatalog::new("locking");
+        let (mut first, report) = temp.open();
+        assert!(!report.read_only, "the first process writes");
+        first.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+
+        // A second process — a second `Catalog` on the same files — is a second open.
+        let (mut second, report) = super::Catalog::open(&temp.0).expect("open second");
+        assert!(report.read_only, "the second process is read-only");
+        assert!(report.warnings.iter().any(|note| note.contains("read-only")));
+        assert_eq!(second.stats().total, 1, "it can still read everything");
+        let error = second
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(1), 5)],
+            })
+            .expect_err("refused");
+        assert!(error.to_string().contains("read-only"), "{error}");
+
+        // Closing the first process releases the lock, which is what a crashed window does too.
+        first.close().expect("close");
+        drop(first);
+        let (mut third, report) = super::Catalog::open(&temp.0).expect("open third");
+        assert!(!report.read_only, "the lock is free again");
+        third
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(1), 3)],
+            })
+            .expect("rate");
+        assert_eq!(third.photo(PhotoId(1)).expect("photo").rating, 3);
     }
 
     #[test]

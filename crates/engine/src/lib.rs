@@ -163,6 +163,9 @@ impl Engine {
     }
 
     fn persist_deleted(&mut self) {
+        if self.read_only() {
+            return;
+        }
         let Some(path) = self.deleted_path() else {
             return;
         };
@@ -323,6 +326,11 @@ impl Engine {
         }
         health.changed = changes.len();
         Ok(health)
+    }
+
+    /// Whether the library is open read-only because another window is writing it.
+    pub fn read_only(&self) -> bool {
+        self.catalog.as_ref().is_some_and(sortlens_catalog::Catalog::read_only)
     }
 
     /// Recent changes, newest first, read from the log.
@@ -612,6 +620,10 @@ impl Engine {
     /// A failure here is a warning, never an error: losing the ability to resume must not stop a
     /// photographer from culling.
     fn persist_cull(&mut self) {
+        if self.read_only() {
+            // A read-only library must not write side files either: they would be silently lost.
+            return;
+        }
         let Some(path) = self.cull_path() else {
             return;
         };
@@ -718,6 +730,11 @@ impl Engine {
     pub fn begin_scan(&mut self, path: impl Into<String>) -> Result<()> {
         if self.catalog.is_none() {
             return Err(Error::Invalid("no library is open".into()));
+        }
+        if self.read_only() {
+            return Err(Error::Invalid(
+                "this library is open read-only because another window is using it".into(),
+            ));
         }
         if self.pending.is_some() {
             return Err(Error::Invalid("a scan is already running".into()));
@@ -1724,6 +1741,7 @@ impl Engine {
                 }))
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
+            "library.readOnly" => Ok(json!({ "readOnly": self.read_only() })),
             "library.history" => {
                 let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(HISTORY_LIMIT as u64) as usize;
                 let entries: Vec<Value> = self
@@ -2408,6 +2426,39 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn a_second_window_reads_the_library_without_pretending_to_change_it() {
+        let folder = Temp::new("ro-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (lib, mut writer) = library("lib-ro");
+        writer.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut writer);
+
+        let mut reader = Engine::open(&lib.0).expect("second window");
+        assert!(reader.read_only(), "the second window is read-only");
+        assert_eq!(reader.run("library.readOnly", &json!({})).expect("ask")["readOnly"], true);
+        assert_eq!(reader.stats().total, 1, "it still sees the library");
+
+        let id = reader.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        let error = reader.rate(&[id], 5).expect_err("refused");
+        assert!(error.to_string().contains("read-only"), "{error}");
+        let error = reader
+            .begin_scan(folder.0.to_string_lossy().to_string())
+            .expect_err("no rescan in a read-only library");
+        assert!(error.to_string().contains("read-only"), "{error}");
+        assert_eq!(reader.stats().total, 1);
+
+        // The writer is unaffected, and when it goes the next window can write again.
+        writer.rate(&[id], 4).expect("writer still writes");
+        drop(reader);
+        writer.close().expect("close");
+        drop(writer);
+        let mut next = Engine::open(&lib.0).expect("third window");
+        assert!(!next.read_only());
+        assert_eq!(next.stats().total, 1);
     }
 
     #[test]

@@ -213,6 +213,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.readOnly",
+                    label: "Is the Library Read-Only?",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Read-Only",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.history",
                     label: "Recent Changes",
                     group: Group::Library,

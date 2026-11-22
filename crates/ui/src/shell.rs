@@ -510,6 +510,17 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                 ui.label(RichText::new("Sortlens").size(14.0).strong());
                 ui.add_space(10.0);
                 ui.label(RichText::new("Local library").size(12.0).color(t.text_muted));
+                if engine.read_only() {
+                    // Say it once, at the top: a library another window is writing cannot be changed
+                    // here, and nothing on this screen should look as if it can.
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new("Read-only · another window has this library")
+                            .size(10.5)
+                            .color(t.reject),
+                    )
+                    .on_hover_text("Close the other Sortlens window to edit here. Everything stays readable meanwhile.");
+                }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if icon_button(ui, "Settings", t).clicked() {
