@@ -106,7 +106,18 @@ scheduling and blur-up remain.
 - [ ] `craft-ipc` + `craft-jsonrpc` are not used: agent access is the MCP server over stdio instead (E) — SL-K04
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
 - [ ] `page` prints JSON and the MCP server returns JSON; there is no `--json` for the other verbs (E)
-- [ ] Benchmarks: cold thumb rate, 100k scroll p99, RSS (E)
+- [x] Benchmarks, part 1 — **measured**: `cargo xtask perf` (a release-mode binary, deliberately outside
+  `ci`) reports scan, index, cold/warm thumbnail, the two-worker thumbnail service, the suggestion pass,
+  library open and headless grid frames; `docs/PERF.md` records two thousand and ten thousand photo runs
+  with the hardware and command. The measurement found a real defect — snapshots never reset the
+  replay counter, so past 256 commits *every* edit rewrote the whole library, and a sync snapshotted every
+  256 files — fixed by batching the sync's snapshot and resetting the counter: ten thousand photos went
+  from 78 s to 11 s, per-photo cost now flat (E) — SL-L09
+- [ ] Benchmarks, part 2 — 100k scroll p99, RSS and GPU frame time: none of the three can be measured
+  here. The grid is virtualised, so a frame cost at ten thousand says more about the viewport than the
+  library; a headless context has no GPU, no vsync and no window, so its frame time is layout and shape
+  building only; and RSS needs a long single-process run of the real app. `docs/PERF.md` names what would
+  unblock each rather than estimating
 
 **Demo:** 50k library scrolls at 60 fps; unplug the drive → offline badges, no freeze; CLI
 scans headlessly and prints a JSON report.
@@ -348,7 +359,8 @@ notes are not.
   checksum story and what this version deliberately does not have (E)
 - [ ] Packaging: macOS signed/notarised, Windows MSI, Linux AppImage/Flatpak (E) — needs signing
   identities this repository does not have
-- [ ] Benchmarks recorded in `docs/PERF.md`; budgets green (E)
+- [x] Benchmarks recorded in `docs/PERF.md`, from `cargo xtask perf` on a named machine, including the
+  snapshot defect they exposed and the budgets that cannot be measured here (see M2's row) (E)
 - [ ] `craft-update` wired to the launcher (E)
 - [x] `docs/ATTRIBUTION.md` complete and **enforced**: `cargo xtask attribution` (in `ci`) fails when a
   linked crate is unattributed, when a declared-but-unlinked crate is not listed as such, when a table

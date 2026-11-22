@@ -282,6 +282,11 @@ Notes and gotchas:
   `epaint_default_fonts`. Denied by omission: GPL, AGPL, LGPL, CC-BY-NC. Advisories, yanked crates,
   wildcard version requirements and unknown git sources fail the same job. Install with
   `cargo install cargo-deny --locked`; the task says so rather than passing silently.
+- **Measurements, not budgets, in `perf`**: `cargo xtask perf` runs `apps/sortlens-perf` in release mode
+  and prints one table — scan, index, cold and warm thumbnails, the worker service, the suggestion pass,
+  library open, headless grid frames. It is deliberately not in `ci`: a timing that fails on a loaded box
+  gets ignored, and a timing that passes there says nothing about a library on a laptop. Numbers from a
+  run, with the machine's name next to them, live in `docs/PERF.md`.
 - **Golden outputs** rather than a snapshot crate: `cargo xtask snapshot` diffs
   `apps/sortlens-cli/tests/golden/*.txt` (read-only in CI, `--update` for an intended change). No
   `insta` dependency, because the recorded artifact is the tool's published output, not an internal

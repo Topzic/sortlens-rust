@@ -3670,6 +3670,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sortlens-perf"
+version = "0.1.0"
+dependencies = [
+ "craft-jpeg",
+ "egui",
+ "sortlens-ai",
+ "sortlens-core",
+ "sortlens-engine",
+ "sortlens-scan",
+ "sortlens-testkit",
+ "sortlens-thumbs",
+ "sortlens-ui",
+]
+
+[[package]]
 name = "sortlens-quality"
 version = "0.1.0"
 dependencies = [

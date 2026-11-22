@@ -149,6 +149,10 @@ pub struct Catalog {
     undo: Vec<Op>,
     log: File,
     unlogged: usize,
+    /// Depth of batch operations that take their own snapshot at the end instead of one every 256 ops.
+    batching: usize,
+    /// Snapshots written since this catalog was opened, so a test can say how much work a scan did.
+    snapshots: u64,
     stats: Option<Stats>,
 }
 
@@ -255,6 +259,8 @@ impl Catalog {
                     File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?
                 },
                 unlogged: 0,
+                batching: 0,
+                snapshots: 0,
                 stats: None,
             };
             for line in BufReader::new(file).lines() {
@@ -326,6 +332,8 @@ impl Catalog {
                 undo: restore_undo.clone().into_iter().collect(),
                 log,
                 unlogged: 0,
+                batching: 0,
+                snapshots: 0,
                 stats: None,
             },
             report,
@@ -1052,7 +1060,10 @@ impl Catalog {
         self.append(self.seq, &op, Some(&inverse))?;
         self.undo.push(inverse);
         self.unlogged += 1;
-        if self.unlogged >= SNAPSHOT_EVERY {
+        // A snapshot rewrites every photo, so taking one every 256 ops makes a large import quadratic:
+        // ten thousand files meant thirty-nine rewrites of a growing file. A batch takes one at the end
+        // instead — a crash mid-import replays the log, which is exactly what the log is for.
+        if self.batching == 0 && self.unlogged >= SNAPSHOT_EVERY {
             self.snapshot()?;
         }
         Ok(())
@@ -1080,6 +1091,17 @@ impl Catalog {
     /// Adds new files, refreshes changed ones in place (keeping their id and annotations), marks
     /// photos that disappeared as missing, and clears the flag on files that came back.
     pub fn sync_root(&mut self, root: &str, seeds: Vec<Seed>) -> Result<SyncOutcome> {
+        self.batching += 1;
+        let outcome = self.sync_root_inner(root, seeds);
+        self.batching -= 1;
+        // One snapshot for the whole sync, even when it committed nothing that survived as a no-op.
+        if self.batching == 0 && self.unlogged > 0 {
+            self.snapshot()?;
+        }
+        outcome
+    }
+
+    fn sync_root_inner(&mut self, root: &str, seeds: Vec<Seed>) -> Result<SyncOutcome> {
         let mut outcome = SyncOutcome::default();
         if !self.roots.iter().any(|existing| existing == root) {
             self.commit(Op::AddRoot { path: root.to_string() })?;
@@ -1196,6 +1218,16 @@ impl Catalog {
     }
 
     /// Write a snapshot and truncate the log. Called automatically every [`SNAPSHOT_EVERY`] ops.
+    /// How many snapshots have been written since this catalog was opened.
+    pub fn snapshots_written(&self) -> u64 {
+        self.snapshots
+    }
+
+    /// Operations appended since the last snapshot, i.e. how much a reopen would have to replay.
+    pub fn unlogged_ops(&self) -> usize {
+        self.unlogged
+    }
+
     /// How many bytes the log occupies on disk.
     pub fn log_bytes(&self) -> u64 {
         fs::metadata(self.dir.join(LOG_NAME)).map(|meta| meta.len()).unwrap_or(0)
@@ -1253,6 +1285,11 @@ impl Catalog {
         let path = self.dir.join(SNAPSHOT_NAME);
         fs::write(&tmp, text.as_bytes()).map_err(|error| Error::io(tmp.display().to_string(), error))?;
         fs::rename(&tmp, &path).map_err(|error| Error::io(path.display().to_string(), error))?;
+        self.snapshots += 1;
+        // The snapshot now holds everything the log holds, so the replay debt is paid. Without this the
+        // counter only ever grew, and once it passed the threshold every single edit rewrote the whole
+        // library — a bug that made ten thousand photos cost far more than ten thousand records.
+        self.unlogged = 0;
         // The log is left alone on purpose. A snapshot makes opening fast, but the log is what makes
         // a snapshot *recoverable*: if this file is later damaged or half-written, replay rebuilds
         // the library from the records. Emptying the log is `compact()`, which verifies first.
@@ -1380,6 +1417,54 @@ mod tests {
         assert_eq!(catalog.roots(), &["/photos".to_string()]);
         assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, 5);
         assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    }
+
+    /// A large sync takes one snapshot, not one every 256 files.
+    ///
+    /// A snapshot rewrites every photo in the library, so the old cadence made an import quadratic: a
+    /// thousand files meant four rewrites of a growing file, ten thousand meant thirty-nine. Replay cost
+    /// is what pays for the change, and the log keeps every record either way — this asserts the work a
+    /// scan does, not a duration, so it cannot pass on a fast machine by accident.
+    #[test]
+    fn a_large_sync_takes_one_snapshot_instead_of_one_every_256_ops() {
+        let temp = TempCatalog::new("batch-snapshot");
+        {
+            let (mut catalog, _) = temp.open();
+            let seeds: Vec<Seed> = (0..1000).map(|index| seed(&format!("IMG_{index:04}.jpg"))).collect();
+            let outcome = catalog.sync_root("/photos", seeds).expect("sync");
+            assert_eq!(outcome.added, 1000);
+            assert_eq!(catalog.snapshots_written(), 1, "one snapshot for the whole sync");
+            assert_eq!(catalog.unlogged_ops(), 0, "nothing left to replay");
+            catalog.close().expect("close");
+        }
+
+        // The records are all still in the log, and a reopen rebuilds the library from them.
+        let (catalog, report) = temp.open();
+        assert_eq!(catalog.len(), 1000);
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    }
+
+    /// Interactive edits keep the old cadence: single operations still snapshot every 256 commits.
+    #[test]
+    fn single_edits_still_snapshot_every_256_commits() {
+        let temp = TempCatalog::new("single-snapshot");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        let after_sync = catalog.snapshots_written();
+        for stars in 0..SNAPSHOT_EVERY {
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), (stars % 5) as u8 + 1)],
+                })
+                .expect("rate");
+        }
+        assert_eq!(
+            catalog.snapshots_written(),
+            after_sync + 1,
+            "a snapshot after {} single edits",
+            SNAPSHOT_EVERY
+        );
+        assert!(catalog.unlogged_ops() < SNAPSHOT_EVERY);
     }
 
     #[test]
@@ -1678,9 +1763,10 @@ mod tests {
                 .expect("rate");
         }
 
-        // A fresh process: the inverse came back from the log, not from memory.
+        // A fresh process: the inverse came back from the log, not from memory. The sync's snapshot
+        // holds the photo, so what replays is the rating and its logged inverse.
         let (mut reopened, report) = temp.open();
-        assert!(report.replayed >= 2);
+        assert!(report.replayed >= 1, "the log after the snapshot replays");
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 4);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0, "undo works in a new process");

@@ -146,8 +146,11 @@ If a future feature genuinely needs relational queries, add a read-only derived 
   `Error::StaleRevision` rather than applied — this is the structural fix for the vendor's
   tag-race bugs.
 - Batching: one op per user intent (e.g. "tag 300 photos") rather than 300 ops.
-- Snapshots as built: `snapshot.json` is rewritten every `SNAPSHOT_EVERY = 256` ops and **the log is
-  kept**. A snapshot only makes opening fast; the log is what makes the snapshot recoverable, so a
+- Snapshots as built: `snapshot.json` is rewritten every `SNAPSHOT_EVERY = 256` single edits, and a
+  scan takes one snapshot at the end of the whole sync rather than one every 256 files — a snapshot
+  rewrites every photo, so the naive cadence made importing quadratic (78 s for ten thousand photos,
+  11 s after the fix; the counter of ops since the last snapshot is reset by the snapshot, without
+  which every edit past 256 rewrote the library). **The log is kept** either way. A snapshot only makes opening fast; the log is what makes the snapshot recoverable, so a
   snapshot that is later damaged or half-written costs nothing — replay rebuilds the library and the
   audit says so. `compact()` is the only thing that empties the log, and it reads the snapshot back
   and checks its sequence first: truncating a log whose snapshot did not survive is how a library

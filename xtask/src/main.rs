@@ -57,6 +57,7 @@ fn main() -> ExitCode {
         "version" => version(),
         "attribution" => attribution(),
         "a11y" => a11y(),
+        "perf" => perf(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -88,7 +89,8 @@ fn help() {
   snapshot golden CLI output; --update rewrites the goldens, then read the diff
   version  one version for the workspace, declared once
   attribution  every dependency attributed, and the document honest about what is linked
-  a11y     every custom-painted clickable region registers a name"
+  a11y     every custom-painted clickable region registers a name
+  perf     measurements for docs/PERF.md (not in ci: a timing that fails on a loaded box gets ignored)"
     );
 }
 
@@ -516,6 +518,18 @@ fn a11y() -> Result<(), String> {
         }
     }
     report("a11y", problems)
+}
+
+/// Run the measurement binary in release mode and let it print its own table.
+///
+/// Deliberately outside `ci`. A timing that fails on a loaded CI box teaches people to ignore the check,
+/// and a timing that passes there says nothing about a library on someone's laptop. The numbers live in
+/// `docs/PERF.md` next to the machine they came from; this only makes them reproducible.
+fn perf() -> Result<(), String> {
+    let passthrough: Vec<String> = std::env::args().skip(2).collect();
+    let mut args = vec!["run", "-q", "--release", "-p", "sortlens-perf", "--"];
+    args.extend(passthrough.iter().map(String::as_str));
+    run("cargo", &args)
 }
 
 fn assets() -> Result<(), String> {

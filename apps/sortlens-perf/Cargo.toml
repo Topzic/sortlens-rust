@@ -1,0 +1,23 @@
+[package]
+name = "sortlens-perf"
+description = "Developer measurements: scan, index, thumbnails, suggestions and headless frames"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+sortlens-testkit.workspace = true
+sortlens-scan.workspace = true
+sortlens-thumbs.workspace = true
+sortlens-engine.workspace = true
+sortlens-core.workspace = true
+sortlens-ai.workspace = true
+sortlens-ui.workspace = true
+egui.workspace = true
+craft-jpeg.workspace = true
+
+[lints]
+workspace = true

@@ -1428,13 +1428,38 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 425 tests; ci (exit 0), wasm, deny, snapshot and `a11y` green. **Not verified by hand**: how any of it
   sounds or reads with an actual screen reader.
 
+## 2026-11-21 — M10 (part 4): measurements, and the snapshot defect they found
+
+- **`apps/sortlens-perf`** + `cargo xtask perf`: a release-mode developer binary that builds its own
+  fixtures (1200×800 JPEGs with a gradient and deterministic noise, because a flat colour decodes for free
+  and would produce a thumbnail rate for the easiest possible file) and prints one table — scan, index,
+  library open, cold decode, warm cache hit, the two-worker service the grid actually uses, the suggestion
+  pass with and without EXIF, and headless grid frames with the first frame reported separately. Outside
+  `ci` on purpose: a timing that fails on a loaded box gets ignored.
+- **`docs/PERF.md`** records two runs on Apple M4 / 16 GB / macOS 27.0.1: two thousand photos (scan
+  191 µs/file, index 190 µs/photo, cold thumb 9.5 ms, warm 16 µs, service 200 thumbs/s, frame 0.28 ms
+  median, first frame 4.3 ms) and ten thousand (scan 823 µs/file, index 1.1 ms/photo, frame 1.40 ms),
+  plus a table of the budgets that are **not** measured here — 100k scroll p99, GPU frames, RSS, mobile,
+  HEIC/RAW — each naming what would unblock it.
+- **The defect the numbers exposed**: indexing ten thousand photos took 78 s, 7.8 ms each against 0.19 ms
+  at two thousand. Two bugs in the snapshot policy: `commit` snapshotted every 256 ops and a snapshot
+  rewrites *every* photo (quadratic import), and `snapshot()` never reset `unlogged`, so once a library
+  passed 256 commits *every edit* rewrote the whole library. Fix: a sync is a batch taking one snapshot at
+  its end, and the snapshot resets the counter; single edits keep the 256 cadence. Ten thousand photos now
+  index in 11 s at 1.1 ms each — the same per-photo cost as two thousand, so the curve is linear (7×).
+- Tests assert the work, not a duration: `a_large_sync_takes_one_snapshot_instead_of_one_every_256_ops`
+  (one snapshot, nothing unlogged, log still replays on reopen) and
+  `single_edits_still_snapshot_every_256_commits`. Two audit tests and one golden changed because a fresh
+  sync now leaves a snapshot behind — the golden shows `snapshot at seq 7` where it used to say `none`,
+  which is the behaviour change made visible rather than hidden.
+- 427 tests; ci (exit 0), wasm, deny, snapshot, a11y green. **Not verified by hand**: nothing in this
+  commit touches the GUI beyond a headless frame; the frame numbers are layout and shape building, not a
+  display.
+
 ## Next
 
-`docs/PERF.md` with measured numbers, done honestly: what this machine can measure (cold thumbnail rate,
-a large-library scan, the cost of a suggestion pass, scroll frames over a synthetic grid if it can be
-driven headlessly), each with the hardware and the command that produced it, and a separate list of the
-budgets that cannot be measured here (100k-photo scroll p99 on a retina display, mobile, GPU) marked as
-untested rather than estimated.
-
-After that: M10's absent-by-design table (signing, installers, icon pass, theme import, `craft-update`),
-the accessibility part 2 row, then the final README/PLAN reconciliation and the M0 debt sweep.
+M10's absent-by-design table: what this release deliberately does not have — signed/notarised macOS
+builds, MSI/AppImage/Flatpak, an icon pass, theme import, `craft-update` wiring, release notes and a tag —
+each with the reason and what would unblock it, so the milestone closes by naming its gaps rather than
+leaving empty boxes. Then the accessibility part 2 row, then the final README/PLAN reconciliation and the
+M0 debt sweep.

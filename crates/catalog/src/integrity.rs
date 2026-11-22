@@ -184,7 +184,9 @@ mod tests {
         assert!(audit.is_clean(), "{audit:?}");
         assert_eq!(audit.photos, 3);
         assert!(audit.headline().contains("Clean"));
-        assert!(audit.replayed > 0, "a library that never snapshot replays its log");
+        // A sync now writes one snapshot at its end, so opening replays nothing: the replay path is
+        // exercised by the test below, which commits on top of that snapshot.
+        assert_eq!(audit.replayed, 0, "a fresh sync left a snapshot behind");
     }
 
     #[test]
@@ -200,7 +202,7 @@ mod tests {
         }
         let audit = audit(&temp.0).expect("audit");
         assert!(audit.is_clean(), "{audit:?}");
-        assert!(audit.replayed > 1, "the index pass plus the rating");
+        assert_eq!(audit.replayed, 1, "the rating, committed after the sync's snapshot");
         assert!(audit.log_bytes > 0);
     }
 
