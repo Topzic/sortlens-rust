@@ -1223,11 +1223,38 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 385 tests, `cargo xtask ci`, `wasm`, `deny` and `snapshot` green. No new dependency: this is still a
   crate that cannot reach the network.
 
+## 2026-11-21 — M8 (second half, part 3): the hints that need no model
+
+- **why not the model**: pinning a real detector needs weights to hash, and no model file exists in
+  this environment and none can be fetched here — inventing a digest for a file nobody has would be
+  the exact lie this project keeps refusing. `tract` was therefore not added either: a session with no
+  weights is untestable shape, and the checkpoint's own fallback was this.
+- `crates/ai/src/hints.rs`: camera and lens names become keywords; focal length becomes `wide`
+  (≤ 35 mm), `normal` (≤ 70 mm) or `telephoto`; ISO ≥ 3200 is `low light`; 1/15 s or slower is
+  `long exposure`. Each threshold is a named constant with the reason written beside it, and every hint
+  carries `Source::ExifHint` so the panel can say the camera said it, not a guess.
+- the rules refuse nonsense rather than guessing: a focal length of 0, negative or NaN produces no
+  band; a shutter of 0, negative, NaN or infinite produces no hint; a lens name that only repeats the
+  camera (different case, same words) is not suggested twice. Output order is fixed, so a scan order
+  cannot reshuffle the panel.
+- **a real bug caught by a test written for the happy path**: the long-exposure rule compared
+  `shutter <= 1/15`, which is backwards — seconds *increase* as the shutter slows, so a 4-second
+  exposure matched nothing while a 1/1000 s one did. The constant is now
+  `LONG_EXPOSURE_AT_OR_ABOVE` with the direction spelled out in its doc comment, and the boundary test
+  asserts 1/15 s counts while 1/1000 s does not.
+- hints feed `suggest::merge` unchanged — a test runs a camera hint through the merger against a photo
+  that already has that camera keyword, and gets only `low light` back.
+- ROADMAP's SL-F05 row is ticked; 395 tests, `cargo xtask ci`, `wasm` and `deny` green.
+
 ## Next
 
-M8 part 3, in this order so the honesty rule holds: **pin a real model** in `Manifest::shipped()` with
-its licence and digest (an ONNX detector small enough to run on CI-sized inputs), try `cargo add tract`
-behind a `session` feature — if it cannot be fetched or built here, say so and stop rather than
-half-wiring it — then wire `detect::suppress` and `suggest::merge` to real scores, and only then the
-engine command and the review panel. The alternative starting point, if the model cannot be pinned, is
-`EXIF hint rules` (SL-F05), which needs no model at all and feeds the same merger.
+The AI half now has everything except a model and a panel. Two honest options, in order of value:
+
+1. **Wire what exists into the app** — an engine command that computes EXIF hints for the selected
+   photos and a review panel where accepting a suggestion writes the keyword through the existing
+   `photo.keyword` op (so it lands in the op log and the undo history like any other tag). That makes
+   the whole suggestion pipeline real, testable end to end, and useful without a single download.
+2. Only then a session: pin a model whose weights can actually be hashed in this environment, behind a
+   `session` feature, or leave `tract` out and say so.
+
+Do (1) first: it also gives the panel a place to show detector boxes when a model does arrive.

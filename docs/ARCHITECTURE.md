@@ -43,7 +43,7 @@ L1  sortlens-meta        craft-metadata → neutral PhotoMeta
     sortlens-media       format routing, embedded previews, video posters
     sortlens-sidecar     XMP read/merge/write
     sortlens-geo         gazetteer, clustering, projection
-    sortlens-ai          model manifest, digest-verified store, NMS + label map + suggestion merge (session: next)
+    sortlens-ai          manifest, digest-verified store, NMS + label map, EXIF hints, suggestion merge
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
     sortlens-quality     sharpness, exposure, clipping metrics
@@ -489,6 +489,13 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   produces the same output.
 - `detect::LabelMap` parses `index name` or `index: name` with `#` comments and **refuses a hole** in the
   indices: a map with a hole mislabels everything after it, and guessing is worse than refusing.
+- `hints::hints` is the half that needs no model at all: the camera and lens names become keywords,
+  the focal length becomes one of three bands (`wide` ≤ 35 mm, `normal` ≤ 70 mm, `telephoto` above),
+  `low light` at ISO ≥ 3200 and `long exposure` at 1/15 s or slower. Each rule is a named constant with
+  a stated reason, a nonsense value (negative or NaN) produces nothing rather than a wrong hint, a lens
+  name that only repeats the camera is not suggested twice, and the output order is fixed so a scan
+  order cannot reshuffle the panel. These are proposals like any other: the panel merges them, and only
+  accepting one writes a keyword.
 - `suggest::merge` is where a guess becomes a proposal: a keyword the photo already has is never
   suggested again, two sources proposing the same tag become one at the higher score, a camera hint
   outranks a guess on a tie, tags shorter than three characters are dropped, and the list is capped at

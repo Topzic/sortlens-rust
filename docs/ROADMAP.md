@@ -233,7 +233,8 @@ and recover; export/import a library onto a second machine and remap the volume.
 - [ ] `tract` detector session behind a feature flag — needs a pinned model in the manifest first (D)
   — SL-F03 part 2
 - [ ] Image/text embedding sessions + precomputed pack prompts (D) — SL-F04
-- [ ] EXIF hint rules (D) — SL-F05
+- [x] EXIF hint rules: camera and lens as keywords, three focal bands, low light and long exposure,
+  each a named constant with a stated reason, all feeding the same merger (D) — SL-F05
 - [x] Suggestion merger: dedupe against existing keywords, best score wins, source rank settles ties,
   caps at 8 per photo, deterministic order (D) — SL-F06 part 1
 - [ ] Suggestion panel + accept → tag, with `source = Ai` in the filter — needs the engine and UI half (D,B)

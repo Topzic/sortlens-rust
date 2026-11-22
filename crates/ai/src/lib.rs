@@ -18,6 +18,7 @@
 //! There is no networking code in this crate, and a test enforces that rather than trusting review.
 
 pub mod detect;
+pub mod hints;
 pub mod manifest;
 #[cfg(test)]
 mod no_network;
@@ -26,6 +27,7 @@ pub mod store;
 pub mod suggest;
 
 pub use detect::{Box, Detection, LabelMap, suppress};
+pub use hints::{Hints, focal_band, hints};
 pub use manifest::{Manifest, Model, ModelKind};
 pub use sha256::Digest;
 pub use store::{Install, Status, Store};
