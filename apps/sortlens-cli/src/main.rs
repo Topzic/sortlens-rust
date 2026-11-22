@@ -23,10 +23,12 @@ Commands:
   insights                  counters, cameras, lenses, keywords and years
   rate <id> <0-5>           set stars
   flag <id> pick|reject|none
+  date <id> <YYYY-MM-DD|->  set (or clear, with -) the capture date
   tag <id> <keyword>        add a keyword
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
   rename <old> <new>        rename a keyword everywhere, merging if the name exists
+  memories [--today D]      resurfacing cards; D is YYYY-MM-DD, default today
   shortcuts                 every command that has a keyboard shortcut
   registry                  keywords, the names they swallowed, and orphaned aliases
   alias <name> [canonical]  link a keyword to another, or forget the link
@@ -50,6 +52,82 @@ Commands:
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
 ";
+
+/// Star, flag, capture date or keyword, on one photo.
+fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(), String> {
+    let id = parse_id(rest.first())?;
+    match command {
+        "rate" => {
+            let stars: u8 = rest.get(1).ok_or("stars are required")?.parse().map_err(|_| "stars must be 0-5")?;
+            engine.rate(&[id], stars).map_err(|error| error.to_string())?;
+            println!("rated {id} at {stars}");
+        }
+        "flag" => {
+            let flag = match rest.get(1).map(String::as_str).unwrap_or("none") {
+                "pick" => Flag::Pick,
+                "reject" => Flag::Reject,
+                "none" => Flag::None,
+                other => return Err(format!("unknown flag: {other}")),
+            };
+            engine.flag(&[id], flag).map_err(|error| error.to_string())?;
+            println!("flagged {id} as {}", flag.id());
+        }
+        "date" => {
+            let text = rest.get(1).ok_or("a date or - is required")?;
+            let captured = if text == "-" { None } else { Some(parse_day(text)?) };
+            let changed = engine.set_captured(&[(id, captured)]).map_err(|error| error.to_string())?;
+            match (captured, changed) {
+                (Some(at), 1) => println!("{id}: captured {at}"),
+                (None, 1) => println!("{id}: capture date cleared"),
+                _ => println!("{id}: no change"),
+            }
+        }
+        _ => {
+            let keyword = rest.get(1).ok_or("a keyword is required")?;
+            apply_keyword(engine, id, keyword, command == "tag")?;
+        }
+    }
+    Ok(())
+}
+
+/// Print the resurfacing cards, optionally for a given day.
+fn print_memories(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
+    let today = rest
+        .windows(2)
+        .find(|pair| pair[0] == "--today")
+        .map(|pair| parse_day(&pair[1]))
+        .transpose()?;
+    let value = engine
+        .run("memories.list", &serde_json::json!({ "today": today }))
+        .map_err(|error| error.to_string())?;
+    println!("{}", value["headline"].as_str().unwrap_or_default());
+    for card in value["cards"].as_array().into_iter().flatten() {
+        println!(
+            "  {}  ({}; {} matched)",
+            card["title"].as_str().unwrap_or("-"),
+            card["detail"].as_str().unwrap_or("-"),
+            card["matched"]
+        );
+        let ids: Vec<String> = card["photos"].as_array().into_iter().flatten().map(|id| id.to_string()).collect();
+        println!("    {}", ids.join(" "));
+    }
+    Ok(())
+}
+
+/// `YYYY-MM-DD` to the Unix seconds of that midnight UTC.
+fn parse_day(text: &str) -> Result<i64, String> {
+    let parts: Vec<&str> = text.split('-').collect();
+    let [year, month, day] = parts.as_slice() else {
+        return Err(format!("{text} is not YYYY-MM-DD"));
+    };
+    let (Ok(year), Ok(month), Ok(day)) = (year.parse::<i64>(), month.parse::<u32>(), day.parse::<u32>()) else {
+        return Err(format!("{text} is not YYYY-MM-DD"));
+    };
+    if month == 0 || month > 12 || day == 0 || day > sortlens_memories::days_in_month(year, month) {
+        return Err(format!("{text} is not a real date"));
+    }
+    Ok(sortlens_memories::midnight(sortlens_memories::Date { year, month, day }))
+}
 
 /// Add or remove one keyword, naming the keyword that was really used.
 fn apply_keyword(engine: &mut Engine, id: sortlens_core::PhotoId, keyword: &str, add: bool) -> Result<(), String> {
@@ -240,31 +318,9 @@ fn run() -> Result<(), String> {
             }
             Ok(())
         }
-        "rate" => {
-            let id = parse_id(rest.first())?;
-            let stars: u8 = rest.get(1).ok_or("stars are required")?.parse().map_err(|_| "stars must be 0-5")?;
-            engine.rate(&[id], stars).map_err(|error| error.to_string())?;
-            println!("rated {id} at {stars}");
-            Ok(())
-        }
-        "flag" => {
-            let id = parse_id(rest.first())?;
-            let flag = match rest.get(1).map(String::as_str).unwrap_or("none") {
-                "pick" => Flag::Pick,
-                "reject" => Flag::Reject,
-                "none" => Flag::None,
-                other => return Err(format!("unknown flag: {other}")),
-            };
-            engine.flag(&[id], flag).map_err(|error| error.to_string())?;
-            println!("flagged {id} as {}", flag.id());
-            Ok(())
-        }
-        "tag" | "untag" => {
-            let add = command == "tag";
-            let id = parse_id(rest.first())?;
-            let keyword = rest.get(1).ok_or("a keyword is required")?;
-            apply_keyword(&mut engine, id, keyword, add)
-        }
+        // The photo-field verbs are all "read the id, read the value, write it" — one helper, so the
+        // command table stays a table.
+        "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
         "keywords" => {
             let vocabulary = engine.tag_vocabulary();
             if vocabulary.is_empty() {
@@ -411,6 +467,7 @@ fn run() -> Result<(), String> {
             println!("restored {files} file(s) into {dest}");
             Ok(())
         }
+        "memories" => print_memories(&mut engine, rest),
         "shortcuts" => {
             let value = engine.run("app.shortcuts", &Value::Null).map_err(|error| error.to_string())?;
             println!("{} bound command(s)", value["count"]);

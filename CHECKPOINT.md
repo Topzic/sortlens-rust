@@ -887,6 +887,31 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   wiring is checkable without the GUI
 - 268 tests (5 keymap tests), CI and wasm green
 
+## 2026-11-21 — M7: memories, and capture dates that can be corrected
+
+- new crate `sortlens-memories` (23 → 24 workspace crates): `Memories::build(candidates, today,
+  limit)` produces three deterministic cards — **On this day** (same month and day in earlier years,
+  29 February falling back to the 28th so the card does not vanish three years out of four), **This
+  week in past years** (a seven-day window compared by month and day, so a window across new year
+  wraps instead of going empty), and **Never looked at** (no stars, no flag, at least a year old,
+  oldest first). Cards are ordered best-first and say what they left out ("3 of 10 photos · since
+  2019"). Dates are read as UTC and that trade is written down rather than papered over.
+- engine: `memories(today)`, command `memories.list` (with an optional `today` so a card can be
+  reproduced), and **`photo.setCaptured`** — a photo whose EXIF date is wrong could otherwise never
+  take part in "on this day", so the date is now editable as an ordinary op (undoable, logged,
+  written to the sidecar)
+- catalog: `Op::Captured` with an exact inverse, and **`Op::is_noop()`**: `commit` now drops an op
+  whose inverse changed nothing instead of logging it and spending the single undo level on it. The
+  capture-date test caught this — undoing after a no-op commit had done nothing at all
+- ui: a **For You** destination (bottom bar, 6th view) drawing each card as a strip of thumbnails;
+  clicking one opens the detail view
+- cli: `memories [--today YYYY-MM-DD]` and `date <id> <YYYY-MM-DD|->`; `--today` validated against
+  real month lengths so `2021-02-30` is refused
+- docs: `docs/BEHAVIOUR.md` gains a Memories section — derived not stored, UTC, the leap-day and
+  new-year rules, deliberate overlap between cards, and why a judged photo leaves "never looked at"
+- 278 tests (8 in `sortlens-memories`), CI and wasm green. Verified by hand: two dates set, three
+  cards for 2024-06-24, and the change log showing both date writes
+
 ## Next
 
-M7: memories — "on this day" and other resurfacing cards, built on the insights accumulator.
+M7: a chart component — fixed height, no chart dependency, shared by insights and memories.

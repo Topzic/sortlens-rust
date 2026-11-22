@@ -148,3 +148,24 @@ Sidecars are on by default (`Settings > Library > Write sidecars`).
 - It does not modify a file's pixels outside an explicit export.
 - It does not phone home. Update checks are opt-in and are the only network request in a default
   install.
+
+## Memories
+
+"On this day" and its siblings are **derived**, never stored: the same library and the same day
+always produce the same cards, so a card can be checked against the grid.
+
+- **Capture dates are read as UTC.** EXIF stores a local wall-clock time with no reliable offset, so
+  a photo shot near midnight can land on the neighbouring day. Inventing an offset nobody recorded
+  would be worse than saying this out loud.
+- **On this day** matches month and day in *earlier* years only, best first (stars, then pick over
+  nothing, then pixels, then recency). 29 February falls back to the 28th in common years, so the
+  card does not vanish for three years out of four.
+- **This week** is the seven days ending today, compared by month and day inside each earlier year,
+  which also makes a window that crosses new year wrap instead of going empty.
+- **Never looked at** is photos with no stars and no flag, at least a year old, oldest first. Judging
+  a photo (rating or flagging) removes it from that card — the point of the card is what was skipped.
+- **Cards overlap on purpose.** One photo can be on three cards; the header counts per card, not
+  unique photos.
+- **A card says what it left out** ("3 of 10 photos · since 2019") rather than silently truncating.
+- **A wrong date can be corrected** with `photo.setCaptured`, which is an op like any other: undoable,
+  in the change log, and written to the sidecar so the correction survives the next read.

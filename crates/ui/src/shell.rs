@@ -27,6 +27,8 @@ pub enum View {
     Library,
     /// Full-screen cull review.
     Cull,
+    /// Memories and resurfacing cards.
+    ForYou,
     /// Map of geotagged photos.
     Places,
     /// Library statistics.
@@ -37,12 +39,13 @@ pub enum View {
 
 impl View {
     /// Every destination, in bottom-bar order.
-    pub const ALL: [Self; 5] = [Self::Library, Self::Cull, Self::Places, Self::Insights, Self::Similar];
+    pub const ALL: [Self; 6] = [Self::Library, Self::ForYou, Self::Cull, Self::Places, Self::Insights, Self::Similar];
 
     /// Label for the bottom bar and the contextual header.
     pub const fn label(self) -> &'static str {
         match self {
             Self::Library => "Library",
+            Self::ForYou => "For You",
             Self::Cull => "Cull",
             Self::Places => "Places",
             Self::Insights => "Insights",
@@ -54,6 +57,7 @@ impl View {
     pub const fn milestone(self) -> Option<&'static str> {
         match self {
             Self::Library => None,
+            Self::ForYou => None,
             Self::Cull => Some("M4"),
             Self::Places => Some("M5"),
             Self::Insights => None,
@@ -1100,6 +1104,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         grid(ui, t, state, engine, thumbs, &filter);
                     }
                 }
+                View::ForYou => for_you_view(ui, t, state, engine, thumbs),
                 View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
                 View::Insights => insights_view(ui, t, state, engine),
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
@@ -2983,6 +2988,74 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
             Err(error) => state.notice(error.to_string()),
         }
     }
+}
+
+/// Memories: what happened on this day, this week in past years, and what was never looked at.
+fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
+    let memories = engine.memories(None);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("For You").size(15.0).strong().color(t.text));
+        ui.label(RichText::new(memories.headline()).size(10.5).color(t.text_faint));
+    });
+    hint(
+        ui,
+        t,
+        "Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.",
+    );
+    ui.add_space(6.0);
+    if memories.is_empty() {
+        ui.add_space(40.0);
+        ui.vertical_centered(|ui| {
+            ui.label(RichText::new("Nothing to resurface yet").size(14.0).color(t.text_muted));
+            hint(
+                ui,
+                t,
+                "Cards appear once photos have capture dates in earlier years, or are a year old \
+                 and still unrated.",
+            );
+        });
+        return;
+    }
+    egui::ScrollArea::vertical().show(ui, |ui| {
+        for card in &memories.cards {
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(card.title.clone()).size(12.5).strong().color(t.text));
+                ui.label(RichText::new(card.detail()).size(10.0).color(t.text_faint));
+            });
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for id in &card.photos {
+                    let Some(photo) = engine.photo(*id) else {
+                        continue;
+                    };
+                    let (rect, response) = ui.allocate_exact_size(vec2(96.0, 96.0), Sense::click());
+                    let texture = thumbs.get(ui.ctx(), photo, GRID_SIZE).cloned();
+                    match texture {
+                        Some(texture) => {
+                            ui.painter().image(
+                                texture.id(),
+                                rect,
+                                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                                Color32::WHITE,
+                            );
+                        }
+                        None => {
+                            ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
+                        }
+                    }
+                    if state.selected == Some(*id) {
+                        ui.painter()
+                            .rect_stroke(rect, t.corner(), Stroke::new(2.0, t.accent), StrokeKind::Inside);
+                    }
+                    if response.on_hover_text(format!("{} · {}", photo.name, card.kind.label())).clicked() {
+                        state.selected = Some(*id);
+                        state.detail_open = true;
+                    }
+                }
+            });
+        }
+    });
 }
 
 fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {

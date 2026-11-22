@@ -239,7 +239,7 @@ stack, not silently ignored.
 | SL-E09 | Review-progress breakdown | [S] | Kept / rejected / skipped with percentages and bar | Counter groups, recomputed on op apply | P0 | M6 |
 | SL-E10 | Highlights (first year, busiest month/day, top weekday) | [S] | Four highlight cards | Group-by over capture-date histogram | P1 | M6 |
 | SL-E11 | Seasonality chart | [S] | Month × count chart | Fixed-height custom painter chart | P2 | M6 |
-| SL-E12 | Memories ("For You") | [S] | On This Day, Highlights, place memories, refresh | Memory provider trait: date bucketing, favourites, place clusters | P1 | M6 |
+| SL-E12 | Memories ("For You") | [S] | On This Day, This Week in past years, Never Looked At; place memories still planned | Deterministic date cards in `sortlens-memories`; UTC reading documented | P1 | M7 |
 | SL-E13 | Per-folder / per-collection stats | [I] | Scope the dashboard | Same aggregator with a scope | P2 | M6 |
 | SL-E14 | Histogram (RGB/luma) | [I] (ArtCraft parity) | Inspector histogram for the active photo | Downsampled luma/RGB bins from the preview | P2 | M9 |
 

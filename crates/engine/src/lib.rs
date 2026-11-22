@@ -1269,6 +1269,41 @@ impl Engine {
         }
     }
 
+    /// Set or clear the capture time on photos, for when EXIF is wrong or missing.
+    ///
+    /// The memories cards read capture dates, so a photo whose date is wrong can never take part
+    /// until it is corrected. Sidecars are written so the correction is not undone by the next read.
+    pub fn set_captured(&mut self, changes: &[(PhotoId, Option<i64>)]) -> Result<usize> {
+        let ids: Vec<PhotoId> = changes.iter().map(|(id, _)| *id).collect();
+        let changed = self.mutate(Op::Captured { changes: changes.to_vec() })?;
+        self.sync_sidecars(&ids);
+        Ok(changed)
+    }
+
+    /// Resurfacing cards for a given day, defaulting to today.
+    ///
+    /// `today` exists so the cards can be reproduced and tested; the app passes the clock.
+    pub fn memories(&self, today: Option<i64>) -> sortlens_memories::Memories {
+        let day = today.unwrap_or_else(sortlens_catalog::now_seconds);
+        let candidates: Vec<sortlens_memories::Candidate> = match self.catalog.as_ref() {
+            Some(catalog) => catalog
+                .photos()
+                .filter(|photo| !photo.missing)
+                .map(|photo| {
+                    sortlens_memories::Candidate::new(
+                        photo.id,
+                        photo.captured,
+                        photo.rating,
+                        photo.flag,
+                        u64::from(photo.width) * u64::from(photo.height),
+                    )
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+        sortlens_memories::Memories::build(&candidates, day, sortlens_memories::CARD_PHOTOS)
+    }
+
     /// Start counting the library on a worker, so a large library does not freeze the view.
     ///
     /// The photos are cloned once and folded in chunks; progress is published every chunk. Returns
@@ -1864,6 +1899,9 @@ impl Engine {
             Op::Flag { changes } => changes.len(),
             Op::Label { changes } => changes.len(),
             Op::Tagged { changes } => changes.len(),
+            // Counting the *request* is right here: `commit` drops ops that changed nothing, and a
+            // caller that reported "no change" after the date had in fact moved was a real bug.
+            Op::Captured { changes } => changes.len(),
             Op::Group { ops } => ops.len(),
             _ => 0,
         };
@@ -2374,6 +2412,42 @@ impl Engine {
                     })
                     .collect();
                 Ok(json!({ "jobs": jobs }))
+            }
+            "photo.setCaptured" => {
+                let changes: Vec<(PhotoId, Option<i64>)> = args
+                    .get("changes")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| Error::Invalid("changes are required".into()))?
+                    .iter()
+                    .map(|entry| {
+                        let id = entry
+                            .get("id")
+                            .and_then(Value::as_u64)
+                            .ok_or_else(|| Error::Invalid("each change needs an id".into()))?;
+                        let captured = entry.get("captured").and_then(Value::as_i64);
+                        Ok((PhotoId(id), captured))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(json!({ "changed": self.set_captured(&changes)? }))
+            }
+            "memories.list" => {
+                let today = args.get("today").and_then(Value::as_i64);
+                let memories = self.memories(today);
+                let mut cards = Vec::new();
+                for card in &memories.cards {
+                    cards.push(json!({
+                        "kind": card.kind.id(),
+                        "title": card.title,
+                        "detail": card.detail(),
+                        "matched": card.matched,
+                        "firstYear": card.first_year,
+                        "photos": card.photos.iter().map(|id| id.0).collect::<Vec<_>>(),
+                    }));
+                }
+                Ok(json!({
+                    "headline": memories.headline(),
+                    "cards": cards,
+                }))
             }
             "app.shortcuts" => {
                 let registry = command::Registry::v0();
@@ -3016,6 +3090,65 @@ mod tests {
         assert!(engine.photo(ids[0]).expect("photo").has_tag("beach"));
         let forgotten = engine.run("tag.alias", &json!({ "alias": "seaside" })).expect("forget");
         assert_eq!(forgotten["changed"], true);
+    }
+
+    #[test]
+    fn memories_resurface_by_date_and_by_what_was_never_judged() {
+        let folder = Temp::new("memory-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::write(folder.0.join(name), name.as_bytes()).expect("write");
+        }
+        let (_lib, mut engine) = library("lib-memories");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3);
+
+        // Capture dates are catalog data; set them the way metadata would.
+        let day = |y: i64, m: u32, d: u32| sortlens_memories::midnight(sortlens_memories::Date { year: y, month: m, day: d });
+        engine
+            .run(
+                "photo.setCaptured",
+                &json!({
+                    "changes": [
+                        { "id": ids[0].0, "captured": day(2020, 6, 24) + 43_200 },
+                        { "id": ids[1].0, "captured": day(2023, 6, 20) + 43_200 },
+                    ]
+                }),
+            )
+            .expect("captured");
+
+        let today = day(2024, 6, 24) + 43_200;
+        let value = engine.run("memories.list", &json!({ "today": today })).expect("memories");
+        let cards = value["cards"].as_array().expect("cards");
+        let titles: Vec<&str> = cards.iter().filter_map(|card| card["title"].as_str()).collect();
+        assert!(titles.contains(&"June 24"), "{titles:?}");
+        assert!(titles.contains(&"This week in past years"), "{titles:?}");
+        assert!(titles.contains(&"Never looked at"), "{titles:?}");
+        let on_this_day = cards.iter().find(|card| card["kind"] == "onThisDay").expect("on this day");
+        assert_eq!(on_this_day["photos"], json!([ids[0].0]));
+        assert_eq!(on_this_day["firstYear"], 2020);
+
+        // Judging a photo takes it off the "never looked at" card.
+        engine.flag(&[ids[2]], Flag::Pick).expect("flag");
+        let after = engine.run("memories.list", &json!({ "today": today })).expect("memories");
+        let forgotten = after["cards"]
+            .as_array()
+            .and_then(|cards| cards.iter().find(|card| card["kind"] == "forgotten"))
+            .cloned();
+        assert!(
+            forgotten.is_none_or(|card| !card["photos"].as_array().into_iter().flatten().any(|id| id == &json!(ids[2].0))),
+            "a picked photo should not be resurfaced as forgotten"
+        );
+
+        // Same day, same cards: nothing here is random.
+        assert_eq!(engine.run("memories.list", &json!({ "today": today })).expect("again"), after);
     }
 
     #[test]

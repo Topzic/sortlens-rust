@@ -21,7 +21,7 @@ pub use collection::Collection;
 pub use op::Op;
 pub use photo::{Photo, Stats};
 pub use query::{Filter, Page, Sort, TagMode, TagOrder};
-pub use store::{Catalog, LOG_NAME, OpenReport, SNAPSHOT_NAME, Seed, SyncOutcome};
+pub use store::{Catalog, LOG_NAME, OpenReport, SNAPSHOT_NAME, Seed, SyncOutcome, now_seconds};
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

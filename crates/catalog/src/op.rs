@@ -26,6 +26,8 @@ pub enum Op {
     Rate { changes: Vec<(PhotoId, u8)> },
     /// Flags changed.
     Flag { changes: Vec<(PhotoId, Flag)> },
+    /// Capture times changed, where EXIF was wrong or missing.
+    Captured { changes: Vec<(PhotoId, Option<i64>)> },
     /// Colour labels changed.
     Label { changes: Vec<(PhotoId, Option<ColorLabel>)> },
     /// Keyword tags replaced on the listed photos. Each list is the complete new set, sorted.
@@ -74,6 +76,7 @@ impl Op {
             Self::Rate { .. } => "rate",
             Self::Flag { .. } => "flag",
             Self::Label { .. } => "label",
+            Self::Captured { .. } => "captured",
             Self::Tagged { .. } => "tagged",
             Self::Relocate { .. } => "relocate",
             Self::Retry { .. } => "retry",
@@ -91,6 +94,39 @@ impl Op {
         }
     }
 
+    /// Whether the op changed nothing.
+    ///
+    /// Anything that rewrites a value computes its inverse from what it actually changed, so an op
+    /// whose inverse is empty did nothing. Recording one would fill the log with no-ops and, worse,
+    /// spend the single undo level on it — the bug the capture-date test caught.
+    pub fn is_noop(&self) -> bool {
+        match self {
+            Self::AddRoot { .. }
+            | Self::RemoveRoot { .. }
+            | Self::AddPhoto { .. }
+            | Self::RemovePhoto { .. }
+            | Self::Missing { .. }
+            | Self::AddCollection { .. }
+            | Self::RemoveCollection { .. }
+            | Self::RenameCollection { .. }
+            | Self::RemapRoot { .. }
+            | Self::SetCollectionColour { .. }
+            | Self::SetCollectionFavourite { .. }
+            | Self::SetCollectionSort { .. }
+            | Self::SetCollectionSearch { .. } => false,
+            Self::Rate { changes } => changes.is_empty(),
+            Self::Flag { changes } => changes.is_empty(),
+            Self::Captured { changes } => changes.is_empty(),
+            Self::Label { changes } => changes.is_empty(),
+            Self::Tagged { changes } => changes.is_empty(),
+            Self::Relocate { changes } => changes.is_empty(),
+            Self::Retry { changes } => changes.is_empty(),
+            Self::Aliased { changes } => changes.is_empty(),
+            Self::Collect { added, removed, .. } => added.is_empty() && removed.is_empty(),
+            Self::Group { ops } => ops.iter().all(Self::is_noop),
+        }
+    }
+
     /// How many photos the op touches, for a change list.
     pub fn photo_count(&self) -> usize {
         match self {
@@ -99,6 +135,7 @@ impl Op {
             Self::Rate { changes } => changes.len(),
             Self::Flag { changes } => changes.len(),
             Self::Label { changes } => changes.len(),
+            Self::Captured { changes } => changes.len(),
             Self::Tagged { changes } => changes.len(),
             Self::Relocate { changes } => changes.len(),
             Self::Retry { changes } => changes.len(),
@@ -121,6 +158,9 @@ impl Op {
             Self::Rate { changes } => format!("Rated {}", photos(changes.len())),
             Self::Flag { changes } => format!("Flagged {}", photos(changes.len())),
             Self::Label { changes } => format!("Labelled {}", photos(changes.len())),
+            Self::Captured { changes } => {
+                format!("Set the capture date on {}", photos(changes.len()))
+            }
             Self::Tagged { changes } => format!("Keyworded {}", photos(changes.len())),
             Self::Relocate { changes } => format!("Found {} somewhere else", photos(changes.len())),
             Self::Retry { changes } => format!("Queued {} for a metadata retry", photos(changes.len())),

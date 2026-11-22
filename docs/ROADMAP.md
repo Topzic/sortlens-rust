@@ -196,7 +196,7 @@ remap a moved drive; run the wizard on a clean machine.
 - [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
 - [ ] Insights: progress, highlights, seasonality (B) — SL-E09..E11
-- [ ] Memories providers + card feed (D,B) — SL-E12
+- [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12
 - [ ] Chart component (fixed height, no chart dep) (B) — SL-E11
 - [ ] Tests: blur ladder, duplicate transforms, cluster determinism
 

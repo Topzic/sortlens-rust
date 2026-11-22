@@ -589,6 +589,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "photo.setCaptured",
+                    label: "Set Capture Date",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Set Capture Date",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "memories.list",
+                    label: "Resurface Memories",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Resurface Memories",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "app.shortcuts",
                     label: "Keyboard Shortcuts",
                     group: Group::Help,

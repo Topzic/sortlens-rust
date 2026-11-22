@@ -14,6 +14,7 @@ sortlens-catalog = { workspace = true }
 sortlens-cull = { workspace = true }
 sortlens-similar = { workspace = true }
 sortlens-insights = { workspace = true }
+sortlens-memories = { workspace = true }
 sortlens-hash = { workspace = true }
 sortlens-scan = { workspace = true }
 sortlens-sidecar = { workspace = true }

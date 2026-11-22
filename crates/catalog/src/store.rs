@@ -715,6 +715,22 @@ impl Catalog {
     }
 
     /// Apply an operation in memory and return its inverse.
+    /// Set capture times, returning the previous values as the inverse.
+    ///
+    /// Split out of [`Self::apply`] because the match was one arm past the complexity budget, and
+    /// because "replace this field, report what it was" is the shape several ops share.
+    fn apply_captured(&mut self, changes: &[(PhotoId, Option<i64>)]) -> Result<Op> {
+        let mut previous = Vec::new();
+        for (id, captured) in changes {
+            let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+            if photo.captured != *captured {
+                previous.push((*id, photo.captured));
+                photo.captured = *captured;
+            }
+        }
+        Ok(Op::Captured { changes: previous })
+    }
+
     pub fn apply(&mut self, op: &Op) -> Result<Op> {
         self.stats = None;
         match op {
@@ -774,6 +790,7 @@ impl Catalog {
                 }
                 Ok(Op::Flag { changes: previous })
             }
+            Op::Captured { changes } => self.apply_captured(changes),
             Op::Relocate { changes } => {
                 // Undoing a relocation means putting the old path back and, if the photo was missing
                 // before, being missing again — so the inverse is a small ordered group.
@@ -979,6 +996,10 @@ impl Catalog {
             ));
         }
         let inverse = self.apply(&op)?;
+        if inverse.is_noop() {
+            // Nothing changed, so there is nothing to record and nothing to spend undo on.
+            return Ok(());
+        }
         self.seq += 1;
         self.append(self.seq, &op, Some(&inverse))?;
         self.undo.push(inverse);
@@ -1528,6 +1549,50 @@ mod tests {
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
+    }
+
+    #[test]
+    fn a_capture_date_can_be_corrected_and_undone() {
+        let temp = TempCatalog::new("captured");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        let id = PhotoId(1);
+
+        catalog
+            .commit(Op::Captured {
+                changes: vec![(id, Some(1_719_187_200))],
+            })
+            .expect("set");
+        assert_eq!(catalog.photo(id).expect("photo").captured, Some(1_719_187_200));
+
+        // Setting the same value again records nothing, so the log does not grow with no-ops and
+        // the single undo level is not spent on one.
+        let bytes = catalog.log_bytes();
+        catalog
+            .commit(Op::Captured {
+                changes: vec![(id, Some(1_719_187_200))],
+            })
+            .expect("no-op");
+        assert_eq!(catalog.log_bytes(), bytes);
+
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(catalog.photo(id).expect("photo").captured, None);
+
+        // Clearing is an op too, and a missing photo is refused rather than ignored.
+        catalog
+            .commit(Op::Captured {
+                changes: vec![(id, Some(1_700_000_000))],
+            })
+            .expect("set");
+        catalog.commit(Op::Captured { changes: vec![(id, None)] }).expect("clear");
+        assert_eq!(catalog.photo(id).expect("photo").captured, None);
+        assert!(
+            catalog
+                .commit(Op::Captured {
+                    changes: vec![(PhotoId(99), Some(1))],
+                })
+                .is_err()
+        );
     }
 
     #[test]

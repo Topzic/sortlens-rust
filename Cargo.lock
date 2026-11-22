@@ -3553,6 +3553,7 @@ dependencies = [
  "serde_json",
  "sortlens-core",
  "sortlens-engine",
+ "sortlens-memories",
 ]
 
 [[package]]
@@ -3587,6 +3588,7 @@ dependencies = [
  "sortlens-cull",
  "sortlens-hash",
  "sortlens-insights",
+ "sortlens-memories",
  "sortlens-meta",
  "sortlens-scan",
  "sortlens-sidecar",
@@ -3626,6 +3628,13 @@ dependencies = [
 
 [[package]]
 name = "sortlens-media"
+version = "0.1.0"
+dependencies = [
+ "sortlens-core",
+]
+
+[[package]]
+name = "sortlens-memories"
 version = "0.1.0"
 dependencies = [
  "sortlens-core",
