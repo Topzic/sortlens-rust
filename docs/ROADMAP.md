@@ -30,7 +30,8 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 ## M0 — Skeleton · 1.0 w · tracks A,B,E
 
 **Goal:** an ArtCraft window that persists settings and has no features yet.
-**State:** built and green on macOS; the four unchecked rows are the remainder.
+**State:** done — every row is checked, fonts and `cargo deny` included. The toolchain, the workspace,
+`xtask`, the shell and the settings store are what M1–M10 build on.
 
 - [x] `rust-toolchain.toml` (1.95.0, wasm target), `.cargo/config.toml` alias; egui + winit forks patched in `Cargo.toml`
 - [x] Workspace: 19 library crates + 4 app crates; `[lints] workspace = true`; crate-root denies (A)
@@ -55,25 +56,25 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 ## M1 — Index · 2.5 w · tracks A,C
 
 **Goal:** a 5,000-photo folder becomes a browsable grid with correct counts.
-**State:** catalog, scan, grid, commands and CLI are in (commit after M0); metadata and
-thumbnails move to M2 because the grid renders before it has pixels to draw.
+**State:** the catalog, the scan, the grid, the command registry and the CLI are in; metadata and
+thumbnails arrived in M2 because the grid renders before it has pixels to draw. What is left is the
+volume probe and `PathKey`.
 
 - [x] `sortlens-core`: ids, time, byte units, versioned errors (A)
-- [ ] Volume probe + `PathKey`/`ContentKey` identity (A) — SL-A11
+- [ ] `ContentKey` (size + first/last 64 KiB) is in; a volume probe and `PathKey` are not (A) — SL-A11
 - [x] Walker with skip rules, bounded queue, delta detection (A) — SL-A01/A17
 - [x] `sortlens-catalog`: op log, snapshots, replay, undo, paging, counters (A) — SL-A12/A13
 - [x] Engine scan worker, `library.addFolder`/`rescan`/`page`/`stats` (A)
 - [x] Virtualised grid with selection, counts and keyboard rating/flags (B)
 - [x] CLI: add, list, rate, flag, undo (E)
-- [ ] `craft-metadata` + `craft-tiff` → `PhotoMeta` (C) — SL-B21 data
-- [ ] Format routing + magic sniff (C) — SL-B11
-- [ ] Catalog: ops, snapshot, replay, counters (A) — SL-H09
-- [ ] `library.addFolder/removeFolder/rescan/source` (A) — SL-A01/A19
-- [ ] Justified + square grid, virtualised (B) — SL-B01/B02
-- [ ] Density slider (B) — SL-B04
-- [ ] Selection model + marquee + ⌘A/⌘D (B) — SL-B15
-- [ ] Sources: All / Recently Added / Picks / Rated (B) — SL-A14
-- [ ] Folder tree with counts (B) — SL-A03/A04
+- [x] `craft-metadata` → `PhotoMeta` through `sortlens-meta` (C) — SL-B21 data
+- [ ] Format routing by extension is in (`sortlens-core::media`); magic-byte sniffing is not (C) — SL-B11
+- [x] `library.addFolder`, `library.rescan`, `library.removeRoot` (A) — SL-A01/A19
+- [ ] Square grid is virtualised (a window of cells over 200k rows); justified rows are not built (B) — SL-B01/B02
+- [ ] Cell size is derived from the window width; there is no density control (B) — SL-B04
+- [ ] One selected photo plus the cull follow-selection; no multi-select, marquee or ⇧-range (B) — SL-B15
+- [ ] Sources: only All Photos and Recently Deleted; Recently Added, Picks and Rated rows are not built (B) — SL-A14
+- [x] Folder tree with recursive counts + drill-down (`library.subfolders`, breadcrumbs) (B) — SL-A03/A04
 - [ ] Skeleton thumbs + failure badge (B) — SL-M10
 - [x] Synthetic library generator (`sortlens-testkit`: deterministic JPEGs from a real encoder, sidecars by convention, self-cleaning folders) + delta-scan truth table
 
@@ -85,14 +86,13 @@ files → rename a subfolder → no duplicate rows.
 ## M2 — Preview scales · 2.5 w · track C
 
 **Goal:** 50k photos, 60 fps, bounded memory, visible activity.
-**State:** JPEG thumbnails, the disk cache and the two-worker decode service are in; metadata is
-read during the scan. RAW, HEIC, video, priority scheduling and the activity stack remain.
+**State:** JPEG and RAW-preview thumbnails, the content-addressed cache, the two-worker decode
+service and the activity stack are in; metadata is read during the scan. HEIC, video, priority
+scheduling and blur-up remain.
 
 - [x] Contact sheet tiers: 128/384/1024 constants, content-addressed disk cache, bounded texture map (C) — SL-M02/M06
 - [x] Cooperative cancellation + live file/folder counters during a scan (C)
-- [ ] Priority scheduler + backpressure (C)
-- [x] Cooperative cancellation + live file/folder counters during a scan (C)
-- [ ] Priority scheduler + backpressure (C)
+- [ ] One worker thread with a job queue is in; priority ordering and backpressure are not (C)
 - [x] JPEG decode path (C)
 - [x] PNG/TIFF/WebP/GIF/BMP decode paths via craft-image-codecs, alpha preserved (C)
 - [ ] HEIC decode path (C)
@@ -103,9 +103,9 @@ read during the scan. RAW, HEIC, video, priority scheduling and the activity sta
 - [x] Activity stack: job list, statuses, elapsed, per-item errors, cancel (B) — SL-A18
 - [ ] Bell popover and unread badges (B)
 - [ ] Offline/missing badges + cached-thumb behaviour (A,B) — SL-A12
-- [ ] `craft-ipc` + `craft-jsonrpc` control channel (E) — SL-K04
+- [ ] `craft-ipc` + `craft-jsonrpc` are not used: agent access is the MCP server over stdio instead (E) — SL-K04
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
-- [ ] JSON output mode for the CLI (E)
+- [ ] `page` prints JSON and the MCP server returns JSON; there is no `--json` for the other verbs (E)
 - [ ] Benchmarks: cold thumb rate, 100k scroll p99, RSS (E)
 
 **Demo:** 50k library scrolls at 60 fps; unplug the drive → offline badges, no freeze; CLI
@@ -118,22 +118,22 @@ scans headlessly and prints a JSON report.
 **Goal:** the library remembers what the photographer decided, on disk and in XMP.
 
 - [x] `photo.rate/flag/label/tag` + batch variants (A) — SL-D01..D05
-- [ ] `photo.tagFromPrev` and tag rename/merge (A) — SL-D05
-- [ ] Tag registry: create/rename/merge/delete, autocomplete index (A) — SL-D06
+- [ ] Tag rename/merge is in; `photo.tagFromPrev` (re-apply the last tags) is not (A) — SL-D05
+- [ ] Registry create/rename/merge/alias with a searchable picker is in; deleting a keyword everywhere is not (A) — SL-D06
 - [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
 - [x] Sidecar review imported when a photo is first indexed (A) — SL-D09
-- [ ] External-change detection for already-known photos + retry queue (A) — SL-D11
+- [x] External-change detection for already-known photos + retry for unreadable metadata (A) — SL-D11
 - [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11
-- [ ] Rating/flag/label pill + inspector + context menus (B) — SL-D01..D03
+- [x] Rating/flag/label controls in the detail header, the inspector panel and the grid context menu (B) — SL-D01..D03
 - [x] Filter bar: rating, flags, labels, keyword, collection, kind, edited, missing, clear (B) — SL-B07..B13
 - [x] Keyword ANY/ALL, multi-keyword filtering, active-filter badge (B)
 - [x] Sort keys: added/name/newest/oldest/largest/rating, persisted (B) — SL-B06
 - [x] Detail view: large canvas, counter, fit/1:1, arrow navigation, facts line (B) — SL-B18..B20
 - [x] Detail lookahead strip + 64-bin luminance histogram (B) — SL-B21
 - [x] Shortcut overlay + keymap wiring (B) — SL-B23: `crates/ui/src/keymap.rs` is the table, checked against the command registry in both directions
-- [ ] Undo/redo (20+) + audit log + viewer skeleton (A) — SL-D10/H04
+- [ ] One persisted, reversible undo level + the change viewer are in; a 20-step undo/redo history is not (A) — SL-D10/H04
 - [x] `photo.reveal` / `photo.open`: argv built in `sortlens-core::reveal` (pure, per-desktop, tested), executed by the app and the CLI (A) — SL-B22
-- [ ] Tests: XMP golden, filter algebra, stale revision, contrast of badges
+- [ ] XMP round-trip and filter-algebra tests are in; stale-revision and badge-contrast tests are not
 
 **Demo:** rate/tag 100 photos → quit → reopen: identical state; `xmllint`-clean sidecars contain
 the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
@@ -147,18 +147,18 @@ the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
 - [x] `sortlens-cull` state machine + transition table tests (A) — SL-C09
 - [x] Session persistence + resume + crash resume (A) — SL-C07
 - [x] Cull view: canvas, up-next strip, action bar, live counts (B) — SL-C01/C06/C17
-- [ ] Cull summary sheet + applied-batch receipt (B) — SL-C17
+- [x] Cull summary sheet + applied-batch receipt (B) — SL-C17
 - [ ] Overlays inside image bounds + two-phase animation + reduced motion (B) — SL-C04
 - [x] Keyboard decisions: P/X/Space/U/←/C (B) — SL-C02
-- [ ] Gestures (drag up/down) (B) — SL-C03
-- [ ] Zoom levels + pan (B) — SL-C05? (zoom) SL-C02
-- [ ] Prefetch 3 ahead with priority (C) — SL-C05
-- [ ] Apply confirmation with counts (A,B) — SL-C10; size/list still to come
+- [x] Gestures: drag up/down to keep/reject, weighted by distance (B) — SL-C03
+- [x] Zoom 1–8× with pan and wheel stepping (B) — SL-C05? (zoom) SL-C02
+- [x] Lookahead prefetch of the neighbouring ±1/±2 frames in detail view (C) — SL-C05
+- [x] Apply confirmation with counts and a receipt (A,B) — SL-C10
 - [x] Staged deletes and Apply: audit, move/tag/trash, per-item results (A) — SL-C10
 - [x] Trash executor: audit-before-act, verify, per-item results, grouped inverse op (A) — SL-H01/H03
-- [ ] Quit guard for running jobs/unsaved sidecars (B) — SL-H12
-- [ ] Accessibility: decision announcements + button names (B) — SL-L02/L03
-- [ ] Tests: reject never deletes; skip preserves flags; apply idempotent; crash resume
+- [x] Quit guard for running jobs and staged culling (B) — SL-H12
+- [x] Decision announcements as live regions + named buttons (B) — SL-L02/L03
+- [x] Tests: reject never deletes; skip preserves flags; apply idempotent; session survives a restart
 
 **Demo:** cull 500 frames keyboard-only, kill the app mid-session, relaunch and resume at the
 same photo; apply 148 rejects to trash; undo restores all 148.
@@ -168,15 +168,15 @@ same photo; apply 148 rejects to trash; undo restores all 148.
 ## M5 — Organise · 2.0 w · tracks A,B
 
 - [x] Subfolder-first drill-down: one level at a time, recursive counts, breadcrumbs (B) — SL-A03
-- [ ] Folder favourites/colours/search/sort/range-select/select-all (B) — SL-A05..A10
+- [ ] Collections have favourites, colours, search and sort; folders have none of these, and range-select/select-all is missing (B) — SL-A05..A10
 - [x] Collections: create/rename/delete, add/remove, sidebar, filter (A,B) — SL-G01..G03
-- [ ] Collection favourites, colours, per-collection search and sort (B) — SL-G04
-- [ ] Batch move with verification + undo (A) — SL-G07
+- [x] Collection favourites, colours, per-collection search and sort (B) — SL-G04
+- [x] Batch move with sidecars travelling, receipts and undo (A) — SL-G07
 - [x] Persistent undo across restarts: the inverse travels in the log record and in the snapshot (A) — SL-A13
 - [ ] Inline tagging + re-apply last tags in cull (B) — SL-C11/C12
 - [x] Library doctor: check, find-moved-by-content-key, remove-missing, all undoable (A,B) — SL-H07/H08/A13
-- [ ] First-run wizard (library → folder → remote test) (B) — SL-I12
-- [ ] Tag rename/merge UI (B) — SL-D06
+- [x] First-run wizard: welcome → add a folder → indexing (B) — SL-I12; the remote test waits for M9
+- [x] Tag rename/merge UI, plus aliases in the keyword registry (B) — SL-D06
 
 **Demo:** three folders → two collections; move 200 files with hash verification and undo;
 remap a moved drive; run the wizard on a clean machine.
@@ -190,15 +190,15 @@ remap a moved drive; run the wizard on a clean machine.
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
 - [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03
-- [ ] Similar: side-by-side compare and colour-only matches (B) — SL-E05
+- [x] Similar: side-by-side compare and colour-only matches (B) — SL-E05
 - [ ] Batch select of group leftovers and delete (B) — SL-E05
 - [ ] `sortlens-geo`: projection, clusters, gazetteer (D) — SL-E06/E07
 - [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
-- [ ] Insights: progress, highlights, seasonality (B) — SL-E09..E11
+- [x] Insights: worker with progress, highlights, months and seasonality (B) — SL-E09..E11
 - [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12
 - [x] Chart component (fixed height, no chart dep): `crates/ui/src/charts.rs` — columns with a one-pixel floor and a round axis maximum, proportional rows, painted headlessly in a test (B) — SL-E11
-- [ ] Tests: blur ladder, duplicate transforms, cluster determinism
+- [ ] Duplicate-transform and BK-tree cross-check tests are in; the blur ladder and cluster determinism wait for their features
 
 **Demo:** find 20 blurred frames and 12 duplicate groups in a 5k library; map clusters match
 GPS; every dashboard number reconciles with the catalog; memories stable across refresh.
@@ -207,16 +207,16 @@ GPS; every dashboard number reconciles with the catalog; memories stable across 
 
 ## M7 — Safety · 1.5 w · track A
 
-- [ ] Three delete modes + distinct executors (A) — SL-H01
+- [x] Three delete modes — trash, move, tag-only — with distinct executors (A) — SL-H01
 - [x] Rejects bin: applied batches listed, restored with flags and missing state (A,B) — SL-A15
 - [x] Empty the bin: forget one batch or all of them, files untouched, with a confirmation that names the counts (A,B)
 - [x] Recently Deleted source: sidebar row + restore dialog (B) — SL-A16
-- [ ] Backup/restore (catalog + settings, verified) (A) — SL-H10
-- [ ] Volume remap with sample verification (A) — SL-A20/H06
-- [ ] Integrity check + compaction (A) — SL-H11
+- [x] Backup/restore of the catalog files, CRC32 per file, restore into a new folder (A) — SL-H10
+- [x] Volume remap with sample verification (`REMAP_SAMPLE = 12`) (A) — SL-A20/H06
+- [x] Integrity check (audit) + compaction that refuses when the audit is not clean (A) — SL-H11
 - [x] Change viewer (recent ops, newest first) + plain-text support report (B) — SL-H04
-- [ ] Read-only library mode (A) — SL-H14
-- [ ] Crash/corruption suite expanded (truncation, CRC flip, partial snapshot)
+- [x] Read-only library mode via an OS file lock, with a title-bar badge (A) — SL-H14
+- [x] Crash/corruption suite: a torn tail, a flipped checksum (the good records before it survive) and a partial snapshot (the log rebuilds the library)
 
 **Demo:** delete in all three modes; restore from bin and from OS trash; corrupt the op-log tail
 and recover; export/import a library onto a second machine and remap the volume.

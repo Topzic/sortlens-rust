@@ -145,7 +145,16 @@ If a future feature genuinely needs relational queries, add a read-only derived 
   `Error::StaleRevision` rather than applied — this is the structural fix for the vendor's
   tag-race bugs.
 - Batching: one op per user intent (e.g. "tag 300 photos") rather than 300 ops.
-- Compaction: every 5,000 ops or 8 MiB, write `snapshot-N.bin` then delete ops < N.
+- Snapshots as built: `snapshot.json` is rewritten every `SNAPSHOT_EVERY = 256` ops and **the log is
+  kept**. A snapshot only makes opening fast; the log is what makes the snapshot recoverable, so a
+  snapshot that is later damaged or half-written costs nothing — replay rebuilds the library and the
+  audit says so. `compact()` is the only thing that empties the log, and it reads the snapshot back
+  and checks its sequence first: truncating a log whose snapshot did not survive is how a library
+  disappears. The planned `snapshot-N.bin` numbering is not needed while there is one snapshot and a
+  log beside it.
+- A record that fails its checksum, or that will not apply (an op left with nothing to act on by a
+  damaged snapshot), stops the replay there and is reported. Recovering everything before it beats
+  refusing to open the library.
 
 Snapshot is versioned (`schema`, `app_version`), CRC'd, written to `snapshot.tmp` then
 renamed. A snapshot that fails to load is moved aside (`snapshot.broken-<ts>.bin`) and the

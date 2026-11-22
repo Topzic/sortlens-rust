@@ -71,7 +71,7 @@ pub struct OpenReport {
     pub snapshot_seq: u64,
     /// Human-readable problems; none is fatal.
     pub warnings: Vec<String>,
-    /// The log ended in a record that failed its checksum and was dropped.
+    /// The log was not replayed to the end: a record failed its checksum, or would not apply.
     pub torn_tail: bool,
     /// Records the log held that were already in the snapshot.
     pub skipped: usize,
@@ -272,7 +272,16 @@ impl Catalog {
                     report.skipped += 1;
                     continue;
                 }
-                let _ = catalog.apply(&op)?;
+                if let Err(error) = catalog.apply(&op) {
+                    // A record that will not apply is damage — most often a snapshot that did not
+                    // survive leaving its ops with nothing to act on. Recovering what came before it
+                    // and reporting the rest beats refusing to open the library at all.
+                    report.warnings.push(format!(
+                        "record #{record_seq} could not be replayed ({error}); the rest of the log is not trusted"
+                    ));
+                    report.torn_tail = true;
+                    break;
+                }
                 catalog.seq = record_seq;
                 // Keep one level of undo across the restart: the inverse as it was written, which is
                 // authoritative even when the op no longer means the same thing to this version.
@@ -1161,6 +1170,28 @@ impl Catalog {
     pub fn compact(&mut self) -> Result<u64> {
         let before = self.log_bytes();
         self.snapshot()?;
+        // Only after the snapshot has been read back does the log become redundant. Truncating a
+        // log whose snapshot did not survive is how a library disappears.
+        let verified = fs::read_to_string(self.dir.join(SNAPSHOT_NAME))
+            .ok()
+            .and_then(|text| serde_json::from_str::<Snapshot>(&text).ok())
+            .is_some_and(|snapshot| snapshot.seq == self.seq);
+        if !verified {
+            return Err(Error::Invalid("the snapshot did not read back; the log is kept".into()));
+        }
+        let log_path = self.dir.join(LOG_NAME);
+        let truncated = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&log_path)
+            .map_err(|error| Error::io(log_path.display().to_string(), error))?;
+        drop(truncated);
+        self.log = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&log_path)
+            .map_err(|error| Error::io(log_path.display().to_string(), error))?;
+        self.unlogged = 0;
         let after = self.log_bytes();
         Ok(before.saturating_sub(after))
     }
@@ -1182,20 +1213,9 @@ impl Catalog {
         let path = self.dir.join(SNAPSHOT_NAME);
         fs::write(&tmp, text.as_bytes()).map_err(|error| Error::io(tmp.display().to_string(), error))?;
         fs::rename(&tmp, &path).map_err(|error| Error::io(path.display().to_string(), error))?;
-
-        let log_path = self.dir.join(LOG_NAME);
-        let truncated = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(&log_path)
-            .map_err(|error| Error::io(log_path.display().to_string(), error))?;
-        drop(truncated);
-        self.log = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&log_path)
-            .map_err(|error| Error::io(log_path.display().to_string(), error))?;
-        self.unlogged = 0;
+        // The log is left alone on purpose. A snapshot makes opening fast, but the log is what makes
+        // a snapshot *recoverable*: if this file is later damaged or half-written, replay rebuilds
+        // the library from the records. Emptying the log is `compact()`, which verifies first.
         Ok(())
     }
 
@@ -1375,6 +1395,81 @@ mod tests {
     }
 
     #[test]
+    fn a_flipped_checksum_costs_one_record_not_the_library() {
+        let temp = TempCatalog::new("crc-flip");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                })
+                .expect("rate");
+            catalog.close().expect("close");
+        }
+        // Flip one hex digit of the *last* record's checksum — the rating. The line still parses,
+        // its JSON is intact, and only the checksum says otherwise.
+        let log = temp.0.join(LOG_NAME);
+        let text = fs::read_to_string(&log).expect("read log");
+        let start = match text.trim_end().rfind('\n') {
+            Some(index) => index + 1,
+            None => 0,
+        };
+        let broken = match text[start..].chars().next() {
+            Some(first) => {
+                let replacement = if first == '0' { '1' } else { '0' };
+                format!("{}{replacement}{}", &text[..start], &text[start + first.len_utf8()..])
+            }
+            None => String::new(),
+        };
+        assert_ne!(text, broken);
+        fs::write(&log, &broken).expect("write flipped log");
+
+        let (catalog, report) = temp.open();
+        assert!(report.torn_tail, "the tail is not trusted");
+        assert!(
+            report.warnings.iter().any(|warning| warning.contains("checksum")),
+            "the reason is a checksum, and it is reported: {:?}",
+            report.warnings
+        );
+        // The library is whole and the damaged record costs nothing before it — the photo is there,
+        // and only its rating is missing.
+        assert_eq!(catalog.len(), 1);
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.rel, "a.jpg");
+        assert_eq!(photo.rating, 0, "the dropped record was the rating");
+    }
+
+    #[test]
+    fn a_partial_snapshot_falls_back_to_the_log() {
+        let temp = TempCatalog::new("partial-snapshot");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog.snapshot().expect("snapshot");
+            catalog
+                .commit(Op::Flag {
+                    changes: vec![(PhotoId(1), Flag::Pick)],
+                })
+                .expect("flag");
+            catalog.close().expect("close");
+        }
+        // A snapshot cut in half by a crash: valid JSON prefix, no closing brace.
+        let snapshot = temp.0.join(SNAPSHOT_NAME);
+        let text = fs::read_to_string(&snapshot).expect("read snapshot");
+        let half = text.len() / 2;
+        fs::write(&snapshot, &text.as_bytes()[..half]).expect("write partial snapshot");
+
+        let (catalog, report) = temp.open();
+        assert_eq!(report.snapshot_seq, 0, "a snapshot that does not parse is not trusted");
+        assert!(!report.warnings.is_empty(), "and that is reported, not silent");
+        // The log still holds everything, so the library is intact.
+        assert_eq!(catalog.len(), 1);
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").flag, Flag::Pick);
+        assert!(report.replayed >= 1);
+    }
+
+    #[test]
     fn a_snapshot_and_more_ops_replay_in_order() {
         let temp = TempCatalog::new("snapshot");
         {
@@ -1538,17 +1633,39 @@ mod tests {
                     changes: vec![(PhotoId(1), 5)],
                 })
                 .expect("rate");
-            // Closing writes a snapshot and empties the log, which is where the inverse used to be
-            // lost.
+            // A snapshot is an accelerator, not a replacement: the log keeps its records so a
+            // damaged snapshot still costs nothing. This is where the inverse used to be lost.
             catalog.snapshot().expect("snapshot");
         }
-        assert_eq!(std::fs::read_to_string(temp.0.join("ops.log")).expect("log").trim(), "");
+        assert!(
+            !std::fs::read_to_string(temp.0.join(LOG_NAME)).expect("log").trim().is_empty(),
+            "a snapshot does not empty the log"
+        );
 
         let (mut reopened, report) = temp.open();
         assert_eq!(report.replayed, 0, "everything came from the snapshot");
+        assert_eq!(report.skipped, 3, "records the snapshot already covers are skipped");
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 5);
         assert!(reopened.undo().expect("undo"));
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rating, 0);
+    }
+
+    #[test]
+    fn compaction_is_what_empties_the_log() {
+        let temp = TempCatalog::new("compact-empties");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        let before = catalog.log_bytes();
+        assert!(before > 0);
+        let reclaimed = catalog.compact().expect("compact");
+        assert_eq!(reclaimed, before, "compaction reports what it removed");
+        assert_eq!(catalog.log_bytes(), 0);
+        assert_eq!(catalog.len(), 1, "the library is whole afterwards");
+        drop(catalog);
+        let (reopened, report) = temp.open();
+        assert_eq!(reopened.len(), 1, "the snapshot alone carries the library");
+        assert_eq!(report.replayed, 0);
+        assert!(report.snapshot_seq >= 1);
     }
 
     #[test]

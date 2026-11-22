@@ -6,7 +6,7 @@
     <img alt="Rust" src="https://img.shields.io/badge/pure-Rust-f2a516?style=flat-square">
     <img alt="ArtCraft" src="https://img.shields.io/badge/ArtCraft-Craft%20App-8a5800?style=flat-square">
     <img alt="License" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-8a5800?style=flat-square">
-    <img alt="Status" src="https://img.shields.io/badge/status-M0%20scaffold-f2a516?style=flat-square">
+    <img alt="Status" src="https://img.shields.io/badge/status-M0%E2%80%93M7%20shipped-8a5800?style=flat-square">
   </p>
 </div>
 
@@ -20,9 +20,13 @@ ArtCraft Craft Apps: native on macOS, Windows and Linux, in the same visual and 
 language as LightCraft, PhotoCraft and the rest of the suite, and drivable end to end by
 scripts and AI agents.
 
-> **Status: M0 scaffold.** The workspace, the shell, the theme presets, the settings store and the
-> command table build and run; the library itself (indexing, grid, culling) starts in M1. The plan
-> and feature analysis are in `docs/`.
+> **Status: M0–M7 shipped.** A working local photo library: scanning and indexing, a virtualised
+> grid, filters and search, keywords with an alias registry, XMP sidecars, the cull machine with
+> gestures and zoom, collections, duplicate and colour matching, insights, memories, detail and
+> side-by-side compare, backup/restore, audit and compaction, one-writer locking, move with undo, and
+> a change viewer — all driven by one command registry that the CLI and an MCP server also speak.
+> The remaining milestones are M8 (AI and export), M9 (remote and automation) and M10 (release).
+> What is *not* built is named where it would be used, and in `docs/ROADMAP.md`.
 
 ## Read the plan
 
@@ -83,15 +87,37 @@ installs rustup with Homebrew and puts the toolchain in `./.toolchain` so nothin
 changes; the same folder is what this repository's `scripts/env.sh` expects.
 
 ```sh
-. scripts/env.sh          # project-local CARGO_HOME and RUSTUP_HOME
-cargo run -p sortlens     # the shell: four themes, settings, command table
-cargo xtask ci            # fmt, clippy, tests, layer rules, lint headers, asset provenance
-cargo xtask layers        # only the architecture rules
+. scripts/env.sh              # project-local CARGO_HOME and RUSTUP_HOME
+cargo run -p sortlens         # the window
+cargo run -p sortlens-cli -- --library ./lib stats
+cargo xtask ci                # fmt, clippy, tests, layers, roots, assets, fonts
+cargo xtask snapshot          # diff the recorded CLI output
+cargo xtask layers            # only the architecture rules
 ```
 
-The window opens on the empty library. Themes cycle from the top-bar chip or Settings; the choice
-persists in `config.toml` through `craft-settings`. Commands that are not built yet are disabled and
-say which milestone brings them.
+The window opens on the first-run wizard: add a folder and it indexes while the grid fills in.
+Themes cycle from the top-bar chip or Settings, and the choice persists in `config.toml` through
+`craft-settings`. Commands that are not built yet are disabled and say which milestone brings them.
+
+The CLI speaks the same engine, so anything the window does can be scripted:
+
+```sh
+sortlens-cli add ~/Pictures/2024      # index a folder
+sortlens-cli rate 12 5                # five stars
+sortlens-cli tag 12 harbour           # keyword
+sortlens-cli cull …                   # the same command ids the window uses
+sortlens-cli mcp                       # expose the registry to an agent over stdio
+```
+
+`sortlens-cli --help` lists the verbs; `sortlens-cli shortcuts` lists the keyboard map, and the same
+table is in the app under `?`.
+
+### What is not built yet
+
+Named so that nothing here reads as finished: HEIC and video thumbnails, blur-up, the map and place
+memories, blur scoring, AI suggestions, export, the remote/companion server, localisation, shortcut
+rebinding, packaging. Each has a milestone in `docs/ROADMAP.md` and is disabled in the UI rather than
+faked.
 
 `docs/TOOLING.md` §5 lists the platform prerequisites and the optional cargo tools.
 

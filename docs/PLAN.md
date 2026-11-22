@@ -125,6 +125,11 @@ Hard sequencing rules:
 
 ### 5.2 Milestone work breakdown
 
+> This is the plan as it was written, kept so the shape of each milestone stays visible. M0–M7 are
+> delivered — some rows landed differently (the wasm client is embedded, not served; snapshots are one
+> file plus a log) — and `CHECKPOINT.md` records what each one actually became. Read the M8–M10
+> sections as the remaining scope.
+
 **M0 — Skeleton (1.0 w)**
 - `rust-toolchain.toml`, workspace, 16 crate skeletons, `[lints]`, `xtask` (`ci --quick`,
   `layers`, `roots`, `assets`, `fonts`, `wasm`).
@@ -351,18 +356,24 @@ through `craft-update`.
 | Dependencies outside the licence allow-list | 0 | `cargo deny` |
 | Network calls before an explicit opt-in | 0 | test + code review |
 
-## 12. Immediate next steps (M0, in order)
+## 12. Where delivery stands
 
-1. Install the toolchain per `docs/TOOLING.md` §5 and confirm `cargo --version` is 1.95+.
-2. Create the workspace skeleton (19 library crates + 4 app crates), root lints, `rust-toolchain.toml`, `.cargo/config.toml`.
-3. Pin the craft rev and egui fork from LightCraft's `Cargo.toml`; `cargo build` an empty
-   `eframe` app with `craft-window` + `craft-ui` tokens and the four presets.
-4. Wire `craft-settings` with a v1 settings type and a damaged-file test.
-5. Seed the command registry with the M0 commands and route the UI through it — no exceptions.
-6. Add `xtask` (`ci --quick`, `layers`, `roots`, `assets`, `fonts`, `wasm`) and CI.
-7. Build the empty-library state and the add-folder → index → one-thumbnail smoke path.
-8. Start the behaviour spec (`docs/BEHAVIOUR.md`) with the cull state machine, delete modes and
-   XMP policy copied out of this plan into testable statements.
+M0–M7 are shipped: the skeleton, indexing, previews, keywords and XMP, culling, collections, insights
+and search, and the safety work (delete modes, bins, backup/restore, audit and compaction, one-writer
+locking, moves with undo, the change viewer). `CHECKPOINT.md` is the authoritative record — what
+shipped, in which commit, what was not verified by hand. `docs/ROADMAP.md` tracks the same work as
+checkboxes; where the two disagree, `CHECKPOINT.md` wins.
+
+The M0 list that used to live here is history, kept in git. What remains is:
+
+1. **M8 — AI and export.** Pinned ONNX models through `tract`, suggestion caps and the review panel,
+   plus export (original/JPEG/PNG, resize, quality, metadata, collisions, progress).
+2. **M9 — remote and automation.** `sortlens-server` with token auth and pairing, the wasm client,
+   remote album creation, localisation, the keymap editor, `craft-update`.
+3. **M10 — release.** Packaging per platform, the accessibility audit, brand assets, diagnostics.
+
+The gates do not move: every milestone lands with tests, a green `cargo xtask ci`, a golden-output
+diff when the published text changes, and a `CHECKPOINT.md` entry saying what was *not* verified.
 
 ## 13. What to read first
 

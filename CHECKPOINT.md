@@ -1104,10 +1104,40 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - CONTRIBUTING says what to do when it fails: read the diff, `--update`, and say in the commit body
   what the output now says. Regenerating to get green is how a golden stops meaning anything.
 
+## 2026-11-21 — the reconciliation pass, and what it caught
+
+- **ROADMAP now says what is there.** 26 rows were marked unshipped while the code shipped them
+  (M7's delete modes, backup/restore, remap, audit/compaction, read-only mode; M4's gestures, zoom,
+  lookahead, apply receipt, quit guard, announcements; M5's collection colours/sort/search, move,
+  wizard, tag rename/merge; M6's compare and insights worker; M1's folder tree and add/remove/rescan).
+  Each was checked against the registry or the crate before ticking. The duplicate rows are gone: the
+  catalog row that repeated a ticked one, and the cancelling/scheduler pair that appeared twice each.
+- **the rows that stayed unchecked now name what is missing** instead of describing a whole feature:
+  no density control, no multi-select or marquee, no justified rows, no `PathKey` or volume probe, no
+  magic-byte sniffing, no `tagFromPrev`, no 20-step undo, no folder-level colours, no `--json` for the
+  CLI verbs, no stale-revision rejection.
+- **two real durability bugs, found by writing the two missing corruption tests.** `snapshot()`
+  truncated the log after writing a snapshot, so a snapshot that was later damaged (half-written by a
+  crash) left ops with nothing to act on: opening the library failed with `NoSuchPhoto` and the whole
+  catalog was gone. Now `snapshot()` keeps the log — a snapshot is only an accelerator — and
+  `compact()` is the single thing that empties it, after reading the snapshot back and checking its
+  sequence, failing with "the snapshot did not read back; the log is kept". A record that will not
+  replay stops the replay and is reported instead of aborting the open.
+- tests added: `a_flipped_checksum_costs_one_record_not_the_library` (the good records before it
+  survive, and the damaged record is the rating), `a_partial_snapshot_falls_back_to_the_log`,
+  `compaction_is_what_empties_the_log`; `a_snapshot_rollover_keeps_one_undo_level` was rewritten to
+  assert the *new* contract (the log keeps its records, `skipped` counts what the snapshot covers).
+  The old version asserted the log was empty, which is what let the bug through.
+- docs/BEHAVIOUR and ARCHITECTURE describe the snapshot/compaction rule as built; ROADMAP's stale
+  "State:" lines for M0/M1/M2 are corrected; PLAN §12 is now "where delivery stands" instead of an M0
+  to-do list, and §5.2 says it is the plan as written rather than a status report.
+- README's badge and status block say M0–M7, list what works, and have a "what is not built yet"
+  section so the absences are stated rather than implied.
+
 ## Next
 
-M7 is fully checked, so take the **one-time reconciliation pass** the loop keeps deferring: README's
-status badge still says "M0 scaffold" and its status section predates M1–M7; `docs/PLAN.md` §12 still
-lists M0 next steps; and `docs/ROADMAP.md` has stale "State:" lines plus duplicated rows (Priority
-scheduler, scan cancellation, catalog ops) that contradict their own checkboxes. Fix all three so the
-next run does not have to distrust the docs. Then M8 (AI + export).
+M8 — AI and export. Start with the half that needs no model: **export** (`FEATURES.md` §M, SL-B24) —
+original/JPEG/PNG, resize, quality, metadata carry-over, collision policy, progress and cancellation —
+because it is engine + UI work with no new dependency, and it exercises the colliding-name rules the
+catalog already has. Then the AI half: a model manifest, `tract` sessions, and the no-network
+assertion test. Keep the golden job updated for any new CLI verb.
