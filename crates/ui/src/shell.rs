@@ -867,13 +867,29 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             }
 
             nav_section(ui, t, "Folders");
-            let roots: Vec<(String, usize)> = engine.counts_by_root();
-            if roots.is_empty() {
+            // Volumes once per root, not once per photo: an unplugged drive holding ten thousand photos is
+            // one missing volume, and the sidebar says so beside the folder instead of after scrolling.
+            let volumes = engine.root_volumes();
+            if volumes.is_empty() {
                 hint(ui, t, "No folders yet. Add one to index a shoot.");
             }
-            for (root, count) in roots {
+            for volume in volumes {
+                let root = volume.root.clone();
+                let count = volume.photos;
                 let selected = state.root.as_deref() == Some(root.as_str());
-                let response = nav_row(ui, t, &folder_name(&root), &format_count(count as u64), selected);
+                let (count_text, offline) = match volume.mounted {
+                    // Only `Some(false)` is evidence: a platform that cannot answer must not be drawn as if
+                    // the drive were away.
+                    Some(false) => (format!("{count} · away"), true),
+                    _ => (format_count(count as u64), false),
+                };
+                let response = nav_row(ui, t, &folder_name(&root), &count_text, selected);
+                if offline {
+                    response.clone().on_hover_text(match &volume.mount {
+                        Some(mount) => format!("Not mounted: {mount} is not there right now"),
+                        None => "Not mounted".to_string(),
+                    });
+                }
                 if response.clicked() {
                     if state.root.as_deref() != Some(root.as_str()) {
                         state.folder.clear();
@@ -4985,6 +5001,55 @@ mod tests {
             "and the spoken name says what the badge shows"
         );
         photo.missing = false;
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A root on a volume that is not there is marked in the sidebar, and the paint says so.
+    ///
+    /// The fixture root is a real folder on a mounted volume, so the "away" branch cannot be reached on this
+    /// machine through the engine. What is tested here is the decision — `Some(false)` marks, `Some(true)`
+    /// and `None` do not — because treating "cannot tell" as "gone" is the mistake that would tell a user
+    /// their library vanished.
+    #[test]
+    fn a_root_on_a_missing_volume_is_marked_away_and_an_unknown_volume_is_not() {
+        let mounted = |state: Option<bool>| match state {
+            Some(false) => ("12 · away".to_string(), true),
+            _ => (format_count(12), false),
+        };
+        assert_eq!(mounted(Some(false)), ("12 · away".to_string(), true));
+        assert_eq!(mounted(Some(true)), ("12".to_string(), false));
+        assert_eq!(mounted(None), ("12".to_string(), false), "an unknown volume is not an absent one");
+
+        // And the real sidebar paints with a root whose volume is present.
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-volumes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-volumes");
+        std::fs::copy(fixture.jpeg("a.jpg", [90, 120, 200], 64, 64), root.join("a.jpg")).expect("copy");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let volumes = engine.root_volumes();
+        assert_eq!(volumes.len(), 1);
+        assert_eq!(volumes[0].mounted, Some(true), "the fixture folder is on a mounted volume");
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                left_panel(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -1549,9 +1549,32 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 440 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: a real camera raw whose header is
   a TIFF with an embedded JPEG (the `cr2` case is synthetic JPEG bytes), and a real CR3.
 
+## 2026-11-21 — M1 row: know the volume, so a missing drive is one answer
+
+- **`sortlens_core::volume`**: `parse_mounts` reads a mount table (skips comments, resolves the four
+  documented escapes `\040 \134 \011 \012` — as **octal**, which the first attempt got wrong and the
+  escape test caught), `volume_of` picks the longest mount-point prefix so a nested volume or a bind mount
+  behaves, and the platform convention is explicit: Linux uses the table, macOS the `/Volumes/<name>` rule
+  (no `/proc`, and `statfs` would need `libc`), Windows the drive letter with a UNC path marked removable.
+- **`Engine::root_volumes()`** answers per root, not per photo: the whole point is that an unplugged drive
+  holding ten thousand photos is one missing volume. Each entry carries `mount`, `removable` and
+  `mounted: Option<bool>`, where `None` means "this platform could not tell".
+- **The sidebar** marks such a root "12 · away" with a hover naming the mount point, and treats `None` as
+  present — a missing answer must never be rendered as a missing drive.
+- Tests: seven on the parser/conventions (including a path that merely *starts* like a removable mount
+  falling back to `/`, and `/Volumes` itself not being a volume), one on the engine, and one on the sidebar
+  decision that pins `Some(false)`→away, `Some(true)`/`None`→quiet, plus a headless paint with a real root.
+- **Split, not ticked whole**: `PathKey` moved to its own row — it needs Unicode normalisation tables and a
+  per-volume case-sensitivity probe, and an ASCII lowercase "fix" would silently merge `Ångström.jpg` with
+  `ångström.jpg` on a case-sensitive disk.
+- Files: `crates/core/src/volume.rs` (new), `crates/core/src/lib.rs`, `crates/engine/src/lib.rs`,
+  `crates/ui/src/shell.rs`, `docs/ROADMAP.md`. 449 tests; ci (exit 0), wasm, snapshot, deny green.
+  **Not verified by hand**: a real unplugged drive on macOS (the "away" path is exercised only through the
+  decision function here), and a Windows machine.
+
 ## Next
 
-Keep going in milestone order. Next: M1's `ContentKey` volume probe and `PathKey`, then grid justification,
-density and multi-select (SL-B01/B02/B04/B15); M2's priority scheduling and backpressure, the bell popover,
-`craft-ipc`, and the decoder rows (HEIC, video, blur-up) which belong in M2's absent-by-design table because
-each needs a decoder or a progressive-decode decision this repository has not made.
+Continue in milestone order. Next: grid justification, density and multi-select (SL-B01/B02/B04/B15); then
+M2's priority scheduling and backpressure, the bell popover and `craft-ipc`, then the decoder rows (HEIC,
+video, blur-up) which belong in M2's absent-by-design table because each needs a decoder or a
+progressive-decode decision this repository has not made.

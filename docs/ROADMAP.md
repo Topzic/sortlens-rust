@@ -61,7 +61,18 @@ thumbnails arrived in M2 because the grid renders before it has pixels to draw. 
 volume probe and `PathKey`.
 
 - [x] `sortlens-core`: ids, time, byte units, versioned errors (A)
-- [ ] `ContentKey` (size + first/last 64 KiB) is in; a volume probe and `PathKey` are not (A) — SL-A11
+- [x] `ContentKey` (size + first/last 64 KiB) and a **volume probe**: `sortlens_core::volume` parses a mount
+  table (Linux `/proc/mounts`, with `\040`-style escapes resolved and the longest mount point winning), falls
+  back to the `/Volumes/<name>` convention on macOS and the drive letter on Windows, and answers "is the
+  drive there" with one check per root instead of one `stat` per photo. `Engine::root_volumes()` reports each
+  root with its mount point and `mounted: Option<bool>`, and the sidebar marks an absent volume "12 · away"
+  while treating "cannot tell" as present — a missing answer must never read as a missing drive. The table
+  parser and every convention are unit-tested on any platform; the syscall half is honest about what it
+  assumes (A) — SL-A11 part 1
+- [ ] `PathKey`, the other half of SL-A11: a path identity that survives macOS's NFD filenames and
+  case-insensitive volumes needs Unicode normalisation tables and a per-volume case-sensitivity probe, which
+  is a dependency decision this project has not made. Lowercasing ASCII and calling it done would silently
+  merge two files called `Ångström.jpg` and `ångström.jpg` on a case-sensitive disk
 - [x] Walker with skip rules, bounded queue, delta detection (A) — SL-A01/A17
 - [x] `sortlens-catalog`: op log, snapshots, replay, undo, paging, counters (A) — SL-A12/A13
 - [x] Engine scan worker, `library.addFolder`/`rescan`/`page`/`stats` (A)

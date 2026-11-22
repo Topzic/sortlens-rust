@@ -120,6 +120,21 @@ pub struct ScanFinished {
     pub cancelled: bool,
 }
 
+/// One root and the state of the volume under it, for the sidebar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootVolume {
+    /// The root as stored in the catalog.
+    pub root: String,
+    /// How many photos live under it.
+    pub photos: usize,
+    /// Where its volume is mounted, if the platform could say.
+    pub mount: Option<String>,
+    /// Whether that volume looks like removable media.
+    pub removable: bool,
+    /// Whether the mount point exists right now; `None` when it could not be probed.
+    pub mounted: Option<bool>,
+}
+
 /// The command engine.
 pub struct Engine {
     registry: Registry,
@@ -1033,6 +1048,29 @@ impl Engine {
     /// Photo counts per root, for the sidebar.
     pub fn counts_by_root(&self) -> Vec<(String, usize)> {
         self.catalog.as_ref().map(|catalog| catalog.counts_by_root()).unwrap_or_default()
+    }
+
+    /// Where each root lives, and whether that volume is still there.
+    ///
+    /// One check per root rather than one per photo: an unplugged drive holding ten thousand photos is one
+    /// missing volume, not ten thousand missing files, and saying so is the difference between the app
+    /// looking broken and the app knowing what happened. `mounted` is `None` when the platform cannot answer
+    /// (see [`sortlens_core::volume::probe`]) — an unknown answer must never be shown as an absent drive.
+    pub fn root_volumes(&self) -> Vec<RootVolume> {
+        self.counts_by_root()
+            .into_iter()
+            .map(|(root, photos)| {
+                let volume = sortlens_core::volume::probe(Path::new(&root));
+                let mounted = volume.as_ref().map(sortlens_core::volume::mounted);
+                RootVolume {
+                    root,
+                    photos,
+                    mount: volume.as_ref().map(|volume| volume.mount.display().to_string()),
+                    removable: volume.as_ref().is_some_and(|volume| volume.removable),
+                    mounted,
+                }
+            })
+            .collect()
     }
 
     /// Counters for the status bar.
@@ -3921,6 +3959,30 @@ mod tests {
     ///
     /// The count reaches the user through `ScanFinished`, which the window shows in its notice and which the
     /// CLI prints — a correction nobody is told about is a silent rewrite of their tree's meaning.
+    /// Every root reports where it lives, and the volume of a folder that exists says it is mounted.
+    ///
+    /// The point of the probe is that an unplugged drive is one answer for a whole root instead of one
+    /// `stat` per photo, so this asserts the shape the sidebar needs rather than a specific mount point,
+    /// which differs on every machine.
+    #[test]
+    fn every_root_reports_its_volume() {
+        let (_lib, photos, engine) = library_with_images("root-volumes", 2);
+        let volumes = engine.root_volumes();
+        assert_eq!(volumes.len(), 1, "one root holds the fixtures");
+        let volume = &volumes[0];
+        assert_eq!(volume.photos, 2);
+        assert_eq!(volume.root, photos.0.display().to_string().trim_end_matches('/'));
+        assert!(volume.mount.is_some(), "a root on a real disk has a volume");
+        assert_eq!(volume.mounted, Some(true), "and that volume is mounted while the test runs");
+
+        // A root whose folder has been deleted still has a volume if its mount point survives; what must not
+        // happen is a probe that panics or invents an answer.
+        let missing = std::env::temp_dir().join("sortlens-definitely-missing-root-volume");
+        let _ = std::fs::remove_dir_all(&missing);
+        let probed = sortlens_core::volume::probe(&missing);
+        assert!(probed.is_some(), "a path that does not exist still lives on a volume");
+    }
+
     #[test]
     fn a_mislabelled_file_is_indexed_by_its_header_and_counted() {
         let folder = Temp::new("mislabelled-folder");
