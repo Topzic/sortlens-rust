@@ -333,6 +333,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.roots",
+                    label: "Indexed Folders",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Indexed Folders",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "tag.keywords",
+                    label: "Keywords",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Keywords",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "tag.registry",
                     label: "Keyword Registry",
                     group: Group::Organise,

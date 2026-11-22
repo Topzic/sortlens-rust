@@ -339,3 +339,27 @@ in `Cargo.toml`, and (if it parses untrusted bytes) a hostile-input test.
 - [ ] `docs/ATTRIBUTION.md` generated from the font manifest + crate licences
 - [ ] CI: fmt, clippy `-D warnings`, tests, wasm check, Windows leg, snapshot job
 - [ ] A one-photo smoke path: add folder → index → thumbnail → detail view
+
+## Scripting the CLI
+
+Every read verb answers the same question in JSON that it answers in prose when `--json` is given, and
+the flag may sit anywhere on the line:
+
+```sh
+sortlens-cli stats --json
+sortlens-cli --json list --limit 50 --sort date
+```
+
+The shape is the schema: the keys are the contract, and the golden files under
+`apps/sortlens-cli/tests/golden/` pin five of them plus the refusal below, so a rename is a visible diff
+in review rather than a surprise in someone's script. A verb without a schema refuses instead of
+printing prose into a JSON stream:
+
+```text
+sortlens-cli: undo has no JSON schema yet; --json works for: roots, keywords, stats, list, folders,
+check, moves, changed, history, audit, memories, shortcuts, registry, packs, jobs
+```
+
+MCP is the same registry over stdio, so anything an agent can do there, `--json` can do from a shell —
+and `batchsuggest` deliberately has no schema yet, because a pass that writes nothing is better read as a
+list of proposals than parsed as one.

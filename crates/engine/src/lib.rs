@@ -2592,6 +2592,22 @@ impl Engine {
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
             "library.readOnly" => Ok(json!({ "readOnly": self.read_only() })),
+            "library.roots" => {
+                let roots: Vec<Value> = self
+                    .counts_by_root()
+                    .into_iter()
+                    .map(|(root, photos)| json!({ "root": root, "photos": photos }))
+                    .collect();
+                Ok(json!({ "roots": roots }))
+            }
+            "tag.keywords" => {
+                let keywords: Vec<Value> = self
+                    .tag_vocabulary()
+                    .into_iter()
+                    .map(|(tag, photos)| json!({ "tag": tag, "photos": photos }))
+                    .collect();
+                Ok(json!({ "keywords": keywords, "count": keywords.len() }))
+            }
             "tag.registry" => {
                 let registry = self.tag_registry();
                 Ok(json!({
@@ -3507,6 +3523,26 @@ mod tests {
         assert_eq!(suggested.len(), 1);
         assert_eq!(suggested[0].tag, "japan");
         assert_eq!(suggested[0].source, sortlens_ai::Source::Pack);
+    }
+
+    #[test]
+    fn the_roots_and_keyword_commands_answer_with_what_a_script_needs() {
+        let (_library_dir, _photos, mut engine) = library_with_images("jsonverbs", 2);
+        let roots = engine.run("library.roots", &json!({})).expect("roots");
+        assert_eq!(roots["roots"].as_array().map(Vec::len), Some(1));
+        assert_eq!(roots["roots"][0]["photos"], json!(2));
+        let root = roots["roots"][0]["root"].as_str().expect("a root path");
+        assert!(!root.is_empty(), "the root is named, so a script can show it: {root}");
+
+        let id = engine.all_photos()[0].id;
+        engine.set_tag(&[id], "harbour", true).expect("tag");
+        let keywords = engine.run("tag.keywords", &json!({})).expect("keywords");
+        assert_eq!(keywords["count"], json!(1));
+        assert_eq!(keywords["keywords"][0]["tag"], json!("harbour"));
+        assert_eq!(keywords["keywords"][0]["photos"], json!(1));
+        // An empty library is an empty list, not an error: a script should not have to special-case it.
+        engine.set_tag(&[id], "harbour", false).expect("untag");
+        assert_eq!(engine.run("tag.keywords", &json!({})).expect("again")["count"], json!(0));
     }
 
     #[test]

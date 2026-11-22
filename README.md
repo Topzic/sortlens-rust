@@ -57,8 +57,11 @@ scripts and AI agents.
   clusters and deterministic "memories".
 - **Never lose anything**: OS trash by default, an audit log, undo across annotations and file
   operations, crash-safe storage, backups and volume remapping.
-- **Optionally** suggest tags with CPU-only local models you download yourself, and reach the
-  library from a phone through a paired, local-network client.
+- **Script** it: every read verb answers in JSON with `--json`, the CLI and the MCP server speak the
+  same command registry, and the schemas are pinned by golden files.
+- **Optionally** suggest tags with CPU-only local models you download yourself (no model is pinned yet,
+  which the app says plainly), and reach the library from a phone through a paired, local-network
+  client (not built — see the roadmap's absent-by-design table).
 
 ## Why a rewrite rather than a port
 

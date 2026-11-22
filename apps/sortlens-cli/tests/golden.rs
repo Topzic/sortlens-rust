@@ -227,6 +227,33 @@ const STEPS: &[Step] = &[
         args: &["batchsuggest"],
         file: None,
     },
+    // The JSON schema is a published surface: a script depends on these keys, so a rename here is a
+    // breaking change and the golden diff is where it gets noticed.
+    Step {
+        name: "38 stats as JSON",
+        args: &["stats", "--json"],
+        file: None,
+    },
+    Step {
+        name: "39 list as JSON",
+        args: &["--json", "list", "--limit", "2"],
+        file: None,
+    },
+    Step {
+        name: "40 roots as JSON",
+        args: &["roots", "--json"],
+        file: None,
+    },
+    Step {
+        name: "41 keywords as JSON",
+        args: &["keywords", "--json"],
+        file: None,
+    },
+    Step {
+        name: "42 a verb with no schema says so",
+        args: &["undo", "--json"],
+        file: None,
+    },
 ];
 
 fn golden_dir() -> PathBuf {
@@ -265,14 +292,17 @@ fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
     cleaned.push_str(rest);
     let mut stable = String::new();
     let mut rest = cleaned.as_str();
-    // A file's modification time is a property of the machine, not of the library.
+    // A file's modification time is a property of the machine, not of the library. JSON printed by
+    // scripts has a space after the colon, so both spellings are normalised.
     while let Some(index) = rest.find("\"modified\":") {
         stable.push_str(&rest[..index]);
         let tail = &rest[index + "\"modified\":".len()..];
-        let digits = tail.chars().take_while(char::is_ascii_digit).count();
+        let offset = tail.len() - tail.trim_start().len();
+        let spaced = offset > 0;
+        let digits = tail[offset..].chars().take_while(char::is_ascii_digit).count();
         if digits > 0 {
-            stable.push_str("\"modified\":<mtime>");
-            rest = &tail[digits..];
+            stable.push_str(if spaced { "\"modified\": <mtime>" } else { "\"modified\":<mtime>" });
+            rest = &tail[offset + digits..];
         } else {
             stable.push_str("\"modified\":");
             rest = tail;

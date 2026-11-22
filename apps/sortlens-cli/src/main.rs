@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const USAGE: &str = "\
-sortlens-cli [--library DIR] <command>
+sortlens-cli [--library DIR] <command> [--json]
 
 Commands:
   add <folder>              index a folder
@@ -62,6 +62,10 @@ Commands:
   audit                     check the catalog files read back cleanly
   compact                   snapshot and empty the log
   backup <file>             write a verified backup of the index
+
+--json prints the engine's own answer instead of prose, for the read verbs: roots, list, stats,
+  keywords, folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs,
+  suggest, jobs. The shape of each is the schema; it changes only with a compatibility note.
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
 ";
@@ -339,8 +343,77 @@ fn export(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
     Err("the export did not finish".into())
 }
 
+/// The engine command that answers each CLI verb when `--json` is asked for.
+///
+/// A table rather than a guess, because "some verbs have a schema and some do not" is exactly the kind
+/// of thing a script must be able to find out before it relies on it.
+const JSON_VERBS: &[(&str, &str)] = &[
+    ("roots", "library.roots"),
+    ("keywords", "tag.keywords"),
+    ("stats", "library.stats"),
+    ("list", "library.page"),
+    ("folders", "library.subfolders"),
+    ("check", "library.health"),
+    ("moves", "edit.moves"),
+    ("changed", "library.changed"),
+    ("history", "library.history"),
+    ("audit", "library.audit"),
+    ("memories", "memories.list"),
+    ("shortcuts", "app.shortcuts"),
+    ("registry", "tag.registry"),
+    ("packs", "packs.list"),
+    ("jobs", "library.jobs"),
+];
+
+/// Print the engine's own answer for a verb that has a schema.
+fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), String> {
+    let Some((_, command)) = JSON_VERBS.iter().find(|(name, _)| *name == verb) else {
+        let offered = JSON_VERBS.iter().map(|(name, _)| *name).collect::<Vec<&str>>().join(", ");
+        return Err(format!("{verb} has no JSON schema yet; --json works for: {offered}"));
+    };
+    let args = match verb {
+        "list" => {
+            let limit = flag_value(rest, "--limit").unwrap_or(20);
+            let mut args = serde_json::json!({ "offset": flag_value(rest, "--offset").unwrap_or(0), "limit": limit });
+            if let Some(sort) = text_value(rest, "--sort") {
+                args["sort"] = serde_json::Value::String(sort);
+            }
+            if let Some(tag) = text_value(rest, "--tag") {
+                args["tag"] = serde_json::Value::String(tag);
+            }
+            args
+        }
+        "history" => serde_json::json!({ "limit": flag_value(rest, "--limit").unwrap_or(20) }),
+        "memories" => match text_value(rest, "--today") {
+            Some(day) => serde_json::json!({ "today": parse_day(&day)? }),
+            None => serde_json::json!({}),
+        },
+        "folders" => {
+            let mut args = serde_json::json!({});
+            if let Some(root) = text_value(rest, "--root") {
+                args["root"] = serde_json::Value::String(root);
+            }
+            if let Some(prefix) = text_value(rest, "--in") {
+                args["prefix"] = serde_json::Value::String(prefix);
+            }
+            args
+        }
+        "suggest" => {
+            let id = parse_id(rest.first())?;
+            serde_json::json!({ "ids": [id.0] })
+        }
+        _ => serde_json::json!({}),
+    };
+    let value = engine.run(command, &args).map_err(|error| error.to_string())?;
+    println!("{}", serde_json::to_string_pretty(&value).map_err(|error| error.to_string())?);
+    Ok(())
+}
+
 fn run() -> Result<(), String> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // `--json` may sit anywhere: before the verb, after it, or between its arguments.
+    let json = args.iter().any(|arg| arg == "--json");
+    args.retain(|arg| arg != "--json");
     let mut library = library_dir();
     if let Some(index) = args.iter().position(|arg| arg == "--library") {
         if index + 1 >= args.len() {
@@ -356,6 +429,9 @@ fn run() -> Result<(), String> {
     let rest = &args[1..];
 
     let mut engine = Engine::open(&library).map_err(|error| error.to_string())?;
+    if json {
+        return json_verb(&mut engine, &command, rest);
+    }
     let result = match command.as_str() {
         "add" | "rescan" => {
             let folder = rest.first().ok_or("a folder is required")?;

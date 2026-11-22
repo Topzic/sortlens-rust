@@ -1,0 +1,20 @@
+exit 0
+--- stdout
+{
+  "count": 3,
+  "keywords": [
+    {
+      "photos": 1,
+      "tag": "beach"
+    },
+    {
+      "photos": 1,
+      "tag": "harbour"
+    },
+    {
+      "photos": 1,
+      "tag": "low light"
+    }
+  ]
+}
+--- stderr

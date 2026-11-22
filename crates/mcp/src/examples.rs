@@ -94,6 +94,16 @@ pub const EXAMPLES: &[Example] = &[
         note: "add false removes the keyword instead.",
     },
     Example {
+        command: "library.roots",
+        args: "{}",
+        note: "no arguments; every indexed folder with its photo count",
+    },
+    Example {
+        command: "tag.keywords",
+        args: "{}",
+        note: "no arguments; every keyword with how many photos carry it",
+    },
+    Example {
         command: "tag.registry",
         args: "{}",
         note: "Every keyword with its count, the names it swallowed and orphaned aliases.",

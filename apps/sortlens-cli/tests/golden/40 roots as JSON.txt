@@ -1,0 +1,15 @@
+exit 0
+--- stdout
+{
+  "roots": [
+    {
+      "photos": 1,
+      "root": "Archive"
+    },
+    {
+      "photos": 4,
+      "root": "Photos"
+    }
+  ]
+}
+--- stderr

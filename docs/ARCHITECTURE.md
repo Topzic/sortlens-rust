@@ -201,6 +201,11 @@ destructive-only: a downgrade must at least open read-only.
 
 Every user-visible action is a command. This is the spine of the app.
 
+The CLI's `--json` is a **table** of verb to command id, not a guess: a verb that is not in the table
+refuses and names the ones that are, so a script can never mistake prose for JSON. The table lives beside
+the CLI so the answer to "which verbs have a schema" is one list, and the golden files pin five of the
+answers plus the refusal.
+
 ```rust
 pub struct CommandSpec {
     pub id: &'static str,              // "photo.rate"

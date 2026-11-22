@@ -282,7 +282,13 @@ selection as originals and as JPEG and diff the metadata.
 ## M9 — Remote + automation · 2.5 w · tracks E,B
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
-- [ ] CLI parity + stable JSON schemas (E) — SL-K03/K06
+- [x] CLI parity and stable JSON schemas: `--json` on the read verbs (roots, keywords, stats, list,
+  folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs, suggest, jobs)
+  prints the engine's own answer, a verb without a schema says so and lists the ones that have one
+  instead of printing prose, and the golden files pin five of the schemas plus the refusal (E)
+  — SL-K03/K06
+- [ ] `--json` for the remaining verbs, and a written compatibility note per schema — the write verbs
+  need a defined result shape before they can be called from a script safely (E)
 - [ ] `sortlens-server`: token auth, pairing, permissions, upload resume (E) — SL-J01/J03/J04
 - [ ] `sortlens-web` wasm client reusing the UI (B,E) — SL-J02
 - [ ] Remote album/collection create + rescan (E) — SL-J06/J08

@@ -1,0 +1,13 @@
+exit 0
+--- stdout
+{
+  "bytes": 1622,
+  "labelled": 0,
+  "missing": 0,
+  "picks": 0,
+  "rated": 2,
+  "rejects": 0,
+  "tagged": 2,
+  "total": 5
+}
+--- stderr
