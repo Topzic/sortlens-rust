@@ -131,6 +131,20 @@ impl Colour {
         }
         total / 27
     }
+
+    /// Overall brightness, 0–255: the mean of every channel and cell.
+    ///
+    /// Colour search uses this as a sort key: if two palettes differ in brightness by more than the
+    /// tolerance they cannot be within that tolerance cell by cell, because the mean of the
+    /// differences can never exceed the mean of the absolutes. Sorting by it turns a quadratic scan
+    /// into a sliding window.
+    pub fn mean(self) -> u32 {
+        let mut total: u32 = 0;
+        for cell in 0..9 {
+            total += u32::from(self.red[cell]) + u32::from(self.green[cell]) + u32::from(self.blue[cell]);
+        }
+        total / 27
+    }
 }
 
 /// Count set bits in `left XOR right`.

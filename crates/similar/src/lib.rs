@@ -63,6 +63,71 @@ pub struct Member {
     pub bytes: u64,
 }
 
+/// Which signals a grouping trusts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Match {
+    /// Structure close, colour agreeing when both sides have a palette. The default.
+    #[default]
+    Families,
+    /// Palette alone: the same scene, differently framed, cropped or resized, where the layout hash
+    /// disagrees but the colours do not.
+    Colour,
+    /// Either signal: the widest net, and the one that finds both kinds in one pass.
+    Either,
+}
+
+impl Match {
+    /// Stable name for the command layer.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Families => "families",
+            Self::Colour => "colour",
+            Self::Either => "either",
+        }
+    }
+
+    /// Name for the picker.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Families => "Structure",
+            Self::Colour => "Colour",
+            Self::Either => "Either",
+        }
+    }
+
+    /// One line explaining what it lets through.
+    pub const fn hint(self) -> &'static str {
+        match self {
+            Self::Families => "Same layout and the same palette — the safe default.",
+            Self::Colour => "Same palette anywhere in the frame, whatever the layout.",
+            Self::Either => "Structure or palette; the widest net, more false pairs.",
+        }
+    }
+
+    /// Every mode, in picker order.
+    pub const ALL: [Self; 3] = [Self::Families, Self::Colour, Self::Either];
+
+    /// Parse a name from the command layer.
+    pub fn parse(name: &str) -> Self {
+        match name {
+            "colour" => Self::Colour,
+            "either" => Self::Either,
+            _ => Self::Families,
+        }
+    }
+}
+
+/// Whether two members share a palette within `colour`.
+///
+/// Both sides need a fingerprint: colour-only matching refuses to guess when a preview could not be
+/// measured.
+pub fn palette_matches(left: &Member, right: &Member, colour: u32) -> bool {
+    match (left.colour, right.colour) {
+        (Some(left), Some(right)) => left.distance(right) <= colour,
+        _ => false,
+    }
+}
+
 /// Whether two members are the same picture under both signals.
 ///
 /// Structure has to be close, and colour has to agree when both sides have a fingerprint: a page of
@@ -93,15 +158,44 @@ pub fn group(members: &[Member], threshold: u32) -> Vec<Group> {
 /// edge ranges can still reach r. A ten-thousand-photo library needs a few thousand comparisons
 /// rather than fifty million, while still finding every pair inside the radius.
 pub fn group_with(members: &[Member], threshold: u32, colour: u32) -> Vec<Group> {
+    group_in(members, Match::Families, threshold, colour)
+}
+
+/// Group under an explicit set of signals.
+///
+/// Structure pairs come from the BK-tree, palette pairs from a brightness-sorted sliding window: if
+/// two palettes differ in mean brightness by more than the tolerance they cannot be within it, so
+/// sorting by brightness and stopping the scan at that distance is exact rather than approximate.
+pub fn group_in(members: &[Member], mode: Match, threshold: u32, colour: u32) -> Vec<Group> {
     let mut parents: Vec<usize> = (0..members.len()).collect();
-    let mut tree = BkTree::default();
-    for (index, member) in members.iter().enumerate() {
-        for candidate in tree.search(member.hash.difference, threshold) {
-            if matches(&members[candidate], member, threshold, colour) {
-                union(&mut parents, index, candidate);
+    if matches!(mode, Match::Families | Match::Either) {
+        let mut tree = BkTree::default();
+        for (index, member) in members.iter().enumerate() {
+            for candidate in tree.search(member.hash.difference, threshold) {
+                if matches(&members[candidate], member, threshold, colour) {
+                    union(&mut parents, index, candidate);
+                }
+            }
+            tree.insert(member.hash.difference, index);
+        }
+    }
+    if matches!(mode, Match::Colour | Match::Either) {
+        let mut ordered: Vec<(u32, usize)> = members
+            .iter()
+            .enumerate()
+            .filter_map(|(index, member)| member.colour.map(|palette| (palette.mean(), index)))
+            .collect();
+        ordered.sort_unstable();
+        for (position, (brightness, index)) in ordered.iter().enumerate() {
+            for (other_brightness, other) in ordered.iter().skip(position + 1) {
+                if other_brightness.saturating_sub(*brightness) > colour {
+                    break;
+                }
+                if palette_matches(&members[*other], &members[*index], colour) {
+                    union(&mut parents, *index, *other);
+                }
             }
         }
-        tree.insert(member.hash.difference, index);
     }
 
     let mut buckets: HashMap<usize, Vec<usize>> = HashMap::new();
@@ -392,5 +486,100 @@ mod tests {
         let lonely = around(&members, PhotoId(3), 1).expect("anchor exists");
         assert_eq!(lonely.len(), 1);
         assert_eq!(lonely.best, PhotoId(3));
+    }
+
+    fn member_with_colour(id: u64, difference: u64, rgb: [u8; 3]) -> Member {
+        Member {
+            id: PhotoId(id),
+            hash: Hash {
+                difference,
+                average: 0x0F0F_0F0F_0F0F_0F0F,
+            },
+            colour: Some(Colour {
+                red: [rgb[0]; 9],
+                green: [rgb[1]; 9],
+                blue: [rgb[2]; 9],
+            }),
+            pixels: 1_000,
+            rating: 0,
+            bytes: 100,
+        }
+    }
+
+    #[test]
+    fn colour_only_finds_the_same_palette_whatever_the_layout() {
+        // Two very different layouts — the structure hash disagrees — but the same palette.
+        let dark = member_with_colour(1, 0, [20, 20, 20]);
+        let light = member_with_colour(2, 0xFFFF_FFFF_FFFF_FFFF, [22, 21, 20]);
+        let members = [dark, light];
+
+        assert!(
+            group_in(&members, Match::Families, 10, 40).is_empty(),
+            "structure alone refuses them"
+        );
+        let by_colour = group_in(&members, Match::Colour, 10, 40);
+        assert_eq!(by_colour.len(), 1, "the palette agrees");
+        assert_eq!(by_colour[0].len(), 2);
+        assert_eq!(group_in(&members, Match::Either, 10, 40).len(), 1);
+    }
+
+    #[test]
+    fn colour_only_keeps_different_palettes_apart() {
+        let red = member_with_colour(1, 0, [200, 30, 30]);
+        let blue = member_with_colour(2, 0, [30, 30, 200]);
+        let members = [red, blue];
+        assert!(group_in(&members, Match::Colour, 10, 40).is_empty());
+        assert_eq!(
+            group_in(&members, Match::Families, 0, 40).len(),
+            0,
+            "identical structure but a different palette is not the same photo"
+        );
+    }
+
+    #[test]
+    fn colour_only_needs_a_palette_on_both_sides() {
+        let mut measured = member_with_colour(1, 0, [90, 90, 90]);
+        let mut unmeasured = member_with_colour(2, 0, [90, 90, 90]);
+        unmeasured.colour = None;
+        assert!(group_in(&[measured, unmeasured], Match::Colour, 0, 40).is_empty());
+
+        // Once the preview can be measured it joins.
+        let second = member_with_colour(2, 0, [90, 90, 90]);
+        measured.colour = Some(Colour {
+            red: [90; 9],
+            green: [90; 9],
+            blue: [90; 9],
+        });
+        assert_eq!(group_in(&[measured, second], Match::Colour, 0, 40).len(), 1);
+    }
+
+    #[test]
+    fn the_brightness_window_does_not_miss_a_pair_it_should_find() {
+        // A chain of palettes one step apart: every adjacent pair is inside the tolerance, and the
+        // sliding window has to walk far enough to see it.
+        let members: Vec<Member> = (0..8)
+            .map(|step| {
+                let value = 40 + step * 8;
+                member_with_colour(step as u64 + 1, step as u64 * 0x1111, [value, value, value])
+            })
+            .collect();
+        let groups = group_in(&members, Match::Colour, 64, 10);
+        assert_eq!(groups.len(), 1, "the chain is one group");
+        assert_eq!(groups[0].len(), 8);
+
+        // A tighter tolerance than the step breaks every link: nothing is within four per channel.
+        assert!(group_in(&members, Match::Colour, 64, 4).is_empty());
+        // And at exactly the step, neighbours still chain into one group.
+        assert_eq!(group_in(&members, Match::Colour, 64, 8).len(), 1);
+    }
+
+    #[test]
+    fn mode_names_round_trip() {
+        for mode in Match::ALL {
+            assert_eq!(Match::parse(mode.id()), mode);
+            assert!(!mode.label().is_empty());
+            assert!(!mode.hint().is_empty());
+        }
+        assert_eq!(Match::parse("nonsense"), Match::Families);
     }
 }

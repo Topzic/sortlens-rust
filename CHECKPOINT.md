@@ -794,6 +794,29 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   silent)
 - 249 tests, CI and wasm green
 
+## 2026-11-21 — M7: colour-only duplicate matches
+
+- hash: `Colour::mean()` — overall brightness, which is what makes the colour search exact below
+- similar: `Match { Families, Colour, Either }` with `id`/`label`/`hint`/`parse`, `palette_matches`,
+  and `group_in(members, mode, threshold, colour)`; `group_with` stays as the Families shorthand so
+  existing callers keep their meaning
+- similar: colour candidates come from a **brightness-sorted sliding window**. The distance is the
+  mean of the absolute differences, so it can never be smaller than the difference of the means: two
+  palettes whose brightness differs by more than the tolerance cannot match, and stopping the scan
+  there is exact rather than a heuristic. No second index to keep in sync, and the window is small at
+  any sane tolerance
+- engine: `poll_similar_in(threshold, colour, mode)` and `regroup(...)`, which reuses the cached
+  fingerprints so changing the mode costs no decoding; `similar.groups` takes `mode` and `colour`
+- ui: a Match row in the Similar view — Structure / Colour / Either with the explanation on hover —
+  plus a palette slider that only shows for Colour. Changing either regroups immediately
+- tests: colour-only finds a same-palette pair whose hashes are opposite, refuses identical layout
+  with a different palette, refuses a pair where one side has no fingerprint, and a chain of
+  one-step palettes proves the window walks far enough to link them (and that a tighter tolerance
+  than the step breaks every link); mode names round trip; engine-level, two flat colours never
+  group and regrouping leaves the hash cache untouched
+- 255 tests, CI and wasm green
+
 ## Next
 
-M7: colour-only duplicate matches — compare palettes without requiring structural closeness.
+M7: insights progress and highlights — a pass that reports progress over a large library, and
+seasonality in the year chart.

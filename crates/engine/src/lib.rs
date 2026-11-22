@@ -21,7 +21,8 @@ pub use sortlens_cull::trash::Receipt as ApplyReceipt;
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 pub use sortlens_insights::{Insights, Row as InsightRow};
 pub use sortlens_similar::{
-    DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Member as SimilarMember,
+    DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Match as SimilarMatch,
+    Member as SimilarMember,
 };
 
 use serde_json::{Value, json};
@@ -1355,14 +1356,27 @@ impl Engine {
         }
     }
 
+    /// Regroup the cached members under another set of signals, without touching the files.
+    pub fn regroup(&mut self, threshold: u32, colour: u32, mode: SimilarMatch) {
+        self.similar = sortlens_similar::group_in(&self.similar_members, mode, threshold, colour);
+    }
+
     /// Fold finished hashes into the cache and regroup. Returns the number of groups when the pass
     /// just finished.
     pub fn poll_similar(&mut self, threshold: u32) -> Option<usize> {
         self.poll_similar_with(threshold, SIMILAR_COLOUR)
     }
 
-    /// Poll with an explicit colour tolerance.
+    /// Poll with an explicit colour tolerance and the default set of signals.
     pub fn poll_similar_with(&mut self, threshold: u32, colour: u32) -> Option<usize> {
+        self.poll_similar_in(threshold, colour, SimilarMatch::Families)
+    }
+
+    /// Poll, regrouping under an explicit set of signals.
+    ///
+    /// The hashes and palettes are already cached, so changing the mode is a regrouping rather than
+    /// another pass over the files.
+    pub fn poll_similar_in(&mut self, threshold: u32, colour: u32, mode: SimilarMatch) -> Option<usize> {
         let pending = self.pending_hash.as_ref()?;
         let found = match pending.rx.try_recv() {
             Ok(found) => found,
@@ -1386,7 +1400,7 @@ impl Engine {
             JobStatus::Done
         };
         self.finish_job(pending.job, status, found.len(), 0, 0, None);
-        self.similar = sortlens_similar::group_with(&self.similar_members, threshold, colour);
+        self.similar = sortlens_similar::group_in(&self.similar_members, mode, threshold, colour);
         Some(self.similar.len())
     }
 
@@ -1942,7 +1956,11 @@ impl Engine {
                     .get("threshold")
                     .and_then(Value::as_u64)
                     .unwrap_or(u64::from(SIMILAR_THRESHOLD)) as u32;
-                let _ = self.poll_similar(threshold);
+                let colour = args.get("colour").and_then(Value::as_u64).unwrap_or(u64::from(SIMILAR_COLOUR)) as u32;
+                let mode = SimilarMatch::parse(args.get("mode").and_then(Value::as_str).unwrap_or("families"));
+                if self.poll_similar_in(threshold, colour, mode).is_none() {
+                    self.regroup(threshold, colour, mode);
+                }
                 let groups: Vec<Value> = self
                     .similar_groups()
                     .iter()
@@ -2759,6 +2777,42 @@ mod tests {
             "the damaged snapshot was left alone"
         );
         assert_eq!(engine.stats().total, 0, "the log was empty, so there is nothing to rebuild from");
+    }
+
+    #[test]
+    fn similar_can_group_by_palette_alone() {
+        // Two frames with the same flat colour but nothing else in common.
+        let folder = Temp::new("palette-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        for (name, colour) in [("red.jpg", [210u8, 20u8, 20u8]), ("blue.jpg", [20u8, 20u8, 210u8])] {
+            let pixels: Vec<u8> = (0..64 * 64).flat_map(|_| colour).collect();
+            let image = craft_jpeg::encode_baseline(&pixels, 64, 64, 3, 92, craft_jpeg::ChromaSubsampling::S444, &[]).expect("encode");
+            std::fs::write(folder.0.join(name), image).expect("write");
+        }
+        let (_lib, mut engine) = library("lib-palette");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        engine.begin_similar(10).expect("hash");
+        for _ in 0..200 {
+            if engine.poll_similar_with(10, 42).is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(engine.similar_groups().len(), 0, "different palettes never group");
+
+        // Regrouping needs no new pass over the files: the fingerprints are cached.
+        let before = engine.hashes.len();
+        engine.regroup(10, 42, SimilarMatch::Colour);
+        assert_eq!(engine.hashes.len(), before);
+        assert_eq!(engine.similar_groups().len(), 0);
+
+        // The command face takes the mode by name.
+        let value = engine
+            .run("similar.groups", &json!({ "mode": "colour", "colour": 60 }))
+            .expect("groups");
+        assert!(value["groups"].as_array().is_some());
+        assert_eq!(SimilarMatch::parse("either"), SimilarMatch::Either);
     }
 
     #[test]

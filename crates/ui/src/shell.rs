@@ -220,6 +220,8 @@ pub struct UiState {
     pub similar_threshold: u32,
     /// How far apart two colour fingerprints may be before they are different pictures.
     pub similar_colour: u32,
+    /// Which signals the duplicate search trusts.
+    pub similar_mode: sortlens_engine::SimilarMatch,
     /// The cull summary sheet is open.
     pub summary_open: bool,
     /// A finished Apply is waiting to be acknowledged.
@@ -306,6 +308,7 @@ impl UiState {
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
+            similar_mode: sortlens_engine::SimilarMatch::Families,
             summary_open: false,
             receipt_open: false,
             drag_from: None,
@@ -440,7 +443,10 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
             state.notice(message);
         }
     }
-    if engine.poll_similar_with(state.similar_threshold, state.similar_colour).is_some() {
+    if engine
+        .poll_similar_in(state.similar_threshold, state.similar_colour, state.similar_mode)
+        .is_some()
+    {
         let groups = engine.similar_groups().len();
         state.notice(match groups {
             0 => "No similar groups found".to_string(),
@@ -2386,8 +2392,47 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
             let mut slider = value;
             if ui.add(egui::Slider::new(&mut slider, 0..=20).text("strictness")).changed() {
                 state.similar_threshold = slider as u32;
+                engine.regroup(state.similar_threshold, state.similar_colour, state.similar_mode);
             }
         });
+    });
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Match").size(10.5).color(t.text_faint));
+        for mode in sortlens_engine::SimilarMatch::ALL {
+            if ui
+                .add(
+                    Button::new(RichText::new(mode.label()).size(11.0).color(if state.similar_mode == mode {
+                        t.text
+                    } else {
+                        t.text_muted
+                    }))
+                    .fill(if state.similar_mode == mode {
+                        t.selection
+                    } else {
+                        Color32::TRANSPARENT
+                    })
+                    .stroke(Stroke::NONE),
+                )
+                .on_hover_text(mode.hint())
+                .clicked()
+            {
+                state.similar_mode = mode;
+                // Regrouping uses the cached fingerprints, so changing the mode costs nothing.
+                engine.regroup(state.similar_threshold, state.similar_colour, mode);
+            }
+        }
+        if state.similar_mode == sortlens_engine::SimilarMatch::Colour {
+            let mut colour = state.similar_colour as u64;
+            if ui
+                .add(egui::Slider::new(&mut colour, 0..=120).text("palette"))
+                .on_hover_text("How far apart two palettes may be, per channel")
+                .changed()
+            {
+                state.similar_colour = colour as u32;
+                engine.regroup(state.similar_threshold, state.similar_colour, state.similar_mode);
+            }
+        }
+        ui.label(RichText::new(state.similar_mode.hint()).size(10.0).color(t.text_faint));
     });
     ui.add_space(8.0);
 
