@@ -3826,6 +3826,7 @@ dependencies = [
  "sortlens-cull",
  "sortlens-engine",
  "sortlens-memories",
+ "sortlens-quality",
  "sortlens-testkit",
  "sortlens-thumbs",
 ]

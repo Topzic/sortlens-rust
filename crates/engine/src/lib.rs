@@ -2104,6 +2104,26 @@ impl Engine {
         })
     }
 
+    /// How many photos have no usable sharpness score yet.
+    ///
+    /// The window asks this to decide whether "Measure sharpness" is a job worth offering, so the wording is
+    /// "has no usable score" rather than "has no score": a score from an older `SCORE_VERSION` is not usable and
+    /// counts here.
+    pub fn sharpness_todo(&self) -> usize {
+        self.all_photos()
+            .into_iter()
+            .filter(|photo| !photo.missing && sortlens_quality::needs_rescore(photo.sharpness.as_ref()))
+            .count()
+    }
+
+    /// Every stored score, paired with its photo, in photo order.
+    pub fn scores(&self) -> Vec<(PhotoId, sortlens_quality::Score)> {
+        self.all_photos()
+            .into_iter()
+            .filter_map(|photo| photo.sharpness.map(|score| (photo.id, score)))
+            .collect()
+    }
+
     /// A photo's stored sharpness, if it has been measured with the current algorithm.
     pub fn sharpness(&self, id: PhotoId) -> Option<sortlens_quality::Score> {
         self.catalog.as_ref()?.sharpness(id)

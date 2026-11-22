@@ -2063,10 +2063,40 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand, and not reachable from the window yet**: the UI does not start the pass or show a score.
   That is part 3, and there is nothing to look at until it exists.
 
+## 2026-11-22 (tenth) — blur scan part 3: the review surface, and a cut that says what it can claim
+
+- **M6's blur row is now closed.** The section lives in Insights — the analysis view that already has the charts —
+  with a "Measure sharpness" button (shown with how many photos have no current score), a histogram, a slider for
+  how much of the library to review, and a button that ticks the selection and returns to the library.
+- `crates/ui/src/sharpness.rs` is the arithmetic with **no egui at all**: `review(scores, percentile) -> Review`
+  returns the histogram buckets, the cut, the ids at or below it, the tie count and `selected_bands`. Deciding which
+  photos get acted on belongs in a test, not only in a painter.
+- **The cut is a value at a percentile, not a rank.** Taking "the lowest N" would pick an arbitrary subset of a tie —
+  the same photograph selected or not depending on its id. A value cut can select more than the percentage asked
+  for, so `ties` is returned and the count is shown: a bigger selection honestly described beats a smaller one
+  chosen at random.
+- **Identical scores select nothing** (`separable: false`): a relative cut on a flat library would select every
+  photo, and selecting everything is an action, not a review. The label says a relative cut cannot separate them.
+- **The band the cut sits in is computed once.** The first version of the painting used a helper that returned
+  `true` — a placeholder that would have highlighted the whole histogram. It was deleted and replaced by
+  `Review::selected_bands`, with a test that `band_selected(n - 1)` is true and `band_selected(n)` is false, so the
+  painter and the button cannot disagree about where the cut is.
+- The pass is polled in the view that asked for it (`insights_view`), and the report becomes a notice that names how
+  many could not be judged — an unmeasured frame never reads as a measured one.
+- `Selection::select_many` caps at `MAX_RANGE`, the same cap a range-select has: a computed selection of a hundred
+  thousand ids is a batch waiting to run on a library nobody meant to change.
+- The slider is session state, not a persisted setting: remembering yesterday's cut would make today's review appear
+  to make a claim it never made. Written into `docs/UX.md` §5.8, which previously described a sortable grid that
+  does not exist.
+- 538 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers green. ROADMAP's stale "blur ladder and cluster
+  determinism wait for their features" row was split: the blur ladder is checked, cluster determinism waits for geo.
+- **Not verified by hand, and named as such in ROADMAP**: whether 10% is a sensible default, and whether the
+  histogram is legible at real score ranges. Both need a library of actual photographs, not fixtures.
+
 ## Next
 
-Blur scan part 3 — the review surface: a histogram of stored scores, a threshold chosen against a real library
-rather than a guess, batch select of everything below it, and the menu item that starts the pass. The crate has no
-threshold on purpose: a cut-off belongs to the scan that proposes it. Everything the surface needs is now in place
-(`Engine::sharpness`, `begin_sharpness`, `poll_sharpness`, `SharpnessReport`), so this is UI-only work with a
-headless paint test.
+M6 is closed except the deliberately absent map (`sortlens-geo`, basemap) and "batch select of group leftovers" in
+Similar. After that the remaining work is the long tail of named-absent items with their blockers (video posters
+part 2, i18n/RTL, keymap editor, registry delete-everywhere, 20-step undo, `craft-ipc`), each of which needs a
+design decision rather than a checklist tick. The next run should pick the first one it can do honestly and
+completely: **Similar's batch select of leftovers** is the most self-contained of them.

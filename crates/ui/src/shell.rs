@@ -10,6 +10,7 @@
 
 use crate::charts::{self, Column};
 use crate::keymap::{self, Context};
+use crate::sharpness;
 use crate::theme::{Density, GridMode, Motion, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
@@ -317,6 +318,19 @@ impl Selection {
     }
 
     /// Select exactly this photo, the way a plain click does.
+    /// Select exactly these photos, in this order, capped the same way a range-select is.
+    ///
+    /// Used by the sharpness review, where the set is computed rather than clicked. The cap is not a nicety: a
+    /// selection of a hundred thousand ids is a batch waiting to be run on a library nobody meant to change.
+    pub fn select_many(&mut self, ids: &[PhotoId]) {
+        self.ids.clear();
+        for id in ids.iter().take(MAX_RANGE) {
+            self.ids.insert(*id);
+        }
+        self.primary = ids.first().copied();
+        self.anchor = ids.first().copied();
+    }
+
     pub fn replace(&mut self, id: PhotoId) {
         self.ids.clear();
         self.ids.insert(id);
@@ -544,6 +558,11 @@ pub struct UiState {
     pub selection: Selection,
     /// Which collections are ticked in the sidebar, for batch colour, pin and delete.
     pub collection_selection: CollectionSelection,
+    /// How much of the library the sharpness review offers to select, in percent.
+    ///
+    /// The cut is relative on purpose: a sharpness score is unitless and only comparable inside one library, so an
+    /// absolute threshold would be a guess dressed up as a measurement.
+    pub sharpness_percentile: f32,
     /// Where a marquee drag started, while the pointer is still down.
     pub marquee: Option<egui::Pos2>,
     /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
@@ -734,6 +753,7 @@ impl UiState {
             collection_filter: None,
             rename_target: None,
             notice: None,
+            sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
         }
     }
 
@@ -4151,6 +4171,25 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
 /// Totals, distributions and breakdowns, all recomputed from the catalog.
 fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let _ = engine.poll_insights();
+    // The sharpness pass lands here rather than on a timer: this is the view that asked for it, and a pass that
+    // finished while another view was open would otherwise sit in its channel until someone came back.
+    if let Some(report) = engine.poll_sharpness() {
+        if report.remaining == 0 {
+            let message = match report.unjudged {
+                0 => format!("Measured {} photo(s)", report.measured),
+                unjudged => format!(
+                    "Measured {} photo(s); {unjudged} could not be judged and were left unscored",
+                    report.measured
+                ),
+            };
+            state.notice(message);
+        } else {
+            state.notice(format!(
+                "Sharpness pass stopped after {} photo(s)",
+                report.measured + report.unjudged
+            ));
+        }
+    }
     let insights = engine.insights();
     if let Some((done, total)) = engine.insights_progress() {
         // A library of thousands is not instant, so the pass says how far it has come instead of
@@ -4286,7 +4325,103 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                 }
             });
         });
+        ui.add_space(18.0);
+        sharpness_section(ui, t, state, engine);
     });
+}
+
+/// The softness review: how detail is distributed, what a relative cut would select, and the button that selects it.
+///
+/// The cut is a *review*, not a verdict: a sharpness score is unitless and ranks frames inside one library, so the
+/// section says "the softest N% of this library" rather than "blurry" — and when the scores cannot be separated at
+/// all, it says that instead of offering a button that would select everything.
+fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    ui.label(RichText::new("Sharpness").size(12.0).strong());
+    let todo = engine.sharpness_todo();
+    if let Some((done, total)) = engine.sharpness_progress() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Measuring").size(11.0).color(t.text_muted));
+            ui.add(egui::ProgressBar::new(if total == 0 { 0.0 } else { done as f32 / total as f32 }).desired_width(220.0));
+            ui.label(RichText::new(format!("{done} of {total}")).size(10.5).color(t.text_faint));
+        });
+        ui.add_space(6.0);
+    } else if todo > 0 && !engine.read_only() {
+        if ui
+            .button(RichText::new("Measure sharpness").size(11.0))
+            .on_hover_text("Decode each photo and measure how much fine detail it has")
+            .clicked()
+        {
+            match engine.begin_sharpness() {
+                Ok(0) => state.notice("Every photo already has a current score"),
+                Ok(_) => {}
+                Err(error) => state.notice_problem(error.to_string()),
+            }
+        }
+        ui.label(
+            RichText::new(format!("{todo} photo(s) have no current score"))
+                .size(10.5)
+                .color(t.text_faint),
+        );
+    }
+
+    let scores: Vec<(PhotoId, f32)> = engine.scores().into_iter().map(|(id, score)| (id, score.value)).collect();
+    let review = sharpness::review(&scores, state.sharpness_percentile);
+    ui.add_space(6.0);
+    if review.scored == 0 {
+        ui.label(
+            RichText::new("Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.")
+                .size(10.5)
+                .color(t.text_faint),
+        );
+        return;
+    }
+
+    // The histogram: one column per score band, with the bands a cut would take in the accent colour.
+    let columns: Vec<Column> = review
+        .buckets
+        .iter()
+        .enumerate()
+        .map(|(index, count)| {
+            let column = Column::new(String::new(), *count);
+            if review.band_selected(index) {
+                column.highlighted()
+            } else {
+                column
+            }
+        })
+        .collect();
+    charts::columns(ui, t, &columns, charts::COLUMN_HEIGHT);
+    ui.label(
+        RichText::new(format!(
+            "Softest {:.0}% · scores {:.2} to {:.2}",
+            state.sharpness_percentile, review.low, review.high
+        ))
+        .size(10.5)
+        .color(t.text_faint),
+    );
+    ui.add_space(4.0);
+    let mut percentile = state.sharpness_percentile;
+    ui.add(
+        egui::Slider::new(&mut percentile, sharpness::MIN_PERCENTILE..=sharpness::MAX_PERCENTILE)
+            .suffix("%")
+            .fixed_decimals(0),
+    );
+    state.sharpness_percentile = percentile;
+    ui.label(RichText::new(review.cut_label()).size(11.0).color(t.text));
+    ui.add_space(4.0);
+    if review.can_select() {
+        if ui
+            .button(RichText::new(format!("Select {} photo(s)", review.count())).size(11.0))
+            .on_hover_text("Ticks them in the library, where you can look before you act")
+            .clicked()
+        {
+            state.selection.select_many(&review.below);
+            state.view = View::Library;
+            state.notice(format!("Selected the {} softest", review.count()));
+        }
+    } else if review.separable {
+        ui.label(RichText::new("Nothing at the cut").size(10.5).color(t.text_faint));
+    }
 }
 
 /// One headline number with a caption.
@@ -6428,6 +6563,110 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(state.unread_notices(), 0);
         assert_eq!(state.notices.len(), 2, "the list is still there to read");
+    }
+
+    /// The sharpness review paints over a real library, and the cut it paints is the cut it would select.
+    ///
+    /// The arithmetic is tested in `sharpness`; this is the wiring — that the section reads scores from the engine,
+    /// that a library with no scores offers the measurement instead of a cut, and that a library with scores paints
+    /// a histogram whose highlighted bands match the review the button would act on.
+    #[test]
+    fn the_sharpness_review_paints_and_offers_only_a_cut_it_can_justify() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-sharpness-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-sharpness");
+        for index in 1..=5 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40, 70, 90 + index as u8], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine.all_photos().into_iter().map(|photo| photo.id).collect();
+        assert_eq!(ids.len(), 5);
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+
+        // Nothing measured: the section paints, and the review offers no cut because there is nothing to cut.
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                sharpness_section(ui, &tokens, &mut state, &mut engine);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the section painted");
+        assert_eq!(engine.sharpness_todo(), 5, "every photo needs a score");
+        assert!(sharpness::review(&[], state.sharpness_percentile).below.is_empty());
+        assert!(state.selection.is_empty(), "painting selects nothing");
+
+        // Five different scores, so the library can be separated and a cut is offered.
+        let measured: Vec<(PhotoId, sortlens_quality::Score)> = ids
+            .iter()
+            .enumerate()
+            .map(|(index, id)| {
+                (
+                    *id,
+                    sortlens_quality::Score {
+                        value: 0.5 + index as f32,
+                        version: sortlens_quality::SCORE_VERSION,
+                    },
+                )
+            })
+            .collect();
+        engine.set_scores(&measured).expect("store scores");
+        assert_eq!(engine.sharpness_todo(), 0, "and now nothing does");
+
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                sharpness_section(ui, &tokens, &mut state, &mut engine);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the histogram painted");
+
+        // The cut the section would offer, computed from the same engine state the section read.
+        let scores: Vec<(PhotoId, f32)> = engine.scores().into_iter().map(|(id, score)| (id, score.value)).collect();
+        let review = sharpness::review(&scores, state.sharpness_percentile);
+        assert_eq!(review.scored, 5);
+        assert!(review.can_select());
+        assert_eq!(review.below.len(), 1, "10% of five photos is the softest one");
+        assert_eq!(review.below[0], ids[0], "and the softest is the one measured lowest");
+
+        // Every score identical: the review refuses rather than selecting the whole library, and the section says so.
+        let flat: Vec<(PhotoId, sortlens_quality::Score)> = ids
+            .iter()
+            .map(|id| {
+                (
+                    *id,
+                    sortlens_quality::Score {
+                        value: 2.0,
+                        version: sortlens_quality::SCORE_VERSION,
+                    },
+                )
+            })
+            .collect();
+        engine.set_scores(&flat).expect("flatten");
+        let scores: Vec<(PhotoId, f32)> = engine.scores().into_iter().map(|(id, score)| (id, score.value)).collect();
+        let review = sharpness::review(&scores, state.sharpness_percentile);
+        assert!(!review.can_select(), "identical scores are not a review");
+        assert!(review.cut_label().contains("cannot separate"));
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                sharpness_section(ui, &tokens, &mut state, &mut engine);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "a flat library paints too");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The overlay paints a decided photo over the stage and then drops itself, in a real cull view.

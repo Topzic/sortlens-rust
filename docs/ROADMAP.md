@@ -501,9 +501,26 @@ remap a moved drive; run the wizard on a clean machine.
   - **`sharpen` deliberately has no `--json` schema**, like `export`: a job with progress and a cancel is not one
     object. The schema gate now names the progress verbs and requires each to *refuse* `--json`, so the absence is
     a decision the harness checks rather than a hole.
-- [ ] Blur scan **part 3**: threshold review and batch select in the window — a histogram of stored scores, a
-  threshold picked against a real library rather than a guess, and selecting everything below it. The crate has no
-  threshold on purpose: a cut-off belongs to the scan that proposes it, not to the measure that reports.
+- [x] Blur scan **part 3**: threshold review and batch select in the window
+  - `crates/ui/src/sharpness.rs` holds the arithmetic and no egui: `review(scores, percentile) -> Review` with the
+    histogram buckets, the cut, the ids at or below it, the tie count and `selected_bands`. A question that decides
+    which photos get acted on belongs in a test, not only in a painter.
+  - **The cut is a value at a percentile, not a rank.** Taking "the lowest N" would pick an arbitrary subset of a
+    tie — the same photograph selected or not depending on its id. A value cut can select more than asked for, so
+    `ties` and the count are shown; that is a bigger selection honestly described rather than a smaller one chosen
+    at random.
+  - **Identical scores select nothing and say why** (`separable: false`): a relative cut on a flat library would
+    select every photo, and selecting everything is an action, not a review.
+  - The section lives in Insights — the analysis view that already has the charts — with the measurement button
+    (count of photos without a current score), the histogram (bands at or below the cut highlighted via
+    `selected_bands`, drawn by the existing chart component), the slider, and a button that ticks the photos via
+    `Selection::select_many` and returns to the library. The pass is polled in the view that asked for it, and the
+    result is a notice that names how many could not be judged.
+  - Tested: eight arithmetic tests in `sharpness.rs` (percentile, ties, flat library, empty, clamping, non-finite
+    scores, band/cut agreement, histogram summing) and one headless paint over a real five-photo library that walks
+    unscored → scored → all-equal and asserts the paint and the review agree. **Not hand-verified**: whether 10% is a
+    sensible default, and whether the histogram is legible at real score ranges — both need a library of photographs.
+
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
 - [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03
@@ -515,7 +532,10 @@ remap a moved drive; run the wizard on a clean machine.
 - [x] Insights: worker with progress, highlights, months and seasonality (B) — SL-E09..E11
 - [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12
 - [x] Chart component (fixed height, no chart dep): `crates/ui/src/charts.rs` — columns with a one-pixel floor and a round axis maximum, proportional rows, painted headlessly in a test (B) — SL-E11
-- [ ] Duplicate-transform and BK-tree cross-check tests are in; the blur ladder and cluster determinism wait for their features
+- [x] Duplicate-transform and BK-tree cross-check tests are in, and the blur ladder is checked: `crates/quality`'s
+  `a_blurred_frame_scores_far_below_the_sharp_one_it_came_from` blurs a known pattern and asserts both the separation
+  and the ordering, so "more blur scores lower" is pinned rather than assumed
+- [ ] Map cluster determinism still waits for its feature — `sortlens-geo` has no clustering to be deterministic about
 
 **Demo:** find 20 blurred frames and 12 duplicate groups in a 5k library; map clusters match
 GPS; every dashboard number reconciles with the catalog; memories stable across refresh.

@@ -273,9 +273,18 @@ because hashes are cached.
 
 ### 5.8 Soft Focus
 
-A sortable list/grid of photos by sharpness ascending, with the score bar, a threshold slider
-and a "select below threshold" action. The threshold persists per library. It never deletes;
-it is a review surface.
+A section in **Insights**: a "Measure sharpness" button (shown when photos have no current score, with how many),
+a histogram of stored scores, a slider for how much of the library to review, and a "Select N photo(s)" action that
+ticks them in the library so you can look before acting. It never deletes; it is a review surface.
+
+**The cut is relative — the softest N% of this library, not "blurry".** A sharpness score is unitless: it ranks
+frames inside one library, in one light, at one focal length, and no absolute number means the same in another. So
+the section says what a relative cut can actually claim, and when every score is identical it says that a relative
+cut cannot separate them rather than offering a button that would select the whole library. Where several photos
+share the score at the cut, the selection is honestly larger than the percentage and the count says so.
+
+The slider is session state, not a stored setting: it is a way of looking at the histogram, and remembering yester-
+day's cut would make the review appear to make a claim it did not.
 
 ### 5.9 Places
 

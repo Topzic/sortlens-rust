@@ -20,6 +20,8 @@ serde = { workspace = true }
 
 [dev-dependencies]
 sortlens-testkit = { workspace = true }
+# Tests store scores directly to exercise the review; the UI itself only reads them through the engine.
+sortlens-quality = { workspace = true }
 
 [lints]
 workspace = true
