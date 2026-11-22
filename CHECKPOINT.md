@@ -1345,17 +1345,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 417 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: any of this in a real
   terminal — the goldens run the binary, which is the closest this environment gets.
 
+## 2026-11-21 — M9 (part 2): the diagnostics bundle, with the leak test the golden would have hidden
+
+- `Engine::diagnostics` (`crates/engine/src/diagnostics.rs`): plain text with versions, counts, warnings,
+  the read-only health check, packs, the last 25 changes and the roots by placeholder.
+- `diagnostics::redact` replaces every absolute path — `<root-N>`, `<library>`, `<home>` — sorted
+  longest-first so a root under the library is not half-replaced. Root-relative paths stay.
+- `diagnostics [--out FILE]` in the CLI; `app.diagnostics` in the registry with an MCP note and an
+  executed example.
+- **the test that mattered**: the golden normaliser replaces the library and fixture paths, so a *leak*
+  would be invisible in a golden diff. A separate test runs the binary, reads stdout before normalisation
+  and fails if either path appears. Without it the promise would have been untested by construction.
+- the golden itself would have failed on the ubuntu job (`os = macos`); os/arch and version lines are
+  recorded as `<host>`/`<version>`. First attempt inserted the normaliser before the tail was appended,
+  which silently undid it — visible only because the golden was re-recorded and still said `macos`.
+- M9's remote rows (server, wasm client, remote album edits) moved to a "Deliberately absent from M9"
+  table: they need a second device and a network peer, and an untested auth path is worse than none.
+- 422 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: the report as pasted into
+  a bug tracker.
+
 ## Next
 
-M9's remaining rows split cleanly, and the next run should do the first:
+M10 — release. Do these in order, each small enough to verify:
 
-1. **Diagnostics bundle (SL-I14)** — one folder or file a person can attach to a bug report: version,
-   platform, settings, counts, the last N change-log lines, the health report, and the tail of the log
-   with **paths redacted** to their root-relative form. Testable end to end, needs no peer.
-2. Then **keyboard rebinding** (SL-I09) — the keymap is already a table; a binding editor that writes
-   through settings, with conflict detection, is UI plus persistence.
-3. `sortlens-server`/`sortlens-web`/remote album rows **cannot** be exercised here (they need a second
-   device and a network peer). Mark them in a "Deliberately absent from M9" table with reasons, exactly
-   as M8's model rows were, rather than leaving four boxes that no run can honestly tick.
+1. **Version and about surface** — `sortlens-cli --version`, `app.about` already exists; make sure the
+   number lives in one place (`[workspace.package] version`) and that `--version` is covered by a golden.
+2. **Release workflow** — a `.github/workflows/release.yml` that, on a `v*` tag, builds `sortlens` and
+   `sortlens-cli` for macOS/linux/windows, runs `cargo xtask ci` first, and attaches the binaries to the
+   release. It cannot be executed here; say so in the commit rather than claiming it works.
+3. **Packaging notes** — `docs/RELEASE.md`: how to cut a release, what the artefacts are, what is
+   deliberately absent in this version (models, remote, i18n), and the checksum story.
 
-Then M10 (release): packaging notes, a `--version`/about surface, release workflow, and the M0 debt pass.
+Then the M0 debt pass and the final reconciliation of README/PLAN against reality.
