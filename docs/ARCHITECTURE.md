@@ -48,7 +48,7 @@ L1  sortlens-meta        craft-metadata → neutral PhotoMeta
     sortlens-ai          manifest, digest-verified store, NMS + label map, EXIF hints, suggestion merge
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
-    sortlens-quality     sharpness, exposure, clipping metrics
+    sortlens-quality     sharpness score (unitless, versioned); exposure and clipping follow
     sortlens-export      export planning, collision policy, copy and re-encode
     sortlens-testkit     synthetic libraries, fixtures, assertions
     sortlens-icon        the application mark, drawn in code for the window and the committed SVG
@@ -61,7 +61,10 @@ that depends on egui.
 ### Why these crates, not fewer
 
 - `hash` and `quality` are pure math with no IO: they must be unit-testable with property
-  tests and reusable by the CLI without dragging in the catalog.
+  tests and reusable by the CLI without dragging in the catalog. Neither holds a decoder —
+  `quality` takes RGBA planes or a luma plane and hands back a score, so the engine keeps the
+  one decode path it already has, and a test that wants real pixels depends on `thumbs` as a
+  dev-dependency rather than making the measure depend on it at runtime.
 - `sidecar` is separated because XMP merge semantics (keep unknown fields, detect external
   edits, atomic replace) are the most subtle correctness surface in the product.
 - `cull` is separated because the state machine has its own transition table and its own

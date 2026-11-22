@@ -465,8 +465,29 @@ remap a moved drive; run the wizard on a clean machine.
 
 ## M6 — Analyse · 2.5 w · tracks D,B
 
-- [ ] `sortlens-quality`: sharpness score + versioning + tests (D) — SL-E01
-- [ ] Blur scan job + threshold review + batch select (D,B) — SL-E01/E02
+- [x] `sortlens-quality`: sharpness score + versioning + tests (D) — SL-E01 **part 1**
+  - The score is the variance of the 4-neighbour Laplacian of the luma channel over the squared mean luma,
+    measured on a box-filtered grid no larger than 256 px on its long edge. Laplacian rather than edge energy
+    (a steep ramp is not detail; a change of direction is), variance rather than a mean (one sharp edge in a flat
+    frame must not carry the score), divided by mean² (the Laplacian scales with brightness, so a correct exposure
+    and one a stop down must score alike), at a fixed analysis edge (a photograph is as sharp as the photograph,
+    not as the copy of it you happen to hold). The number is unitless: it orders frames, it is not a percentage.
+  - `Score { value, version }` with `SCORE_VERSION`, and `needs_rescore(stored)` as the single place that decides
+    whether a stored score is comparable — none stored, an older version, or a non-finite value all mean
+    "measure it again". A library half-measured by two formulas would sort wrongly with nothing looking wrong.
+  - **A near-black frame is refused (`MIN_MEAN_LUMA`), not scored.** Proved by removing the guard: a 1-2 level
+    noise frame then scored 1.78, *above* a sharp bar pattern's 1.41, so without the floor every night shot would
+    top the sharpness list. "Cannot tell" is not "in focus".
+  - Twelve tests, including two fixed-seed property runs (no property-testing dependency exists in the workspace,
+    and adding one for two invariants would cost a package and its attribution). Both invariants were proved to
+    bite by removing the normalisation and the darkness floor.
+  - **Stated limit**: the fixed edge makes copies related by a whole-number ratio measure alike; a fractional
+    reduction is averaged differently by the box filter and can shift the score somewhat. Correcting that means
+    measuring at several edges, which is precision this ranking does not need.
+- [ ] Blur scan job + threshold review + batch select (D,B) — SL-E01/E02 **part 2**: walk the catalog, measure at
+  `LARGE`, store `Score` beside the photo in the op log so it survives a rescan, and review the threshold against
+  a real library before anything is called blurred. The crate deliberately has no threshold: a cut-off belongs to
+  the scan that proposes, not to the measure that reports.
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
 - [x] Similar: BK-tree metric index (exact, sub-quadratic) and a colour veto (D) — SL-E03

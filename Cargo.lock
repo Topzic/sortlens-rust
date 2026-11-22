@@ -3744,7 +3744,11 @@ dependencies = [
 name = "sortlens-quality"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "sortlens-core",
+ "sortlens-testkit",
+ "sortlens-thumbs",
 ]
 
 [[package]]

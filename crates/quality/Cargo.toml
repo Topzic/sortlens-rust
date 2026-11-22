@@ -10,6 +10,15 @@ repository.workspace = true
 
 [dependencies]
 sortlens-core = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+# The end-to-end test decodes with the same crate the application does, so the measure is proved against real
+# pixels rather than a buffer a test wrote itself. It is a dev-dependency on purpose: the crate itself stays pure
+# math with no IO and no dependency above `core`, which is what lets the CLI use it without the catalog.
+sortlens-testkit = { workspace = true }
+sortlens-thumbs = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

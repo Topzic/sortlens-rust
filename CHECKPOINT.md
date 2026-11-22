@@ -2001,9 +2001,43 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 509 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: whether restoring the
   search into the box on folder open reads as helpful or intrusive — it is the kind of judgement only use makes.
 
+## 2026-11-22 (eighth) — `sortlens-quality` part 1: a sharpness score that can be trusted and re-derived
+
+- `crates/quality` stopped being a scaffold. The score is the variance of the 4-neighbour Laplacian of the luma
+  channel over the squared mean luma, measured on a box-filtered grid capped at 256 px on its long edge. Each
+  clause is a decision with a reason in the crate docs: Laplacian not edge energy (a steep ramp is not detail),
+  variance not a mean (one sharp edge must not carry a flat frame), divided by mean² (exposure invariance), at a
+  fixed analysis edge (a photograph is as sharp as the photograph, not as the copy you hold).
+- **`Score { value, version }` with `SCORE_VERSION` and one `needs_rescore` predicate.** A library half-measured
+  by two formulas would sort wrongly with nothing looking wrong, so the version is checked rather than trusted,
+  and a non-finite value counts as needing a re-measure.
+- **A near-black frame is refused, not scored — and the proof is the finding.** Removing `MIN_MEAN_LUMA` makes a
+  1–2 level noise frame score **1.78, above a sharp bar pattern's 1.41**: without the floor every night shot
+  tops the sharpness list. "Cannot tell" is not "in focus".
+- **Layer discipline caught by the docs, not by a gate.** The first version depended on `sortlens-thumbs` to take
+  a `Thumbnail`; ARCHITECTURE says `quality` is pure math at L0 with no IO, and `xtask layers` passed anyway.
+  The API now takes RGBA (or luma) planes and `thumbs` is a dev-dependency, so the runtime rule holds and the
+  end-to-end test still measures real decoded pixels.
+- **A stated limit, because the alternative is an overclaim:** the fixed edge makes copies related by a whole
+  number ratio measure alike (proved, ratio < 1.05); a fractional reduction is averaged differently by the box
+  filter and can shift the score. Correcting that means measuring at several edges — precision a ranking does not
+  need. The first version of that test asserted 1024 vs 480 (a fractional ratio) and failed at 1.66×, which is
+  how the limit was found.
+- Twelve tests: blur separation and ordering, a flat frame scoring exactly zero, exposure invariance (twice — one
+  hand-built, one fixed-seed property over 24 random mid-tone frames), size invariance plus the mechanism test
+  that native-size measurement *does* differ, the darkness floor on both sides, degenerate buffers, versioning,
+  JSON round-trip and a real JPEG decode. Two invariants were proved to bite by removing the normalisation and the
+  floor, then restored.
+- No property-testing dependency exists in the workspace and adding one for two invariants would cost a package
+  and its attribution, so the property runs use a fixed-seed generator — reproducible on failure, which is the
+  part a property test is actually for.
+- 521 tests; ci (exit 0), wasm, deny, snapshot, docs, layers, roots, attribution green.
+- **Not verified by hand**: none of it is reachable from the UI yet — the scan job is part 2, so there is no
+  screen to look at and no threshold to judge. The threshold deliberately does not live in this crate.
+
 ## Next
 
-M5 is closed as far as folders go. The remaining big M6 item is `sortlens-quality`: a sharpness score with
-versioning, then the blur scan job, threshold review and batch select. That is a new crate plus a scan pass and
-should be its own run or two. Video posters, the map, AI inference, i18n and the keymap editor stay named absent
-with their blockers.
+Blur scan part 2: store `Score` beside the photo in the op log (an `Op` so it survives a rescan and undoes like
+everything else), walk the catalog measuring at `LARGE`, then a review surface — a threshold picked against a real
+library, a histogram, and batch select of what falls below it. The crate's `needs_rescore` is the predicate the
+scan uses, so bumping `SCORE_VERSION` re-measures the library rather than mixing two scales.
