@@ -1327,11 +1327,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **not verified by hand**: the new panel in a window; the headless test paints it idle and mid-pass, and
   no click was simulated. 416 tests, ci (exit 0), wasm, deny, snapshot green.
 
+## 2026-11-21 — M9 (part 1): the CLI answers in JSON, and refuses when it cannot
+
+- `--json` prints the engine's own answer for 16 read verbs (roots, keywords, stats, list, folders, check,
+  moves, changed, history, audit, memories, shortcuts, registry, packs, suggest, jobs), anywhere on the
+  command line including before the verb.
+- a verb without a schema **refuses and lists the ones that have one**. That is the difference between a
+  script failing loudly and a script parsing prose; the refusal is a golden, so the message is contract.
+- `library.roots` and `tag.keywords` added (registry + MCP note + executed example), tested to answer an
+  empty list rather than an error for an empty library.
+- **the new goldens found a real defect in the harness**: it normalised `"modified":<digits>` but
+  pretty-printed JSON writes `"modified": <digits>`, so those goldens would have failed on the next
+  machine. Fixed for both spellings; the first attempt used a trimmed length as a byte index and panicked,
+  which the test caught immediately. Proved to bite by renaming a key in the roots golden.
+- docs/TOOLING.md has a "Scripting the CLI" section with the verb list and the refusal text; ROADMAP
+  ticks SL-K03/K06 and leaves one row naming what is still missing.
+- 417 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: any of this in a real
+  terminal — the goldens run the binary, which is the closest this environment gets.
+
 ## Next
 
-**M9 — Remote + automation.** Start with what the milestone can honestly contain without a tunnel: the
-automation half. Read `docs/ROADMAP.md` M9 first and pick the smallest row that is real — likely the
-queue/scheduler of library operations driven from the command registry (a scripted sequence with
-progress, cancel and a receipt), since remote access needs a paired client this environment cannot
-exercise. Any row that needs a device or a network peer gets the same treatment M8's model rows got: a
-"Deliberately absent" table entry with the reason, not an empty box pretending to be upcoming work.
+M9's remaining rows split cleanly, and the next run should do the first:
+
+1. **Diagnostics bundle (SL-I14)** — one folder or file a person can attach to a bug report: version,
+   platform, settings, counts, the last N change-log lines, the health report, and the tail of the log
+   with **paths redacted** to their root-relative form. Testable end to end, needs no peer.
+2. Then **keyboard rebinding** (SL-I09) — the keymap is already a table; a binding editor that writes
+   through settings, with conflict detection, is UI plus persistence.
+3. `sortlens-server`/`sortlens-web`/remote album rows **cannot** be exercised here (they need a second
+   device and a network peer). Mark them in a "Deliberately absent from M9" table with reasons, exactly
+   as M8's model rows were, rather than leaving four boxes that no run can honestly tick.
+
+Then M10 (release): packaging notes, a `--version`/about surface, release workflow, and the M0 debt pass.
