@@ -766,6 +766,28 @@ impl Engine {
         Ok(count)
     }
 
+    /// Rename a keyword everywhere, merging into an existing one when the name is taken.
+    ///
+    /// Sidecars follow, so a rename is not silently undone the next time a file is read.
+    pub fn rename_tag(&mut self, from: &str, to: &str) -> Result<usize> {
+        let from = normalize_tag(from)?;
+        let to = normalize_tag(to)?;
+        let touched: Vec<PhotoId> = self
+            .all_photos()
+            .into_iter()
+            .filter(|photo| photo.has_tag(&from))
+            .map(|photo| photo.id)
+            .collect();
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        let count = catalog.rename_tag(&from, &to)?;
+        if count > 0 {
+            self.sync_sidecars(&touched);
+            let job = self.start_job(JobKind::Sidecar, format!("#{from} → #{to}"));
+            self.finish_job(job, JobStatus::Done, count, 0, 0, None);
+        }
+        Ok(count)
+    }
+
     /// Statistics over the whole library, recomputed each time.
     pub fn insights(&self) -> Insights {
         match self.catalog.as_ref() {
@@ -1412,6 +1434,17 @@ impl Engine {
                 self.set_collection_sort(id, sort)?;
                 Ok(json!({ "sort": sort.id() }))
             }
+            "tag.rename" => {
+                let from = args
+                    .get("from")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a keyword to rename is required".into()))?;
+                let to = args
+                    .get("to")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a new name is required".into()))?;
+                Ok(json!({ "changed": self.rename_tag(from, to)? }))
+            }
             "collection.search" => {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
                 let search = args.get("search").and_then(Value::as_str).unwrap_or_default();
@@ -1949,6 +1982,38 @@ mod tests {
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.photo(ids[0]).expect("photo").flag, Flag::None);
         assert_eq!(engine.photo(ids[1]).expect("photo").flag, Flag::None);
+    }
+
+    #[test]
+    fn renaming_a_keyword_through_the_engine_touches_every_photo() {
+        let folder = Temp::new("rename-tag-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"b").expect("write");
+        let (_lib, mut engine) = library("rename-tag");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.set_tag(&ids, "Beach", true).expect("tag");
+
+        let value = engine
+            .run("tag.rename", &json!({ "from": "BEACH", "to": "#shore" }))
+            .expect("rename");
+        assert_eq!(value["changed"], 2, "names are normalised before matching");
+        assert_eq!(engine.tag_vocabulary(), vec![("shore".to_string(), 2)]);
+        assert!(engine.photo(ids[0]).expect("photo").has_tag("shore"));
+
+        // Renaming onto an existing keyword merges the two.
+        engine.set_tag(&ids[..1], "sand", true).expect("tag");
+        engine.run("tag.rename", &json!({ "from": "sand", "to": "shore" })).expect("merge");
+        assert_eq!(engine.photo(ids[0]).expect("photo").tags, vec!["shore".to_string()]);
+
+        assert!(engine.run("tag.rename", &json!({ "from": "shore" })).is_err());
     }
 
     #[test]

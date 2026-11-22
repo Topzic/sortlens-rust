@@ -172,6 +172,7 @@ same photo; apply 148 rejects to trash; undo restores all 148.
 - [x] Collections: create/rename/delete, add/remove, sidebar, filter (A,B) — SL-G01..G03
 - [ ] Collection favourites, colours, per-collection search and sort (B) — SL-G04
 - [ ] Batch move with verification + undo (A) — SL-G07
+- [ ] Persistent undo across restarts: the log holds the inverses, not just the session (A) — SL-A13
 - [ ] Inline tagging + re-apply last tags in cull (B) — SL-C11/C12
 - [x] Library doctor: check, find-moved-by-content-key, remove-missing, all undoable (A,B) — SL-H07/H08/A13
 - [ ] First-run wizard (library → folder → remote test) (B) — SL-I12

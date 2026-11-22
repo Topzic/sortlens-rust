@@ -25,6 +25,7 @@ Commands:
   tag <id> <keyword>        add a keyword
   untag <id> <keyword>      remove a keyword
   keywords                  list keywords with photo counts
+  rename <old> <new>        rename a keyword everywhere, merging if the name exists
   folders [--root R] [--in PREFIX]
                             list subfolders with recursive counts
   check                     verify every indexed file is still on disk
@@ -128,6 +129,13 @@ fn run() -> Result<(), String> {
             println!("tagged    {}", stats.tagged);
             println!("missing   {}", stats.missing);
             println!("bytes     {}", sortlens_core::format_bytes(stats.bytes));
+            Ok(())
+        }
+        "rename" => {
+            let from = rest.first().ok_or("a keyword to rename is required")?;
+            let to = rest.get(1).ok_or("a new name is required")?;
+            let count = engine.rename_tag(from, to).map_err(|error| error.to_string())?;
+            println!("renamed {from} to {to} on {count} photo(s)");
             Ok(())
         }
         "insights" => {

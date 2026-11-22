@@ -454,6 +454,40 @@ impl Catalog {
         Ok(changed)
     }
 
+    /// Rename a keyword everywhere it appears, merging when the new name is already in use.
+    ///
+    /// The whole change is one `Tagged` op, so a rename of two thousand photos undoes in a single
+    /// step rather than a thousand. Returns how many photos changed.
+    pub fn rename_tag(&mut self, from: &str, to: &str) -> Result<usize> {
+        let from = from.trim();
+        let to = to.trim();
+        if from.is_empty() || to.is_empty() {
+            return Err(Error::Invalid("a keyword needs a name".into()));
+        }
+        if from == to {
+            return Err(Error::Invalid("the keyword already has that name".into()));
+        }
+        let mut changes = Vec::new();
+        for photo in self.photos.values() {
+            if !photo.has_tag(from) {
+                continue;
+            }
+            let mut tags: Vec<String> = photo.tags.iter().filter(|tag| tag.as_str() != from).cloned().collect();
+            if !tags.iter().any(|tag| tag == to) {
+                tags.push(to.to_string());
+            }
+            tags.sort_unstable();
+            tags.dedup();
+            changes.push((photo.id, tags));
+        }
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        let count = changes.len();
+        self.commit(Op::Tagged { changes })?;
+        Ok(count)
+    }
+
     /// Immediate subfolders under `prefix` inside `root`, with how many photos each holds.
     ///
     /// `prefix` is a relative path with a trailing slash, or empty for the root itself. Counts are
@@ -1100,6 +1134,47 @@ mod tests {
 
         // A sort the app no longer knows falls back to the natural order when read back.
         assert_eq!(Sort::parse("nonsense"), Sort::Natural);
+    }
+
+    #[test]
+    fn renaming_a_keyword_moves_every_photo_and_merges_into_an_existing_one() {
+        let temp = TempCatalog::new("tag-rename");
+        let (mut catalog, _) = temp.open();
+        catalog
+            .sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg"), seed("c.jpg")])
+            .expect("sync");
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![
+                    (PhotoId(1), vec!["beach".into(), "sunny".into()]),
+                    (PhotoId(2), vec!["beach".into()]),
+                    (PhotoId(3), vec!["sunset".into()]),
+                ],
+            })
+            .expect("tag");
+
+        assert_eq!(catalog.rename_tag("beach", "shore").expect("rename"), 2);
+        let tags = |catalog: &Catalog, id: u64| catalog.photo(PhotoId(id)).expect("photo").tags.clone();
+        assert_eq!(tags(&catalog, 1), vec!["shore".to_string(), "sunny".to_string()]);
+        assert_eq!(tags(&catalog, 2), vec!["shore".to_string()]);
+        assert_eq!(
+            catalog.tag_vocabulary().iter().map(|(tag, _)| tag.clone()).collect::<Vec<_>>(),
+            vec!["shore".to_string(), "sunny".to_string(), "sunset".to_string()]
+        );
+
+        // Renaming onto an existing keyword merges rather than duplicating.
+        assert_eq!(catalog.rename_tag("sunny", "shore").expect("merge"), 1);
+        assert_eq!(tags(&catalog, 1), vec!["shore".to_string()]);
+
+        // One undo reverses the merge, a second the rename.
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(tags(&catalog, 1), vec!["shore".to_string(), "sunny".to_string()]);
+        assert!(catalog.undo().expect("undo"));
+        assert_eq!(tags(&catalog, 1), vec!["beach".to_string(), "sunny".to_string()]);
+
+        assert!(catalog.rename_tag("beach", "beach").is_err(), "a no-op rename is refused");
+        assert!(catalog.rename_tag("", "x").is_err(), "an empty name is refused");
+        assert_eq!(catalog.rename_tag("missing", "x").expect("nothing to do"), 0);
     }
 
     #[test]

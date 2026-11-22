@@ -539,7 +539,25 @@ check is a second invisible UI.
   library), a library with photos (no wizard), and dismissal overriding everything
 - 209 tests, CI and wasm green
 
+## 2026-11-21 — M5: keyword rename and merge
+
+- catalog: `rename_tag(from, to)` rewrites every photo carrying the keyword in a single `Tagged` op,
+  so a rename of two thousand photos undoes in one step; renaming onto a name already in use merges
+  (the target is not duplicated), empty names and no-op renames are refused, and no photos means no op
+- engine: `rename_tag` normalises both names first (so `BEACH` and `#beach` match), syncs sidecars
+  for the affected photos, records a Sidecar job, and the `tag.rename` command reports the count
+- ui: the Keywords sidebar row has "Rename or merge…", opening a dialog that warns when the target
+  exists ("the two will be merged"), renames on Enter, and drops the renamed keyword from the filter
+- cli: `rename <old> <new>`
+- tests: rewrite across photos, merge without duplication, two undos restoring in reverse, refusals,
+  an unknown keyword changing nothing, and the engine's normalisation plus merge
+- 211 tests, CI and wasm green; CLI smoke test renamed two photos
+
+Found while smoke-testing: **one-level undo does not survive a restart** — the inverse lives in
+memory, so a fresh process reports "nothing to undo". That is a real gap, now listed as the next task
+rather than glossed over.
+
 ## Next
 
-M5: tag rename and merge — renaming a keyword everywhere it appears and merging two keywords into
-one, both as one undoable group.
+M7: persistent undo across restarts — store the inverse alongside each log entry so undo works in a
+new process, with the same one-step semantics.

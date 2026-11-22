@@ -190,6 +190,8 @@ pub struct UiState {
     pub welcome_dismissed: bool,
     /// The first scan has finished and its result is being shown.
     pub welcome_ready: Option<String>,
+    /// A keyword being renamed: (the keyword, the text being typed).
+    pub tag_edit: Option<(String, String)>,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -271,6 +273,7 @@ impl UiState {
             library_search: String::new(),
             welcome_dismissed: false,
             welcome_ready: None,
+            tag_edit: None,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -436,6 +439,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if engine.cull_complete() && !state.summary_open && !state.apply_open {
         state.summary_open = true;
+    }
+    if state.tag_edit.is_some() {
+        tag_edit_dialog(ui, state, &t, engine);
     }
     if state.quit_open {
         quit_dialog(ui, state, &t, engine, &mut actions);
@@ -682,13 +688,20 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             }
             for (tag, count) in vocabulary.iter().take(12) {
                 let selected = state.tag_filters.iter().any(|active| active == tag);
-                if nav_row(ui, t, tag, &format_count(*count as u64), selected).clicked() {
+                let row = nav_row(ui, t, tag, &format_count(*count as u64), selected);
+                if row.clicked() {
                     if selected {
                         state.tag_filters.retain(|active| active != tag);
                     } else {
                         state.tag_filters.push(tag.clone());
                     }
                 }
+                row.context_menu(|ui| {
+                    if ui.button("Rename or merge…").clicked() {
+                        state.tag_edit = Some((tag.clone(), tag.clone()));
+                        ui.close();
+                    }
+                });
             }
 
             collections_section(ui, t, state, engine);
@@ -2782,6 +2795,75 @@ fn canvas_interaction(
     }
     state.drag_from = None;
     (Gesture::None, 0.0)
+}
+
+/// Rename a keyword everywhere, merging when the new name is already in use.
+fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let Some((from, typing)) = state.tag_edit.clone() else {
+        return;
+    };
+    let mut text = typing;
+    let mut open = true;
+    let mut commit = false;
+    egui::Window::new("Rename keyword")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(320.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(
+                RichText::new(format!("#{from} appears on every photo it was added to."))
+                    .size(11.0)
+                    .color(t.text_muted),
+            );
+            ui.add_space(6.0);
+            let field = ui.add(TextEdit::singleline(&mut text).desired_width(f32::INFINITY));
+            field.request_focus();
+            if ui.input(|input| input.key_pressed(Key::Enter)) {
+                commit = true;
+            }
+            let exists = engine
+                .tag_vocabulary()
+                .into_iter()
+                .any(|(tag, _)| tag == text.trim().to_lowercase() && tag != from);
+            if exists {
+                ui.label(
+                    RichText::new("That keyword already exists; the two will be merged.")
+                        .size(10.5)
+                        .color(t.accent),
+                );
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let usable = !text.trim().is_empty() && text.trim() != from;
+                if ui.add_enabled(usable, Button::new(RichText::new("Rename").size(12.0))).clicked() {
+                    commit = true;
+                }
+                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                    state.tag_edit = None;
+                }
+            });
+        });
+    if commit {
+        match engine.rename_tag(&from, &text) {
+            Ok(count) if count > 0 => {
+                state.notice(format!("Renamed #{from} on {count} photo(s)"));
+                state.tag_filters.retain(|tag| tag != &from);
+                state.tag_edit = None;
+            }
+            Ok(_) => {
+                state.notice(format!("#{from} is not used by any photo"));
+                state.tag_edit = None;
+            }
+            Err(error) => state.notice(error.to_string()),
+        }
+        return;
+    }
+    if !open {
+        state.tag_edit = None;
+    } else {
+        state.tag_edit = Some((from, text));
+    }
 }
 
 /// The quit guard: what would be lost, and the two ways out.

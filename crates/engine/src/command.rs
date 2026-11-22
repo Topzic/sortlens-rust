@@ -277,6 +277,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "tag.rename",
+                    label: "Rename Keyword…",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Rename Keyword…",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "collection.search",
                     label: "Search in Collection",
                     group: Group::Organise,
