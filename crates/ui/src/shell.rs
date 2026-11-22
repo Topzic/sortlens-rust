@@ -184,6 +184,91 @@ impl DeleteMode {
 /// small enough that the walk cannot turn a click into a stall on a library of hundreds of thousands.
 pub const MAX_RANGE: usize = 20_000;
 
+/// Which collections are ticked in the sidebar, and which row a ⇧-click ranges from.
+///
+/// A photo `Selection` cannot be reused here: a collection id and a photo id are different kinds of thing, and a
+/// set that could silently be passed where photos were expected is a bug waiting for a refactor. Only the anchor
+/// and the ticks are kept — there is no "primary", because the collection a click opens is the *filter*, which
+/// already exists in `collection_filter`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CollectionSelection {
+    /// The row a ⇧-click ranges from.
+    anchor: Option<sortlens_core::CollectionId>,
+    /// Ticked collections.
+    ids: std::collections::BTreeSet<sortlens_core::CollectionId>,
+}
+
+impl CollectionSelection {
+    /// Whether this collection is ticked.
+    pub fn contains(&self, id: sortlens_core::CollectionId) -> bool {
+        self.ids.contains(&id)
+    }
+
+    /// How many are ticked.
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    /// Whether nothing is ticked.
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// Every ticked collection, ascending.
+    pub fn ids(&self) -> Vec<sortlens_core::CollectionId> {
+        self.ids.iter().copied().collect()
+    }
+
+    /// A plain click: this row and nothing else.
+    pub fn replace(&mut self, id: sortlens_core::CollectionId) {
+        self.ids.clear();
+        self.ids.insert(id);
+        self.anchor = Some(id);
+    }
+
+    /// ⌘-click: add or remove one row, and move the anchor to it.
+    pub fn toggle(&mut self, id: sortlens_core::CollectionId) {
+        if !self.ids.remove(&id) {
+            self.ids.insert(id);
+        }
+        self.anchor = Some(id);
+    }
+
+    /// ⇧-click: take the run between the anchor and this row, in sidebar order.
+    ///
+    /// Sidebar order rather than id order, for the same reason the photo grid ranges in grid order: the run
+    /// between two rows you can see is the run you meant. With no anchor in view this is a plain click.
+    pub fn extend(&mut self, order: &[sortlens_core::CollectionId], id: sortlens_core::CollectionId) {
+        let Some(anchor) = self.anchor else {
+            self.replace(id);
+            return;
+        };
+        let (Some(from), Some(to)) = (
+            order.iter().position(|other| *other == anchor),
+            order.iter().position(|other| *other == id),
+        ) else {
+            self.replace(id);
+            return;
+        };
+        let (low, high) = if from <= to { (from, to) } else { (to, from) };
+        self.ids = order[low..=high].iter().copied().collect();
+    }
+
+    /// Drop ticks for collections that no longer exist, so a delete cannot leave a ghost selected.
+    pub fn retain(&mut self, order: &[sortlens_core::CollectionId]) {
+        self.ids.retain(|id| order.contains(id));
+        if self.anchor.is_some_and(|anchor| !order.contains(&anchor)) {
+            self.anchor = self.ids.iter().next().copied();
+        }
+    }
+
+    /// Forget everything, e.g. after a batch action.
+    pub fn clear(&mut self) {
+        self.ids.clear();
+        self.anchor = None;
+    }
+}
+
 /// What is selected in the grid: one photo, a range, or a handful picked out of a shoot.
 ///
 /// The primary is what the detail panel shows; the rest are what a batch command acts on. Keeping them
@@ -457,6 +542,8 @@ pub struct UiState {
     pub shortcut_query: String,
     /// What the grid has ticked; the inspector shows its primary.
     pub selection: Selection,
+    /// Which collections are ticked in the sidebar, for batch colour, pin and delete.
+    pub collection_selection: CollectionSelection,
     /// Where a marquee drag started, while the pointer is still down.
     pub marquee: Option<egui::Pos2>,
     /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
@@ -592,6 +679,7 @@ impl UiState {
             shortcuts_open: false,
             shortcut_query: String::new(),
             selection: Selection::default(),
+            collection_selection: CollectionSelection::default(),
             marquee: None,
             cell_rects: Vec::new(),
             all_photos_selected: true,
@@ -4175,75 +4263,127 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     if collections.is_empty() {
         hint(ui, t, "Collect photos into named sets without moving them.");
     }
-    let mut delete = None;
+    let order: Vec<sortlens_core::CollectionId> = collections.iter().map(|collection| collection.id).collect();
+    // A collection that was deleted elsewhere must not stay ticked.
+    state.collection_selection.retain(&order);
+
+    let mut delete: Option<Vec<sortlens_core::CollectionId>> = None;
     let mut rename = None;
-    let mut recolour: Option<(sortlens_core::CollectionId, Option<sortlens_core::ColorLabel>)> = None;
-    let mut pin: Option<(sortlens_core::CollectionId, bool)> = None;
+    let mut recolour: Option<(Vec<sortlens_core::CollectionId>, Option<sortlens_core::ColorLabel>)> = None;
+    let mut pin: Option<(Vec<sortlens_core::CollectionId>, bool)> = None;
     for collection in &collections {
-        let selected = state.collection_filter == Some(collection.id);
+        let filtered = state.collection_filter == Some(collection.id);
+        let ticked = state.collection_selection.contains(collection.id);
         let name = format!("{}{}", if collection.favourite { "★ " } else { "" }, collection.name);
-        let row = nav_row(ui, t, &name, &format_count(collection.len() as u64), selected);
+        let row = nav_row(ui, t, &name, &format_count(collection.len() as u64), filtered || ticked);
         if let Some(colour) = collection.colour {
             // A dot before the name, so a colour is scannable without opening anything.
             let dot = pos2(row.rect.left() + 3.0, row.rect.center().y);
             ui.painter().circle_filled(dot, 3.0, t.label(colour));
         }
+        if ticked {
+            // A tick, distinct from the filter's highlight: a ticked collection is one a batch will act on,
+            // a filtered one is what the grid is showing, and they are different questions.
+            ui.painter().text(
+                row.rect.right_center() - vec2(2.0, 0.0),
+                Align2::RIGHT_CENTER,
+                "•",
+                t.font(12.0),
+                t.accent,
+            );
+        }
+        // Which rows a context-menu action applies to: the whole ticked set when this row is part of it,
+        // otherwise just this row. Right-clicking an unrelated row must not recolour four others.
+        let targets = if ticked && state.collection_selection.len() > 1 {
+            state.collection_selection.ids()
+        } else {
+            vec![collection.id]
+        };
         if row.clicked() {
-            if selected {
-                state.collection_filter = None;
+            let modifiers = ui.input(|input| input.modifiers);
+            if modifiers.command {
+                state.collection_selection.toggle(collection.id);
+            } else if modifiers.shift {
+                state.collection_selection.extend(&order, collection.id);
             } else {
-                state.collection_filter = Some(collection.id);
-                // Reopening a collection puts the sort back to how it was last browsed.
-                state.sort = collection.sort.as_deref().map(Sort::parse).unwrap_or(Sort::Natural);
+                state.collection_selection.replace(collection.id);
+                if filtered {
+                    state.collection_filter = None;
+                } else {
+                    state.collection_filter = Some(collection.id);
+                    // Reopening a collection puts the sort back to how it was last browsed.
+                    state.sort = collection.sort.as_deref().map(Sort::parse).unwrap_or(Sort::Natural);
+                }
             }
         }
         row.context_menu(|ui| {
+            if targets.len() > 1 {
+                ui.label(
+                    RichText::new(format!("{} collections", targets.len()))
+                        .size(10.5)
+                        .color(t.text_faint),
+                );
+            }
             let pin_label = if collection.favourite {
                 "Remove from favourites"
             } else {
                 "Add to favourites"
             };
             if ui.button(pin_label).clicked() {
-                pin = Some((collection.id, !collection.favourite));
+                pin = Some((targets.clone(), !collection.favourite));
                 ui.close();
             }
             ui.menu_button("Colour", |ui| {
+                let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
                 if ui.button("None").clicked() {
-                    recolour = Some((collection.id, None));
-                    ui.close();
+                    chosen = Some(None);
                 }
                 for label in sortlens_core::ColorLabel::ALL {
                     if ui.button(label.label()).clicked() {
-                        recolour = Some((collection.id, Some(label)));
-                        ui.close();
+                        chosen = Some(Some(label));
                     }
                 }
+                if let Some(colour) = chosen {
+                    recolour = Some((targets.clone(), colour));
+                    ui.close();
+                }
             });
-            if ui.button("Rename…").clicked() {
-                rename = Some((collection.id, collection.name.clone()));
-                ui.close();
-            }
-            if ui.button("Delete collection").clicked() {
-                delete = Some(collection.id);
+            // Rename and delete stay single-collection: renaming four rows to one name would merge them.
+            if targets.len() == 1 {
+                if ui.button("Rename…").clicked() {
+                    rename = Some((collection.id, collection.name.clone()));
+                    ui.close();
+                }
+                if ui.button("Delete collection").clicked() {
+                    delete = Some(vec![collection.id]);
+                    ui.close();
+                }
+            } else if ui.button(format!("Delete {} collections", targets.len())).clicked() {
+                delete = Some(targets.clone());
                 ui.close();
             }
         });
     }
-    if let Some((id, colour)) = recolour {
-        match engine.set_collection_colour(id, colour) {
-            Ok(()) => state.notice(match colour {
-                Some(label) => format!("Collection is {}", label.label().to_lowercase()),
-                None => "Collection colour cleared".to_string(),
+    if let Some((ids, colour)) = recolour {
+        let many = ids.len();
+        match engine.set_collections_colour(&ids, colour) {
+            Ok(_) => state.notice(match (colour, many) {
+                (Some(label), 1) => format!("Collection is {}", label.label().to_lowercase()),
+                (Some(label), many) => format!("{many} collections are {}", label.label().to_lowercase()),
+                (None, 1) => "Collection colour cleared".to_string(),
+                (None, many) => format!("Colour cleared on {many} collections"),
             }),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
-    if let Some((id, favourite)) = pin {
-        match engine.set_collection_favourite(id, favourite) {
-            Ok(()) => state.notice(if favourite {
-                "Pinned to the top".to_string()
-            } else {
-                "Unpinned".to_string()
+    if let Some((ids, favourite)) = pin {
+        let many = ids.len();
+        match engine.set_collections_favourite(&ids, favourite) {
+            Ok(_) => state.notice(match (favourite, many) {
+                (true, 1) => "Pinned to the top".to_string(),
+                (true, many) => format!("Pinned {many} collections to the top"),
+                (false, 1) => "Unpinned".to_string(),
+                (false, many) => format!("Unpinned {many} collections"),
             }),
             Err(error) => state.notice_problem(error.to_string()),
         }
@@ -4251,16 +4391,40 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     if let Some((id, name)) = rename {
         state.rename_target = Some((id, name));
     }
-    if let Some(id) = delete {
-        match engine.delete_collection(id) {
-            Ok(()) => {
-                if state.collection_filter == Some(id) {
+    if let Some(ids) = delete {
+        let many = ids.len();
+        match engine.delete_collections(&ids) {
+            Ok(_) => {
+                if state.collection_filter.is_some_and(|filter| ids.contains(&filter)) {
                     state.collection_filter = None;
                 }
-                state.notice("Collection deleted — the photos stay in the library");
+                state.collection_selection.clear();
+                state.notice(match many {
+                    1 => "Collection deleted — the photos stay in the library".to_string(),
+                    many => format!("{many} collections deleted — the photos stay in the library"),
+                });
             }
             Err(error) => state.notice_problem(error.to_string()),
         }
+    }
+    // What a batch will act on, said out loud: a tick you cannot see is a tick that surprises you.
+    if state.collection_selection.len() > 1 {
+        let count = state.collection_selection.len();
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(format!("{count} selected · ⌘-click to add, ⇧-click for a run"))
+                    .size(10.0)
+                    .color(t.text_muted),
+            );
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if ui
+                    .add(Button::new(RichText::new("✕").size(10.0)).fill(Color32::TRANSPARENT))
+                    .clicked()
+                {
+                    state.collection_selection.clear();
+                }
+            });
+        });
     }
     if ui
         .add(Button::new(RichText::new("+ New collection").size(10.5)).fill(Color32::TRANSPARENT))
@@ -6271,6 +6435,41 @@ mod tests {
         }
     }
 
+    /// The sidebar paints its collections with the ticked ones marked, over a real library.
+    #[test]
+    fn the_sidebar_marks_ticked_collections() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-collections-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let mut engine = Engine::open(&dir).expect("open");
+        let first = engine.create_collection("Set one").expect("create");
+        let second = engine.create_collection("Set two").expect("create");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.collection_selection.replace(first);
+        state.collection_selection.toggle(second);
+        assert_eq!(state.collection_selection.len(), 2);
+
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                collections_section(ui, &tokens, &mut state, &mut engine);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(!output.shapes.is_empty(), "the section painted");
+        // The bar that says what a batch will act on is drawn only when there is more than one ticked.
+        assert!(state.collection_selection.len() == 2, "and nothing cleared the selection");
+        // Deleting through the batch path takes both and clears the ticks.
+        let ids = state.collection_selection.ids();
+        assert_eq!(engine.delete_collections(&ids).expect("delete"), 2);
+        state.collection_selection.retain(&[]);
+        assert!(state.collection_selection.is_empty(), "a delete leaves no ghost tick");
+        assert!(engine.collections().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// A cached thumbnail of a file that has gone is painted faded, and the hover says where it came from.
     #[test]
     fn a_cached_thumbnail_of_a_missing_file_is_painted_as_stale() {
@@ -6635,6 +6834,44 @@ mod tests {
         assert_eq!(GridMode::Square.next(), GridMode::Justified);
         assert_eq!(GridMode::Justified.next(), GridMode::Square);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Ticking collections: replace, toggle, range in sidebar order, and no ghost after a delete.
+    #[test]
+    fn a_collection_selection_replaces_toggles_and_ranges() {
+        let order: Vec<sortlens_core::CollectionId> = (1..=6).map(sortlens_core::CollectionId).collect();
+        let mut selection = CollectionSelection::default();
+        assert!(selection.is_empty());
+
+        selection.replace(order[0]);
+        assert_eq!(selection.ids(), vec![order[0]], "a plain click takes one row");
+
+        selection.toggle(order[2]);
+        assert_eq!(selection.ids(), vec![order[0], order[2]], "⌘-click adds without dropping");
+        selection.toggle(order[0]);
+        assert_eq!(selection.ids(), vec![order[2]], "and ⌘-clicking a ticked row removes it");
+
+        // A ⇧-click ranges from the anchor in *sidebar* order, which is what the person can see.
+        selection.replace(order[1]);
+        selection.extend(&order, order[4]);
+        assert_eq!(selection.ids(), vec![order[1], order[2], order[3], order[4]]);
+        // And it replaces the previous run rather than adding to it, so widening and narrowing both work.
+        selection.extend(&order, order[2]);
+        assert_eq!(selection.ids(), vec![order[1], order[2]]);
+        // Backwards from the anchor is the same run.
+        selection.extend(&order, order[0]);
+        assert_eq!(selection.ids(), vec![order[0], order[1]]);
+
+        // No anchor in view: a ⇧-click is a plain click, not half the list.
+        let mut fresh = CollectionSelection::default();
+        fresh.extend(&order, order[3]);
+        assert_eq!(fresh.ids(), vec![order[3]]);
+
+        // A collection that disappears (deleted, or undone) does not stay ticked.
+        selection.retain(&order[..1]);
+        assert_eq!(selection.ids(), vec![order[0]]);
+        selection.clear();
+        assert!(selection.is_empty());
     }
 
     /// A marquee selects what it touches and only what it touches, and it sorts for a stable log.

@@ -154,8 +154,8 @@ pub const EXAMPLES: &[Example] = &[
     },
     Example {
         command: "collection.colour",
-        args: r#"{"id": 1, "colour": "blue"}"#,
-        note: "collections() in the response shows the dot colour.",
+        args: r#"{"collections": [1, 2], "colour": "blue"}"#,
+        note: "one id or several as `collections`; the whole batch is a single undoable change.",
     },
     Example {
         command: "collection.favourite",

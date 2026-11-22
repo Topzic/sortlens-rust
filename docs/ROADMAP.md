@@ -389,7 +389,33 @@ same photo; apply 148 rejects to trash; undo restores all 148.
 ## M5 — Organise · 2.0 w · tracks A,B
 
 - [x] Subfolder-first drill-down: one level at a time, recursive counts, breadcrumbs (B) — SL-A03
-- [ ] Collections have favourites, colours, search and sort; folders have none of these, and range-select/select-all is missing (B) — SL-A05..A10
+- [x] Collections in the sidebar: range-select, batch colour, batch pin, batch delete (B) — SL-A05..A10 part 1
+  - Ticking collections is its own `CollectionSelection` — anchor plus ticks, no primary — because a collection id
+    and a photo id are different kinds of thing and a set that could be passed where photos were expected is a
+    bug waiting for a refactor. Click replaces, ⌘-click toggles, ⇧-click takes the run **in sidebar order** (id
+    order would select something nobody is looking at), and a ⇧-click with no anchor is a plain click rather
+    than half the list. The set is pruned every frame against the engine, so a delete — or an undo — cannot
+    leave a ghost ticked.
+  - A ticked row gets a dot distinct from the filter's highlight: a ticked collection is what a batch will act
+    on, a filtered one is what the grid is showing, and those are different questions. A bar appears when more
+    than one is ticked, saying the count, how to change it, and offering ✕ — a tick you cannot see is a tick
+    that surprises you.
+  - A context menu acts on the whole ticked set when the row is part of it and on that row alone otherwise:
+    right-clicking an unrelated row must not recolour four others. Rename and delete stay single-collection in
+    the multi-case (renaming four rows to one name would merge them); deleting many is offered explicitly with
+    the count.
+  - The engine grew three batch methods (`set_collections_colour`, `set_collections_favourite`,
+    `delete_collections`) that commit **one `Op::Group`**, so five recoloured collections undo in one ⌘Z rather
+    than five. They count only what changed, like every other write, and `collection.colour`/`collection.favourite`
+    /`collection.delete` in the command registry take `collections: [1,2]` as well as a single `id`.
+  - Tested: the gesture state machine (replace/toggle/range/widen/narrow/backwards/no-anchor/prune/clear), the
+    engine batch semantics (one undo restores all three; a second undo reaches the collection *creation*, which
+    is how we know the group went in as one entry; photos untouched by a batch delete), and a headless sidebar
+    paint with two ticked. **Not verified by hand**: how the dot and the tick read next to each other at real
+    size.
+- [ ] Folders in the sidebar: favourites, colours, search and sort — **part 2**, absent because the folder
+  section is a projection of roots and subfolders rather than a stored object, so each of the four needs a place
+  to live (SL-A05..A10 part 2)
 - [x] Collections: create/rename/delete, add/remove, sidebar, filter (A,B) — SL-G01..G03
 - [x] Collection favourites, colours, per-collection search and sort (B) — SL-G04
 - [x] Batch move with sidecars travelling, receipts and undo (A) — SL-G07

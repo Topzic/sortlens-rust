@@ -118,9 +118,15 @@ rescan, reveal, remove (with "photos stay on disk" copy), remap, open in new win
 
 ### 4.3 Collections
 
-Same row anatomy minus the tree, plus a cover thumbnail. Right-click: add selection, remove
-selection, favourite, colour, rename, delete (with a "photos and files are not deleted" line).
-`+ New Collection` creates and immediately starts inline rename.
+Same row anatomy minus the tree. Right-click: add selection, remove selection, favourite, colour,
+rename, delete (with a "photos and files are not deleted" line). `+ New Collection` creates and
+immediately starts inline rename.
+
+Several collections can be acted on at once: click ticks one, ⌘-click adds or removes, ⇧-click takes
+the run between the last click and this row *in sidebar order*, and a ticked row carries a dot next to
+its colour dot. When two or more are ticked a line appears saying how many, with ✕ to clear; the
+context menu then acts on everything ticked, and Rename/Delete stay single-collection unless you chose
+"Delete N collections" explicitly. A whole batch undoes with one ⌘Z.
 
 ### 4.4 Left panel footer
 

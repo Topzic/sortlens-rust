@@ -1930,8 +1930,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   movement", not measured against an eye, and the fade-plus-slide on a real display is exactly the kind of
   thing this harness cannot judge.
 
+## 2026-11-22 (fifth) — M5 row part 1: ticking collections, and batch changes that undo as one
+
+- The sidebar's collection list can now be worked on in bulk: click ticks, ⌘-click toggles, ⇧-click takes the
+  run in **sidebar order**, a ticked row shows a dot distinct from the filter highlight, and a line appears with
+  the count and ✕ when more than one is ticked. The context menu acts on the whole ticked set when the row is
+  part of it and on that row alone otherwise — right-clicking an unrelated row must not recolour four others.
+  Rename and delete stay single in the multi case (renaming four rows to one name merges them); a batch delete
+  is offered explicitly with the count.
+- Ticking lives in its own `CollectionSelection` (anchor + ticks, no primary) rather than reusing the photo
+  `Selection`: the ids are different kinds of thing, and a set that could be passed where photos were expected
+  is a bug waiting for a refactor. It is pruned each frame against the engine, so a delete — or an undo —
+  cannot leave a ghost ticked.
+- **The engine grew batch methods rather than a loop in the UI.** `set_collections_colour`,
+  `set_collections_favourite` and `delete_collections` each commit one `Op::Group`, so five recoloured
+  collections undo in one ⌘Z instead of five; they count only what changed, like every other write; and the
+  registry commands now accept `collections: [1,2]` as well as a single `id`.
+- Tests: the gesture table (replace/toggle/range/widen/narrow/backwards/no anchor/prune/clear), the engine
+  batch (one undo restores all three; a *second* undo reaches the underlying collection creation, which is how
+  we know the group went in as one entry, and a batch delete leaves the photos alone), and a headless sidebar
+  paint with two ticked.
+- The ROADMAP row is split honestly: this is part 1; **folders** having favourites/colours/search/sort is
+  part 2 and is now its own row with its reason (the folder section is a projection of roots and subfolders, so
+  each of the four needs somewhere to live) instead of an empty box.
+- 501 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: how the tick dot reads
+  next to the colour dot at real size.
+
 ## Next
 
-M4 is nearly closed; M5's collections row (favourites/colours/search/sort for folders, range-select and
-select-all in the collection list) is the biggest remaining M3–M7 item and should be its own run. Video posters,
-the map, AI inference, i18n and the keymap editor stay named absent with their blockers.
+M5 part 2 (folders: favourites, colours, search, sort) is the remaining half of that row and needs a decision
+about where a folder's settings live — a stored per-path record, which is also the missing half of `PathKey`
+(`SL-A11`). Candidates after that: `sortlens-quality` sharpness (SL-E01) and the blur scan, which is the biggest
+remaining M6 item. Video posters, the map, AI inference, i18n and the keymap editor stay named absent.

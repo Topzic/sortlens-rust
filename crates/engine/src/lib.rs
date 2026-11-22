@@ -315,6 +315,71 @@ impl Engine {
             .set_collection_colour(id, colour)
     }
 
+    /// Set the colour on several collections as **one** change.
+    ///
+    /// Looping the single-collection call would put one op in the log per collection, so undoing a recolour of
+    /// five collections would take five ⌘Z. This commits a single `Op::Group`, whose inverse is one group too.
+    /// Only collections whose colour actually moves are counted, like every other write.
+    pub fn set_collections_colour(&mut self, ids: &[sortlens_core::CollectionId], colour: Option<ColorLabel>) -> Result<usize> {
+        let existing: Vec<sortlens_catalog::Collection> = self.collections();
+        let ops: Vec<Op> = ids
+            .iter()
+            .filter(|id| {
+                existing
+                    .iter()
+                    .any(|collection| collection.id == **id && collection.colour != colour)
+            })
+            .map(|id| Op::SetCollectionColour { id: *id, colour })
+            .collect();
+        let count = ops.len();
+        if !ops.is_empty() {
+            self.commit_group(ops)?;
+        }
+        Ok(count)
+    }
+
+    /// Pin or unpin several collections as one change.
+    pub fn set_collections_favourite(&mut self, ids: &[sortlens_core::CollectionId], favourite: bool) -> Result<usize> {
+        let existing: Vec<sortlens_catalog::Collection> = self.collections();
+        let ops: Vec<Op> = ids
+            .iter()
+            .filter(|id| {
+                existing
+                    .iter()
+                    .any(|collection| collection.id == **id && collection.favourite != favourite)
+            })
+            .map(|id| Op::SetCollectionFavourite { id: *id, favourite })
+            .collect();
+        let count = ops.len();
+        if !ops.is_empty() {
+            self.commit_group(ops)?;
+        }
+        Ok(count)
+    }
+
+    /// Delete several collections as one change. The photos stay in the library, exactly as a single delete.
+    pub fn delete_collections(&mut self, ids: &[sortlens_core::CollectionId]) -> Result<usize> {
+        let existing: Vec<sortlens_catalog::Collection> = self.collections();
+        let ops: Vec<Op> = existing
+            .iter()
+            .filter(|collection| ids.contains(&collection.id))
+            .map(|collection| Op::RemoveCollection {
+                collection: Box::new(collection.clone()),
+            })
+            .collect();
+        let count = ops.len();
+        if !ops.is_empty() {
+            self.commit_group(ops)?;
+        }
+        Ok(count)
+    }
+
+    /// Commit several ops as one undoable step.
+    fn commit_group(&mut self, ops: Vec<Op>) -> Result<()> {
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        catalog.commit(Op::Group { ops })
+    }
+
     /// Pin or unpin a collection.
     pub fn set_collection_favourite(&mut self, id: sortlens_core::CollectionId, favourite: bool) -> Result<()> {
         self.catalog
@@ -2527,7 +2592,7 @@ impl Engine {
                 Ok(json!({ "changed": self.add_to_collection(&ids, id)? }))
             }
             "collection.colour" => {
-                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let ids = collection_ids_from(args)?;
                 let colour = match args.get("colour").and_then(Value::as_str) {
                     None | Some("") | Some("none") => None,
                     Some(name) => Some(
@@ -2537,14 +2602,18 @@ impl Engine {
                             .ok_or_else(|| Error::Invalid(format!("{name} is not a colour label")))?,
                     ),
                 };
-                self.set_collection_colour(id, colour)?;
-                Ok(json!({ "colour": colour.map(|label| label.id()) }))
+                let changed = self.set_collections_colour(&ids, colour)?;
+                Ok(json!({ "colour": colour.map(|label| label.id()), "changed": changed }))
             }
             "collection.favourite" => {
-                let id = sortlens_core::CollectionId(collection_id_from(args)?);
+                let ids = collection_ids_from(args)?;
                 let favourite = args.get("favourite").and_then(Value::as_bool).unwrap_or(true);
-                self.set_collection_favourite(id, favourite)?;
-                Ok(json!({ "favourite": favourite }))
+                let changed = self.set_collections_favourite(&ids, favourite)?;
+                Ok(json!({ "favourite": favourite, "changed": changed }))
+            }
+            "collection.delete" => {
+                let ids = collection_ids_from(args)?;
+                Ok(json!({ "deleted": self.delete_collections(&ids)? }))
             }
             "collection.sort" => {
                 let id = sortlens_core::CollectionId(collection_id_from(args)?);
@@ -2582,11 +2651,6 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a collection needs a name".into()))?;
                 self.rename_collection(id, name)?;
                 Ok(json!({ "renamed": true }))
-            }
-            "collection.delete" => {
-                let id = sortlens_core::CollectionId(collection_id_from(args)?);
-                self.delete_collection(id)?;
-                Ok(json!({ "deleted": true }))
             }
             "similar.start" => {
                 let threshold = args
@@ -3246,6 +3310,22 @@ fn folder_name(path: &str) -> String {
 }
 
 /// A collection id from the command arguments.
+/// One or many collection ids: `collections: [1,2]`, or the single `id`/`collection` key.
+fn collection_ids_from(args: &Value) -> Result<Vec<sortlens_core::CollectionId>> {
+    if let Some(list) = args.get("collections").and_then(Value::as_array) {
+        return list
+            .iter()
+            .map(|value| {
+                value
+                    .as_u64()
+                    .map(|id| sortlens_core::CollectionId(id as u32))
+                    .ok_or_else(|| Error::Invalid("collection ids must be numbers".into()))
+            })
+            .collect();
+    }
+    Ok(vec![sortlens_core::CollectionId(collection_id_from(args)?)])
+}
+
 fn collection_id_from(args: &Value) -> Result<u32> {
     args.get("collection")
         .or_else(|| args.get("id"))
@@ -3483,6 +3563,51 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("scan did not finish");
+    }
+
+    /// Recolouring, pinning or deleting several collections is **one** step to undo, and counts only what moved.
+    #[test]
+    fn a_batch_collection_change_undoes_in_one_step() {
+        let (_cache, _photos, mut engine) = library_with_images("collection-batch", 2);
+        let ids: Vec<sortlens_core::CollectionId> = (0..3)
+            .map(|index| engine.create_collection(&format!("Set {index}")).expect("create"))
+            .collect();
+
+        assert_eq!(engine.set_collections_colour(&ids, Some(ColorLabel::Blue)).expect("colour"), 3);
+        assert_eq!(
+            engine.set_collections_colour(&ids, Some(ColorLabel::Blue)).expect("again"),
+            0,
+            "nothing moved the second time"
+        );
+        // One undo puts all three back: the group's inverse is one group.
+        assert!(engine.undo().expect("undo"));
+        assert!(
+            engine.collections().iter().all(|collection| collection.colour.is_none()),
+            "every collection lost the colour at once"
+        );
+        // A second undo reaches past the group to the collection *creation* underneath it — one op, not
+        // three — which is how we know the batch went in as a single entry rather than three.
+        assert!(engine.undo().expect("undo again"));
+        assert_eq!(engine.collections().len(), 2, "one creation undone, not three");
+
+        // Put a third collection back so the rest of the test has three: ids are not reused, so this is new.
+        let restored = engine.create_collection("Set 3").expect("create again");
+        assert_ne!(restored, ids[2], "a deleted collection's id is not handed out again");
+        let ids: Vec<sortlens_core::CollectionId> = engine.collections().iter().map(|c| c.id).collect();
+        assert_eq!(ids.len(), 3);
+
+        assert_eq!(engine.set_collections_favourite(&ids, true).expect("pin"), 3);
+        assert_eq!(engine.set_collections_favourite(&ids, true).expect("pin again"), 0);
+        assert!(engine.undo().expect("undo"));
+        assert!(engine.collections().iter().all(|collection| !collection.favourite));
+
+        // Deleting a batch is one step too, and the photos survive it.
+        let before = engine.all_photos().len();
+        assert_eq!(engine.delete_collections(&ids).expect("delete"), 3);
+        assert!(engine.collections().is_empty());
+        assert!(engine.undo().expect("undo"));
+        assert_eq!(engine.collections().len(), 3, "all three came back");
+        assert_eq!(engine.all_photos().len(), before, "and the photos were never touched");
     }
 
     /// A write reports the photos it changed, not the photos it was given.
