@@ -30,8 +30,14 @@ ISO and focal length set in memory is measured separately.
 | thumbnail read, warm (cache hit) | 3.2 ms | 16 µs/thumb | 62 293 thumbs/s |
 | thumbnail service, 2 workers | 1 000 ms | 5.0 ms/thumb | 200 thumbs/s |
 | suggestions, with EXIF | 754 µs | 0.4 µs/photo | 2 653 252 photos/s |
-| grid frame, 1440×900, headless | 0.28 ms median | p95 0.33 ms | 3 545 frames/s |
+| grid frame, 1440×900, headless, square | 0.28 ms median | p95 0.33 ms | 3 545 frames/s |
+| grid frame, 1440×900, headless, justified | 0.14 ms median | p95 0.16 ms | 6 928 frames/s |
 | first frame (fonts, first layout) | 4.3 ms | — | — |
+
+Justified is cheaper per frame because its row pack is cached and only rebuilt when the width, filter, sort,
+count or target height changes — the number measures painting at a steady state, not the pack. The pack itself
+is one pass over the filtered library's aspect ratios (paged from the catalog), and its cost shows up on the
+frame that changes one of those inputs, not in this median.
 
 ## Ten thousand photos
 
@@ -40,7 +46,7 @@ ISO and focal length set in memory is measured separately.
 | scan (walk + stat) | 8.2 s | 823 µs/file | 1 215 files/s |
 | index (scan + EXIF + catalog op) | 11.2 s | 1.1 ms/photo | 889 photos/s |
 | open library (snapshot + log) | 30 ms | 3.0 µs/photo | 332 306 opens/s |
-| grid frame, 1440×900, headless | 1.40 ms median | p95 1.76 ms | 716 frames/s |
+| grid frame, 1440×900, headless, square | 1.40 ms median | p95 1.76 ms | 716 frames/s |
 
 Scan drops from 5 200 to 1 200 files/s between two and ten thousand files because the walk also reads each
 file to derive its content key: five gigabytes of JPEGs stop fitting in the page cache, and the number

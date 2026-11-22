@@ -40,6 +40,57 @@ pub enum Density {
     Roomy,
 }
 
+/// How the grid lays out a row.
+///
+/// Square is a uniform lattice: every cell the same size, which is fastest to scan and the right default for
+/// triage. Justified keeps each photo's own shape and gives every row the full width, which is what you want
+/// when the photographs matter more than the grid.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum GridMode {
+    /// Uniform cells, one photo per cell, no cropping.
+    Square,
+    /// Rows of equal height: each photo keeps its aspect ratio and the row fills the width.
+    ///
+    /// The default, because the photographs are the point: a square lattice crops what the photographer
+    /// framed, and a library is not a contact sheet of tiles.
+    #[default]
+    Justified,
+}
+
+impl GridMode {
+    /// Both modes, in the order the chip cycles through them.
+    pub const ALL: [Self; 2] = [Self::Square, Self::Justified];
+
+    /// Stable id used in settings.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Square => "square",
+            Self::Justified => "justified",
+        }
+    }
+
+    /// Label for the chip.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Square => "Square",
+            Self::Justified => "Justified",
+        }
+    }
+
+    /// Parse a persisted id; an unknown value is the default, never an error.
+    pub fn from_id(id: &str) -> Self {
+        Self::ALL.into_iter().find(|mode| mode.id() == id).unwrap_or_default()
+    }
+
+    /// The other mode — what the chip does when clicked.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Square => Self::Justified,
+            Self::Justified => Self::Square,
+        }
+    }
+}
+
 impl Density {
     /// Every step, in the order the chip cycles through them.
     pub const ALL: [Self; 3] = [Self::Compact, Self::Comfortable, Self::Roomy];

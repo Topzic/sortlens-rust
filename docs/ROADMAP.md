@@ -88,7 +88,19 @@ volume probe and `PathKey`.
   nobody is told about is a silent rewrite of what their tree means. Unknown ISO brands stay unknown rather
   than guessed as video, so podcasts and sidecars do not land in the grid (C) — SL-B11
 - [x] `library.addFolder`, `library.rescan`, `library.removeRoot` (A) — SL-A01/A19
-- [ ] Square grid is virtualised (a window of cells over 200k rows); justified rows are not built (B) — SL-B01/B02
+- [x] Both grid layouts, virtualised (B) — SL-B01/B02
+  - **Square**: a uniform lattice, cropped to fit, windowed by a fixed row height so 200 000 rows cost the
+    twenty on screen.
+  - **Justified**: rows of equal height at each photo's own aspect, packing until the next photo would push
+    the row below the target height (whichever of the two candidate heights is closer to it), a short last
+    row left-aligned at the target instead of stretched, a photo wider than the window in a row of its own,
+    and 3:2 for photos whose dimensions never loaded. Windowed by *row* from a cached plan keyed on width,
+    filter, sort, count and target — the pack is the expensive part and it only reruns when one of those
+    changes. The cells share one gesture handler with the square grid, so ⌘-click and the context menu
+    cannot mean different things in the two layouts. `G` and the chip toggle it; the choice persists, and
+    density becomes the target row height so the setting keeps its meaning. Tested as pure packing (width
+    filled, contiguity, short last row, panorama, empty library), a cached plan that reruns only on a real
+    change, and a headless paint of both layouts over five photos.
 - [x] Cell size is derived from the window width **and** from a density setting: `Density::Compact /
   Comfortable / Roomy` names a minimum cell (104/132/184), `grid_layout` divides the window so the last cell
   in a row reaches the right edge, and a very narrow window keeps one legible 64 pt column instead of shrinking

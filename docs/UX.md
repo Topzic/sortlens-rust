@@ -156,8 +156,18 @@ only signal.
 
 ### 5.3 Library view
 
-- Two layouts: justified rows (default, natural aspect) and square grid. `G` toggles.
-- Density slider: 90–480 px; `-`/`=` step; persists per library.
+- Two layouts, both virtualised: **justified** (default, the photo's own aspect, rows of equal height
+  filling the width) and **square** (a uniform lattice, cropped to fit). `G` toggles; the chip beside the
+  density says which is on; the choice persists.
+  - A justified row stops growing when the next photo would push it below the target height, taking
+    whichever of the two heights is closer to the target. A short last row keeps the target height and sits
+    left-aligned rather than stretching two photographs across the window. A photo wider than the window
+    gets a row of its own.
+  - Photos with no known dimensions pack as 3:2, because that is the shape of most photographs — a library
+    whose metadata never loaded still looks like photographs instead of tiles.
+- Density chip: Compact / Comfortable / Roomy, one click to cycle, persisted. It names the minimum cell
+  (104 / 132 / 184 pt); in justified mode it is the **target row height** instead, so the setting means the
+  same thing in both layouts.
 - Thumbnail anatomy: image, selection ring, rating stars (only if > 0), flag, label stripe,
   video badge + duration, offline badge, AI-suggestion dot (if unaccepted suggestions exist),
   filename on hover and in captions mode.

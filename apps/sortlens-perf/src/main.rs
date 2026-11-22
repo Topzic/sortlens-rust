@@ -229,36 +229,41 @@ fn main() -> Result<(), String> {
         screen_rect: Some(viewport),
         ..egui::RawInput::default()
     };
-    let mut frame_times = Vec::with_capacity(options.frames);
-    for _ in 0..options.frames {
-        let started = Instant::now();
-        let mut output = ctx.run_ui(input.clone(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let _ = sortlens_ui::show(ui, &mut state, &mut engine, &mut thumbs);
+    // Both layouts, labelled: the two have different costs (one packs rows, the other divides a width), and
+    // an unlabelled number would silently change meaning the day the default layout changed.
+    for mode in sortlens_ui::GridMode::ALL {
+        state.grid_mode = mode;
+        let mut frame_times = Vec::with_capacity(options.frames);
+        for _ in 0..options.frames {
+            let started = Instant::now();
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let _ = sortlens_ui::show(ui, &mut state, &mut engine, &mut thumbs);
+                });
             });
-        });
-        // No window means nowhere for a texture to go; drop it rather than leak it into the timing.
-        output.textures_delta.clear();
-        frame_times.push(started.elapsed());
+            // No window means nowhere for a texture to go; drop it rather than leak it into the timing.
+            output.textures_delta.clear();
+            frame_times.push(started.elapsed());
+        }
+        // The first frame installs the fonts and allocates every area, so it is reported on its own rather
+        // than folded into a percentile that would then describe startup rather than scrolling.
+        let first = frame_times.remove(0);
+        frame_times.sort_unstable();
+        let median = frame_times[frame_times.len() / 2];
+        let p95 = frame_times[(frame_times.len() * 95 / 100).min(frame_times.len() - 1)];
+        println!(
+            "{:<34} {:>12} {:>14} {:>10}",
+            format!("grid frame, {mode:?}, 1440x900"),
+            format!("{:.2} ms", median.as_secs_f64() * 1000.0),
+            format!("p95 {:.2} ms", p95.as_secs_f64() * 1000.0),
+            format!("{:.0}/s", 1.0 / median.as_secs_f64().max(f64::MIN_POSITIVE))
+        );
+        println!(
+            "{:<34} {:>12}",
+            "  first frame (fonts, first layout)",
+            format!("{:.2} ms", first.as_secs_f64() * 1000.0)
+        );
     }
-    // The first frame installs the fonts and allocates every area, so it is reported on its own rather
-    // than folded into a percentile that would then describe startup rather than scrolling.
-    let first = frame_times.remove(0);
-    frame_times.sort_unstable();
-    let median = frame_times[frame_times.len() / 2];
-    let p95 = frame_times[(frame_times.len() * 95 / 100).min(frame_times.len() - 1)];
-    println!(
-        "{:<34} {:>12} {:>14} {:>10}",
-        "grid frame, 1440x900 (headless)",
-        format!("{:.2} ms", median.as_secs_f64() * 1000.0),
-        format!("p95 {:.2} ms", p95.as_secs_f64() * 1000.0),
-        format!("{:.0}/s", 1.0 / median.as_secs_f64().max(f64::MIN_POSITIVE))
-    );
-    println!(
-        "{:<34} {:>12}",
-        "  first frame (fonts, first layout)",
-        format!("{:.2} ms", first.as_secs_f64() * 1000.0)
-    );
     println!("{:<34} {:>12}", "  textures resident", thumbs.resident());
 
     let _ = std::fs::remove_dir_all(&root);

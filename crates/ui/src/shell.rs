@@ -10,7 +10,7 @@
 
 use crate::charts::{self, Column};
 use crate::keymap::{self, Context};
-use crate::theme::{Density, ThemeKind, Tokens};
+use crate::theme::{Density, GridMode, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use egui::{
     Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
@@ -124,6 +124,8 @@ pub enum Action {
     /// Move these photos into a folder the host chooses.
     /// Persist a grid density the shell has already applied to its own state.
     SetDensity(Density),
+    /// Persist a grid layout mode the shell has already applied to its own state.
+    SetGrid(GridMode),
     MovePicks(Vec<PhotoId>),
     /// Put a moved batch back.
     UndoMove(u64),
@@ -372,6 +374,10 @@ pub struct UiState {
     pub theme: ThemeKind,
     /// Grid density, mirrored from settings.
     pub density: Density,
+    /// Grid layout, mirrored from settings.
+    pub grid_mode: GridMode,
+    /// The justified layout, cached so a big library does not re-pack on every frame.
+    pub justified: JustifiedPlan,
     /// Current destination.
     pub view: View,
     /// Search query.
@@ -512,6 +518,8 @@ impl UiState {
         Self {
             theme,
             density: Density::default(),
+            grid_mode: GridMode::default(),
+            justified: JustifiedPlan::default(),
             view: View::Library,
             search: String::new(),
             root: None,
@@ -864,6 +872,16 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                         let next = state.density.next();
                         state.density = next;
                         actions.push(Action::SetDensity(next));
+                    }
+                    // Next to density, because "square or justified" is the same kind of question as "how
+                    // big": both decide how much of the library you can see at once.
+                    if icon_button(ui, state.grid_mode.label(), t)
+                        .on_hover_text("Grid layout: Square or Justified")
+                        .clicked()
+                    {
+                        let next = state.grid_mode.next();
+                        state.grid_mode = next;
+                        actions.push(Action::SetGrid(next));
                     }
                     if icon_button(ui, "Add Folder…", t).clicked() {
                         actions.push(Action::PickFolder);
@@ -1436,6 +1454,72 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         });
 }
 
+/// What a click, a modifier-click, a double-click and the context menu mean on one cell.
+///
+/// Shared by both grid layouts: the gestures are about photos, not about pixels, and two grids that disagreed
+/// about what ⌘-click does would be one grid too many.
+fn cell_gestures(
+    ui: &mut Ui,
+    state: &mut UiState,
+    engine: &Engine,
+    photo: &Photo,
+    response: &egui::Response,
+    filter: &Filter,
+    actions: &mut Vec<Action>,
+    add_to: &mut Option<(PhotoId, sortlens_core::CollectionId)>,
+) {
+    if response.clicked() {
+        // Three gestures, three meanings: click replaces, ⌘-click toggles, and ⇧-click takes the run from the
+        // anchor in the order the grid shows — not in id order, which is not what the person is looking at.
+        let modifiers = ui.input(|input| input.modifiers);
+        if modifiers.command {
+            state.selection.toggle(photo.id);
+        } else if modifiers.shift {
+            let order: Vec<PhotoId> = engine
+                .page(filter, state.sort, 0, MAX_RANGE)
+                .photos
+                .iter()
+                .map(|photo| photo.id)
+                .collect();
+            state.selection.extend(&order, photo.id);
+        } else {
+            state.selection.replace(photo.id);
+        }
+        state.right_tab = RightTab::Details;
+    }
+    if response.double_clicked() {
+        state.detail_open = true;
+    }
+    response.context_menu(|ui| {
+        if ui.button("Export…").clicked() {
+            state.export_ids = vec![photo.id];
+            state.export_open = true;
+            ui.close();
+        }
+        if ui.button("Show in folder").clicked() {
+            actions.push(Action::Reveal(photo.id));
+            ui.close();
+        }
+        if ui.button("Open in default app").clicked() {
+            actions.push(Action::OpenExternal(photo.id));
+            ui.close();
+        }
+        ui.separator();
+        ui.menu_button("Add to Collection", |ui| {
+            let collections = engine.collections();
+            if collections.is_empty() {
+                ui.label(RichText::new("No collections yet").size(10.5));
+            }
+            for collection in collections {
+                if ui.button(&collection.name).clicked() {
+                    *add_to = Some((photo.id, collection.id));
+                    ui.close();
+                }
+            }
+        });
+    });
+}
+
 /// Drag a rectangle over the grid to select what it touches.
 ///
 /// The drag has to start on the *background*, not on a cell: a press inside a cell belongs to that cell, and
@@ -1508,7 +1592,132 @@ fn grid_layout(available: f32, gap: f32, min_cell: f32) -> (usize, f32) {
     (columns, cell)
 }
 
-fn grid(
+/// Group photos into rows that each fill the width, and give every row one height.
+///
+/// A row stops growing when the next photo would push its height below the target: that is the moment the row
+/// already fills the width at a legible size. The last row is the exception — stretching two photos across the
+/// window would give two enormous cells, so a short final row keeps the target height and sits left-aligned.
+///
+/// Pure, and returns heights rather than rectangles: the packing is the part worth testing, and a photo's shape
+/// is the only input it needs.
+fn justified_rows(aspects: &[f32], available: f32, gap: f32, target: f32) -> Vec<(std::ops::Range<usize>, f32)> {
+    let mut rows = Vec::new();
+    let mut start = 0;
+    while start < aspects.len() {
+        let mut sum = 0.0_f32;
+        let mut end = start;
+        while end < aspects.len() {
+            let trial = sum + aspects[end];
+            let count = (end - start + 1) as f32;
+            let height = (available - gap * (count - 1.0)) / trial;
+            if height < target {
+                // Adding this photo makes the row shorter than wanted. Take whichever of the two is closer to
+                // the target: stopping at the first overshoot would leave rows 40 points taller than asked for
+                // whenever the library's average shape does not divide evenly.
+                let before = (available - gap * (count - 2.0).max(0.0)) / sum;
+                if end > start && (before - target).abs() <= (height - target).abs() {
+                    break;
+                }
+                sum = trial;
+                end += 1;
+                break;
+            }
+            sum = trial;
+            end += 1;
+        }
+        let count = (end - start) as f32;
+        let height = ((available - gap * (count - 1.0)) / sum).max(24.0);
+        let last = end == aspects.len();
+        rows.push((start..end, if last { height.min(target) } else { height }));
+        start = end;
+    }
+    rows
+}
+
+/// Height of the name line under every cell, in points. Shared so a justified row's total height and a square
+/// cell agree about where the caption ends.
+const CAPTION: f32 = 24.0;
+
+/// One justified row: how tall it is, where its top edge sits, and which photos are in it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JustifiedRow {
+    ids: Vec<PhotoId>,
+    height: f32,
+    top: f32,
+}
+
+/// The inputs a justified plan depends on. Anything else leaving the plan alone is why a big library does not
+/// re-pack every frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JustifiedKey {
+    width: u32,
+    filter: Filter,
+    sort: Sort,
+    count: usize,
+    target: u32,
+}
+
+/// A justified layout, cached until its inputs change.
+#[derive(Debug, Default, Clone)]
+pub struct JustifiedPlan {
+    key: Option<JustifiedKey>,
+    rows: Vec<JustifiedRow>,
+    total: f32,
+}
+
+impl JustifiedPlan {
+    /// Rebuild only when an input changed: packing fifty thousand rows on every frame would make scrolling a
+    /// slideshow, and the pack is the expensive part, not the paint.
+    pub fn prepare(&mut self, engine: &Engine, filter: &Filter, sort: Sort, width: f32, target: f32, gap: f32) {
+        let key = JustifiedKey {
+            width: width.round() as u32,
+            filter: filter.clone(),
+            sort,
+            count: engine.count(filter),
+            target: target.round() as u32,
+        };
+        if self.key.as_ref() == Some(&key) {
+            return;
+        }
+        let photos = photos_with_aspects(engine, filter, sort, key.count);
+        let aspects: Vec<f32> = photos.iter().map(|(_, aspect)| *aspect).collect();
+        let mut rows = Vec::new();
+        let mut top = 0.0;
+        for (range, height) in justified_rows(&aspects, width, gap, target) {
+            rows.push(JustifiedRow {
+                ids: photos[range.clone()].iter().map(|(id, _)| *id).collect(),
+                height,
+                top,
+            });
+            top += height + CAPTION + gap;
+        }
+        self.rows = rows;
+        self.total = top;
+        self.key = Some(key);
+    }
+}
+
+/// Every photo and its width/height ratio, in the filtered order.
+///
+/// Paged rather than fetched at once: the whole point of a justified plan is that it covers the library, and
+/// asking for two hundred thousand photos in one call is exactly the allocation the square grid's windowing
+/// exists to avoid.
+fn photos_with_aspects(engine: &Engine, filter: &Filter, sort: Sort, count: usize) -> Vec<(PhotoId, f32)> {
+    const CHUNK: usize = 2048;
+    let mut photos = Vec::with_capacity(count);
+    let mut offset = 0;
+    while offset < count {
+        let page = engine.page(filter, sort, offset, CHUNK.min(count - offset));
+        if page.photos.is_empty() {
+            break;
+        }
+        photos.extend(page.photos.iter().map(|photo| (photo.id, aspect_of(photo))));
+        offset += page.photos.len();
+    }
+    photos
+}
+
+fn square_grid(
     ui: &mut Ui,
     t: &Tokens,
     state: &mut UiState,
@@ -1516,14 +1725,14 @@ fn grid(
     thumbs: &mut Thumbnails,
     filter: &Filter,
     actions: &mut Vec<Action>,
-) {
+    add_to: &mut Option<(PhotoId, sortlens_core::CollectionId)>,
+) -> Rect {
     let gap = t.grid_gap;
     let (columns, cell) = grid_layout(ui.available_width(), gap, state.density.min_cell());
-    let caption = 24.0;
+    let caption = CAPTION;
     let row_height = cell + caption + gap;
     let total = engine.count(filter);
     let rows = total.div_ceil(columns);
-    let mut add_to: Option<(sortlens_core::PhotoId, sortlens_core::CollectionId)> = None;
 
     state.cell_rects.clear();
     let mut painted_rects: Vec<(PhotoId, Rect)> = Vec::new();
@@ -1545,57 +1754,7 @@ fn grid(
                                 let selected = state.selection.contains(photo.id);
                                 let response = photo_cell(ui, t, photo, selected, cell, caption, thumbs);
                                 painted_rects.push((photo.id, response.rect));
-                                if response.clicked() {
-                                    // Three gestures, three meanings: click replaces, ⌘-click toggles, and
-                                    // ⇧-click takes the run from the anchor in the order the grid shows —
-                                    // not in id order, which is not what the person is looking at.
-                                    let modifiers = ui.input(|input| input.modifiers);
-                                    if modifiers.command {
-                                        state.selection.toggle(photo.id);
-                                    } else if modifiers.shift {
-                                        let order: Vec<PhotoId> = engine
-                                            .page(filter, state.sort, 0, MAX_RANGE)
-                                            .photos
-                                            .iter()
-                                            .map(|photo| photo.id)
-                                            .collect();
-                                        state.selection.extend(&order, photo.id);
-                                    } else {
-                                        state.selection.replace(photo.id);
-                                    }
-                                    state.right_tab = RightTab::Details;
-                                }
-                                if response.double_clicked() {
-                                    state.detail_open = true;
-                                }
-                                response.context_menu(|ui| {
-                                    if ui.button("Export…").clicked() {
-                                        state.export_ids = vec![photo.id];
-                                        state.export_open = true;
-                                        ui.close();
-                                    }
-                                    if ui.button("Show in folder").clicked() {
-                                        actions.push(Action::Reveal(photo.id));
-                                        ui.close();
-                                    }
-                                    if ui.button("Open in default app").clicked() {
-                                        actions.push(Action::OpenExternal(photo.id));
-                                        ui.close();
-                                    }
-                                    ui.separator();
-                                    ui.menu_button("Add to Collection", |ui| {
-                                        let collections = engine.collections();
-                                        if collections.is_empty() {
-                                            ui.label(RichText::new("No collections yet").size(10.5));
-                                        }
-                                        for collection in collections {
-                                            if ui.button(&collection.name).clicked() {
-                                                add_to = Some((photo.id, collection.id));
-                                                ui.close();
-                                            }
-                                        }
-                                    });
-                                });
+                                cell_gestures(ui, state, engine, photo, &response, filter, actions, add_to);
                             }
                             None => {
                                 let (_, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::hover());
@@ -1609,8 +1768,96 @@ fn grid(
         });
 
     state.cell_rects = painted_rects;
-    marquee(ui, state, t, grid_rect);
+    grid_rect
+}
 
+/// Justified layout: rows of equal height whose widths fill the window, each photo at its own shape.
+///
+/// The scroll area windows by *row*, computed from the cached plan rather than a fixed row height, because
+/// every row is a different height. Only rows that intersect the viewport are painted; the ones above it are
+/// skipped with one `add_space` rather than a loop, so a library of fifty thousand rows still scrolls at the
+/// cost of the twenty on screen.
+fn justified_grid(
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut UiState,
+    engine: &mut Engine,
+    thumbs: &mut Thumbnails,
+    filter: &Filter,
+    actions: &mut Vec<Action>,
+    add_to: &mut Option<(PhotoId, sortlens_core::CollectionId)>,
+) -> Rect {
+    let gap = t.grid_gap;
+    let width = ui.available_width();
+    // Density keeps its meaning in this layout: it is the target row height, so "compact" means more rows of
+    // photographs rather than a different idea of small.
+    let target = state.density.min_cell();
+    let mut plan = std::mem::take(&mut state.justified);
+    plan.prepare(engine, filter, state.sort, width, target, gap);
+
+    state.cell_rects.clear();
+    let mut painted_rects: Vec<(PhotoId, Rect)> = Vec::new();
+    let mut grid_rect = Rect::NOTHING;
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show_viewport(ui, |ui, viewport| {
+            grid_rect = ui.max_rect();
+            ui.set_height(plan.total);
+            let first = plan
+                .rows
+                .partition_point(|row| row.top + row.height + CAPTION + gap < viewport.min.y);
+            if let Some(row) = plan.rows.get(first) {
+                // One jump instead of one `add_space` per skipped row: the height above the viewport is known.
+                ui.add_space(row.top);
+            }
+            for row in &plan.rows[first.min(plan.rows.len())..] {
+                if row.top > viewport.max.y {
+                    break;
+                }
+                ui.horizontal(|ui| {
+                    let mut remaining = width;
+                    for (index, id) in row.ids.iter().enumerate() {
+                        let Some(photo) = engine.photo(*id) else {
+                            continue;
+                        };
+                        let left = row.ids.len() - index - 1;
+                        // The last cell takes the remainder, so a row ends exactly at the right edge instead
+                        // of half a point short of it — rounding, not a design decision.
+                        let wanted = if left == 0 {
+                            remaining
+                        } else {
+                            (aspect_of(photo) * row.height).min(remaining)
+                        };
+                        remaining = (remaining - wanted - gap).max(0.0);
+                        let selected = state.selection.contains(photo.id);
+                        let response = photo_cell_sized(ui, t, photo, selected, vec2(wanted, row.height), CAPTION, thumbs, Fit::Contain);
+                        painted_rects.push((photo.id, response.rect));
+                        cell_gestures(ui, state, engine, photo, &response, filter, actions, add_to);
+                    }
+                });
+                ui.add_space(gap);
+            }
+        });
+    state.cell_rects = painted_rects;
+    state.justified = plan;
+    grid_rect
+}
+
+fn grid(
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut UiState,
+    engine: &mut Engine,
+    thumbs: &mut Thumbnails,
+    filter: &Filter,
+    actions: &mut Vec<Action>,
+) {
+    let mut add_to: Option<(PhotoId, sortlens_core::CollectionId)> = None;
+    let grid_rect = match state.grid_mode {
+        GridMode::Square => square_grid(ui, t, state, engine, thumbs, filter, actions, &mut add_to),
+        GridMode::Justified => justified_grid(ui, t, state, engine, thumbs, filter, actions, &mut add_to),
+    };
+    marquee(ui, state, t, grid_rect);
     if let Some((photo, collection)) = add_to {
         match engine.add_to_collection(&[photo], collection) {
             Ok(_) => state.notice("Added to collection"),
@@ -1669,10 +1916,35 @@ fn cell_badge(photo: &Photo, failure: Option<&str>) -> Option<CellBadge> {
 }
 
 fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32, caption: f32, thumbs: &mut Thumbnails) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::click());
+    photo_cell_sized(ui, t, photo, selected, vec2(cell, cell), caption, thumbs, Fit::Cover)
+}
+
+/// Whether the thumbnail is cropped to the image box or letterboxed inside it.
+///
+/// Square cells crop, because a lattice of different shapes is not a lattice. Justified cells are already the
+/// photo's own shape, so they contain it: cropping there would throw away the part of the frame the row's
+/// height was computed from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Fit {
+    Cover,
+    Contain,
+}
+
+fn photo_cell_sized(
+    ui: &mut Ui,
+    t: &Tokens,
+    photo: &Photo,
+    selected: bool,
+    image_size: Vec2,
+    caption: f32,
+    thumbs: &mut Thumbnails,
+    fit: Fit,
+) -> egui::Response {
+    let cell = image_size.x;
+    let (rect, response) = ui.allocate_exact_size(vec2(image_size.x, image_size.y + caption), Sense::click());
     // A painted cell is invisible to a screen reader unless it says what it is.
     crate::a11y::label_widget(ui, &response, egui::Role::Button, &crate::a11y::describe_photo(photo), selected);
-    let image = Rect::from_min_size(rect.min, vec2(cell, cell));
+    let image = Rect::from_min_size(rect.min, image_size);
     let painter = ui.painter();
 
     painter.rect_filled(image, t.corner(), if response.hovered() { t.hover } else { t.thumb_bg });
@@ -1680,7 +1952,10 @@ fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32,
     let texture = thumbs.get(ui.ctx(), photo, GRID_SIZE).cloned();
     match &texture {
         Some(texture) => {
-            let uv = cover_uv(texture.size_vec2(), image.size());
+            let uv = match fit {
+                Fit::Cover => cover_uv(texture.size_vec2(), image.size()),
+                Fit::Contain => Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+            };
             painter.image(texture.id(), image, uv, Color32::WHITE);
         }
         None => {
@@ -1723,7 +1998,7 @@ fn photo_cell(ui: &mut Ui, t: &Tokens, photo: &Photo, selected: bool, cell: f32,
     }
 
     painter.text(
-        rect.left_top() + vec2(2.0, cell + 5.0),
+        rect.left_top() + vec2(2.0, image_size.y + 5.0),
         Align2::LEFT_TOP,
         truncate(&photo.name, (cell / 6.2) as usize),
         t.font(11.0),
@@ -1761,6 +2036,13 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         detail_keyboard(ui, state, engine);
     }
     if cull_keyboard(ui, state, engine) {
+        return;
+    }
+    // The layout is a view, so it has a key: G flips between rows and a lattice without a trip to the chip.
+    if ui.input(|input| input.key_pressed(Key::G) && !input.modifiers.command) && !state.detail_open {
+        let next = state.grid_mode.next();
+        state.grid_mode = next;
+        actions.push(Action::SetGrid(next));
         return;
     }
     // Starting a session works before anything is selected: the queue comes from the filters.
@@ -2352,11 +2634,12 @@ pub fn toggle_compare(state: &mut UiState, engine: &Engine) {
     }
 }
 
-/// One photo, large, with the facts a cull needs and arrows to walk the view.
-/// Width over height, defaulting to a 3:2 frame until the size is known.
+/// Width over height, defaulting to a 3:2 frame until the size is known — the shape of most photographs, so a
+/// library whose metadata never loaded still looks like photographs instead of tiles. Clamped because a
+/// panorama and a stitched vertical would otherwise get rows of one photo and cells of none.
 fn aspect_of(photo: &Photo) -> f32 {
     if photo.width > 0 && photo.height > 0 {
-        photo.width as f32 / photo.height as f32
+        (photo.width as f32 / photo.height as f32).clamp(0.2, 5.0)
     } else {
         1.5
     }
@@ -5288,6 +5571,124 @@ mod tests {
             "and the spoken name says what the badge shows"
         );
         photo.missing = false;
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every justified row fills the width at one height, and the last row is not stretched to do it.
+    #[test]
+    fn justified_rows_fill_the_width_without_blowing_up_the_last_one() {
+        // Twenty-two 3:2 frames in a 1224 point window at a 160 point target: five across.
+        let aspects = vec![1.5_f32; 22];
+        let rows = justified_rows(&aspects, 1224.0, 8.0, 160.0);
+        let mut seen = 0;
+        for (index, (range, height)) in rows.iter().enumerate() {
+            assert_eq!(range.start, seen, "rows are contiguous and in order");
+            seen = range.end;
+            let count = range.len() as f32;
+            let sum: f32 = aspects[range.clone()].iter().sum();
+            // The row's own height is what makes its widths add up to the window. Every row but the last,
+            // which is left-aligned at the target height by design.
+            if index + 1 < rows.len() {
+                assert!(
+                    ((sum * height + 8.0 * (count - 1.0)) - 1224.0).abs() < 1.0,
+                    "row {index} spans the width, not {} of it",
+                    sum * height + 8.0 * (count - 1.0)
+                );
+                assert!((height - 160.0).abs() < 20.0, "a full row sits near the target height");
+            }
+        }
+        assert_eq!(seen, 22, "every photo lands in exactly one row");
+        // Five across, so 22 photos leave a last row of two. Stretching two photographs across the window
+        // would make cells nobody asked for, so the short row keeps the target height instead.
+        let (last, last_height) = rows.last().expect("a row");
+        assert_eq!(last, &(20..22), "the leftover photos, not a re-shuffle");
+        assert_eq!(last_height, &160.0, "a short last row is not stretched");
+    }
+
+    /// A single panorama wider than the window gets a row of its own instead of an overflow or a divide by zero.
+    #[test]
+    fn a_panorama_gets_its_own_row_and_never_a_nan() {
+        let rows = justified_rows(&[5.0, 1.5, 1.5], 800.0, 8.0, 160.0);
+        assert_eq!(rows[0].0, 0..1, "one very wide photo takes a row");
+        for (_, height) in &rows {
+            assert!(height.is_finite() && *height >= 24.0, "heights are real numbers");
+        }
+        assert!(justified_rows(&[], 800.0, 8.0, 160.0).is_empty(), "an empty library has no rows");
+    }
+
+    /// The justified grid packs rows from the library's own aspect ratios, and Density still means something.
+    #[test]
+    fn the_justified_grid_packs_and_repacks_only_when_it_must() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-justified-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-justified");
+        for index in 0..9 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [20 + index * 20, 90, 170], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let mut plan = JustifiedPlan::default();
+        plan.prepare(&engine, &Filter::default(), Sort::Natural, 900.0, 160.0, 8.0);
+        let rows = plan.rows.len();
+        assert!(rows > 0, "nine photos pack into at least one row");
+        assert_eq!(plan.rows.iter().map(|row| row.ids.len()).sum::<usize>(), 9);
+        assert!(plan.total > 0.0);
+        // Same inputs: the plan is reused, not rebuilt. A different target height is a rebuild.
+        let built = plan.rows.clone();
+        plan.prepare(&engine, &Filter::default(), Sort::Natural, 900.0, 160.0, 8.0);
+        assert_eq!(plan.rows, built, "an unchanged view does not re-pack");
+        plan.prepare(&engine, &Filter::default(), Sort::Natural, 900.0, 300.0, 8.0);
+        assert_ne!(plan.rows.len(), 0, "a taller target still produces rows");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Both layouts paint, and switching the mode keeps working: the mode is a view, not a new grid.
+    #[test]
+    fn both_grid_modes_paint_and_the_chip_switches_between_them() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-modes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-modes");
+        for index in 0..5 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [60, 20 + index * 30, 150], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        for mode in GridMode::ALL {
+            state.grid_mode = mode;
+            let mut actions: Vec<Action> = Vec::new();
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    grid(ui, &tokens, &mut state, &mut engine, &mut thumbs, &Filter::default(), &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            assert_eq!(state.cell_rects.len(), 5, "{mode:?} paints every photo");
+            assert!(actions.is_empty(), "painting asks for nothing");
+        }
+        assert_eq!(GridMode::Square.next(), GridMode::Justified);
+        assert_eq!(GridMode::Justified.next(), GridMode::Square);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

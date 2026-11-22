@@ -1640,8 +1640,40 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 460 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: how the band feels while dragging a
   real grid, and whether the 0.35-alpha fill reads on the light themes.
 
+## 2026-11-21 — M1 row: the justified grid, and both layouts through one gesture handler
+
+- **The pack** (`justified_rows`, pure): each row grows until the next photo would push it below the target
+  height, then takes whichever of the two candidate heights is closer to the target — stopping at the first
+  overshoot left rows 40 points taller than asked for whenever the library's average shape did not divide
+  evenly, which the first version of the test caught as a failure of my *expectation*, and the second version
+  caught as a real flaw in the packer. A short last row keeps the target height and sits left-aligned instead
+  of stretching two photographs across the window; a photo wider than the window gets a row of its own; an
+  empty library has no rows.
+- **The plan** (`JustifiedPlan`) is cached on (width, filter, sort, count, target) and rebuilt only when one
+  changes: the pack is one pass over every filtered aspect ratio, paged from the catalog in 2 048-photo
+  chunks, and doing that per frame would make a big library a slideshow. Aspect ratios come from
+  `aspect_of` — the function the compare view already used, now clamped so a panorama cannot produce a
+  zero-height row — with 3:2 for photos whose dimensions never loaded.
+- **Painting** windows by *row*, not by a fixed height: `show_viewport`, one `add_space` to jump past
+  everything above the viewport instead of a loop over skipped rows, then only the rows that intersect it.
+- **One gesture handler** (`cell_gestures`) for both layouts: click / ⌘-click / ⇧-click, double-click and the
+  context menu are about photos, not pixels, and two grids that disagreed about ⌘-click would be one grid too
+  many. `photo_cell_sized` gained `Fit::Cover` (square, crops) vs `Fit::Contain` (justified, already the
+  photo's own shape, so cropping would discard the part of the frame the row height was computed from).
+- **Density keeps its meaning**: in justified mode the 104/132/184 target becomes the row height, so
+  "compact" still means more photographs at once. `G` and a chip toggle the layout; the choice persists as
+  `appearance.grid`; the doc's claim that justified is the default is now true (`GridMode::default()`).
+- `apps/sortlens-perf` now measures **both** layouts and labels them: one unlabelled `grid frame` line would
+  have changed meaning the day the default flipped. Square 0.31 ms, justified 0.14 ms median at 2 000 photos —
+  justified is cheaper per frame because the pack is cached, which `docs/PERF.md` now says out loud.
+- Docs reconciled in the same commit: ROADMAP SL-B01/B02 ticked with what each layout actually does, and
+  `docs/UX.md` §5.3 rewritten — it had been describing a density **slider** (90–480 px, `-`/`=` stepping)
+  that was never built, while the shipped control is a three-step chip.
+- 465 tests; ci (exit 0), wasm, snapshot, docs green. **Not verified by hand**: how the row heights feel while
+  scrolling a real library, and whether `Contain` leaves visible letterboxing for any real camera ratio.
+
 ## Next
 
-Continue in milestone order. Next: grid justification (SL-B01/B02); then M2's priority scheduling and
-backpressure, the bell popover, `craft-ipc`, and the decoder rows (HEIC, video, blur-up), which belong in
-M2's absent-by-design table because each needs a decoder decision this repository has not made.
+Continue in milestone order. Next: M2's priority scheduling and backpressure; then the bell popover,
+`craft-ipc`, and the decoder rows (HEIC, video, blur-up), which belong in M2's absent-by-design table because
+each needs a decoder decision this repository has not made.

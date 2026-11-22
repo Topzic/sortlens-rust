@@ -26,6 +26,8 @@ pub struct Appearance {
     /// Grid density id: `compact`, `comfortable` or `roomy`. An unknown value reads as the default, so a
     /// settings file written by a later build cannot stop this one from opening.
     pub density: String,
+    /// Grid layout id: `square` or `justified`. Unknown reads as the default, same rule as density.
+    pub grid: String,
     /// Interface scale, 1.0 is 100%.
     pub ui_scale: f32,
 }
@@ -35,6 +37,7 @@ impl Default for Appearance {
         Self {
             theme: "charcoal".into(),
             density: "comfortable".into(),
+            grid: "justified".into(),
             ui_scale: 1.0,
         }
     }
@@ -135,6 +138,23 @@ mod tests {
         assert_eq!(prefs.library.delete_mode, "trash");
         assert!(!prefs.ai.enabled, "models are opt-in");
         assert!(!prefs.remote.enabled, "the server is opt-in");
+    }
+
+    /// Every grid mode survives a trip through the settings file, and an unknown one reads as the default.
+    #[test]
+    fn every_grid_mode_round_trips_and_a_future_one_falls_back() {
+        for mode in sortlens_ui::GridMode::ALL {
+            let mut prefs = Prefs::default();
+            prefs.appearance.grid = mode.id().to_owned();
+            let written = toml::to_string(&prefs).expect("write");
+            let read: Prefs = toml::from_str(&written).expect("parse");
+            assert_eq!(sortlens_ui::GridMode::from_id(&read.appearance.grid), mode);
+        }
+        let read: Prefs = toml::from_str("[appearance]\ngrid = \"mosaic\"\n").expect("parse");
+        assert_eq!(
+            sortlens_ui::GridMode::from_id(&read.appearance.grid),
+            sortlens_ui::GridMode::default()
+        );
     }
 
     /// Every density the grid knows about survives a trip through the settings file, and an unknown one reads

@@ -112,6 +112,7 @@ pub const BINDINGS: &[Binding] = &[
     ),
     binding("Ctrl+A", "Select every photo in view", Context::Library, None),
     binding("Drag", "Marquee-select from the grid background", Context::Library, None),
+    binding("G", "Grid layout: justified rows or a square lattice", Context::Library, None),
     binding("D", "Open the detail view", Context::Library, Some("view.detail")),
     binding("C", "Start a cull session from the filters", Context::Library, Some("cull.start")),
     binding("I", "Open insights", Context::Library, Some("view.insights")),
