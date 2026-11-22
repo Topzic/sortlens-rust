@@ -2104,6 +2104,24 @@ impl Engine {
         })
     }
 
+    /// The basemap, if the library has one.
+    ///
+    /// The tile folder is `tiles/` beside the catalog, so a basemap is part of the library rather than a global setting:
+    /// two libraries can have different basemaps, and moving a library brings its map with it. `None` means there is no
+    /// folder; an `Err` means there is one and it cannot be used, and the message says why.
+    pub fn tileset(&self) -> Option<Result<sortlens_geo::tiles::Tileset, sortlens_geo::tiles::TileError>> {
+        let dir = self.dir.as_ref()?.join("tiles");
+        if !dir.exists() {
+            return None;
+        }
+        Some(sortlens_geo::tiles::Tileset::open(&dir))
+    }
+
+    /// Where the tile folder would go, whether or not there is one.
+    pub fn tiles_dir(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join("tiles"))
+    }
+
     /// Every photo that has a location, with the coordinate.
     ///
     /// Unlocated photos are left out rather than given a placeholder: "we do not know where this was" is not a place,

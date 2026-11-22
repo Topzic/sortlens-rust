@@ -2163,11 +2163,37 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   that straddle a cell edge are two dots. My first engine test asserted one dot and failed — the code was right.
 - 560 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers, attribution green.
 
+## 2026-11-22 (fourteenth) — Places part 3a: the basemap decision, and a credit that cannot be left out
+
+- **Decision, made rather than deferred again**: the basemap is a **folder of tiles the person supplies** —
+  `{z}/{x}/{y}.png` beside the catalog, with `attribution.txt` in the folder. Not a bundled vector basemap (map data the
+  project does not have, and a licence it cannot clean-room), not MBTiles (a SQLite reader in the tree for one
+  format). The layout is exactly what unzipping any tile archive gives, so the tiles somebody may legally use are the
+  tiles that work.
+- `sortlens_geo::tiles::Tileset::open` **refuses a folder with no credit**, naming the file to write and saying why:
+  an unlabelled map implies the application made it. The refusal is at the type level — no state exists in which the
+  view holds a usable tileset whose attribution is unknown — which is stronger than a comment asking the view to
+  remember. A folder with a credit and no tiles is refused too.
+- `tile_path` checks presence once per request (`None` for a hole) so a partial set paints around its gaps instead of
+  failing an open every repaint. `zoom_range`/`has_zoom`/`zooms` read the directory names; `tile_count` answers "is
+  this set partial".
+- **The zoom bound came from a failing test**: I asserted a directory named `255` is not a zoom level and was wrong —
+  `255` parses as a `u8`. `MAX_TILE_ZOOM = 30` now refuses it, because a view offering zoom 255 offers a billion
+  billion tiles that are not there. The test stayed as written; the code moved.
+- `Engine::tileset()`/`tiles_dir()` — the folder is **part of the library**, not a global setting, so two libraries
+  can have different basemaps and moving a library brings its map. The Places view now reports the range, the tile
+  count and the credit, or the sentence for whichever state the library is in, or the refusal.
+- 564 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: any real tile set, and whether the "no basemap" copy reads well at the view's width. The
+  painted words are **not** asserted — egui returns paint shapes, not laid-out text — so the smoke test proves the
+  view paints in all three states and that the engine reports the right state; the credit guarantee is enforced by
+  `Tileset::open`, one layer down, where it can actually bite.
+
 ## Next
 
-Places part 3: the map. It needs a decision before code — which offline tile source (bundled vector basemap, or an
-MBTiles file the user supplies) and how its attribution is shown, because nothing may be fetched at runtime and a map
-without its licence line is not shippable. The crate side is done (`project`, `cluster`, `Gazetteer`), the data is in
-the catalog, and the view already counts. If the tile decision cannot be made honestly in one run, the right move is
-to keep the view as it is and take a named-absent item that can be finished completely instead, with a line in
-ROADMAP saying which decision is outstanding.
+Places part 3b: **draw** it. Decode the tiles for the visible square with `craft-image-codecs`' `decode_png_rows`
+(already in the vendored craft tree, not yet a dependency — add it, attribute it, and check `deny`), paint them beneath
+`cluster()`'s dots, and make a dot click select its members. Follow the pattern the credit set: the view may only draw
+what it can attribute, and a missing tile is a background, not an error toast. If adding a decoder for this turns out
+to need more than one run, that is fine — split 3b into "decode and paint tiles" and "click a dot", tick what lands,
+and leave the rest checked-off-absent rather than half-drawn.

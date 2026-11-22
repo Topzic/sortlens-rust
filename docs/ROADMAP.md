@@ -583,9 +583,32 @@ remap a moved drive; run the wizard on a clean machine.
     frame, and a dot that jumps when a photo is added is worse than a dot occasionally in two pieces.
   - `Testkit::jpeg_with_location` writes a GPS block into any fixture, which is what makes the whole path testable.
   - **Not verified by hand**: how the counts look at real library scale, and whether `zoom 6` is the right summary.
-- [ ] Places **part 3**: the map itself — an offline basemap with its licence line, click-to-filter, and the
-  gazetteer wired to name the clusters (the crate side of both is done; the decision is which tiles, and their
-  attribution, so nothing is fetched from a network at runtime).
+- [x] Places **part 3a**: the basemap decision, made and implemented — **a folder of tiles the person supplies**
+  - **The decision**: `{z}/{x}/{y}.png` in a `tiles/` folder beside the catalog, with an `attribution.txt` beside it.
+    Chosen over a bundled vector basemap (which would need map data the project does not have and a licence it cannot
+    clean-room) and over MBTiles (which would need a SQLite reader in the dependency tree for one format). The layout
+    is what falls out of unzipping any tile archive, so the tiles somebody can legally use are the tiles that work.
+  - **The folder is part of the library, not a global setting**: two libraries can have different basemaps, and moving
+    a library brings its map with it.
+  - **`sortlens_geo::tiles::Tileset::open` refuses a folder without a credit**, with a message naming the file to
+    write and saying why. An unlabelled map implies the application made it; a map without its licence line is not
+    shippable, so the refusal is at the type level — no state exists in which the view holds a usable tileset whose
+    attribution is unknown. A folder with a credit and no tiles is refused too: it would promise a map and paint
+    nothing.
+  - Tile presence is **checked once per request, not discovered per frame**: `tile_path` answers `None` for a hole, so
+    the view paints around it instead of failing an open on every repaint.
+  - The zoom range is read from the directory names, **bounded at 30**: `255` parses as a `u8` and would be accepted
+    as a zoom level, letting a view offer a billion billion tiles that are not there. A test asserted 255 was refused
+    and failed, which is how the missing bound was found.
+  - `TileError::message()` for every refusal, `Engine::tileset()`/`tiles_dir()`, and the Places view showing the
+    range, the tile count and the credit — or the sentence explaining which state the library is in.
+  - **Not verified by hand**: any real tile set, and whether the "no basemap" copy reads well at the view's width. The
+    painted words are not asserted — egui hands back shapes, not text — so what the test proves is that the view
+    paints in all three states and that the engine reports the right state; the credit guarantee is enforced one layer
+    down, where `Tileset::open` refuses to exist without one.
+- [ ] Places **part 3b**: drawing it — decode the tiles for the visible square, draw the clusters over them, and
+  click a dot to filter. Needs `craft-image-codecs`' PNG reader (present, not yet a dependency) for the pixels; the
+  projection, the clusters, the tiles and the credit are all in place.
 
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
@@ -633,7 +656,8 @@ remap a moved drive; run the wizard on a clean machine.
   stored in the catalog. That is the real next step, and it is data first: parse GPS (degrees/minutes/seconds with
   its reference hemisphere), put `lat`/`lon` on the record, prove it survives a snapshot and a rescan, and only then
   paint.
-- [ ] Offline basemap + optional MBTiles + attribution (B) — SL-E06, part 3 above: needs a tile source and its licence line before anything is drawn
+- [x] Offline basemap + attribution (B) — SL-E06, part 3a above: a tile folder with a mandatory credit line
+- [ ] Optional MBTiles reading (B) — SL-E06: needs a SQLite reader in the tree; a tile folder covers the same ground without one
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
 - [x] Insights: worker with progress, highlights, months and seasonality (B) — SL-E09..E11
 - [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12

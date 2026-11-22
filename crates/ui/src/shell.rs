@@ -4277,11 +4277,52 @@ fn places_view(ui: &mut Ui, t: &Tokens, engine: &Engine) {
                 charts::share_row(ui, t, &label, cluster.len(), located);
             }
             ui.add_space(12.0);
-            ui.label(
-                RichText::new("The map — a coastline, and dots you can click — is the next piece of work.")
-                    .size(10.5)
-                    .color(t.text_faint),
-            );
+            // The basemap: a folder the person supplies, and the credit that has to travel with it.
+            match engine.tileset() {
+                None => {
+                    ui.label(RichText::new("No basemap is installed").size(12.0).strong());
+                    ui.label(
+                        RichText::new(
+                            "Put a tile folder — {z}/{x}/{y}.png, as they come out of any tile archive — in the \
+                             tiles directory beside the catalog, with an attribution.txt naming its source and \
+                             licence. Nothing is downloaded: the map is yours, and so is its credit.",
+                        )
+                        .size(10.5)
+                        .color(t.text_muted),
+                    );
+                    if let Some(dir) = engine.tiles_dir() {
+                        ui.label(RichText::new(dir.display().to_string()).size(10.0).color(t.text_faint));
+                    }
+                }
+                Some(Err(error)) => {
+                    // A refused folder is a sentence, not a silently blank corner: the person needs to know why.
+                    ui.label(RichText::new("The basemap cannot be used").size(12.0).strong().color(t.reject));
+                    ui.label(RichText::new(error.message()).size(10.5).color(t.text_muted));
+                }
+                Some(Ok(tiles)) => {
+                    let (low, high) = tiles.zoom_range();
+                    let tiles_here = tiles.tile_count(high.max(low));
+                    ui.label(
+                        RichText::new(format!(
+                            "Basemap: zoom {low}–{high}, {} tiles at zoom {}",
+                            format_count(tiles_here as u64),
+                            high.max(low)
+                        ))
+                        .size(12.0)
+                        .strong(),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(tiles.attribution()).size(10.5).color(t.text_muted));
+                    ui.label(
+                        RichText::new(
+                            "The coastline, and dots you can click, is the next piece of work: the tiles are read \
+                             and counted here, and nothing is drawn over them yet.",
+                        )
+                        .size(10.0)
+                        .color(t.text_faint),
+                    );
+                }
+            }
         },
     );
 }
@@ -6788,6 +6829,75 @@ mod tests {
         });
         output.textures_delta.clear();
         assert!(!output.shapes.is_empty(), "the empty state paints too");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Places view says what the basemap is, or why it is not there, or which file to write.
+    ///
+    /// Three libraries, three states, all painted headlessly: no tile folder, a tile folder with no credit, and a
+    /// usable one.
+    ///
+    /// **What this can and cannot show:** egui hands back paint shapes, not laid-out text, so this proves the view
+    /// paints without panicking in each state and that the engine reports the right state to paint — it does *not*
+    /// prove which words reached the screen. The claim about words — that a map is never shown without its credit — is
+    /// enforced one layer down, where `Tileset::open` refuses a folder that has no attribution, so there is no state
+    /// in which the view holds a usable tileset whose credit is unknown.
+    #[test]
+    fn places_reports_the_basemap_or_why_there_is_none() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-tiles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-tiles");
+        std::fs::copy(
+            fixture.jpeg_with_location("A.jpg", [40, 90, 160], 48, 32, 50.8225, -0.1372),
+            root.join("A.jpg"),
+        )
+        .expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+
+        let tokens = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let paint = |engine: &Engine| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| places_view(ui, &tokens, engine));
+            });
+            output.textures_delta.clear();
+            assert!(!output.shapes.is_empty(), "the view paints in every state");
+        };
+
+        // No folder at all.
+        assert!(engine.tileset().is_none(), "a library with no tiles says so");
+        paint(&engine);
+
+        // A tile folder with tiles but no credit: refused, and the error names the file to write.
+        let tiles = engine.tiles_dir().expect("a catalog directory");
+        std::fs::create_dir_all(tiles.join("5").join("1")).expect("tiles");
+        std::fs::write(tiles.join("5").join("1").join("2.png"), b"tile").expect("tile");
+        let error = match engine.tileset() {
+            Some(Err(error)) => error,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        assert!(error.message().contains("attribution.txt"), "{}", error.message());
+        paint(&engine);
+
+        // Write the credit and it opens, with the credit readable through the engine.
+        std::fs::write(tiles.join("attribution.txt"), "© Example Maps, CC-BY 4.0").expect("credit");
+        let set = match engine.tileset() {
+            Some(Ok(set)) => set,
+            other => panic!("expected a tileset, got {other:?}"),
+        };
+        assert_eq!(set.attribution(), "© Example Maps, CC-BY 4.0");
+        assert_eq!(set.zoom_range(), (5, 5));
+        paint(&engine);
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -44,7 +44,7 @@ L2  sortlens-thumbs      tiered preview cache + job scheduler
 L1  sortlens-meta        craft-metadata → neutral PhotoMeta
     sortlens-media       format routing, embedded previews, video posters
     sortlens-sidecar     XMP read/merge/write
-    sortlens-geo         Web Mercator, deterministic clusters, offline gazetteer
+    sortlens-geo         Web Mercator, deterministic clusters, offline gazetteer, tile folder (+ its credit)
     sortlens-ai          manifest, digest-verified store, NMS + label map, EXIF hints, suggestion merge
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
