@@ -151,6 +151,21 @@ impl App {
                     }
                 }
             }
+            Action::ExportHistory => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Save the change report")
+                    .set_file_name("sortlens-change-report.txt")
+                    .add_filter("Text", &["txt"])
+                    .save_file()
+                {
+                    match self.engine.export_history(&path) {
+                        Ok(lines) => self
+                            .ui
+                            .notice(format!("Wrote {lines} line(s) to {}", folder_name(&path.to_string_lossy()))),
+                        Err(error) => self.ui.notice(error.to_string()),
+                    }
+                }
+            }
             Action::RemapRoot(from) => {
                 if let Some(folder) = rfd::FileDialog::new().set_title("Where does this folder live now?").pick_folder() {
                     let to = folder.to_string_lossy().to_string();

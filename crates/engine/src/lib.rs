@@ -13,6 +13,7 @@ pub mod job;
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_catalog::backup::Backup;
+pub use sortlens_catalog::history::Entry as HistoryEntry;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
@@ -322,6 +323,26 @@ impl Engine {
         }
         health.changed = changes.len();
         Ok(health)
+    }
+
+    /// Recent changes, newest first, read from the log.
+    pub fn history(&mut self, limit: usize) -> Result<Vec<HistoryEntry>> {
+        let dir = self.dir.clone().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        if let Some(catalog) = self.catalog.as_mut() {
+            catalog.flush()?;
+        }
+        sortlens_catalog::history::recent(&dir, limit)
+    }
+
+    /// Write the change report — the log as plain text — for a support request.
+    pub fn export_history(&mut self, path: &Path) -> Result<usize> {
+        let dir = self.dir.clone().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        if let Some(catalog) = self.catalog.as_mut() {
+            catalog.flush()?;
+        }
+        let text = sortlens_catalog::history::export(&dir, HISTORY_LIMIT, VERSION)?;
+        std::fs::write(path, text.as_bytes()).map_err(|error| Error::io(path.display().to_string(), error))?;
+        Ok(text.lines().count())
     }
 
     /// Audit the catalog files without changing them.
@@ -1703,6 +1724,30 @@ impl Engine {
                 }))
             }
             "library.relocate" => Ok(json!({ "relocated": self.relocate_missing()? })),
+            "library.history" => {
+                let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(HISTORY_LIMIT as u64) as usize;
+                let entries: Vec<Value> = self
+                    .history(limit)?
+                    .into_iter()
+                    .map(|entry| {
+                        json!({
+                            "seq": entry.seq,
+                            "at": entry.at,
+                            "kind": entry.kind,
+                            "summary": entry.summary,
+                            "photos": entry.photos,
+                        })
+                    })
+                    .collect();
+                Ok(json!({ "entries": entries }))
+            }
+            "library.exportHistory" => {
+                let path = args
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a destination path is required".into()))?;
+                Ok(json!({ "lines": self.export_history(Path::new(path))? }))
+            }
             "library.audit" => {
                 let audit = self.audit()?;
                 Ok(json!({
@@ -1942,6 +1987,9 @@ impl Default for Engine {
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// How many recent changes the change viewer and the support report cover.
+pub const HISTORY_LIMIT: usize = 200;
 
 /// How many spread-out photos a root remap checks before repointing the whole root.
 pub const REMAP_SAMPLE: usize = 12;
@@ -2303,6 +2351,37 @@ mod tests {
     }
 
     #[test]
+    fn recent_changes_and_the_report_name_what_happened() {
+        let folder = Temp::new("history-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        let (lib, mut engine) = library("lib-history");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        engine.rate(&[id], 5).expect("rate");
+        engine.set_tag(&[id], "beach", true).expect("tag");
+
+        let value = engine.run("library.history", &json!({ "limit": 5 })).expect("history");
+        let entries = value["entries"].as_array().expect("entries");
+        // The scan writes a root record plus one per photo; the limit caps the list, not the log.
+        assert_eq!(entries.len(), 4, "one root, one photo, a rating, a keyword");
+        assert_eq!(entries[0]["summary"], "Keyworded 1 photo", "newest first");
+        assert_eq!(entries[1]["summary"], "Rated 1 photo");
+        assert!(entries[0]["at"].as_i64().expect("time") > 0);
+        assert_eq!(entries[0]["kind"], "tagged");
+
+        let report = lib.0.join("change-report.txt");
+        let lines = engine.export_history(&report).expect("export");
+        assert!(lines > 3);
+        let text = std::fs::read_to_string(&report).expect("read");
+        assert!(text.contains("Sortlens change report"));
+        assert!(text.contains(&format!("app {VERSION}")));
+        assert!(text.contains("Keyworded 1 photo"));
+        assert!(text.contains("photo contents never do"), "the report says what it holds");
+    }
+
+    #[test]
     fn compaction_refuses_a_library_it_could_not_read() {
         let folder = Temp::new("bad-snapshot-photos");
         std::fs::create_dir_all(&folder.0).expect("dir");
@@ -2310,6 +2389,8 @@ mod tests {
         let (lib, mut engine) = library("lib-bad-snapshot");
         engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
         wait_for_scan(&mut engine);
+        // Compaction writes the snapshot this test then damages.
+        engine.compact().expect("compact");
         engine.close().expect("close");
 
         // A half-written snapshot is what a crash during a snapshot leaves.

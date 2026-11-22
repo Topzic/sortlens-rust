@@ -657,6 +657,30 @@ photos one at a time.
 - 231 tests, CI and wasm green. Verified by hand: audit on a clean library, a damaged snapshot
   reported as "Needs attention" with the reason, and compaction refusing it.
 
+## 2026-11-21 — M7: change viewer and support report
+
+- catalog: log records now carry `at` (unix seconds, omitted when unknown), so a change list can say
+  when. `Op::summary()` gives every op a sentence and `Op::photo_count()` a count — a new op cannot
+  arrive mute, which a test enforces
+- catalog: new `history` module: `recent(dir, limit)` reads the log back newest-first, and
+  `export(dir, limit, version)` writes a plain-text report (a hand-written civil-date conversion, so
+  no date dependency for one line of output)
+- **Behaviour change:** `Catalog::close()` now flushes instead of snapshotting. Snapshotting on every
+  quit emptied the log on every quit, which would have made "recent changes" permanently empty — found
+  by trying the CLI. Snapshots stay every 256 ops and on explicit compaction; `docs/BEHAVIOUR.md`
+  records the trade
+- engine: `history(limit)`, `export_history(path)`, commands `library.history` / `library.exportHistory`
+- ui: "Recent changes" dialog (seq, sentence, age, op kind) reachable from the sidebar and a "Export
+  report…" button; the report states that folder and file names appear and photo contents never do
+- cli: `history [--limit N]`
+- tests: newest-first ordering with summaries and dates, an empty log reading as no changes, the
+  report naming every change with a UTC time and saying what it holds, dates rendering without a date
+  library (including 1969 and a leap-year boundary), every op having a capitalised sentence, the
+  engine round trip, plus the backup/integrity tests updated for the new close semantics
+- 237 tests, CI and wasm green. Verified by hand: history across three CLI processes and an undo
+  still working afterwards.
+
 ## Next
 
-M7: audit viewer and export — a browsable list of recent changes with an export for support.
+M7: read-only library mode — opening a library that another window (or another machine) is writing,
+without pretending changes will stick.

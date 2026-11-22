@@ -84,6 +84,78 @@ impl Op {
             Self::Group { .. } => "group",
         }
     }
+
+    /// How many photos the op touches, for a change list.
+    pub fn photo_count(&self) -> usize {
+        match self {
+            Self::AddPhoto { .. } | Self::RemovePhoto { .. } => 1,
+            Self::Missing { .. } => 1,
+            Self::Rate { changes } => changes.len(),
+            Self::Flag { changes } => changes.len(),
+            Self::Label { changes } => changes.len(),
+            Self::Tagged { changes } => changes.len(),
+            Self::Relocate { changes } => changes.len(),
+            Self::Collect { added, removed, .. } => added.len() + removed.len(),
+            Self::Group { ops } => ops.iter().map(Self::photo_count).sum(),
+            _ => 0,
+        }
+    }
+
+    /// One sentence describing the change, for the change list and the support report.
+    pub fn summary(&self) -> String {
+        match self {
+            Self::AddRoot { path } => format!("Indexed {path}"),
+            Self::RemoveRoot { path } => format!("Stopped indexing {path}"),
+            Self::AddPhoto { photo } => format!("Added {}", photo.rel),
+            Self::RemovePhoto { photo } => format!("Removed {}", photo.rel),
+            Self::Missing { id, missing: true } => format!("Marked photo #{} as missing", id.0),
+            Self::Missing { id, missing: false } => format!("Found photo #{} again", id.0),
+            Self::Rate { changes } => format!("Rated {}", photos(changes.len())),
+            Self::Flag { changes } => format!("Flagged {}", photos(changes.len())),
+            Self::Label { changes } => format!("Labelled {}", photos(changes.len())),
+            Self::Tagged { changes } => format!("Keyworded {}", photos(changes.len())),
+            Self::Relocate { changes } => format!("Found {} somewhere else", photos(changes.len())),
+            Self::RemapRoot { from, to } => format!("Repointed {from} to {to}"),
+            Self::AddCollection { collection } => format!("Created the collection {}", collection.name),
+            Self::RemoveCollection { collection } => format!("Deleted the collection {}", collection.name),
+            Self::RenameCollection { name, .. } => format!("Renamed a collection to {name}"),
+            Self::Collect { added, removed, .. } => {
+                format!("Collection change: +{} -{}", added.len(), removed.len())
+            }
+            Self::SetCollectionColour { colour, .. } => match colour {
+                Some(colour) => format!("Set a collection's colour to {colour:?}"),
+                None => "Cleared a collection's colour".to_string(),
+            },
+            Self::SetCollectionFavourite { favourite, .. } => {
+                if *favourite {
+                    "Starred a collection".to_string()
+                } else {
+                    "Unstarred a collection".to_string()
+                }
+            }
+            Self::SetCollectionSort { .. } => "Changed a collection's sort".to_string(),
+            Self::SetCollectionSearch { .. } => "Changed a collection's search".to_string(),
+            Self::Group { ops } => match ops.first() {
+                Some(first) => {
+                    if ops.len() == 1 {
+                        first.summary()
+                    } else {
+                        format!("{} (+{} more change(s))", first.summary(), ops.len() - 1)
+                    }
+                }
+                None => "Grouped change".to_string(),
+            },
+        }
+    }
+}
+
+/// `1 photo` / `3 photos`, so summaries read like sentences.
+fn photos(count: usize) -> String {
+    if count == 1 {
+        "1 photo".to_string()
+    } else {
+        format!("{count} photos")
+    }
 }
 
 #[cfg(test)]

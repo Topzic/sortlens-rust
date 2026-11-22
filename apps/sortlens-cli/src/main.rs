@@ -33,6 +33,7 @@ Commands:
   list [--tag KW]           filter the listing by keyword
   undo                      undo the last change
   remap <old> <new>         repoint a moved or renamed root, sample checked
+  history [--limit N]       recent changes, newest first
   audit                     check the catalog files read back cleanly
   compact                   snapshot and empty the log
   backup <file>             write a verified backup of the index
@@ -241,6 +242,22 @@ fn run() -> Result<(), String> {
                 .run("library.relocate", &serde_json::json!({}))
                 .map_err(|error| error.to_string())?;
             println!("relocated {}", value["relocated"]);
+            Ok(())
+        }
+        "history" => {
+            let limit = rest
+                .iter()
+                .position(|arg| arg == "--limit")
+                .and_then(|index| rest.get(index + 1))
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(20);
+            let entries = engine.history(limit).map_err(|error| error.to_string())?;
+            if entries.is_empty() {
+                println!("no changes since the last snapshot");
+            }
+            for entry in entries {
+                println!("#{:<6} {:<16} {}", entry.seq, entry.kind, entry.summary);
+            }
             Ok(())
         }
         "audit" => {

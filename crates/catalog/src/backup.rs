@@ -198,7 +198,8 @@ mod tests {
     fn a_backup_round_trips_and_restores_the_same_catalog() {
         let source = populated("roundtrip");
         let backup = create(&source.0, 1_700_000_000).expect("create");
-        assert!(backup.names().contains(&SNAPSHOT_NAME));
+        // Closing flushes the log without snapshotting, so a fresh library backs up as a log.
+        assert!(backup.names().contains(&LOG_NAME));
         assert!(!backup.is_empty());
 
         let bytes = encode(&backup).expect("encode");
@@ -208,7 +209,7 @@ mod tests {
 
         let dest = Temp::new("restored");
         let written = restore(&read_back, &dest.0).expect("restore");
-        assert!(written.contains(&SNAPSHOT_NAME.to_string()));
+        assert!(written.contains(&LOG_NAME.to_string()));
 
         let (mut catalog, _) = Catalog::open(&dest.0).expect("reopen");
         let photo = catalog.photo(PhotoId(1)).expect("photo");
@@ -259,15 +260,19 @@ mod tests {
     }
 
     #[test]
-    fn a_library_without_a_log_still_backs_up() {
-        let source = populated("snapshot-only");
-        // Closing writes a snapshot and empties the log, so only the snapshot has content.
-        std::fs::write(source.0.join(LOG_NAME), "").expect("empty log");
+    fn a_library_after_a_compaction_still_backs_up() {
+        let source = populated("compacted");
+        {
+            let (mut catalog, _) = Catalog::open(&source.0).expect("open");
+            // Compaction folds the log into the snapshot, so only the snapshot has content.
+            catalog.compact().expect("compact");
+        }
         let backup = create(&source.0, 0).expect("create");
-        assert!(backup.has_log(), "the empty log is carried");
+        assert!(backup.names().contains(&SNAPSHOT_NAME));
         let restored = read(&encode(&backup).expect("encode")).expect("read");
-        let dest = Temp::new("snapshot-only-restored");
+        let dest = Temp::new("compacted-restored");
         restore(&restored, &dest.0).expect("restore");
-        assert!(Catalog::open(&dest.0).is_ok());
+        let (catalog, _) = Catalog::open(&dest.0).expect("reopen");
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, 4);
     }
 }

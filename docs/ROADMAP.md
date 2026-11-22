@@ -214,7 +214,7 @@ GPS; every dashboard number reconciles with the catalog; memories stable across 
 - [ ] Backup/restore (catalog + settings, verified) (A) — SL-H10
 - [ ] Volume remap with sample verification (A) — SL-A20/H06
 - [ ] Integrity check + compaction (A) — SL-H11
-- [ ] Audit viewer + export (B) — SL-H04
+- [x] Change viewer (recent ops, newest first) + plain-text support report (B) — SL-H04
 - [ ] Read-only library mode (A) — SL-H14
 - [ ] Crash/corruption suite expanded (truncation, CRC flip, partial snapshot)
 

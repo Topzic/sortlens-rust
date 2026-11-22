@@ -41,6 +41,23 @@ struct Record {
     /// existed, which simply leave nothing to undo instead of failing to load.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     inverse: Option<Op>,
+    /// Unix seconds when the record was written. `0` in records that predate the timer, which the
+    /// history shows as "no date" rather than as 1970.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    at: i64,
+}
+
+/// Serde helper: leave the timestamp out when it is unknown.
+fn is_zero(value: &i64) -> bool {
+    *value == 0
+}
+
+/// Unix seconds now, or 0 when the clock is before the epoch.
+pub fn now_seconds() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 /// What opening a catalog had to say.
@@ -197,7 +214,7 @@ impl Catalog {
                 if line.trim().is_empty() {
                     continue;
                 }
-                let (record_seq, op, inverse) = match decode(&line) {
+                let (record_seq, op, inverse, _at) = match decode(&line) {
                     Some(record) => record,
                     None => {
                         report.warnings.push("log record failed its checksum; earlier records kept".into());
@@ -947,9 +964,13 @@ impl Catalog {
         self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))
     }
 
+    /// Flush and stop. Deliberately *not* a snapshot.
+    ///
+    /// Snapshotting on every quit would empty the log on every quit, and the log is the change
+    /// history — "what did I change yesterday" would always have no answer. Snapshots happen every
+    /// [`SNAPSHOT_EVERY`] ops and on an explicit compaction instead.
     pub fn close(&mut self) -> Result<()> {
-        self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))?;
-        self.snapshot()
+        self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))
     }
 
     fn append(&mut self, seq: u64, op: &Op, inverse: Option<&Op>) -> Result<()> {
@@ -967,21 +988,33 @@ fn encode(seq: u64, op: &Op, inverse: Option<&Op>) -> Result<String> {
         seq,
         op: op.clone(),
         inverse: inverse.cloned(),
+        at: now_seconds(),
     };
     let json = serde_json::to_string(&record).map_err(|error| Error::Invalid(error.to_string()))?;
     let crc = crc32fast::hash(json.as_bytes());
     Ok(format!("{crc:08x} {json}\n"))
 }
 
+/// Read a log file into lines, tolerating a torn final line.
+pub(crate) fn open_records(path: &Path) -> std::io::Result<Vec<String>> {
+    let text = fs::read_to_string(path)?;
+    Ok(text.lines().map(str::to_string).collect())
+}
+
+/// Decode one log line, for readers outside this module.
+pub(crate) fn decode_record(line: &str) -> Option<(u64, Op, Option<Op>, i64)> {
+    decode(line)
+}
+
 /// Decode one line, returning `None` when the checksum or the JSON does not hold.
-fn decode(line: &str) -> Option<(u64, Op, Option<Op>)> {
+fn decode(line: &str) -> Option<(u64, Op, Option<Op>, i64)> {
     let (crc_text, json) = line.split_once(' ')?;
     let crc = u32::from_str_radix(crc_text, 16).ok()?;
     if crc32fast::hash(json.as_bytes()) != crc {
         return None;
     }
     let record: Record = serde_json::from_str(json).ok()?;
-    Some((record.seq, record.op, record.inverse))
+    Some((record.seq, record.op, record.inverse, record.at))
 }
 
 #[cfg(test)]
@@ -1281,13 +1314,16 @@ mod tests {
                 changes: vec![(PhotoId(1), 2)],
             },
             inverse: None,
+            at: 0,
         };
         let json = serde_json::to_string(&record).expect("encode");
         assert!(!json.contains("inverse"), "absent inverses are not written");
+        assert!(!json.contains("\"at\""), "an unknown time is not written either");
         let crc = crc32fast::hash(json.as_bytes());
         let decoded = decode(&format!("{crc:08x} {json}")).expect("decode");
         assert_eq!(decoded.0, 7);
         assert!(decoded.2.is_none(), "nothing to undo, but the op still replays");
+        assert_eq!(decoded.3, 0, "an old record has no timestamp");
     }
 
     #[test]

@@ -182,8 +182,8 @@ mod tests {
         let audit = audit(&temp.0).expect("audit");
         assert!(audit.is_clean(), "{audit:?}");
         assert_eq!(audit.photos, 3);
-        assert!(audit.snapshot_seq.is_some());
         assert!(audit.headline().contains("Clean"));
+        assert!(audit.replayed > 0, "a library that never snapshot replays its log");
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod tests {
         }
         let audit = audit(&temp.0).expect("audit");
         assert!(audit.is_clean(), "{audit:?}");
-        assert_eq!(audit.replayed, 1);
+        assert!(audit.replayed > 1, "the index pass plus the rating");
         assert!(audit.log_bytes > 0);
     }
 

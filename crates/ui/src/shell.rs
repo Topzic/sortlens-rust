@@ -112,6 +112,8 @@ pub enum Action {
     RestoreBackup,
     /// Repoint an indexed root, which the host asks a folder for.
     RemapRoot(String),
+    /// Write the change report somewhere the host chooses.
+    ExportHistory,
 }
 
 /// What Apply does with rejected photos.
@@ -202,6 +204,8 @@ pub struct UiState {
     pub empty_bin_open: bool,
     /// The last catalog audit: (headline, detail, clean).
     pub audit: Option<(String, String, bool)>,
+    /// The change viewer is open.
+    pub history_open: bool,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -286,6 +290,7 @@ impl UiState {
             tag_edit: None,
             empty_bin_open: false,
             audit: None,
+            history_open: false,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -482,6 +487,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if state.health_open {
         health_dialog(ui, state, &t, engine, &mut actions);
     }
+    if state.history_open {
+        history_dialog(ui, state, &t, engine, &mut actions);
+    }
     if state.rename_target.is_some() {
         rename_dialog(ui, state, &t, engine);
     }
@@ -656,6 +664,9 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             let deleted = engine.deleted_batches().len();
             if nav_row(ui, t, "Recently Deleted", &format_count(deleted as u64), false).clicked() {
                 state.deleted_open = true;
+            }
+            if nav_row(ui, t, "Changes", "", false).clicked() {
+                state.history_open = true;
             }
 
             nav_section(ui, t, "Folders");
@@ -2813,6 +2824,66 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             );
         });
     state.health_open = open;
+}
+
+/// What happened recently, read from the op log.
+fn history_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    let mut open = state.history_open;
+    egui::Window::new("Recent changes")
+        .open(&mut open)
+        .resizable(true)
+        .collapsible(false)
+        .default_width(460.0)
+        .show(ui.ctx(), |ui| {
+            let entries = match engine.history(60) {
+                Ok(entries) => entries,
+                Err(error) => {
+                    hint(ui, t, &error.to_string());
+                    return;
+                }
+            };
+            if entries.is_empty() {
+                hint(ui, t, "No changes since the last snapshot.");
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("Every change is a record in the log; older ones are folded into the snapshot.")
+                        .size(10.5)
+                        .color(t.text_faint),
+                );
+                return;
+            }
+            egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for entry in &entries {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(format!("#{}", entry.seq)).size(10.0).color(t.text_faint));
+                        ui.label(RichText::new(&entry.summary).size(12.0).color(t.text));
+                    });
+                    let when = if entry.is_dated() {
+                        age_label(entry.at)
+                    } else {
+                        "no date".to_string()
+                    };
+                    ui.label(RichText::new(format!("{when} · {}", entry.kind)).size(10.0).color(t.text_faint));
+                    ui.add_space(4.0);
+                }
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .button(RichText::new("Export report…").size(11.5))
+                    .on_hover_text("Plain text, for a support request")
+                    .clicked()
+                {
+                    actions.push(Action::ExportHistory);
+                }
+            });
+            ui.label(
+                RichText::new("The report lists folder and file names; it never includes photo contents.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        });
+    state.history_open = open;
 }
 
 fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {

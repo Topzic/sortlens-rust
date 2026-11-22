@@ -213,6 +213,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.history",
+                    label: "Recent Changes",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Recent Changes",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.exportHistory",
+                    label: "Export Change Report…",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Export Change Report…",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.audit",
                     label: "Check Catalog Integrity",
                     group: Group::Library,

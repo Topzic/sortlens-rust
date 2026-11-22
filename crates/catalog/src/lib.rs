@@ -9,6 +9,7 @@
 
 pub mod backup;
 pub mod collection;
+pub mod history;
 pub mod integrity;
 pub mod op;
 pub mod photo;
