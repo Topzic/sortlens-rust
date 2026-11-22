@@ -571,7 +571,24 @@ rather than glossed over.
   process that never saw the change
 - 214 tests, CI and wasm green
 
+## 2026-11-21 — M7: empty the rejects bin
+
+Semantics first, because "empty the bin" is ambiguous: Sortlens only ever forgets the *restore
+record*. Files already moved sit in the system Trash, files that were only flagged stay where they
+are, and nothing on disk is deleted from here. That is what the confirmation says.
+
+- engine: `forget_batch(id)` (errors on an unknown id) and `forget_all_batches()` returning batch and
+  file counts; both persist, neither touches the catalog or the files
+- engine: `library.forgetBatch` and `library.clearDeleted` commands
+- ui: each bin row gains "Forget" (with a hover that says the files stay put) and the dialog gains
+  "Empty bin…", which opens a confirmation naming the batches and files, spelling out that nothing on
+  disk is deleted and the step cannot be undone
+- tests: two tag-only batches, one forgotten leaving the other, the rest cleared with counts, both
+  files still on disk afterwards, the photos still in the library, an unknown id refused, and
+  emptying an empty bin being harmless
+- 215 tests, CI and wasm green
+
 ## Next
 
-M7: empty the rejects bin — deleting batches from the bin for good, with the flags left alone and a
-confirmation that names how many files go.
+M7: backup and restore of the library — exporting the catalog and settings into one verified archive
+and reading it back, so a library can move machines.

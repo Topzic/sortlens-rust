@@ -428,6 +428,33 @@ impl Engine {
         Ok(batch.items.len())
     }
 
+    /// Forget one applied batch: its files stay where they are, only the restore record goes.
+    ///
+    /// This is the "empty the bin" half of the bin. It cannot be undone, because the record it
+    /// removes is the only thing that knew how to put the files back — which is why the dialog that
+    /// calls it says so.
+    pub fn forget_batch(&mut self, id: u64) -> Result<usize> {
+        let index = self
+            .deleted
+            .iter()
+            .position(|batch| batch.id == id)
+            .ok_or_else(|| Error::Invalid(format!("no applied batch {id}")))?;
+        let files = self.deleted.remove(index).items.len();
+        self.persist_deleted();
+        Ok(files)
+    }
+
+    /// Forget every applied batch. Returns how many batches and files went.
+    pub fn forget_all_batches(&mut self) -> (usize, usize) {
+        let batches = self.deleted.len();
+        let files = self.deleted.iter().map(|batch| batch.items.len()).sum();
+        if batches > 0 {
+            self.deleted.clear();
+            self.persist_deleted();
+        }
+        (batches, files)
+    }
+
     /// Where a cull session is saved between runs.
     fn cull_path(&self) -> Option<PathBuf> {
         self.dir.as_ref().map(|dir| dir.join("cull-session.json"))
@@ -1569,6 +1596,17 @@ impl Engine {
                     .collect();
                 Ok(json!({ "batches": batches }))
             }
+            "library.forgetBatch" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_u64)
+                    .ok_or_else(|| Error::Invalid("a batch id is required".into()))?;
+                Ok(json!({ "forgotten": self.forget_batch(id)? }))
+            }
+            "library.clearDeleted" => {
+                let (batches, files) = self.forget_all_batches();
+                Ok(json!({ "batches": batches, "files": files }))
+            }
             "library.restoreBatch" => {
                 let id = args
                     .get("id")
@@ -2074,6 +2112,52 @@ mod tests {
             .run("collection.colour", &json!({ "id": id.0, "colour": "none" }))
             .expect("clear");
         assert!(engine.collections()[0].colour.is_none());
+    }
+
+    #[test]
+    fn the_bin_can_be_emptied_without_touching_the_files() {
+        let folder = Temp::new("bin-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"b").expect("write");
+        let (_lib, mut engine) = library("bin");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        // Two tag-only batches, so both files stay on disk and can be inspected afterwards.
+        for id in &ids {
+            engine.begin_cull(&[*id]).expect("begin");
+            engine.cull_decide(sortlens_cull::Decision::Reject);
+            engine.cull_apply(sortlens_cull::trash::Mode::TagOnly).expect("apply");
+        }
+        assert_eq!(engine.deleted_batches().len(), 2);
+
+        let value = engine
+            .run("library.forgetBatch", &json!({ "id": engine.deleted_batches()[0].id }))
+            .expect("forget");
+        assert_eq!(value["forgotten"], 1);
+        assert_eq!(engine.deleted_batches().len(), 1, "the other batch stays");
+
+        let cleared = engine.run("library.clearDeleted", &json!({})).expect("clear");
+        assert_eq!(cleared["batches"], 1);
+        assert_eq!(cleared["files"], 1);
+        assert!(engine.deleted_batches().is_empty());
+        assert!(folder.0.join("a.jpg").exists(), "forgetting the record never deletes a file");
+        assert!(folder.0.join("b.jpg").exists());
+        assert_eq!(engine.stats().total, 2, "the photos are still in the library");
+
+        assert!(
+            engine.run("library.forgetBatch", &json!({ "id": 99 })).is_err(),
+            "an unknown batch is an error, not a silent success"
+        );
+        let empty = engine.run("library.clearDeleted", &json!({})).expect("clear again");
+        assert_eq!(empty["batches"], 0, "emptying an empty bin is harmless");
     }
 
     #[test]

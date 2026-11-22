@@ -213,6 +213,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.forgetBatch",
+                    label: "Forget Batch",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Forget Batch",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "library.clearDeleted",
+                    label: "Empty Rejects Bin",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Empty Rejects Bin",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "library.restoreBatch",
                     label: "Restore Batch",
                     group: Group::Library,

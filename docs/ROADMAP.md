@@ -209,7 +209,7 @@ GPS; every dashboard number reconciles with the catalog; memories stable across 
 
 - [ ] Three delete modes + distinct executors (A) — SL-H01
 - [x] Rejects bin: applied batches listed, restored with flags and missing state (A,B) — SL-A15
-- [ ] Empty the bin / delete-from-bin (A)
+- [x] Empty the bin: forget one batch or all of them, files untouched, with a confirmation that names the counts (A,B)
 - [x] Recently Deleted source: sidebar row + restore dialog (B) — SL-A16
 - [ ] Backup/restore (catalog + settings, verified) (A) — SL-H10
 - [ ] Volume remap with sample verification (A) — SL-A20/H06

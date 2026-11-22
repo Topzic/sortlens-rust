@@ -192,6 +192,8 @@ pub struct UiState {
     pub welcome_ready: Option<String>,
     /// A keyword being renamed: (the keyword, the text being typed).
     pub tag_edit: Option<(String, String)>,
+    /// The rejects bin is being emptied after a confirmation.
+    pub empty_bin_open: bool,
     /// Search text inside the keyword picker.
     pub tag_picker_query: String,
     /// How close two hashes must be to count as the same subject.
@@ -274,6 +276,7 @@ impl UiState {
             welcome_dismissed: false,
             welcome_ready: None,
             tag_edit: None,
+            empty_bin_open: false,
             tag_picker_query: String::new(),
             similar_threshold: sortlens_engine::SIMILAR_THRESHOLD,
             similar_colour: sortlens_engine::SIMILAR_COLOUR,
@@ -463,6 +466,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     }
     if state.deleted_open {
         deleted_dialog(ui, state, &t, engine);
+    }
+    if state.empty_bin_open {
+        empty_bin_dialog(ui, state, &t, engine);
     }
     if state.health_open {
         health_dialog(ui, state, &t, engine);
@@ -2548,6 +2554,7 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                 return;
             }
             let mut restore = None;
+            let mut forget = None;
             for (id, summary, age, mode) in batches {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -2555,6 +2562,13 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                         ui.label(RichText::new(format!("{age} · {mode}")).size(10.5).color(t.text_faint));
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui
+                            .button(RichText::new("Forget").size(11.0))
+                            .on_hover_text("Drop the restore record; the files stay where they are")
+                            .clicked()
+                        {
+                            forget = Some(id);
+                        }
                         if ui.button(RichText::new("Restore").size(11.0)).clicked() {
                             restore = Some(id);
                         }
@@ -2568,6 +2582,22 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                     Err(error) => state.notice(error.to_string()),
                 }
             }
+            if let Some(id) = forget {
+                match engine.forget_batch(id) {
+                    Ok(files) => state.notice(format!("Forgot a batch of {files} file(s)")),
+                    Err(error) => state.notice(error.to_string()),
+                }
+            }
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .button(RichText::new("Empty bin…").size(11.0))
+                    .on_hover_text("Forget every restore record; files on disk are untouched")
+                    .clicked()
+                {
+                    state.empty_bin_open = true;
+                }
+            });
             ui.label(
                 RichText::new("Files sent to the system Trash are restored from the Trash itself.")
                     .size(10.5)
@@ -2575,6 +2605,45 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             );
         });
     state.deleted_open = open;
+}
+
+/// Ask before emptying the bin: the records are the only way back.
+fn empty_bin_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
+    let batch_count = engine.deleted_batches().len();
+    let files: usize = engine.deleted_batches().iter().map(|batch| batch.items.len()).sum();
+    let mut open = state.empty_bin_open;
+    egui::Window::new("Empty the rejects bin?")
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(360.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(format!("{batch_count} batch(es), {files} file(s) will lose their restore record.")).size(12.0));
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(
+                    "Files already moved stay in the system Trash; files that were only flagged stay \
+                     where they are. Nothing on disk is deleted here, and this cannot be undone.",
+                )
+                .size(10.5)
+                .color(t.text_muted),
+            );
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(batch_count > 0, Button::new(RichText::new("Empty bin").size(12.0)))
+                    .clicked()
+                {
+                    let (batches, files) = engine.forget_all_batches();
+                    state.notice(format!("Forgot {batches} batch(es) covering {files} file(s)"));
+                    state.empty_bin_open = false;
+                }
+                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                    state.empty_bin_open = false;
+                }
+            });
+        });
+    state.empty_bin_open = open;
 }
 
 fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
