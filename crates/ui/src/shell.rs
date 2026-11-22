@@ -8,6 +8,7 @@
 //! through [`Engine`]; anything that changes the process (theme, folder picker, quit) is returned
 //! as an [`Action`] for the host to apply.
 
+use crate::charts::{self, Column};
 use crate::keymap::{self, Context};
 use crate::theme::{ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
@@ -2767,22 +2768,23 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                 ui.label(RichText::new("Months").size(12.0).strong());
                 let peak = insights.by_month.iter().copied().max().unwrap_or(0);
                 if peak == 0 {
-                    ui.label(RichText::new("Nothing dated yet").size(11.0).color(t.text_faint));
+                    charts::empty(ui, t, "Nothing dated yet", charts::COLUMN_HEIGHT);
                 } else {
-                    ui.horizontal(|ui| {
-                        for (index, count) in insights.by_month.iter().enumerate() {
+                    let month_columns: Vec<Column> = insights
+                        .by_month
+                        .iter()
+                        .enumerate()
+                        .map(|(index, count)| {
                             let month = index as u32 + 1;
-                            let height = 44.0 * (*count as f32 / peak as f32);
-                            let (rect, response) = ui.allocate_exact_size(vec2(14.0, 44.0), Sense::hover());
-                            let colour = if insights.peak_month() == Some(month) { t.accent } else { t.border };
-                            ui.painter().rect_filled(
-                                Rect::from_min_max(pos2(rect.left(), rect.bottom() - height), rect.right_bottom()),
-                                1.0,
-                                colour,
-                            );
-                            response.on_hover_text(format!("{} — {} photo(s)", sortlens_engine::month_name(month), count));
-                        }
-                    });
+                            let column = Column::new(sortlens_engine::month_name(month).chars().next().unwrap_or('?').to_string(), *count);
+                            if insights.peak_month() == Some(month) {
+                                column.highlighted()
+                            } else {
+                                column
+                            }
+                        })
+                        .collect();
+                    charts::columns(ui, t, &month_columns, charts::COLUMN_HEIGHT);
                     ui.label(
                         RichText::new(format!(
                             "Busiest: {}{}",
@@ -2811,34 +2813,10 @@ fn figure(ui: &mut Ui, t: &Tokens, caption: &str, value: &str) {
     });
 }
 
-/// A label, a proportional bar and a count.
+/// A label, a proportional bar and a count. The drawing lives in `charts`, so the insights rows and
+/// anything else that needs a share look the same.
 fn bar_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usize) {
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(300.0), 15.0), Sense::hover());
-    let painter = ui.painter();
-    painter.text(
-        pos2(rect.left(), rect.center().y),
-        Align2::LEFT_CENTER,
-        label,
-        FontId::proportional(10.5),
-        t.text_muted,
-    );
-    let track = Rect::from_min_max(
-        pos2(rect.left() + 92.0, rect.center().y - 4.0),
-        pos2(rect.right(), rect.center().y + 4.0),
-    );
-    painter.rect_filled(track, 2.0, t.thumb_bg);
-    let share = if whole == 0 { 0.0 } else { count as f32 / whole as f32 };
-    if count > 0 {
-        let filled = Rect::from_min_size(track.min, vec2(track.width() * share.clamp(0.02, 1.0), track.height()));
-        painter.rect_filled(filled, 2.0, t.selection);
-    }
-    painter.text(
-        pos2(rect.right(), rect.center().y),
-        Align2::RIGHT_CENTER,
-        format_count(count as u64),
-        FontId::proportional(10.5),
-        t.text_faint,
-    );
+    charts::share_row(ui, t, label, count, whole);
 }
 
 /// A titled list of the most common values, scaled to the largest.
@@ -3023,6 +3001,14 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                 ui.label(RichText::new(card.title.clone()).size(12.5).strong().color(t.text));
                 ui.label(RichText::new(card.detail()).size(10.0).color(t.text_faint));
             });
+            // Where the card's photos come from: a card that says "since 2019" but leans entirely on
+            // one year is a different invitation than one spread over five.
+            let years = card_years(engine, &card.photos);
+            if years.len() > 1 {
+                ui.add_space(2.0);
+                let columns: Vec<Column> = years.iter().map(|(year, count)| Column::new(year.to_string(), *count)).collect();
+                charts::columns(ui, t, &columns, 40.0);
+            }
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
                 for id in &card.photos {
@@ -3056,6 +3042,21 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
             });
         }
     });
+}
+
+/// Photos per capture year among the given photos, oldest first.
+fn card_years(engine: &Engine, ids: &[PhotoId]) -> Vec<(i64, usize)> {
+    let mut counts: std::collections::BTreeMap<i64, usize> = std::collections::BTreeMap::new();
+    for id in ids {
+        if let Some(year) = engine
+            .photo(*id)
+            .and_then(|photo| photo.captured)
+            .map(sortlens_memories::civil_year)
+        {
+            *counts.entry(year).or_insert(0) += 1;
+        }
+    }
+    counts.into_iter().collect()
 }
 
 fn planned_view(ui: &mut Ui, t: &Tokens, view: View) {

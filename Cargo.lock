@@ -3726,6 +3726,7 @@ dependencies = [
  "sortlens-core",
  "sortlens-cull",
  "sortlens-engine",
+ "sortlens-memories",
  "sortlens-thumbs",
 ]
 

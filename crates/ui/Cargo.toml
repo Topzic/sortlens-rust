@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
+sortlens-memories = { workspace = true }
 sortlens-thumbs = { workspace = true }
 sortlens-cull = { workspace = true }
 egui = { workspace = true }

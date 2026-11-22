@@ -7,6 +7,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
 pub mod a11y;
+pub mod charts;
 pub mod keymap;
 pub mod shell;
 pub mod theme;

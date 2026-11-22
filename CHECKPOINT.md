@@ -912,6 +912,28 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 278 tests (8 in `sortlens-memories`), CI and wasm green. Verified by hand: two dates set, three
   cards for 2024-06-24, and the change log showing both date writes
 
+## 2026-11-21 — M7: a chart component
+
+- new `crates/ui/src/charts.rs`: `Column { label, value, highlight }`, `columns()` (a column chart
+  with a baseline, labels, hover tooltips and a highlight colour), `share_row()` (the proportional
+  row the insights breakdowns use), `empty()` (a faint box that says "nothing dated yet" instead of a
+  layout that silently lost its chart), and the arithmetic underneath as pure functions
+- three rules, each with a test: **a non-zero value never rounds below one pixel** (an invisible bar
+  reads as "nothing here"), **the tallest bar fills the height exactly** (integer-first arithmetic so
+  a bar cannot stop short of its own axis), and **`share_of` refuses zero** rather than dividing by an
+  empty library. `nice_max` gives round axis maxima (1/2/5 × powers of ten)
+- heights are **fixed pixels**, never a fraction of the window: a chart that grows with the window
+  makes the same library look different at different sizes and makes screenshots incomparable
+- insights now draws its months through the shared chart (initials under the columns, busiest month
+  in the accent) and its rating/label/kind/timeline rows through `share_row`, which also gained the
+  tooltip the old local copy lacked — one drawing routine instead of two
+- For You draws a small year chart per card, so a card that says "since 2019" shows whether the
+  photos are spread across those years or all come from one
+- `sortlens_memories::civil_year` added for the card chart, rather than duplicating date maths in UI
+- the chart paints in a **headless egui frame** in a test (`Context::run_ui` with no window, texture
+  deltas cleared), so bad geometry or an empty series fails in CI rather than in front of a user
+- 285 tests (6 in `charts`), CI and wasm green
+
 ## Next
 
-M7: a chart component — fixed height, no chart dependency, shared by insights and memories.
+M7: `photo.reveal` and `photo.open` — show the file in the OS and hand it to the default app.

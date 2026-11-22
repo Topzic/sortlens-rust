@@ -56,6 +56,11 @@ pub fn civil(seconds: i64) -> Date {
     }
 }
 
+/// The calendar year a timestamp falls in, for callers that only need the year.
+pub fn civil_year(seconds: i64) -> i64 {
+    civil(seconds).year
+}
+
 /// Whether a year has 29 February.
 pub const fn is_leap(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
@@ -425,6 +430,14 @@ mod tests {
         assert_eq!(days_in_month(1900, 2), 28, "100-year rule");
         assert_eq!(month_name(6), "June");
         assert_eq!(month_name(13), "");
+    }
+
+    #[test]
+    fn a_year_can_be_read_off_a_timestamp() {
+        assert_eq!(civil_year(at(2019, 7, 4)), 2019);
+        assert_eq!(civil_year(0), 1970);
+        assert_eq!(civil_year(-1), 1969);
+        assert_eq!(civil_year(at(2024, 2, 29)), 2024);
     }
 
     #[test]

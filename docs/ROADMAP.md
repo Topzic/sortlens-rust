@@ -197,7 +197,7 @@ remap a moved drive; run the wizard on a clean machine.
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
 - [ ] Insights: progress, highlights, seasonality (B) — SL-E09..E11
 - [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12
-- [ ] Chart component (fixed height, no chart dep) (B) — SL-E11
+- [x] Chart component (fixed height, no chart dep): `crates/ui/src/charts.rs` — columns with a one-pixel floor and a round axis maximum, proportional rows, painted headlessly in a test (B) — SL-E11
 - [ ] Tests: blur ladder, duplicate transforms, cluster determinism
 
 **Demo:** find 20 blurred frames and 12 duplicate groups in a 5k library; map clusters match

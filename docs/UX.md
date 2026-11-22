@@ -420,3 +420,15 @@ re-checks its own contrast pairs after applying.
 
 Each component gets: a kittest snapshot in light/dark/RTL, an accessibility assertion, and a
 "used in" list. No component may read global state directly; it takes data + a command callback.
+
+## Charts
+
+Two shapes, both drawn by `crates/ui/src/charts.rs`: a column chart and a proportional row. No chart
+dependency, no animation, no viewport-relative height — a chart that grows with the window makes the
+same library look different at different window sizes and makes two screenshots incomparable.
+
+- A non-zero value never rounds below one pixel: an invisible bar reads as "nothing here".
+- The axis maximum is a round number (1, 2 or 5 × a power of ten), so a reader can estimate a bar
+  without hovering it.
+- Every column and row carries a hover tooltip with the exact count and share, because a chart you
+  cannot read a number off is decoration.
