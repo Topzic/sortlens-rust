@@ -206,7 +206,10 @@ empty ring for "any colour", the flag chip wears the state's own glyph (`pick`, 
 keyword menu ends in a chevron. Every one of them is still a cycling toggle with a spoken name, so the
 pictures changed and the behaviour did not. The row **wraps** rather than overflowing: at 1200 points with
 both docks open, a five-star minimum plus the other chips used to push `Clear` past the canvas edge, and a
-filter bar that cannot be undone is worse than a taller one. The whole strip is not painted while the
+filter bar that cannot be undone is worse than a taller one. The strip's right-hand `N shown` count is laid
+out in a column of its own, measured before the chips wrap: it is a statement, not a control, so it may not
+sit on top of one, and in a strip too narrow to hold both it steps aside rather than shrinking a chip. The
+whole strip is not painted while the
 catalog is empty — nine questions about photographs that do not exist yet sat on top of the Welcome card —
 and "empty" is the catalog's own total, never the filtered count, because a filter that hides every photo
 must keep the strip that clears it.

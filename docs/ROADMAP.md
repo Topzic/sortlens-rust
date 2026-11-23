@@ -1170,10 +1170,18 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   under the right-aligned sort combo; the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are
   still used as text in the keymap overlay and the command registry's `shortcut` strings, where the bundled faces
   have no glyph
-- [ ] 3B.6 (h) Observed while verifying (d), not yet fixed: at 1280 px with both docks open the filter strip's
-  right-aligned `N shown` summary is drawn underneath the `Clear` chip instead of on a row of its own, so the two
-  overlap. The new `short-sidebar-*` baselines are the evidence. The strip needs the summary to claim its width
-  before the chips wrap, or to fall to a row of its own when it cannot
+- [x] 3B.6 (h) The filter strip's `N shown` summary no longer lands on a chip — **shipped 2026-11-23 (part 6)**:
+  the count was the wrapped row's last child, and a wrapped layout hands its last child the row's whole width, so a
+  right-aligned label there was laid out from the wrap cursor and drawn underneath `Clear` (visible in the
+  `short-sidebar-*` baselines). The count is now measured first and given a reserved column on the right; the chips
+  wrap in the width that is actually theirs, the card keeps the strip's full width, a chip wider than its column is
+  clipped at that boundary rather than painted over the count, and below 180 points of chip room the count steps
+  aside instead of taking a control's room. A headless test sweeps the strip from 320 to 760 points a step at a time
+  and asserts no painted text ever intersects the count (it fails at 326 points on the old layout, over the `Missing`
+  glyph), with the count inside its clip and two widths proving the sweep is not vacuous. All 29 baselines
+  regenerated: every 1440×900 scene changes only the count's own rect, `filters-*`/`no-matches-*` only its position in
+  the two-row strip, and `short-sidebar-*` now wraps `Clear` onto a second row (one strip row taller), read in both
+  themes
 
 ### Phase 4 — Platform, keymap and remote polish (M9–M10)
 

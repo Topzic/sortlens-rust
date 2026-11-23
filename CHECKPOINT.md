@@ -1,5 +1,44 @@
 # Checkpoint
 
+## 2026-11-23 (forty-first) — Phase 3B.6 part 6: the strip's count gets a column instead of a chip's lap
+
+- **The defect was in the layout, not in the drawing.** `filter_strip` ended its `horizontal_wrapped` row with a
+  `Layout::right_to_left` child holding `N shown`. A wrapped layout hands its last child the *row's* width, so that
+  label right-aligned itself against the card's edge from wherever the wrap cursor happened to be — and when the
+  row's last chip already reached into the label's own width, the two were painted on top of each other. That is
+  what the `short-sidebar-*` baselines showed: `Clear` at 873–935 and `12 shown` starting at 905.
+- **Reproduced at a width the test controls.** The full-shell scene at 1280 was not a reliable reproducer, because
+  a chip's 58-point button either fits on the row or wraps to the next one; the collision only happens in the narrow
+  band where it *just* fits. So the test drives the real `filter_strip` through `Context::run_ui` at **every width
+  from 320 to 760 points in one-point steps** and asserts the invariant at each: no painted text in the strip
+  intersects the count, and the count lies inside the clip it was painted with (a fix that hid it would fail). On
+  the old code it fails at 326 points with `2 shown at [[276.8 51.5] - [316.8 60.5]] is painted over ⚠️ at
+  [[265.0 52.5] - [278.0 63.5]]` — the `Missing` chip's own glyph, not merely a word. The sweep is not vacuous: at
+  least one width must have the chips on more than one row (grouped in 10-point bands, because a font's own 1-point
+  centre differences are not rows) and at least one must put the count's centre inside the chips' band.
+- **The fix reserves the column before anything wraps.** The count's galley is measured with
+  `layout_no_wrap(…, FontId::proportional(11.0), t.text_faint)`, the strip's max width is reduced by that plus an
+  8-point gap, and the chips wrap inside the remainder; the label is painted into the right of the card at the
+  chips block's vertical centre. Because the space is taken away *before* wrapping, there is no width at which the
+  two can meet, and the chips' own wrapping is unaffected on a wide window (every 1440×900 baseline diff is exactly
+  the count's 47×10 rect). Two edges are deliberate: `set_min_width` restores the card's full width, because a
+  narrower content rect would otherwise shrink the card to its widest row; and a single chip wider than the column
+  (a long collection name) is clipped at the column boundary with `shrink_clip_rect` rather than painted across the
+  count. Below `STRIP_CHIP_ROOM` (180 points of chip room) the count steps aside and the chips keep the full width:
+  a chip is a control, the count is a statement.
+- **Visual verification**: all 29 baselines regenerated and read. `short-sidebar-charcoal`/`-paper` (1280×620) are
+  the defect's own scene: `Clear` now wraps to a second row at the left, `12 shown` sits in its column with clear
+  space around it, and the strip is one row taller (the grid moves down a row). Every other scene's diff bbox is
+  only the count's own rect — measured with `ImageChops` per file, not assumed; `filters-*` and `no-matches-*`
+  already had two rows and only the count's vertical position moved.
+- Files: `crates/ui/src/shell.rs` (`filter_strip`'s reserved column, `STRIP_CHIP_ROOM`, one new sweep test), all 29
+  `crates/ui/tests/snapshots/*.png` (regenerated), and the reconciled `docs/UX.md` §5.2 + `docs/ROADMAP.md`
+  (3B.6 (h) ticked, (e) named as the next slice).
+- Gates: `ci` (fmt had to be re-run first), `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots`;
+  127 `sortlens-ui` unit tests, the new one among them.
+- **Next**: 3B.6 (e), the canvas header's title under the right-aligned sort combo at 900 px with both docks open,
+  then (f) and (g); Phase 4 items 16–18 after them.
+
 ## 2026-11-23 (fortieth) — Phase 3B.6 part 5: the sidebar scrolls above its foot instead of over it
 
 - **The defect, reproduced before it was fixed.** At 1280×620 the left panel holds six scopes, two subfolders,
@@ -3388,12 +3427,15 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     — **done 2026-11-23**, see the fortieth entry: the sections live in one `ScrollArea` sized to the room the foot
     left, a test intersects every painted text rect with its own clip rect so "visible" means visible, a wheel event
     proves the rows under the fold are reachable while the foot stays put, and `short-sidebar-charcoal`/`-paper` were
-    added and read. **(h) is the exact next slice**: while reading those baselines, at 1280 px with both docks open
-    the filter strip's right-aligned `N shown` summary is painted *under* the `Clear` chip. Then (e) at 900 px with
-    both docks open the canvas header's title runs under the right-aligned sort combo; (f) the cull keyword row
+    added and read. (h) the filter strip's `N shown` summary was painted under the `Clear` chip at 1280 px with
+    both docks open — **done 2026-11-23**, see the forty-first entry: the count is measured first and given a
+    reserved column on the right, the chips wrap in the room that is actually theirs, and a test sweeps the strip
+    from 320 to 760 points a step at a time asserting no painted text ever touches the count (it fails at 326 on
+    the old layout); all 29 baselines regenerated and read. **(e) is the exact next slice**: at 900 px with both
+    docks open the canvas header's title runs under the right-aligned sort combo. Then (f) the cull keyword row
     clips under the bottom bar at 900 px; (g) `←`/`→` are still text in the keymap overlay and the registry's
     `shortcut` strings, where the bundled faces have no glyph. A fix here is a regenerated baseline that is read,
-    not a claim; (e)–(h) were each *observed*, so each one is "the baseline is clean and the geometry test says so"
+    not a claim; (e)–(g) were each *observed*, so each one is "the baseline is clean and the geometry test says so"
     or it is not done.
 
 **Phase 4 — platform, keymap, remote**

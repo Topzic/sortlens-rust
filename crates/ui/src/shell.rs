@@ -3975,11 +3975,36 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
         .corner_radius(t.corner())
         .inner_margin(Margin::symmetric(8, 6))
         .show(ui, |ui| {
+            // The count gets a measured column on the right rather than riding at the end of the wrapped
+            // row. A wrapped layout hands its last child the whole row's width, so a right-aligned label
+            // placed there is laid out from the wrap cursor and lands under the chips: at 1280 points with
+            // both docks open it was painted underneath `Clear`. A reserved column cannot collide at any
+            // width, because the chips wrap in the room that is actually theirs.
+            let inner = ui.available_rect_before_wrap();
+            let galley = ui.painter().layout_no_wrap(
+                format!("{} shown", format_count(total as u64)),
+                egui::FontId::proportional(11.0),
+                t.text_faint,
+            );
+            let gap = 8.0;
+            let reserve = galley.size().x + gap;
+            // Below this the count would be taking the room a chip needs, and a chip is a control where
+            // the count is a statement: the chips keep the width and the count steps aside.
+            let keep_count = inner.width() >= reserve + STRIP_CHIP_ROOM;
+            let chips_width = if keep_count { inner.width() - reserve } else { inner.width() };
             // Wrapped, not one line: nine chips plus a five-star minimum are wider than the canvas at
             // 1200 points with both docks open, and a filter bar that pushes its own Clear button off
             // the edge is a filter bar that cannot be undone. A second row is a shorter strip, not a
             // missing control.
-            ui.horizontal_wrapped(|ui| {
+            ui.set_max_width(chips_width);
+            let chips = ui.horizontal_wrapped(|ui| {
+                // One chip can be wider than the column it is handed — a long collection name — and the
+                // wrapped layout would let it spill sideways into the count's column. The column is a hard
+                // edge, so such a chip is clipped there rather than painted over the count.
+                if keep_count {
+                    let column = Rect::from_min_max(inner.min, pos2(inner.right() - reserve, inner.bottom()));
+                    ui.shrink_clip_rect(column);
+                }
                 if let Some(id) = state.collection_filter
                     && let Some(collection) = engine.collections().into_iter().find(|entry| entry.id == id)
                     && chip(ui, t, Some(crate::icons::Icon::Layers), &collection.name, true).clicked()
@@ -4165,17 +4190,23 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     state.search.clear();
                     state.clear_filters();
                 }
-
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(format!("{} shown", format_count(total as u64)))
-                            .size(11.0)
-                            .color(t.text_faint),
-                    );
-                });
             });
+            // The card stays the strip's full width even though its content now stops short of the count's
+            // column; without this the frame would shrink to the widest wrapped row.
+            ui.set_min_width(inner.width());
+            ui.set_max_width(inner.width());
+            if keep_count {
+                let at = pos2(
+                    inner.right() - galley.size().x,
+                    chips.response.rect.center().y - galley.size().y * 0.5,
+                );
+                ui.painter().galley(at, galley, t.text_faint);
+            }
         });
 }
+
+/// The narrowest strip that still answers "how many" without taking a chip's room.
+const STRIP_CHIP_ROOM: f32 = 180.0;
 
 fn chip(ui: &mut Ui, t: &Tokens, icon: Option<crate::icons::Icon>, label: &str, active: bool) -> egui::Response {
     let colour = if active { t.text } else { t.text_muted };
@@ -11481,6 +11512,131 @@ mod tests {
             foot_before,
             foot_after
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 3B.6 (h): the strip's right-aligned `N shown` count must never be painted over a chip.
+    ///
+    /// The count is the strip's last child, and a wrapped layout hands its last child the whole row's
+    /// width: a label right-aligned there is laid out from the wrap cursor and lands under the chips the
+    /// row already holds. That is not a width-specific slip — whenever the row's last chip ends within the
+    /// count's own width of the right edge, the two collide — so this sweeps the strip from 320 to 760
+    /// points a step at a time and asks the same question at every step: **no painted text intersects the
+    /// count**, and the count lies inside the clip it was painted with, so a fix that hid it would fail
+    /// too. Two widths must
+    /// make the sweep non-vacuous: one where the chips wrap onto more than one row, and one where the
+    /// count's own centre sits inside the chips' band — the place a collision would be visible.
+    #[test]
+    fn the_filter_strip_summary_never_lands_on_a_chip_at_any_width() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-strip-summary-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-strip-summary");
+        for name in ["a.jpg", "b.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 2, "the strip needs a library to narrow");
+
+        let t = ThemeKind::Charcoal.tokens();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.filters_open = true;
+        // Scoped to the library folder, which is one active filter: the strip then offers `Clear`, the chip
+        // the count used to be painted over, and its chip set is exactly the one the baselines show.
+        state.root = Some(root.to_string_lossy().to_string());
+
+        fn texts(output: &egui::FullOutput) -> Vec<(String, Rect, Rect)> {
+            fn walk(shape: &egui::Shape, clip: Rect, sink: &mut Vec<(String, Rect, Rect)>) {
+                match shape {
+                    egui::Shape::Text(text) => {
+                        sink.push((text.galley.job.text.clone(), text.visual_bounding_rect(), clip));
+                    }
+                    egui::Shape::Vec(shapes) => {
+                        for shape in shapes {
+                            walk(shape, clip, sink);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, clipped.clip_rect, &mut sink);
+            }
+            sink
+        }
+
+        let mut counted = 0;
+        let mut wrapped = false;
+        let mut in_band = false;
+        for step in 0..=440 {
+            let width = 320.0 + step as f32;
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx, ThemeKind::Charcoal);
+            let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 300.0));
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        filter_strip(ui, &t, &mut state, &engine, 2);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            let painted = texts(&output);
+            let Some((text, rect, clip)) = painted
+                .iter()
+                .find(|(text, _, _)| text.ends_with(" shown"))
+                .map(|(text, rect, clip)| (text.clone(), *rect, *clip))
+            else {
+                continue;
+            };
+            assert!(
+                clip.contains_rect(rect),
+                "at {width} points `{text}` is clipped away at {rect:?} by {clip:?}"
+            );
+            for (other, other_rect, _) in &painted {
+                assert!(
+                    other.ends_with(" shown") || !rect.intersects(*other_rect),
+                    "at {width} points `{text}` at {rect:?} is painted over `{other}` at {other_rect:?}"
+                );
+            }
+            counted += 1;
+            let chips: Vec<Rect> = [
+                "+ keyword",
+                "Rating",
+                "Flags",
+                "Colour",
+                "All kinds",
+                "Source",
+                "Edited",
+                "Missing",
+                "Clear",
+            ]
+            .iter()
+            .filter_map(|label| label_at(&output, label))
+            .collect();
+            assert_eq!(chips.len(), 9, "at {width} points the strip prints its nine chips");
+            let rows: std::collections::BTreeSet<i32> = chips.iter().map(|chip| (chip.center().y / 10.0).round() as i32).collect();
+            wrapped |= rows.len() >= 2;
+            let band = chips.iter().fold(Rect::NOTHING, |band, chip| band.union(*chip));
+            in_band |= rect.center().y > band.top() && rect.center().y < band.bottom();
+        }
+        assert!(counted >= 400, "the count is painted at only {counted} of the swept widths");
+        assert!(wrapped, "the chips never wrapped, so the sweep never tested a tight row");
+        assert!(in_band, "the count never sat inside the chips' band, so no collision was possible");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
