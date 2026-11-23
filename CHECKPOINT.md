@@ -1,5 +1,63 @@
 # Checkpoint
 
+## 2026-11-23 (forty-third) — Phase 3B.6 part 8: the cull foot is claimed before the photograph
+
+- **The defect was an allowance, not a measurement.** `cull_view` sized its canvas as
+  `available_height - strip_height(84) - action_height(46) - 16`, where 84 and 46 accounted for the up-next strip and
+  the decision row — and nothing accounted for the keyword band, the field that adds a keyword, the live line or the
+  staged sentence below them. At 1440×900 the field was painted at y 846–861 with the bottom bar at 852: its glyphs
+  were cut in half, and `Photo 1 of 12` under it was not painted at all. The screenshot baseline showed it plainly
+  and the defect had been recorded in 3B.6 since the suite's first run.
+- **The fix inverts the order and removes the guess.** The block under the photograph is now
+  `egui::Panel::bottom("cull_foot")` with `.exact_size(cull_foot_height(…))`, claimed *before* the canvas; the canvas
+  is then allocated out of `ui.available_height()`, so there is no window height at which the two can overlap — the
+  photograph gives way, never the controls. `cull_foot_height` is arithmetic over rows of fixed height (the up-next
+  strip 56, a `interact_size.y` row for the decisions, the keyword band, a row for the field, a line for the spoken
+  status); only the band and the staged sentence are conditional, and both conditions — does the photo on screen carry
+  keywords, is anything staged — are known *before* the block is laid out. The live line's height is a galley
+  measured from the font it is painted with, so a taller face cannot push the field out. This is the same discipline
+  as `sidebar_foot_height`, and it needs no extra frame: an auto-sized panel is the thing that hangs below its own
+  clip on the first frame.
+- **The keyword band scrolls instead of growing, which is also the better behaviour.** Two chip rows, in a
+  `ScrollArea::vertical().min_scrolled_height(0.0)` — the fork's scroll area has a 64-point floor of its own, taller
+  than the band, and a band that ignored the height it was given pushed the field out of the panel on the first
+  attempt. The warrant is not only the height budget: an AI pass can leave sixty keywords on one frame, and a band
+  that grew with its content would resize the photograph every time the queue moved. Culling wants a still canvas.
+- **Two live lines became one, and that is a real fix rather than a saving.** `state.announce` was never cleared, so
+  after the first decision the announcement sat under the queue position for the rest of the session — saying the
+  same kind of thing twice and costing the photograph a row. The foot now paints `state.announce.take()` when there is
+  one and the queue position otherwise: the announcement is spoken in the frame it is made, and the position returns
+  behind it. Deciding happens after the strip has painted and before the band, so the queue never advances underneath
+  a row that is still being laid out.
+- **The test is the arithmetic's audit, and it fails on the old layout.** `the_cull_foot_stays_above_the_bottom_bar_at_nine_hundred_points`
+  paints the real shell at 1440×900 with a live session and two keywords on screen, then: (1) every cull text whose
+  rect starts in the column must be *visible* — its rect intersected with the clip rect it carries — and end above the
+  bottom bar, with the live line and the `sea`/`portrait` chips and the `Add` button all on screen (on the old layout
+  the live line was below the fold and the field's own glyphs were clipped); (2) the photograph still has room to
+  itself (the canvas rect, found as the largest rectangle filled with the thumbnail well's colour, is over 300 points
+  tall), so a "fix" that reserved the whole column for controls fails; (3) sixty keywords paint the canvas at exactly
+  the height two did, the last chip is *not* visible, and a wheel over the band brings it into view across the frames
+  smooth scrolling eases through — so the band is a scroll and not a clip. Non-vacuity was checked by shrinking the
+  panel by 40 points: the test then fails on the live line, exactly where the old code failed.
+- **Visual verification**: `cull-charcoal` and `cull-paper` regenerated and read — `Up next` with its four cells, the
+  decisions and the four export/apply buttons, the `sea ×` chip, `Add keyword to this …` with its `Add` button and
+  `Photo 1 of 12` are all inside the column with clear space above the bottom bar, and the photograph is ~40 points
+  shorter, which is the room the field had been hiding in. `places-charcoal`/`-paper` were re-painted in the same run
+  for a reason that is not this slice: they had been committed with the status line one point off what this machine
+  paints (a rounding difference, visible as a 1-point vertical shift of the credit line plus scattered subpixel AA)
+  and `places-charcoal` was already failing `cargo xtask screenshots` on `HEAD` before this change. All other baselines
+  are byte-identical.
+- Files: `crates/ui/src/shell.rs` (`cull_view`'s foot panel, `cull_foot_height`, `cull_chip_band`, `CULL_UP_NEXT`,
+  `CULL_CHIP_ROWS`, the keyword band's scroll area, one merged live line, one new test),
+  `crates/ui/tests/snapshots/cull-{charcoal,paper}.png` and `places-{charcoal,paper}.png` (regenerated), and the
+  reconciled `docs/UX.md` §5.5 + `docs/ROADMAP.md` (3B.6 (f) ticked; (g) left open in its own row rather than folded
+  into the ticked one).
+- Gates: `ci`, `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots` (16 scenes) all green; 129
+  `sortlens-ui` unit tests, the new one among them.
+- **Next**: 3B.6 (g), `←`/`→` as text in the keymap overlay's keycaps and the registry's `shortcut` strings, where no
+  bundled face has the glyph — a fix that has to touch `crates/ui/src/keymap.rs`, `crates/engine/src/command.rs` and
+  the CLI goldens together. Phase 4 items 16–18 after it.
+
 ## 2026-11-23 (forty-second) — Phase 3B.6 part 7: the canvas header keeps its name whole
 
 - **The defect was a layout that could not refuse.** The header was one `ui.horizontal` with the title and the live
@@ -3481,10 +3539,14 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     right-aligned sort combo at 900 px with both docks open — **done 2026-11-23**, see the forty-second entry: one
     `Sides::shrink_left` row that measures the controls first, a count that steps aside when it will not fit, chips
     offered only above 430 points, a 401-width sweep that fails at 900 on the old layout, and two new
-    `narrow-canvas-*` baselines at 900×620 read. **(f) is the exact next slice**: the cull keyword row clips under
-    the bottom bar at 900 px. Then (g): `←`/`→` are still text in the keymap overlay and the registry's `shortcut`
-    strings, where the bundled faces have no glyph. A fix here is a regenerated baseline that is read, not a claim;
-    (f)–(g) were each *observed*, so each one is "the baseline is clean and the geometry test says so" or it is not
+    `narrow-canvas-*` baselines at 900×620 read. (f) the cull keyword row clipped under the bottom bar at 900 px —
+    **done 2026-11-23**, see the forty-third entry: the block under the photograph is a `Panel::bottom` with an exact
+    height claimed before the canvas, `cull_foot_height` is arithmetic over fixed-height rows with a measured live
+    line, the keyword band is two chip rows that scrolls so sixty keywords cannot resize the photograph, the two live
+    lines became one, and a test at 1440×900 asserts every cull text is visible inside the column and above the bar.
+    **(g) is the exact next slice**: `←`/`→` are still text in the keymap overlay's keycaps and the registry's
+    `shortcut` strings, where the bundled faces have no glyph. A fix here is a regenerated baseline that is read,
+    not a claim; (g) was *observed*, so it is "the baseline is clean and the geometry test says so" or it is not
     done.
 
 **Phase 4 — platform, keymap, remote**

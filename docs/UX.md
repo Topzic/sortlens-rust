@@ -318,7 +318,10 @@ only signal.
 - Right panel stays available (Tags/Suggestions), so culling and keywording are one pass.
 - Inline keyword strip under the action bar: chips for the keywords the photo on screen carries (click
   takes one off) and a field that adds one with Enter. While the field is focused it owns the keys, so
-  P and T type letters rather than decide.
+  P and T type letters rather than decide. The strip is the last block of the view and it is claimed as an
+  exact height *before* the photograph is allocated, so the field can never be pushed under the bottom bar;
+  the chip band is two rows high and scrolls, so a frame the AI pass tagged with sixty keywords takes the
+  same room as one with two and the photograph does not change size as the queue moves
 - `T` applies the keyword you last added — to the selection in the library, to the photo on screen in
   a cull session — so a look gets one name typed once and then a key per photo. The notice names the
   keyword — "Tagged 5 photos" would leave you guessing what was written.

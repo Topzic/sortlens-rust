@@ -1182,9 +1182,30 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   chips absent at 900 and present at 1300, so a header that dropped them everywhere fails as loudly as one that
   kept them in a row they do not fit. `narrow-canvas-charcoal`/`-paper` at 900×620 with both docks open added and
   read; every other baseline is unchanged, because at 1440 the same header still shows all four
-- [ ] 3B.6 (f)–(g) The remaining visual defects (B): the cull keyword row clips under the bottom bar at 900 px; and
-  `←`/`→` are still used as text in the keymap overlay and the command registry's `shortcut` strings, where the
-  bundled faces have no glyph
+- [x] 3B.6 (f) The cull foot no longer clips under the bottom bar — **shipped 2026-11-23 (part 8)**: the canvas
+  was sized from the window with a guessed allowance (`strip_height` + `action_height` + 16) for what followed it,
+  so at 1440×900 the keyword field — the control that adds a keyword while the same photograph is being judged —
+  was painted under the bottom bar, partially clipped, and the live line below it was not painted at all. The block
+  under the photograph is now a `Panel::bottom("cull_foot")` of an **exact** height claimed *before* the canvas, and
+  the canvas is allocated out of what is left, so no window height can make the two overlap. `cull_foot_height` is
+  arithmetic over fixed-height rows (the up-next strip, the four decisions, the keyword band, the field, the live
+  line) with only the band and the staged sentence conditional, and the condition — does the photo on screen carry
+  keywords, is anything staged — is known before the block is laid out; the live line's height is a galley measured
+  from the face it is painted with. The keyword band is two chip rows and scrolls (`min_scrolled_height(0.0)`,
+  because the scroll area's own 64-point floor is taller than the band), so an AI pass that leaves sixty keywords on
+  a frame cannot resize the photograph as the queue moves. The two live lines became one: the announcement replaces
+  the queue position for the frame it is spoken and is then consumed, rather than sitting under the status line
+  forever and costing the photograph another row. Tests: `the_cull_foot_stays_above_the_bottom_bar_at_nine_hundred_points`
+  paints the real shell at 1440×900 and asserts every cull text is visible *inside* the column (rect ∩ its own clip)
+  and ends above the bottom bar, that the live line and the keyword field are on screen, that the canvas is still over
+  300 points tall, and that sixty keywords paint the canvas at exactly the height two did while the last chip is
+  reachable only after a wheel over the band. It fails on the old arithmetic (verified by shrinking the panel by 40
+  points: the live line falls out of the column). `cull-charcoal`/`cull-paper` regenerated and read — the full strip,
+  the decisions, the chip band, the field and `Photo 1 of 12` are all above the bar; the photograph is ~40 points
+  smaller, which is the room the field was hiding in
+- [ ] 3B.6 (g) `←`/`→` are still used as text in the keymap overlay's keycaps and the command registry's `shortcut`
+  strings, where the bundled faces have no glyph — the detail footer was fixed in 3A and these two were left, because
+  they are cross-checked against each other and against the CLI goldens and were not part of that slice
 - [x] 3B.6 (h) The filter strip's `N shown` summary no longer lands on a chip — **shipped 2026-11-23 (part 6)**:
   the count was the wrapped row's last child, and a wrapped layout hands its last child the row's whole width, so a
   right-aligned label there was laid out from the wrap cursor and drawn underneath `Clear` (visible in the

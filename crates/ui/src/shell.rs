@@ -5463,6 +5463,46 @@ pub fn overlay_phase(elapsed_ms: f32, motion: Motion) -> Phase {
     }
 }
 
+/// The up-next strip under the canvas: four thumbnail cells, which is the tallest row in the foot.
+const CULL_UP_NEXT: f32 = 56.0;
+
+/// The keyword band under the decisions, in chip rows.
+///
+/// Two, not as many as the keywords need: an AI pass can leave thirty on one frame, and a band that grew with
+/// its content would resize the photograph on screen every time the queue moved.
+const CULL_CHIP_ROWS: f32 = 2.0;
+
+/// The room a wrapping band of `CULL_CHIP_ROWS` chip rows takes, gaps between the rows included.
+fn cull_chip_band(spacing: &egui::style::Spacing) -> f32 {
+    CULL_CHIP_ROWS * spacing.interact_size.y + (CULL_CHIP_ROWS - 1.0) * spacing.item_spacing.y
+}
+
+/// The exact height of the block under the cull canvas.
+///
+/// Arithmetic rather than a measurement, because the canvas above it is allocated first and a `Ui` only learns
+/// a child's height *after* laying it out. Every row here is a fixed height, so the sum is the truth and not an
+/// estimate: the up-next strip, the four decisions, the keyword band and field, and the spoken line. The band
+/// and the staged sentence are conditional, and both conditions are known before the block is laid out.
+///
+/// `line` is a galley height measured by the caller from the font it will paint with, so a face with a taller
+/// line cannot push the field under the bottom bar. `the_cull_foot_stays_above_the_bottom_bar_at_nine_hundred_points`
+/// fails if this arithmetic and the rows it describes ever disagree.
+fn cull_foot_height(spacing: &egui::style::Spacing, line: f32, tags: bool, staged: bool) -> f32 {
+    let gap = spacing.item_spacing.y;
+    let row = spacing.interact_size.y;
+    let mut height = gap; // the breathing space between the photograph and the strip
+    height += CULL_UP_NEXT + gap + row; // what is queued next, then the four decisions
+    if tags {
+        height += gap + cull_chip_band(spacing);
+    }
+    height += gap + row; // the field that adds a keyword while the photo is on screen
+    height += gap + line; // the live line
+    if staged {
+        height += gap + line; // the sentence that says what Apply will do
+    }
+    height
+}
+
 fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     let snapshot = engine.cull().map(|session| {
         let queue = session.queue().to_vec();
@@ -5549,9 +5589,220 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     ui.painter().rect_filled(filled, t.corner(), t.accent);
     ui.add_space(8.0);
 
-    let strip_height = 84.0;
-    let action_height = 46.0;
-    let image_height = (ui.available_height() - strip_height - action_height - 16.0).max(160.0);
+    // The block under the photograph is claimed *before* the photograph, in a bottom panel of an exact
+    // height, and the canvas is allocated out of what is left. Before this the canvas was sized from the
+    // window with a guessed allowance for what followed it — and at 900 points the keyword field, the control
+    // that adds a keyword while the photo on screen is the one being judged, was painted under the bottom bar.
+    // There is now no height at which the two can meet: the photograph gives way, never the controls.
+    let line_height = ui
+        .painter()
+        .layout_no_wrap(
+            "Ag".to_string(),
+            egui::FontId::new(10.5, egui::FontFamily::Proportional),
+            t.text_muted,
+        )
+        .size()
+        .y;
+    let has_tags = current.and_then(|id| engine.photo(id)).is_some_and(|photo| !photo.tags.is_empty());
+    let foot_height = cull_foot_height(ui.spacing(), line_height, has_tags, summary.changed() > 0);
+    let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
+    let status_colour = match decision {
+        Decision::Pick => t.pick,
+        Decision::Reject => t.reject,
+        _ => t.text_muted,
+    };
+    let status = crate::a11y::cull_status(position, total, decision);
+
+    egui::Panel::bottom("cull_foot")
+        .resizable(false)
+        .exact_size(foot_height)
+        .frame(Frame::NONE)
+        .show(ui, |ui| {
+            ui.add_space(ui.spacing().item_spacing.y);
+            // Up next: the four photos behind the current one, for a jump without losing the queue.
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Up next").size(10.5).color(t.text_faint));
+                let mut jump = None;
+                for id in up_next {
+                    if let Some(photo) = engine.photo(id).cloned() {
+                        let (rect, response) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::click());
+                        crate::a11y::label_widget(
+                            ui,
+                            &response,
+                            egui::Role::Button,
+                            &format!("Jump to {}", crate::a11y::describe_photo(&photo)),
+                            false,
+                        );
+                        ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
+                        if let Some(texture) = thumbs.get(ui.ctx(), &photo, 160).cloned() {
+                            let uv = cover_uv(texture.size_vec2(), rect.size());
+                            ui.painter().image(texture.id(), rect, uv, Color32::WHITE);
+                        }
+                        if response.clicked() {
+                            jump = Some(id);
+                        }
+                    }
+                }
+                if let Some(id) = jump {
+                    engine.cull_jump(id);
+                }
+                if summary.is_complete() {
+                    ui.label(RichText::new("Session complete").size(11.0).color(t.accent));
+                }
+            });
+
+            let mut decision_now = None;
+            ui.horizontal(|ui| {
+                let buttons = [
+                    ("Pick", Decision::Pick, t.pick, "P"),
+                    ("Reject", Decision::Reject, t.reject, "X"),
+                    ("Defer", Decision::Deferred, t.text_muted, "Space"),
+                    ("Clear", Decision::Unjudged, t.text_faint, "U"),
+                ];
+                for (label, choice, colour, key) in buttons {
+                    let text = RichText::new(format!("{label}  {key}")).size(11.5).color(colour);
+                    let button = Button::new(text)
+                        .fill(t.card)
+                        .stroke(Stroke::new(1.0, t.border))
+                        .corner_radius(t.corner());
+                    if ui.add(button).clicked() {
+                        decision_now = Some(choice);
+                    }
+                }
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui
+                        .add_enabled(summary.rejects > 0, Button::new(RichText::new("Apply rejects…").size(11.5)))
+                        .on_disabled_hover_text("Reject a photo first; picks and defers need no apply")
+                        .clicked()
+                    {
+                        state.apply_open = true;
+                    }
+                    if ui
+                        .add_enabled(summary.picks > 0, Button::new(RichText::new("Move picks…").size(11.5)))
+                        .on_disabled_hover_text("Pick a photo first")
+                        .on_hover_text("Move the picks into a folder; keeps every rating and keyword")
+                        .clicked()
+                    {
+                        let picks = engine.cull().map(|session| session.picks()).unwrap_or_default();
+                        actions.push(Action::MovePicks(picks));
+                    }
+                    if ui
+                        .add_enabled(summary.picks > 0, Button::new(RichText::new("Export picks…").size(11.5)))
+                        .on_disabled_hover_text("Pick a photo first")
+                        .on_hover_text("Write the picks into a folder; the originals are not touched")
+                        .clicked()
+                    {
+                        state.export_ids = engine.cull().map(|session| session.picks()).unwrap_or_default();
+                        state.export_open = true;
+                    }
+                    if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
+                        engine.cull_back();
+                    }
+                });
+            });
+            // Inline tagging (SL-C11): the photo on screen can be keyworded without leaving the cull loop.
+            // Chips show what it already carries and come off with a click; the field adds one, so deciding
+            // and keywording both happen while the same photo is on screen. Focused here, the field owns the
+            // keys: keyboard() stands down while any widget has focus, so P and T type letters, not decisions.
+            if let Some(id) = current
+                && let Some(photo) = engine.photo(id).cloned()
+            {
+                let mut remove = None;
+                // The band is two chip rows high and it scrolls, so the photograph above it keeps the same size
+                // whether the frame on screen carries one keyword or the thirty an AI pass can leave on it. A band
+                // that grew with its content would resize the photograph every time the queue moved.
+                if !photo.tags.is_empty() {
+                    egui::ScrollArea::vertical()
+                        .id_salt("cull_keywords")
+                        .max_height(cull_chip_band(ui.spacing()))
+                        // The scroll area's own floor is 64 points, taller than the band: a band that ignored the
+                        // height it was given would push the field below it out of the panel.
+                        .min_scrolled_height(0.0)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                for tag in &photo.tags {
+                                    let chip = Button::new(RichText::new(format!("{tag}  ×")).size(11.0).color(t.text))
+                                        .fill(t.card)
+                                        .stroke(Stroke::new(1.0, t.border))
+                                        .corner_radius(t.corner());
+                                    if ui.add(chip).on_hover_text("Remove keyword from this photo").clicked() {
+                                        remove = Some(tag.clone());
+                                    }
+                                }
+                            });
+                        });
+                }
+                ui.horizontal(|ui| {
+                    let field = ui.add(
+                        TextEdit::singleline(&mut state.cull_tag_input)
+                            .id(egui::Id::unique("cull-tag-field"))
+                            .hint_text("Add keyword to this photo")
+                            .desired_width(150.0)
+                            .font(egui::TextStyle::Small),
+                    );
+                    if state.cull_tag_focus {
+                        field.request_focus();
+                        state.cull_tag_focus = false;
+                    }
+                    let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
+                    let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
+                    if (entered || clicked) && !state.cull_tag_input.trim().is_empty() {
+                        let tag = state.cull_tag_input.trim().to_string();
+                        match engine.set_tag(&[photo.id], &tag, true) {
+                            Ok(0) => state.notice("That keyword is already on this photo"),
+                            Ok(_) => {
+                                state.notice(format!("Tagged \u{201c}{}\u{201d}", tag.to_lowercase()));
+                                state.cull_tag_input.clear();
+                            }
+                            Err(error) => state.notice_problem(error.to_string()),
+                        }
+                    }
+                });
+                if let Some(tag) = remove {
+                    match engine.set_tag(&[photo.id], &tag, false) {
+                        Ok(_) => state.notice(format!("Removed keyword {tag}")),
+                        Err(error) => state.notice_problem(error.to_string()),
+                    }
+                }
+            }
+
+            // The session moves on after the strip above has painted the photograph it was about. Deciding later
+            // than this would leave the photograph and the chips disagreeing about which frame is on screen for a
+            // frame; deciding earlier would advance the queue underneath a row that is still being laid out.
+            if let Some(choice) = decision_now {
+                engine.cull_decide(choice);
+                let left = engine.cull().map(|session| session.summary().unjudged).unwrap_or_default();
+                state.announce = Some(crate::a11y::decision_sentence(choice, left));
+            }
+
+            // Spoken feedback: the queue position, and what just happened when something did. Assistive technology
+            // reads this politely, so it never interrupts anything else being read. One line rather than two: the
+            // announcement has replaced the position for this frame, and a second line said the same thing twice
+            // while costing the photograph above it another row.
+            let (spoken, colour) = match state.announce.take() {
+                Some(said) => (said, t.text_muted),
+                None => (status, status_colour),
+            };
+            crate::a11y::live_line(ui, &spoken, colour);
+
+            if summary.changed() > 0 {
+                ui.label(
+                    RichText::new(format!(
+                        "{} photos staged. {} Apply to record the decisions — you can undo it as one step.",
+                        summary.changed(),
+                        state.delete_mode.label().to_lowercase()
+                    ))
+                    .size(10.5)
+                    .color(t.text_faint),
+                );
+            }
+        });
+
+    // The canvas takes the room the block below it did not claim. No floor on it: the app's own minimum window
+    // leaves the photograph over 200 points at 560 high, and a floor is exactly what would push the strip back
+    // under the bottom bar at a size nobody measured.
+    let image_height = ui.available_height().max(1.0);
     let (area, area_response) = ui.allocate_exact_size(vec2(ui.available_width(), image_height), Sense::drag());
 
     let fitted_size = fitted_size(area, current.and_then(|id| engine.photo(id)));
@@ -5655,178 +5906,6 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             // Keep animating: without this the overlay would freeze at whatever phase the next input caused.
             ui.ctx().request_repaint();
         }
-    }
-
-    ui.add_space(6.0);
-    // Up next: the four photos behind the current one, for a jump without losing the queue.
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Up next").size(10.5).color(t.text_faint));
-        let mut jump = None;
-        for id in up_next {
-            if let Some(photo) = engine.photo(id).cloned() {
-                let (rect, response) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::click());
-                crate::a11y::label_widget(
-                    ui,
-                    &response,
-                    egui::Role::Button,
-                    &format!("Jump to {}", crate::a11y::describe_photo(&photo)),
-                    false,
-                );
-                ui.painter().rect_filled(rect, t.corner(), t.thumb_bg);
-                if let Some(texture) = thumbs.get(ui.ctx(), &photo, 160).cloned() {
-                    let uv = cover_uv(texture.size_vec2(), rect.size());
-                    ui.painter().image(texture.id(), rect, uv, Color32::WHITE);
-                }
-                if response.clicked() {
-                    jump = Some(id);
-                }
-            }
-        }
-        if let Some(id) = jump {
-            engine.cull_jump(id);
-        }
-        if summary.is_complete() {
-            ui.label(RichText::new("Session complete").size(11.0).color(t.accent));
-        }
-    });
-
-    ui.add_space(4.0);
-
-    let mut decision_now = None;
-    ui.horizontal(|ui| {
-        let buttons = [
-            ("Pick", Decision::Pick, t.pick, "P"),
-            ("Reject", Decision::Reject, t.reject, "X"),
-            ("Defer", Decision::Deferred, t.text_muted, "Space"),
-            ("Clear", Decision::Unjudged, t.text_faint, "U"),
-        ];
-        for (label, choice, colour, key) in buttons {
-            let text = RichText::new(format!("{label}  {key}")).size(11.5).color(colour);
-            let button = Button::new(text)
-                .fill(t.card)
-                .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(t.corner());
-            if ui.add(button).clicked() {
-                decision_now = Some(choice);
-            }
-        }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui
-                .add_enabled(summary.rejects > 0, Button::new(RichText::new("Apply rejects…").size(11.5)))
-                .on_disabled_hover_text("Reject a photo first; picks and defers need no apply")
-                .clicked()
-            {
-                state.apply_open = true;
-            }
-            if ui
-                .add_enabled(summary.picks > 0, Button::new(RichText::new("Move picks…").size(11.5)))
-                .on_disabled_hover_text("Pick a photo first")
-                .on_hover_text("Move the picks into a folder; keeps every rating and keyword")
-                .clicked()
-            {
-                let picks = engine.cull().map(|session| session.picks()).unwrap_or_default();
-                actions.push(Action::MovePicks(picks));
-            }
-            if ui
-                .add_enabled(summary.picks > 0, Button::new(RichText::new("Export picks…").size(11.5)))
-                .on_disabled_hover_text("Pick a photo first")
-                .on_hover_text("Write the picks into a folder; the originals are not touched")
-                .clicked()
-            {
-                state.export_ids = engine.cull().map(|session| session.picks()).unwrap_or_default();
-                state.export_open = true;
-            }
-            if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
-                engine.cull_back();
-            }
-        });
-    });
-    // Inline tagging (SL-C11): the photo on screen can be keyworded without leaving the cull loop.
-    // Chips show what it already carries and come off with a click; the field adds one, so deciding
-    // and keywording both happen while the same photo is on screen. Focused here, the field owns the
-    // keys: keyboard() stands down while any widget has focus, so P and T type letters, not decisions.
-    if let Some(id) = current
-        && let Some(photo) = engine.photo(id).cloned()
-    {
-        ui.add_space(6.0);
-        let mut remove = None;
-        if !photo.tags.is_empty() {
-            ui.horizontal_wrapped(|ui| {
-                for tag in &photo.tags {
-                    let chip = Button::new(RichText::new(format!("{tag}  ×")).size(11.0).color(t.text))
-                        .fill(t.card)
-                        .stroke(Stroke::new(1.0, t.border))
-                        .corner_radius(t.corner());
-                    if ui.add(chip).on_hover_text("Remove keyword from this photo").clicked() {
-                        remove = Some(tag.clone());
-                    }
-                }
-            });
-        }
-        ui.horizontal(|ui| {
-            let field = ui.add(
-                TextEdit::singleline(&mut state.cull_tag_input)
-                    .id(egui::Id::unique("cull-tag-field"))
-                    .hint_text("Add keyword to this photo")
-                    .desired_width(150.0)
-                    .font(egui::TextStyle::Small),
-            );
-            if state.cull_tag_focus {
-                field.request_focus();
-                state.cull_tag_focus = false;
-            }
-            let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
-            let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
-            if (entered || clicked) && !state.cull_tag_input.trim().is_empty() {
-                let tag = state.cull_tag_input.trim().to_string();
-                match engine.set_tag(&[photo.id], &tag, true) {
-                    Ok(0) => state.notice("That keyword is already on this photo"),
-                    Ok(_) => {
-                        state.notice(format!("Tagged \u{201c}{}\u{201d}", tag.to_lowercase()));
-                        state.cull_tag_input.clear();
-                    }
-                    Err(error) => state.notice_problem(error.to_string()),
-                }
-            }
-        });
-        if let Some(tag) = remove {
-            match engine.set_tag(&[photo.id], &tag, false) {
-                Ok(_) => state.notice(format!("Removed keyword {tag}")),
-                Err(error) => state.notice_problem(error.to_string()),
-            }
-        }
-    }
-
-    // Spoken feedback: the queue position and what the photo now carries. Assistive technology
-    // reads this politely, so it never interrupts anything else being read.
-    let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
-    let status_colour = match decision {
-        Decision::Pick => t.pick,
-        Decision::Reject => t.reject,
-        _ => t.text_muted,
-    };
-    crate::a11y::live_line(ui, &crate::a11y::cull_status(position, total, decision), status_colour);
-
-    if let Some(choice) = decision_now {
-        engine.cull_decide(choice);
-        let left = engine.cull().map(|session| session.summary().unjudged).unwrap_or_default();
-        state.announce = Some(crate::a11y::decision_sentence(choice, left));
-    }
-    if let Some(said) = state.announce.clone() {
-        crate::a11y::live_line(ui, &said, t.text_muted);
-    }
-    if summary.changed() > 0 {
-        ui.add_space(4.0);
-
-        ui.label(
-            RichText::new(format!(
-                "{} photos staged. {} Apply to record the decisions — you can undo it as one step.",
-                summary.changed(),
-                state.delete_mode.label().to_lowercase()
-            ))
-            .size(10.5)
-            .color(t.text_faint),
-        );
     }
 }
 
@@ -10407,6 +10486,217 @@ mod tests {
                     && text.galley.rect.translate(text.pos.to_vec2()).min.x > 260.0)
         });
         assert!(!still_painted, "the removed keyword has no chip left");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The block under the cull canvas stays above the bottom bar, and the photograph gives way to it.
+    ///
+    /// At 1440×900 the canvas used to be sized from the window with a guessed allowance for what followed it, so
+    /// the keyword field — the control that adds a keyword while the same photo is being judged — was painted
+    /// under the bottom bar and the live line below it was not painted at all. The foot is now claimed first, in a
+    /// panel of an exact height, and the canvas takes the remainder; this test is the arithmetic's own audit.
+    ///
+    /// Three assertions, because there are three ways to be wrong:
+    /// 1. every cull row is *visible* (its painted rect intersected with the clip rect it carries) and ends above
+    ///    the bottom bar — a foot that ran past it fails here;
+    /// 2. the canvas is still a photograph, not a sliver, so a fix that reserved the whole window for controls
+    ///    would fail rather than pass by having nothing left to clip;
+    /// 3. the keyword band does not resize the photograph: two keywords and twelve paint the canvas at exactly
+    ///    the same height, and the twelfth is reachable by scrolling the band rather than clipped away.
+    #[test]
+    fn the_cull_foot_stays_above_the_bottom_bar_at_nine_hundred_points() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-cull-foot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-cull-foot");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40 * index as u8, 90, 150], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3, "three photos indexed");
+        engine.begin_cull(&ids).expect("a cull session starts");
+        // The frame on screen carries two keywords, so the band is painted and the field is not the only row
+        // between the decisions and the live line.
+        let first = engine.cull().and_then(|session| session.current()).expect("a photo on screen");
+        engine.set_tag(&[first], "sea", true).expect("tag");
+        engine.set_tag(&[first], "portrait", true).expect("tag");
+
+        let t = ThemeKind::Charcoal.tokens();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.view = View::Cull;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1440.0, 900.0));
+        let mut frame = |state: &mut UiState, events: Vec<egui::Event>| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    events,
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            output
+        };
+
+        // A painted rect is as visible as the intersection with its own clip: a row the panel pushed past its
+        // own edge is still in the display list, and whether a person can see it is the two intersected.
+        fn visible(rect: Rect, clip: Rect) -> Option<Rect> {
+            let hit = clip.intersect(rect);
+            (hit.width() > 0.5 && hit.height() > 0.5).then_some(hit)
+        }
+        fn texts(output: &egui::FullOutput) -> Vec<(String, Rect, Rect)> {
+            fn walk(shape: &egui::Shape, clip: Rect, sink: &mut Vec<(String, Rect, Rect)>) {
+                match shape {
+                    egui::Shape::Text(text) => {
+                        sink.push((text.galley.job.text.clone(), text.visual_bounding_rect(), clip));
+                    }
+                    egui::Shape::Vec(shapes) => {
+                        for shape in shapes {
+                            walk(shape, clip, sink);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, clipped.clip_rect, &mut sink);
+            }
+            sink
+        }
+        /// The photograph's own rect: the largest rectangle filled with the thumbnail well's colour.
+        fn canvas_area(output: &egui::FullOutput, well: egui::Color32) -> Rect {
+            output
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Rect(shape) if shape.brush.is_none() && shape.fill == well => Some(shape.rect),
+                    _ => None,
+                })
+                .max_by(|a, b| (a.width() * a.height()).total_cmp(&(b.width() * b.height())))
+                .expect("the canvas paints its own well")
+        }
+
+        let column_bottom = screen.bottom() - t.bottom_bar_h;
+        let column = Rect::from_min_max(pos2(t.left_w, 0.0), pos2(screen.right() - t.right_w, column_bottom));
+        let output = frame(&mut state, Vec::new());
+        let painted = texts(&output);
+
+        // 1. Nothing in the cull column is painted into the bottom bar's band, and the live line — the last row
+        // of the foot — is not merely present but visible in the column. On the old layout it was below the fold.
+        for (text, rect, clip) in &painted {
+            if rect.center().x < column.min.x || rect.center().x > column.max.x || rect.min.y > column_bottom {
+                continue;
+            }
+            if let Some(hit) = visible(*rect, *clip) {
+                assert!(
+                    hit.max.y <= column_bottom + 0.5,
+                    "`{text}` is visible at {hit:?}, inside the bottom bar's band (ends at {column_bottom})"
+                );
+            }
+        }
+        let live = painted
+            .iter()
+            .find(|(text, rect, clip)| {
+                text.starts_with("Photo 1 of 3") && visible(*rect, *clip).is_some_and(|hit| column.contains_rect(hit))
+            })
+            .expect("the live line under the keyword field is on screen, not under the bottom bar");
+        assert!(
+            visible(live.1, live.2).expect("visible").max.y < column_bottom,
+            "the live line ends above the bottom bar"
+        );
+        // The keyword field and the two chips are in the same foot, so the field that adds a keyword is on
+        // screen in the same frame the chip that removes one is.
+        for label in ["sea  ×", "portrait  ×", "Add"] {
+            assert!(
+                painted
+                    .iter()
+                    .any(|(text, rect, clip)| text == label && visible(*rect, *clip).is_some_and(|hit| column.contains_rect(hit))),
+                "`{label}` is visible in the cull column; painted: {painted:?}"
+            );
+        }
+
+        // 2. The photograph still has the room to itself: the canvas is most of what is left above the foot.
+        let area = canvas_area(&output, t.thumb_bg);
+        assert!(
+            area.height() > 300.0,
+            "the canvas is a photograph, not a sliver: {area:?} of a {column_bottom}-point column"
+        );
+
+        // 3. Sixty keywords paint the same canvas as two, and the ones past the band's two rows are reachable.
+        let band_first = painted
+            .iter()
+            .find_map(|(text, rect, clip)| (text == "sea  ×").then(|| visible(*rect, *clip)).flatten())
+            .expect("the first chip is visible");
+        let crowded: Vec<String> = (1..=60).map(|n| format!("kw{n:02}")).collect();
+        for tag in &crowded {
+            engine_cell.borrow_mut().set_tag(&[first], tag, true).expect("tag");
+        }
+        let output = frame(&mut state, Vec::new());
+        let crowded_area = canvas_area(&output, t.thumb_bg);
+        assert_eq!(crowded_area, area, "sixty keywords leave the photograph exactly where two did");
+        let painted = texts(&output);
+        let hidden = |name: &str, painted: &[(String, Rect, Rect)]| {
+            !painted
+                .iter()
+                .any(|(text, rect, clip)| text == name && visible(*rect, *clip).is_some_and(|hit| column.contains_rect(hit)))
+        };
+        assert!(
+            hidden("kw60  ×", &painted),
+            "the last chip starts below the band's two rows, so the band is a scroll and not a no-op"
+        );
+        // The wheel over the band brings it up: the rows past the fold are reachable rather than clipped away.
+        let at = band_first.center();
+        let mut output = frame(
+            &mut state,
+            vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -240.0),
+                    modifiers: egui::Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                },
+            ],
+        );
+        // Smooth scrolling eases towards its target over a few frames, so one wheel event is not a promise that
+        // the band has arrived; the frame that is read is the one after it has settled.
+        for _ in 0..12 {
+            output = frame(&mut state, Vec::new());
+        }
+        let painted = texts(&output);
+        assert!(
+            !hidden("kw60  ×", &painted),
+            "the wheel over the keyword band brings the last chip into view"
+        );
+        assert_eq!(
+            engine_cell.borrow().cull().and_then(|session| session.current()),
+            Some(first),
+            "nothing was decided by scrolling"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
