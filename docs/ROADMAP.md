@@ -1032,8 +1032,8 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 - [x] 3A. `egui_kittest` screenshot suite behind `cargo xtask screenshots`: Empty Welcome, Library (Justified and
   Square), Cull, Detail, Compare, Similar, Places, Insights, each in Charcoal and Paper, with committed or
   cleanly emitted baselines (B) — shipped 2026-11-23: `crates/ui/tests/screenshots.rs` paints the real shell
-  inside an `eframe::App` at 1440×900 (ppp 1.0) through the same egui fork, and 18 baselines live under
-  `crates/ui/tests/snapshots/`, diffed by `egui_kittest` with the tolerance in `kittest.toml`. The harness is
+  inside an `eframe::App` at 1440×900 (ppp 1.0) through the same egui fork, and 18 baselines lived under
+  `crates/ui/tests/snapshots/` at that time (31 after the later Phase 3 slices), diffed by `egui_kittest` with the tolerance in `kittest.toml`. The harness is
   a `sortlens-ui` feature no app links (it needs a GPU; `cargo xtask ci` stays headless) and `--update` is the
   rewrite path. It found and this commit fixed two defects: the sort dropdown had no accessible name (the
   suite's AccessKit check fails an unnamed control) and the detail footer painted `←`/`→`, which no bundled
@@ -1125,6 +1125,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   paints the label's own swatch instead of a droplet, the flag chip wears the state's own glyph, and the keyword
   menu carries a chevron; the row wraps instead of pushing `Clear` past the canvas edge. Two `run_ui` tests and a
   `filters-charcoal`/`-paper` baseline pair at 1200 px, regenerated and read
+- [x] 3B.6 (b') The canvas under a filter that hides every photograph — **shipped 2026-11-23 (part 3)**: the
+  empty canvas is decided by a four-way `canvas_empty` whose gate splits the catalog's total from the filtered
+  count, so a narrowed-to-nothing library paints "Nothing matches these filters", the library's own count and one
+  `Clear filters` button (which clears the search text and forgets the folder scope, exactly what the header's
+  `N active` badge counts) instead of "Welcome to Sortlens / Add Folder…". The same call fixed `Not now`: the old
+  `unwrap_or(Welcome::Add)` painted the wizard again the frame after it was dismissed. A `run_ui` test drives both
+  halves with a real press (a zero-result filter shows the card and its button restores the grid; an actually-empty
+  catalog still paints the Welcome card and never claims a filter), a search-only query is covered too, and a
+  `no-matches-charcoal`/`-paper` baseline pair at 1200 px was regenerated and read
 - [ ] 3B.6 (c)–(g) The remaining visual defects (B): Places ships an offline coastline basemap and falls back to the
   user's `tiles/` and `places.txt` when present, which also fixes Places opening at zoom 5 with both clusters
   off-screen (the baseline zooms to 3 to show the dots); at ~620 px of height the sidebar's pinned foot overlaps

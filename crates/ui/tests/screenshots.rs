@@ -527,6 +527,32 @@ fn the_filter_strip_paints_its_state_in_both_themes() {
     library.keep(engine);
 }
 
+/// A library filtered down to nothing: the screen that explains it, with the count and one way back.
+///
+/// Painted at 1200×800 with both docks open, the width at which the filter strip's own row has to wrap: the strip
+/// above says `Videos · 0 shown`, so the picture is the whole sentence — the question that was asked, the
+/// library's real size, and the single button that answers it. The Welcome card must not be in this baseline.
+#[test]
+fn a_filtered_to_nothing_library_explains_itself_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        // The fixture is twelve JPEGs, so a video-only view is zero of twelve — a real filter, not a fake one.
+        scene.state.kind_filter = Some(sortlens_core::MediaKind::Video);
+        assert_eq!(
+            scene.engine.count(&scene.state.filter()),
+            0,
+            "the baseline's scene really is filtered to nothing"
+        );
+        library.keep(shoot_at(
+            kind,
+            scene,
+            &format!("no-matches-{}", kind_id(kind)),
+            egui::vec2(1200.0, 800.0),
+        ));
+    }
+}
+
 /// A stable name fragment per preset, so a baseline file name does not depend on enum order.
 fn kind_id(kind: ThemeKind) -> &'static str {
     match kind {

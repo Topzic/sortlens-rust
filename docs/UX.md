@@ -397,6 +397,15 @@ Examples: no library → "Add a folder to begin. Your photos stay where they are
 folder]; empty filter → "No photos match these filters." with [Clear filters]; Cull done →
 "Session complete · 312 kept, 148 rejected" with [Apply decisions] [Review rejected].
 
+Shipped today: the first two exist, and they are different screens decided by different counts. An empty
+catalog is the Welcome card. A catalog with photographs and no answer from the filters is **"Nothing matches
+these filters"**, the library's own count in words ("12 photographs in this library, and the current filters
+exclude every one of them") and a single `Clear filters` button — because the old screen derived its stage from
+the filtered count, so narrowing to zero painted "Welcome to Sortlens" with an `Add Folder…` button, the one
+action that could not help. The button clears the search text with the rest, since a query that matches nothing
+is as much the reason for the screen as a star rating is. "Not now" dismisses the Welcome card and it stays
+dismissed; a hidden filter never does, because explaining itself is that screen's whole job.
+
 ---
 
 ## 6. Right panel

@@ -3166,7 +3166,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 }
                 View::Library => {
                     if total == 0 {
-                        empty_library(ui, t, state, engine, actions);
+                        empty_library(ui, t, state, engine, actions, total);
                     } else {
                         grid(ui, t, state, engine, thumbs, &filter, actions);
                     }
@@ -4263,51 +4263,87 @@ fn colour_chip(ui: &mut Ui, t: &Tokens, label: Option<sortlens_core::ColorLabel>
     response.on_hover_text("Only photos with this colour label — an empty ring means every colour")
 }
 
-/// Which step of the first-run wizard the library is on, if any.
+/// What the canvas says when it has no photographs to draw.
+///
+/// Three of these are the first-run wizard; `NoMatches` is not. A library that holds photographs and
+/// shows none of them is not a first launch, and telling that person to add a folder was an answer to a
+/// question they had not asked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Welcome {
-    /// No roots yet: the only useful action is adding a folder.
+pub enum Empty {
+    /// No roots yet, or a root that turned out to be empty: the only useful action is adding a folder.
     Add,
     /// A scan is running: show what has been found so far.
     Indexing,
-    /// The first scan finished and found something.
-    Ready,
+    /// The library holds photographs and the current filters exclude every one of them.
+    NoMatches { library: usize },
+    /// Nothing to say: the grid owns the canvas, or the wizard was dismissed.
+    Quiet,
 }
 
-/// Decide the step from what the library is doing.
+/// Decide what the empty canvas says, from what the library is doing and what the filters left.
 ///
-/// The wizard is derived every frame rather than remembered, so it cannot get stuck: once photos
-/// exist and nothing is scanning it is gone, whether or not anybody clicked anything.
-pub fn welcome_stage(roots: usize, scanning: bool, total: usize, dismissed: bool) -> Option<Welcome> {
-    if dismissed {
-        return None;
-    }
+/// Derived every frame rather than remembered, so it cannot get stuck: once photographs are shown the
+/// wizard is gone, whether or not anybody clicked anything. `dismissed` silences the *wizard* only — a
+/// filter that hides every photograph still explains itself, because that screen's whole job is to offer
+/// the way back.
+///
+/// The gate is deliberately split: `library` is the catalog's total and `shown` is the filtered count.
+/// Using the filtered count for both is what made a narrowed-to-nothing library look like a first launch.
+pub fn canvas_empty(roots: usize, scanning: bool, library: usize, shown: usize, dismissed: bool) -> Empty {
     if scanning {
-        return Some(Welcome::Indexing);
+        return if dismissed { Empty::Quiet } else { Empty::Indexing };
     }
-    if roots == 0 || total == 0 {
-        return Some(Welcome::Add);
+    if roots == 0 || library == 0 {
+        return if dismissed { Empty::Quiet } else { Empty::Add };
     }
-    None
+    if shown == 0 {
+        return Empty::NoMatches { library };
+    }
+    Empty::Quiet
 }
 
-fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
-    let stage = welcome_stage(
-        engine.roots().len(),
-        engine.is_scanning(),
-        engine.stats().total,
-        state.welcome_dismissed,
-    )
-    .unwrap_or(Welcome::Add);
+fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>, shown: usize) {
+    let roots = engine.roots().len();
+    let scanning = engine.is_scanning();
+    let library = engine.stats().total;
+    let stage = canvas_empty(roots, scanning, library, shown, state.welcome_dismissed);
     let height = ui.available_height();
     ui.allocate_ui_with_layout(vec2(ui.available_width(), height), Layout::top_down(Align::Center), |ui| {
         ui.add_space((height * 0.14).clamp(24.0, 140.0));
         match stage {
-            Welcome::Add => welcome_add(ui, t, state, actions),
-            Welcome::Indexing => welcome_indexing(ui, t, engine),
-            Welcome::Ready => {}
+            Empty::Add => welcome_add(ui, t, state, actions),
+            Empty::Indexing => welcome_indexing(ui, t, engine),
+            Empty::NoMatches { library } => empty_no_matches(ui, t, state, library),
+            Empty::Quiet => {}
         }
     });
+}
+
+/// The library has photographs; the filters have hidden all of them.
+///
+/// Not the Welcome card: nothing here is a first launch, and `Add Folder…` is the one action that would
+/// make it worse. The count is the library's own, so the screen says what the filters are costing, and
+/// the one button clears exactly what the header's `N active` badge counts — the search text included,
+/// because a query that matches nothing is as much a reason for this screen as a star rating is.
+fn empty_no_matches(ui: &mut Ui, t: &Tokens, state: &mut UiState, library: usize) {
+    ui.label(RichText::new("Nothing matches these filters").size(20.0).strong());
+    ui.add_space(6.0);
+    ui.label(
+        RichText::new(format!(
+            "{} {} in this library, and the current filters exclude every one of them.",
+            format_count(library as u64),
+            if library == 1 { "photograph" } else { "photographs" }
+        ))
+        .size(12.5)
+        .color(t.text_muted),
+    );
+    ui.add_space(14.0);
+    let clear = ui.add(Button::new(RichText::new("Clear filters").size(12.5)).min_size(vec2(130.0, 30.0)));
+    if clear.clicked() {
+        state.search.clear();
+        state.clear_filters();
+    }
+    clear.on_hover_text("Clears the search text and every filter, and forgets the folder scope");
 }
 
 /// The width of the Welcome rows' glyph column: one 14-point glyph plus its gap.
@@ -8511,18 +8547,25 @@ mod tests {
     }
 
     #[test]
-    fn the_welcome_wizard_follows_what_the_library_is_doing() {
+    fn the_empty_canvas_follows_what_the_library_is_doing() {
         // Nothing added yet: the only useful step is adding a folder.
-        assert_eq!(welcome_stage(0, false, 0, false), Some(Welcome::Add));
+        assert_eq!(canvas_empty(0, false, 0, 0, false), Empty::Add);
         // A root that turned out to be empty is the same situation.
-        assert_eq!(welcome_stage(1, false, 0, false), Some(Welcome::Add));
+        assert_eq!(canvas_empty(1, false, 0, 0, false), Empty::Add);
         // Scanning wins, even with photos already indexed elsewhere.
-        assert_eq!(welcome_stage(1, true, 40, false), Some(Welcome::Indexing));
+        assert_eq!(canvas_empty(1, true, 40, 0, false), Empty::Indexing);
         // Photos, no scan: the grid takes over and the wizard is gone.
-        assert_eq!(welcome_stage(1, false, 12, false), None);
+        assert_eq!(canvas_empty(1, false, 12, 12, false), Empty::Quiet);
         // Dismissed stays dismissed whatever else happens.
-        assert_eq!(welcome_stage(0, false, 0, true), None);
-        assert_eq!(welcome_stage(1, true, 0, true), None);
+        assert_eq!(canvas_empty(0, false, 0, 0, true), Empty::Quiet);
+        assert_eq!(canvas_empty(1, true, 0, 0, true), Empty::Quiet);
+        // A library that exists and a filter that hides all of it is neither a first launch nor silence:
+        // the screen names the count and offers the way back, and being dismissed does not silence it.
+        assert_eq!(canvas_empty(1, false, 12, 0, false), Empty::NoMatches { library: 12 });
+        assert_eq!(canvas_empty(1, false, 12, 0, true), Empty::NoMatches { library: 12 });
+        // Dismissed over an empty library stays quiet rather than falling back to the wizard: the old
+        // `unwrap_or(Welcome::Add)` made `Not now` a button that visibly did nothing.
+        assert_eq!(canvas_empty(1, false, 0, 0, true), Empty::Quiet);
     }
 
     /// The three Welcome promises start with the icon set's own glyphs, aligned in one column.
@@ -12041,7 +12084,107 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The strip's state is pictures: lit stars, the label's own colour, the state's own flag, a chevron.
+    /// A filter that hides every photograph gets its own screen, not the Welcome card.
+    ///
+    /// The old gate asked the *filtered* count whether the library existed, so a narrowed-to-nothing library
+    /// painted "Welcome to Sortlens / Add Folder…" — a first-launch answer to a question nobody asked, with
+    /// the one button on it making the situation worse. This test drives the replacement with a real pointer
+    /// press: the screen names the library's own count, and its `Clear filters` puts the photographs back.
+    /// The other half is pinned too, because a fix that showed this card over an actually-empty library would
+    /// be the same mistake pointing the other way.
+    #[test]
+    fn a_narrowed_to_nothing_library_says_so_and_offers_a_way_back() {
+        let ctx = egui::Context::default();
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-no-matches-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.filters_open = true;
+        let window = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, input: egui::RawInput| {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))),
+                ..input
+            };
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, engine, thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // A library with nothing in it is still the Welcome card, and claims nothing about filters.
+        let output = window(&mut state, &mut engine, &mut thumbs, egui::RawInput::default());
+        assert!(
+            label_at(&output, "Welcome to Sortlens").is_some(),
+            "a first launch is the Welcome card"
+        );
+        assert!(
+            label_at(&output, "Nothing matches these filters").is_none(),
+            "and an empty catalog is not a filtered one"
+        );
+
+        // Two photographs, then the same library narrowed to zero.
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-no-matches");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        std::fs::copy(fixture.jpeg("b.jpg", [40, 200, 40], 64, 64), root.join("b.jpg")).expect("copy b");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 2, "two photographs are in the catalog");
+        state.min_rating = 5;
+        assert_eq!(engine.count(&state.filter()), 0, "nothing here is rated five stars");
+
+        let output = window(&mut state, &mut engine, &mut thumbs, egui::RawInput::default());
+        assert!(
+            label_at(&output, "Nothing matches these filters").is_some(),
+            "the canvas says why it is empty instead of greeting the person"
+        );
+        assert!(
+            label_at(&output, "2 photographs in this library").is_some(),
+            "and names the library's own count, not the zero the filters left"
+        );
+        assert!(
+            label_at(&output, "Welcome to Sortlens").is_none(),
+            "the Welcome card is not painted over a library that has photographs"
+        );
+
+        // One press on the screen's own button, not a state assignment.
+        let clear = label_at(&output, "Clear filters").expect("the screen offers the way back");
+        let mut inputs = press_and_release(clear.center()).into_iter();
+        window(&mut state, &mut engine, &mut thumbs, inputs.next().expect("press"));
+        window(&mut state, &mut engine, &mut thumbs, inputs.next().expect("release"));
+        assert_eq!(state.active_filter_count(), 0, "every dimension the badge counted is clear");
+        assert_eq!(engine.count(&state.filter()), 2, "and the photographs are back");
+        let output = window(&mut state, &mut engine, &mut thumbs, egui::RawInput::default());
+        assert!(
+            label_at(&output, "Nothing matches these filters").is_none(),
+            "the screen drops itself once there is something to draw"
+        );
+
+        // A search query alone is a reason for the same screen, so the button clears that too.
+        state.search = "zzzz-no-such-photo".to_string();
+        assert_eq!(engine.count(&state.filter()), 0);
+        let output = window(&mut state, &mut engine, &mut thumbs, egui::RawInput::default());
+        assert!(label_at(&output, "Nothing matches these filters").is_some());
+        let clear = label_at(&output, "Clear filters").expect("still offered");
+        let mut inputs = press_and_release(clear.center()).into_iter();
+        window(&mut state, &mut engine, &mut thumbs, inputs.next().expect("press"));
+        window(&mut state, &mut engine, &mut thumbs, inputs.next().expect("release"));
+        assert!(state.search.is_empty(), "a query that matches nothing is cleared with the filters");
+        assert_eq!(engine.count(&state.filter()), 2);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     ///
     /// Painted one control at a time, because the assertion is exact: a chip alone in a panel paints
     /// exactly as many glyphs as it means, and a channel that carries text would fail the "no text"

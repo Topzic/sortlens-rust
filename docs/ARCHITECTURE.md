@@ -658,9 +658,12 @@ visual checks, with provenance in `docs/ATTRIBUTION.md`.
 
 **Screenshot baselines** (`crates/ui/tests/screenshots.rs`, run by `cargo xtask screenshots`): the real
 shell — `sortlens_ui::show` inside an `eframe::App`, the same entry the window uses — painted at a fixed
-1440×900 with `pixels_per_point = 1.0` across eight surfaces (Empty Welcome, Library in both layouts,
-Cull, Detail, Compare, Similar, Places, Insights) in the Charcoal and Paper presets. Eighteen PNGs are
-committed under `crates/ui/tests/snapshots/` and diffed by `egui_kittest`, with the per-pixel tolerance
+1440×900 with `pixels_per_point = 1.0` across sixteen surfaces (Empty Welcome, Library in both layouts,
+the empty-filter canvas, Cull, Detail, Compare, Similar, Places, Insights, Suggestions, the palette, Soft
+Focus, Missing, the active filter strip, and a 900×620 narrow window that keeps one theme because it is
+about geometry) in the Charcoal and Paper presets, and the 1200×800 filter baselines that share the strip's
+wrap. Thirty-one PNGs are committed under `crates/ui/tests/snapshots/` and diffed by `egui_kittest`, with the
+per-pixel tolerance
 in `kittest.toml`; a mismatch writes the painted image and a diff beside the baseline and fails the run.
 The library behind them is a real fixture: fixed ratings, flags, keywords, a collection, EXIF
 dimensions, two locations and a duplicate pair, scanned once. The harness is a `sortlens-ui` feature
