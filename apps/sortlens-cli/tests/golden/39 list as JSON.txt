@@ -30,6 +30,10 @@ exit 0
       "root": "Photos",
       "shutter": null,
       "size": 322,
+      "tag_sources": {
+        "beach": "manual",
+        "low light": "ai"
+      },
       "tags": [
         "beach",
         "low light"
@@ -64,6 +68,9 @@ exit 0
       "root": "Photos",
       "shutter": null,
       "size": 328,
+      "tag_sources": {
+        "harbour": "xmp"
+      },
       "tags": [
         "harbour"
       ],

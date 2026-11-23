@@ -241,6 +241,7 @@ mod tests {
             shutter: None,
             focal: None,
             tags: Vec::new(),
+            tag_sources: std::collections::BTreeMap::new(),
             edited: false,
             retry: false,
             sharpness: None,

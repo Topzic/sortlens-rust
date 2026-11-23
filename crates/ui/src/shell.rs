@@ -611,6 +611,8 @@ pub struct UiState {
     pub show_missing: bool,
     /// Keywords the view is narrowed to, chosen in the sidebar or the filter strip.
     pub tag_filters: Vec<String>,
+    /// Only photos where some keyword came from this source (SL-D12).
+    pub source_filter: Option<sortlens_core::TagSource>,
     /// Whether several keywords must all match or just one of them.
     pub tag_mode: sortlens_engine::TagMode,
     /// How the keyword list is ordered.
@@ -742,6 +744,7 @@ impl UiState {
             label_filter: None,
             show_missing: false,
             tag_filters: Vec::new(),
+            source_filter: None,
             tag_mode: sortlens_engine::TagMode::Any,
             tag_order: TagOrder::Count,
             library_sort: Sort::Natural,
@@ -865,6 +868,7 @@ impl UiState {
             flag: self.flag_filter,
             label: self.label_filter,
             tags: self.tag_filters.clone(),
+            tag_source: self.source_filter,
             tag_mode: self.tag_mode,
             collection: self.collection_filter,
             folder: (self.root.is_some() && !self.folder.is_empty()).then(|| self.folder.clone()),
@@ -886,6 +890,7 @@ impl UiState {
         self.flag_filter = source.flag();
         self.label_filter = None;
         self.tag_filters.clear();
+        self.source_filter = None;
         self.collection_filter = None;
         self.kind_filter = None;
         self.edited_filter = None;
@@ -911,6 +916,7 @@ impl UiState {
             && self.flag_filter == source.flag()
             && self.label_filter.is_none()
             && self.tag_filters.is_empty()
+            && self.source_filter.is_none()
             && self.collection_filter.is_none()
             && self.kind_filter.is_none()
             && self.edited_filter.is_none()
@@ -924,6 +930,7 @@ impl UiState {
         count += usize::from(self.flag_filter.is_some());
         count += usize::from(self.label_filter.is_some());
         count += usize::from(!self.tag_filters.is_empty());
+        count += usize::from(self.source_filter.is_some());
         count += usize::from(self.collection_filter.is_some());
         count += usize::from(self.kind_filter.is_some());
         count += usize::from(self.edited_filter.is_some());
@@ -941,6 +948,7 @@ impl UiState {
             || self.flag_filter.is_some()
             || self.label_filter.is_some()
             || !self.tag_filters.is_empty()
+            || self.source_filter.is_some()
             || self.collection_filter.is_some()
             || !self.folder.is_empty()
             || self.kind_filter.is_some()
@@ -957,6 +965,7 @@ impl UiState {
         self.flag_filter = None;
         self.label_filter = None;
         self.tag_filters.clear();
+        self.source_filter = None;
         if self.collection_filter.take().is_some() {
             self.sort = self.library_sort;
             self.search = self.library_search.clone();
@@ -1740,11 +1749,24 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
     }
     ui.horizontal_wrapped(|ui| {
         for tag in &photo.tags {
-            let chip = Button::new(RichText::new(format!("{tag}  ×")).size(11.0).color(t.text))
+            // The source is printed on the chip, not only in the tooltip: a keyword a machine proposed and a keyword
+            // typed by hand are different claims, and a fact you have to hover to see is one you will not check.
+            // Manual is the ordinary case and stays unmarked so the panel does not read as a warning list.
+            let source = photo.tag_source(tag);
+            let text = if source == sortlens_core::TagSource::Manual {
+                format!("{tag}  ×")
+            } else {
+                format!("{tag} · {}  ×", source.label())
+            };
+            let chip = Button::new(RichText::new(text).size(11.0).color(t.text))
                 .fill(t.card)
                 .stroke(Stroke::new(1.0, t.border))
                 .corner_radius(t.corner());
-            if ui.add(chip).on_hover_text("Remove keyword").clicked() {
+            if ui
+                .add(chip)
+                .on_hover_text(format!("{} · click to remove", source.explanation()))
+                .clicked()
+            {
                 remove = Some(tag.clone());
             }
         }
@@ -2822,6 +2844,32 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                         Some(MediaKind::Image) => Some(MediaKind::Raw),
                         Some(MediaKind::Raw) => Some(MediaKind::Video),
                         Some(MediaKind::Video) => None,
+                    };
+                }
+
+                // Where a keyword came from. The chip cycles through the recorded sources and back to no
+                // constraint; "Not recorded" is offered too, because a library written before sources existed
+                // has to be findable — that is the difference between an honest answer and a hidden one.
+                let source_label = match state.source_filter {
+                    None => "Source".to_string(),
+                    Some(source) => format!("{} keywords", source.label()),
+                };
+                let source_chip = chip(ui, t, &source_label, state.source_filter.is_some());
+                let source_chip = match state.source_filter {
+                    Some(source) => source_chip.on_hover_text(source.explanation()),
+                    None => source_chip.on_hover_text("Only photos where some keyword came from here"),
+                };
+                if source_chip.clicked() {
+                    state.source_filter = match state.source_filter {
+                        None => sortlens_core::TagSource::ALL.first().copied(),
+                        Some(current) => {
+                            let order: Vec<sortlens_core::TagSource> = sortlens_core::TagSource::ALL
+                                .into_iter()
+                                .chain([sortlens_core::TagSource::Unrecorded])
+                                .collect();
+                            let index = order.iter().position(|source| *source == current).unwrap_or(0);
+                            order.get(index + 1).copied()
+                        }
                     };
                 }
 
@@ -6989,6 +7037,7 @@ mod tests {
             shutter: None,
             focal: None,
             tags: Vec::new(),
+            tag_sources: std::collections::BTreeMap::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -7043,6 +7092,7 @@ mod tests {
             shutter: None,
             focal: None,
             tags: Vec::new(),
+            tag_sources: std::collections::BTreeMap::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -8030,6 +8080,7 @@ mod tests {
             shutter: None,
             focal: None,
             tags: Vec::new(),
+            tag_sources: std::collections::BTreeMap::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -9199,6 +9250,122 @@ mod tests {
         // One undo brings the keyword back on every photo it was on.
         assert!(engine.undo().expect("undo"));
         assert_eq!(engine.tag_vocabulary(), vec![("beach".to_string(), 2)]);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Where a label with this text was painted, walking nested shapes: a row paints its label inside a layout
+    /// shape, and a test that only looked at the top level would find nothing and read as "not offered".
+    fn label_at(output: &egui::FullOutput, needle: &str) -> Option<Rect> {
+        fn walk(shape: &egui::Shape, needle: &str) -> Option<Rect> {
+            match shape {
+                egui::Shape::Text(text) if text.galley.job.text.contains(needle) => Some(text.visual_bounding_rect()),
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| walk(shape, needle)),
+                _ => None,
+            }
+        }
+        output.shapes.iter().find_map(|clipped| walk(&clipped.shape, needle))
+    }
+
+    /// A click at a point: egui reports a click on the release, so the press goes out in one frame.
+    fn press_and_release(at: egui::Pos2) -> [egui::RawInput; 2] {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        [
+            egui::RawInput {
+                events: vec![egui::Event::PointerMoved(at), button(true)],
+                ..Default::default()
+            },
+            egui::RawInput {
+                events: vec![button(false)],
+                ..Default::default()
+            },
+        ]
+    }
+
+    /// SL-D12 from the window: the strip's Source chip narrows the library to a provenance, and the keyword chip
+    /// prints where that word came from. Both are driven by clicks, because a filter nobody can reach is not a filter.
+    #[test]
+    fn the_source_chip_narrows_the_library_and_the_keyword_chip_says_where_it_came_from() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-tag-source-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-tag-source");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        std::fs::copy(fixture.jpeg("b.jpg", [40, 200, 40], 64, 64), root.join("b.jpg")).expect("copy b");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "two photos indexed");
+        engine.set_tag(&ids[..1], "typed", true).expect("tag by hand");
+        assert!(engine.accept_suggestion(ids[1], "guessed").expect("accept"));
+        assert_eq!(engine.count(&Filter::default()), 2);
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let frame = |state: &mut UiState, engine: &Engine, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    filter_strip(ui, &tokens, state, engine, 2);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // Nothing asked yet: the chip reads "Source", and every photo is in the answer.
+        assert_eq!(state.source_filter, None);
+        let output = frame(&mut state, &engine, egui::RawInput::default());
+        let chip = label_at(&output, "Source").expect("the strip offers a source chip");
+        let mut inputs = press_and_release(chip.center()).into_iter();
+        frame(&mut state, &engine, inputs.next().expect("press"));
+        frame(&mut state, &engine, inputs.next().expect("release"));
+        assert_eq!(
+            state.source_filter,
+            Some(sortlens_core::TagSource::Manual),
+            "the chip starts at Manual"
+        );
+        assert_eq!(engine.count(&state.filter()), 1, "only the keyword typed by hand answers");
+        assert_eq!(state.active_filter_count(), 1, "the header badge counts it");
+
+        // One more click moves to AI, which is the question provenance exists to answer.
+        let output = frame(&mut state, &engine, egui::RawInput::default());
+        let chip = label_at(&output, "Manual keywords").expect("the chip says what is asked");
+        let mut inputs = press_and_release(chip.center()).into_iter();
+        frame(&mut state, &engine, inputs.next().expect("press"));
+        frame(&mut state, &engine, inputs.next().expect("release"));
+        assert_eq!(state.source_filter, Some(sortlens_core::TagSource::Ai));
+        assert_eq!(engine.count(&state.filter()), 1);
+
+        // The keyword chip names the source in words, not only on hover.
+        let photo = engine.photo(ids[1]).expect("photo").clone();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                tags(ui, &tokens, &mut state, &mut engine, &photo);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(
+            label_at(&output, "guessed · AI").is_some(),
+            "an accepted suggestion is marked on the chip"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

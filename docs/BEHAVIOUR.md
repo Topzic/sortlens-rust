@@ -105,6 +105,13 @@ Sidecars are on by default (`Settings > Library > Write sidecars`).
 - A file with a read-only sidecar is still rated in the catalog; the sidecar failure is reported in
   the activity panel and retried on the next change, not on every frame.
 - Sidecars are never deleted when a photo is rejected. The decision travels with the file.
+- **Provenance is not written to a sidecar.** A keyword read out of a sidecar is recorded as `XMP`,
+  one typed in Sortlens as `Manual`, one accepted from a suggestion as `AI`; the value lives in the
+  catalog only. It is therefore not part of the annotation revision (`rev`) that a stale writer is
+  refused against — a change of provenance alone can never lose another application's edit, because
+  it is not an edit to the file.
+- A library written before sources were recorded has `Unrecorded` for those keywords. Sortlens does
+  not guess `Manual`: "nobody wrote it down" and "a person typed it" are different facts.
 
 ## 5. Scan and identity
 

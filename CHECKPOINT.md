@@ -2687,6 +2687,48 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `models-v1` GitHub release (this run keeps the tree offline by choice; the loopback suite covers the
   protocol, and the digest pins make any wrong byte a refusal, not a usable model).
 
+## 2026-11-23 (twenty-ninth) — every keyword says who wrote it (SL-D12, Phase 2 item 4)
+
+- `sortlens_core::TagSource`: `Manual`, `Ai`, `Xmp`, and `Unrecorded`. The fourth is the honest one: a library
+  written before sources were kept has keywords nobody recorded an origin for, and migrating those to `Manual`
+  would invent a decision. It is **derived** — a tag with no entry in the map — never stored, so no snapshot
+  ever claims it. `parse`/`id`/`label`/`explanation` and a serde round-trip test.
+- `catalog::Photo.tag_sources: BTreeMap<String, TagSource>` with `#[serde(default, skip_serializing_if)]`, so a
+  snapshot from an older build replays and rewrites **byte-identically** (asserted in a test that reads the
+  snapshot, checks no `tag_sources` key was invented, reopens, and asks the filter for `Manual` — it answers 0).
+  `adopt_review` marks a sidecar's keywords `Xmp`; `tag_source`/`carries_source`/`prune_tag_sources` are the
+  read side.
+- New additive `Op::TagSourced`, committed in the same `Op::Group` as the `Op::Tagged` it describes. That choice
+  is what keeps one ⌘Z for a tag *and* its receipt without breaking the 2-tuple `tagged` records already on disk.
+  Its `photo_count` is **0** and a group's summary skips it, because a keyword typed by hand is one change, not
+  two — without that, every ordinary tag read "Keyworded 1 photo (+1 more change(s))" and a 40-photo keyword
+  counted as 80. `Op::name` for a group holding one real change now returns that change's name, so the change
+  list says `tagged`, not `group`.
+- Pruning runs **after the whole op**, not inside the apply arm: a group sets the words and then their provenance,
+  and an undo replays both in reverse, so mid-op pruning dropped a source that the next step was about to restore
+  (found by the undo half of the rename test, not by reading the code).
+- Spelling out where each source comes from: `Engine::set_tag_from` (hand-typed is `Manual`), `accept_suggestion`
+  (`Ai`), sidecar adoption at import (`Xmp`). `rename_tag` carries a source to the new name and `delete_tag` takes
+  it away, both inside the group they already committed — a renamed AI keyword is still AI, and a deleted word
+  leaves nothing claiming it.
+- The **catalog revision is deliberately not bumped** by provenance: `rev` is what refuses a stale sidecar
+  writer, and provenance never reaches a sidecar. `docs/BEHAVIOUR.md` §4 now says that, because §1's "every
+  annotation change increments the revision" is otherwise a contradiction.
+- Surfaces: `Filter::tag_source` ("some keyword came from there", so one accepted suggestion among ten typed
+  words counts), the filter strip's cycling **Source** chip with its own tooltip per source, the keyword chip
+  printing `cat · AI` instead of hiding the fact in a hover, `sortlens-cli list --source` / `page --source` with a
+  refused typo listing the real names, `sortlens-cli`'s MCP `library.page` note, and `library.page`'s filter JSON.
+- Tests: core enum round-trip; catalog (partial-group undo, rename carries, delete clears, ghost map pruned,
+  legacy snapshot → `Unrecorded` and *not* `Manual`, sidecar → `Xmp`, filter semantics); engine (Manual vs AI
+  through `library.page`, one undo for word plus origin, rename/delete); UI (`Context::run_ui` clicks the Source
+  chip twice — Source → Manual → AI — asserting the query actually narrowed and the chip relabelled, then finds
+  `guessed · AI` painted on the keyword chip); goldens regenerated and read: the only visible changes are the
+  new `tag_sources` field, the extra ops in the log, and `group · Flagged` becoming `flag · Flagged`.
+- 674 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: how the Source chip sits next to the other seven in the strip at a narrow width, and
+  whether `cat · AI` crowds a long keyword. There is still no `cargo xtask screenshots` (Phase 3 item 9, which is
+  explicitly to be done before the rest of the visual work), so the visual evidence is the headless paint.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -2713,7 +2755,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
    embeddings cached at install (CLIP BPE tokenisation) and image embeddings, matched through
    `suggest::merge` — **done 2026-11-23**, see the twenty-eighth entry; the real downloaded pins were
    loaded and run once as that slice's first gate.
-8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI.
+8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI —
+   **done 2026-11-23**, see the twenty-ninth entry.
+
+**Phase 2 is complete.** Phase 3 starts here, in this order:
+
+9. **`egui_kittest` screenshot harness + `cargo xtask screenshots`**, Charcoal and Paper baselines for Empty
+   Welcome, Library (Justified and Square), Cull, Detail, Compare, Similar, Places and Insights. Every later
+   Phase 3 item needs it as proof, which is why it is first. Note `egui` is pinned to the suite's fork revision
+   (`Cargo.toml`), so check that `egui_kittest` at the matching revision is available before designing around it;
+   if the fork has no kittest, the honest fallback is a small in-crate snapshot rig that renders through
+   `Context::run_ui` and writes PNGs, with the baseline diffing done by `xtask` — not a hand-painted substitute.
 
 **Phase 3 — UI/UX overhaul**
 9. `egui_kittest` screenshot harness, `cargo xtask screenshots`, Charcoal and Paper baselines (do this before 10–15).

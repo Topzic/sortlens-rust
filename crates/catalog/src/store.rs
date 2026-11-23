@@ -774,6 +774,7 @@ impl Catalog {
             return Err(Error::Invalid("the keyword already has that name".into()));
         }
         let mut changes = Vec::new();
+        let mut source_changes = Vec::new();
         for photo in self.photos.values() {
             if !photo.has_tag(from) {
                 continue;
@@ -785,14 +786,26 @@ impl Catalog {
             tags.sort_unstable();
             tags.dedup();
             changes.push((photo.id, tags));
+            // Provenance follows the word: an AI-proposed keyword that is renamed was still proposed, and leaving the
+            // source under the old name would both lose it and leave a map describing a tag the photo no longer has.
+            // When the target name is already on the photo, its own source wins — that word was there first.
+            if let Some(source) = photo.tag_sources.get(from).copied() {
+                let mut map = photo.tag_sources.clone();
+                map.remove(from);
+                map.entry(to.to_string()).or_insert(source);
+                source_changes.push((photo.id, map));
+            }
         }
         // The old name becomes an alias of the new one, so re-typing it lands on the right keyword
-        // instead of quietly re-creating the keyword that was just merged away. Both halves go into
+        // instead of quietly re-creating the keyword that was just merged away. Every half goes into
         // one op, so a mistaken rename still costs a single undo.
         let mut ops = Vec::new();
         let count = changes.len();
         if !changes.is_empty() {
             ops.push(Op::Tagged { changes });
+        }
+        if !source_changes.is_empty() {
+            ops.push(Op::TagSourced { changes: source_changes });
         }
         if self.resolve_tag(to) != from {
             ops.push(Op::Aliased {
@@ -825,12 +838,20 @@ impl Catalog {
         }
         let target = self.resolve_tag(tag);
         let mut changes = Vec::new();
+        let mut source_changes = Vec::new();
         for photo in self.photos.values() {
             if !photo.has_tag(&target) {
                 continue;
             }
             let tags: Vec<String> = photo.tags.iter().filter(|tag| tag.as_str() != target).cloned().collect();
             changes.push((photo.id, tags));
+            // A deleted word takes its provenance with it; a map holding the deleted name would describe a tag no
+            // photo carries, and the filter would keep matching on it.
+            if photo.tag_sources.contains_key(&target) {
+                let mut map = photo.tag_sources.clone();
+                map.remove(&target);
+                source_changes.push((photo.id, map));
+            }
         }
         // The rename trail dies with the keyword: an alias pointing only at a deleted name would be a
         // link to nowhere, and re-typing the old name must not quietly resurrect the keyword.
@@ -847,6 +868,9 @@ impl Catalog {
         let mut ops = Vec::new();
         if !changes.is_empty() {
             ops.push(Op::Tagged { changes });
+        }
+        if !source_changes.is_empty() {
+            ops.push(Op::TagSourced { changes: source_changes });
         }
         if !alias_changes.is_empty() {
             ops.push(Op::Aliased { changes: alias_changes });
@@ -924,6 +948,44 @@ impl Catalog {
     ///
     /// Split out of [`Catalog::apply`] because the complexity gate said so, not to silence it: the match arm was one
     /// case too many for one function to hold clearly.
+    /// Replace the keyword list on each photo, returning what it was.
+    fn apply_tagged(&mut self, changes: &[(PhotoId, Vec<String>)]) -> Result<Op> {
+        let mut previous = Vec::new();
+        for (id, tags) in changes {
+            let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+            let mut tags = tags.clone();
+            tags.sort_unstable();
+            tags.dedup();
+            if photo.tags != tags {
+                previous.push((*id, photo.tags.clone()));
+                photo.tags = tags;
+                self.touch(*id);
+            }
+        }
+        Ok(Op::Tagged { changes: previous })
+    }
+
+    /// Replace the provenance map on each photo, returning what it was.
+    ///
+    /// The map is not pruned here: a group sets the words and then their provenance, and an undo replays both in
+    /// reverse, so a map can name a keyword the photo only regains on the next step. [`Self::prune_sources`] runs
+    /// once the whole op is in.
+    ///
+    /// The revision is deliberately **not** bumped: `rev` is what a stale sidecar writer is refused against, and
+    /// provenance is never written to a sidecar. Bumping it here would double-count every keyword added by hand
+    /// (words plus source in one group) and make the number mean less than it says.
+    fn apply_tag_sourced(&mut self, changes: &[(PhotoId, BTreeMap<String, sortlens_core::TagSource>)]) -> Result<Op> {
+        let mut previous = Vec::new();
+        for (id, sources) in changes {
+            let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+            if &photo.tag_sources != sources {
+                previous.push((*id, photo.tag_sources.clone()));
+                photo.tag_sources = sources.clone();
+            }
+        }
+        Ok(Op::TagSourced { changes: previous })
+    }
+
     fn apply_scores(&mut self, changes: &[(PhotoId, Option<sortlens_quality::Score>)]) -> Result<Op> {
         let mut previous = Vec::with_capacity(changes.len());
         for (id, score) in changes {
@@ -1213,21 +1275,8 @@ impl Catalog {
                 inverses.reverse();
                 Ok(Op::Group { ops: inverses })
             }
-            Op::Tagged { changes } => {
-                let mut previous = Vec::new();
-                for (id, tags) in changes {
-                    let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
-                    let mut tags = tags.clone();
-                    tags.sort_unstable();
-                    tags.dedup();
-                    if photo.tags != tags {
-                        previous.push((*id, photo.tags.clone()));
-                        photo.tags = tags;
-                        self.touch(*id);
-                    }
-                }
-                Ok(Op::Tagged { changes: previous })
-            }
+            Op::Tagged { changes } => self.apply_tagged(changes),
+            Op::TagSourced { changes } => self.apply_tag_sourced(changes),
             Op::Label { changes } => {
                 let mut previous = Vec::new();
                 for (id, label) in changes {
@@ -1243,6 +1292,23 @@ impl Catalog {
         }
     }
 
+    /// Drop provenance for keywords a photo no longer carries, on the photos an op names.
+    ///
+    /// A map describing a deleted word would be provenance for something that is not there; the filter iterates the
+    /// tags, so it would not match, but the snapshot would carry dead entries and a keyword typed again later could
+    /// inherit one. Only the photos the op touched are visited.
+    fn prune_sources(&mut self, op: &Op) {
+        let mut ids = Vec::new();
+        collect_sourced_ids(op, &mut ids);
+        ids.sort_unstable();
+        ids.dedup();
+        for id in ids {
+            if let Some(photo) = self.photos.get_mut(&id) {
+                photo.prune_tag_sources();
+            }
+        }
+    }
+
     /// Apply an operation, append it to the log and remember how to undo it.
     ///
     /// The inverse travels in the log record, so a fresh process can undo the last change instead of
@@ -1254,6 +1320,10 @@ impl Catalog {
             ));
         }
         let inverse = self.apply(&op)?;
+        // After the *whole* op, never in the middle of one: a group sets the words and then their provenance, and an
+        // undo puts that group back in reverse, so a map can name a keyword the photo only regains in the next step
+        // of the same group. Tidying per photo here is also why a 100 000-photo library does not pay for this.
+        self.prune_sources(&op);
         if inverse.is_noop() {
             // Nothing changed, so there is nothing to record and nothing to spend undo on.
             return Ok(());
@@ -1295,6 +1365,7 @@ impl Catalog {
             return Ok(false);
         };
         let redo = self.apply(&inverse)?;
+        self.prune_sources(&inverse);
         self.seq += 1;
         self.append(self.seq, &inverse, Some(&redo))?;
         self.redo.push(redo);
@@ -1308,6 +1379,7 @@ impl Catalog {
             return Ok(false);
         };
         let inverse = self.apply(&op)?;
+        self.prune_sources(&op);
         self.seq += 1;
         self.append(self.seq, &op, Some(&inverse))?;
         self.push_undo(inverse);
@@ -1576,6 +1648,19 @@ impl Catalog {
             .write_all(line.as_bytes())
             .and_then(|()| self.log.flush())
             .map_err(|error| Error::io(self.dir.display().to_string(), error))
+    }
+}
+
+/// Every photo whose provenance an operation names, including inside a group.
+fn collect_sourced_ids(op: &Op, out: &mut Vec<PhotoId>) {
+    match op {
+        Op::TagSourced { changes } => out.extend(changes.iter().map(|(id, _)| *id)),
+        Op::Group { ops } => {
+            for op in ops {
+                collect_sourced_ids(op, out);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -2820,16 +2905,154 @@ mod tests {
             label: Some(sortlens_core::ColorLabel::Green),
             tags: vec!["keeper".into()],
         };
-        let seed = Seed {
+        let from_sidecar = Seed {
             review: Some(review),
             ..seed("a.jpg")
         };
-        catalog.sync_root("/photos", vec![seed]).expect("sync");
+        catalog.sync_root("/photos", vec![from_sidecar]).expect("sync");
         let photo = catalog.photo(PhotoId(1)).expect("photo");
         assert_eq!(photo.rating, 4);
         assert_eq!(photo.flag, Flag::Reject);
         assert!(photo.has_tag("keeper"));
         assert!(photo.label.is_some());
+        assert_eq!(
+            photo.tag_source("keeper"),
+            sortlens_core::TagSource::Xmp,
+            "a keyword read out of a sidecar was written by another application, and says so"
+        );
+        // Typing the same word afterwards does not relabel it: the word is already there, so nothing is written.
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("rescan");
+        assert_eq!(
+            catalog.photo(PhotoId(1)).expect("photo").tag_source("keeper"),
+            sortlens_core::TagSource::Xmp
+        );
+    }
+
+    /// Provenance travels with the tags in the same group, so one undo takes both back.
+    #[test]
+    fn a_keyword_remembers_who_wrote_it_and_one_undo_takes_the_word_and_the_source() {
+        let temp = TempCatalog::new("tag-source");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        // Exactly the pair the engine commits for an accepted suggestion.
+        catalog
+            .commit(Op::Group {
+                ops: vec![
+                    Op::Tagged {
+                        changes: vec![(PhotoId(1), vec!["cat".into()])],
+                    },
+                    Op::TagSourced {
+                        changes: vec![(
+                            PhotoId(1),
+                            [("cat".to_string(), sortlens_core::TagSource::Ai)].into_iter().collect(),
+                        )],
+                    },
+                ],
+            })
+            .expect("accept a suggestion");
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.tag_source("cat"), sortlens_core::TagSource::Ai);
+        assert_eq!(photo.tag_source("nobody"), sortlens_core::TagSource::Unrecorded);
+        assert!(photo.carries_source(sortlens_core::TagSource::Ai));
+        assert!(!photo.carries_source(sortlens_core::TagSource::Manual));
+
+        // The whole group is one step: the word and its provenance go back together.
+        assert!(catalog.undo().expect("undo"));
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert!(photo.tags.is_empty());
+        assert!(photo.tag_sources.is_empty(), "an undo leaves no provenance for a word that is gone");
+
+        // A map describing a keyword the photo does not have is pruned rather than stored.
+        catalog
+            .commit(Op::TagSourced {
+                changes: vec![(
+                    PhotoId(1),
+                    [("ghost".to_string(), sortlens_core::TagSource::Ai)].into_iter().collect(),
+                )],
+            })
+            .expect("nothing to say");
+        assert!(catalog.photo(PhotoId(1)).expect("photo").tag_sources.is_empty());
+    }
+
+    /// A renamed keyword keeps its provenance, and a deleted one loses it, because both are facts about the word.
+    #[test]
+    fn provenance_follows_a_rename_and_dies_with_a_delete() {
+        let temp = TempCatalog::new("tag-source-rename");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        catalog
+            .commit(Op::Group {
+                ops: vec![
+                    Op::Tagged {
+                        changes: vec![(PhotoId(1), vec!["cat".into()])],
+                    },
+                    Op::TagSourced {
+                        changes: vec![(
+                            PhotoId(1),
+                            [("cat".to_string(), sortlens_core::TagSource::Ai)].into_iter().collect(),
+                        )],
+                    },
+                ],
+            })
+            .expect("tag");
+        catalog.rename_tag("cat", "kitten").expect("rename");
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(
+            photo.tag_source("kitten"),
+            sortlens_core::TagSource::Ai,
+            "the word moved, and so did its origin"
+        );
+        assert!(
+            !photo.tag_sources.contains_key("cat"),
+            "no provenance is left behind under the old name"
+        );
+
+        // One undo takes the rename back, source and all.
+        assert!(catalog.undo().expect("undo"));
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.tag_source("cat"), sortlens_core::TagSource::Ai);
+        assert_eq!(photo.tag_source("kitten"), sortlens_core::TagSource::Unrecorded);
+
+        catalog.delete_tag("cat").expect("delete");
+        assert!(
+            catalog.photo(PhotoId(1)).expect("photo").tag_sources.is_empty(),
+            "a deleted keyword takes its provenance with it"
+        );
+    }
+
+    /// A library written before sources existed says so, instead of claiming every keyword was typed by hand.
+    #[test]
+    fn a_tag_with_no_recorded_source_reads_as_unrecorded_through_a_reopen() {
+        let temp = TempCatalog::new("tag-source-legacy");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Tagged {
+                    changes: vec![(PhotoId(1), vec!["strand".into()])],
+                })
+                .expect("tag");
+            // Snapshot it now, so this is a snapshot written by a build that recorded tags and not sources — which is
+            // exactly what an older library looks like on disk.
+            catalog.snapshot().expect("snapshot");
+            catalog.close().expect("close");
+        }
+        let text = fs::read_to_string(temp.0.join(SNAPSHOT_NAME)).expect("read");
+        assert!(text.contains("\"tags\":[\"strand\"]"), "the keyword is in the snapshot");
+        assert!(!text.contains("tag_sources"), "and no source map was invented for it");
+
+        let (catalog, _) = temp.open();
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.tag_source("strand"), sortlens_core::TagSource::Unrecorded);
+        let recorded = |source| {
+            catalog.count(&Filter {
+                tag_source: Some(source),
+                ..Filter::default()
+            })
+        };
+        assert_eq!(recorded(sortlens_core::TagSource::Unrecorded), 1, "it is still findable");
+        assert_eq!(recorded(sortlens_core::TagSource::Manual), 0, "but it is not called manual");
+        assert_eq!(recorded(sortlens_core::TagSource::Ai), 0);
     }
 
     #[test]

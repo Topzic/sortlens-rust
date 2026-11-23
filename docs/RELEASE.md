@@ -51,7 +51,11 @@ phases"), and the list shrinks as those rows are ticked.
   a CLIP ViT-B/32 image + text pair, attributed in `docs/ATTRIBUTION.md`), and Settings → AI can
   install them: the consent-gated `model.install` downloader streams, resumes an interrupted download
   and refuses anything whose size or SHA-256 disagrees with the pin (an explicit, user-initiated
-  network call — `crates/ai` itself stays offline). Still to come from Phase 2 is per-tag provenance.
+  network call — `crates/ai` itself stays offline). **Every keyword says where it came from**: typed by hand
+  (`Manual`), proposed by a model or a pack and accepted (`AI`), read from the file's own sidecar (`XMP`), or
+  `Not recorded` for a library written before sources were kept, which is deliberately not guessed at. The
+  source is printed on the keyword chip, rides in the same undo step as the word, and is a filter in the window
+  and in the CLI (`list --source ai`).
 - **Export is Original, JPEG and PNG.** TIFF and WebP export are not planned.
 - **The map needs your tiles.** Places draws a tile folder (`tiles/`) and a gazetteer (`places.txt`) you
   supply; the bundled offline basemap is Phase 3.

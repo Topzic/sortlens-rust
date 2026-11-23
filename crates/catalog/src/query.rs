@@ -28,6 +28,12 @@ pub struct Filter {
     pub label: Option<ColorLabel>,
     /// Only photos carrying these keywords. An empty list disables the filter.
     pub tags: Vec<String>,
+    /// Only photos where some keyword came from this source. `None` disables the filter.
+    ///
+    /// "Some keyword", not every keyword: the question provenance answers is "did a model touch this photo's
+    /// keywords", so a photo with one accepted suggestion and ten typed words belongs in the answer. The per-keyword
+    /// question is answered by the tag chip's own hover, not by this filter.
+    pub tag_source: Option<sortlens_core::TagSource>,
     /// Whether every keyword must match or just one of them.
     pub tag_mode: TagMode,
     /// Only photos in this collection. Membership is resolved by the catalog, not here.
@@ -97,6 +103,11 @@ impl Filter {
             if !pass {
                 return false;
             }
+        }
+        if let Some(source) = self.tag_source
+            && !photo.carries_source(source)
+        {
+            return false;
         }
         if let Some(after) = self.added_after
             && photo.added.is_none_or(|added| added < after)
@@ -303,6 +314,32 @@ mod tests {
         photo.flag = flag;
         photo.label = label;
         photo
+    }
+
+    /// Provenance filters ask about *some* keyword, not all of them: "did a model touch this photo" is answered by
+    /// one accepted suggestion among ten typed words.
+    #[test]
+    fn a_source_filter_asks_whether_any_keyword_came_from_there() {
+        let mut photo = photo(1, "a.jpg", 0, Flag::None, None);
+        photo.tags = vec!["typed".to_string(), "guessed".to_string()];
+        photo.tag_sources.insert("typed".to_string(), sortlens_core::TagSource::Manual);
+        photo.tag_sources.insert("guessed".to_string(), sortlens_core::TagSource::Ai);
+
+        let from = |source| Filter {
+            tag_source: Some(source),
+            ..Filter::default()
+        };
+        assert!(from(sortlens_core::TagSource::Ai).matches(&photo));
+        assert!(from(sortlens_core::TagSource::Manual).matches(&photo));
+        assert!(!from(sortlens_core::TagSource::Xmp).matches(&photo));
+        assert!(!from(sortlens_core::TagSource::Unrecorded).matches(&photo));
+        assert!(Filter::default().matches(&photo), "no source asked for means no source constraint");
+
+        // A photo with nothing recorded is the unrecorded case, and only that case.
+        let mut legacy = photo.clone();
+        legacy.tag_sources.clear();
+        assert!(from(sortlens_core::TagSource::Unrecorded).matches(&legacy));
+        assert!(!from(sortlens_core::TagSource::Manual).matches(&legacy));
     }
 
     #[test]

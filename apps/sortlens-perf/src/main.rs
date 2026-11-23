@@ -359,6 +359,7 @@ fn photo_with_exif(id: sortlens_core::PhotoId, index: usize) -> sortlens_engine:
         shutter: None,
         focal: None,
         tags: Vec::new(),
+        tag_sources: std::collections::BTreeMap::new(),
         edited: false,
         retry: false,
         sharpness: None,

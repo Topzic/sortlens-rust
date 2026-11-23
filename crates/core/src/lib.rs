@@ -18,7 +18,7 @@ pub mod volume;
 
 pub use error::{Error, Result};
 pub use ids::{CollectionId, FolderId, JobId, PhotoId, TagId, VolumeId};
-pub use labels::{ColorLabel, Flag, MediaKind, Review};
+pub use labels::{ColorLabel, Flag, MediaKind, Review, TagSource};
 pub use media::{is_raw_path, kind_from_extension};
 pub use reveal::{Command, Desktop};
 pub use units::{format_bytes, format_count};

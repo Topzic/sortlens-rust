@@ -110,6 +110,74 @@ impl MediaKind {
     }
 }
 
+/// Where a keyword came from.
+///
+/// A keyword's provenance is the reason to trust it: one typed by a person is a decision, one a pack proposed and
+/// somebody accepted is a proposal that was reviewed, and one read out of the file's own sidecar was written by
+/// another application. The four are not a ranking — the point is that they can be told apart and filtered on.
+///
+/// [`Self::Unrecorded`] exists for the honest case, not as a fallback: a library written before this build kept no
+/// sources, and calling those keywords `Manual` would invent a decision nobody made. A tag with no entry in the
+/// photo's map is exactly that — unrecorded — so the variant is derived, never stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TagSource {
+    /// Typed, pasted or applied by hand — including by a script calling the same command.
+    Manual,
+    /// Proposed by the model or a keyword pack and accepted by a person.
+    Ai,
+    /// Read from the file's own sidecar when the photo was first indexed.
+    Xmp,
+    /// Carried in a library written before sources were recorded.
+    Unrecorded,
+}
+
+impl TagSource {
+    /// Every source, in the order the filter offers them.
+    pub const ALL: [Self; 3] = [Self::Manual, Self::Ai, Self::Xmp];
+
+    /// Stable lowercase name, for the op log, the snapshot and filter JSON.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Ai => "ai",
+            Self::Xmp => "xmp",
+            Self::Unrecorded => "unrecorded",
+        }
+    }
+
+    /// Human label for menus, chips and tooltips.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Manual => "Manual",
+            Self::Ai => "AI",
+            Self::Xmp => "XMP",
+            Self::Unrecorded => "Not recorded",
+        }
+    }
+
+    /// One sentence for a hover, saying what the word means rather than repeating it.
+    pub const fn explanation(self) -> &'static str {
+        match self {
+            Self::Manual => "Typed in Sortlens, or applied by a command that does the same",
+            Self::Ai => "Proposed by the model or a keyword pack, and accepted",
+            Self::Xmp => "Read from the file's own sidecar when it was indexed",
+            Self::Unrecorded => "This library predates recorded sources",
+        }
+    }
+
+    /// Parse the stable name, for a CLI flag or a filter string.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_lowercase().as_str() {
+            "manual" => Some(Self::Manual),
+            "ai" => Some(Self::Ai),
+            "xmp" => Some(Self::Xmp),
+            "unrecorded" | "unknown" => Some(Self::Unrecorded),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
@@ -126,5 +194,17 @@ mod tests {
     #[test]
     fn default_flag_is_none() {
         assert_eq!(Flag::default(), Flag::None);
+    }
+
+    #[test]
+    fn every_source_survives_its_own_name() {
+        for source in TagSource::ALL.into_iter().chain([TagSource::Unrecorded]) {
+            assert_eq!(TagSource::parse(source.id()), Some(source), "{}", source.id());
+            assert!(!source.explanation().is_empty(), "{} has no explanation", source.id());
+        }
+        assert_eq!(TagSource::parse("UNKNOWN"), Some(TagSource::Unrecorded), "the old word still reads");
+        assert_eq!(TagSource::parse("guess"), None, "a source nobody can produce is not a source");
+        let text = serde_json::to_string(&TagSource::Ai).expect("serialise");
+        assert_eq!(text, "\"ai\"", "the log writes the stable name, not the enum");
     }
 }

@@ -32,6 +32,15 @@ pub enum Op {
     Label { changes: Vec<(PhotoId, Option<ColorLabel>)> },
     /// Keyword tags replaced on the listed photos. Each list is the complete new set, sorted.
     Tagged { changes: Vec<(PhotoId, Vec<String>)> },
+    /// Where keywords came from, on the listed photos. Each map is the complete new set for that photo.
+    ///
+    /// A separate op from [`Self::Tagged`] rather than a field on it, for one reason: the op log and the snapshots
+    /// written before this build are 2-tuples, and a tag write that also carried provenance would either break them
+    /// or need a bespoke decoder. Two ops committed as one [`Self::Group`] undo together, so a tag typed by hand is
+    /// still a single ⌘Z — the property the user cares about — while the bytes already on disk still replay.
+    TagSourced {
+        changes: Vec<(PhotoId, std::collections::BTreeMap<String, sortlens_core::TagSource>)>,
+    },
     /// Photos were found at a new path inside the same root.
     Relocate { changes: Vec<(PhotoId, String)> },
     /// A collection was created.
@@ -96,6 +105,7 @@ impl Op {
             Self::Label { .. } => "label",
             Self::Captured { .. } => "captured",
             Self::Tagged { .. } => "tagged",
+            Self::TagSourced { .. } => "tagSourced",
             Self::Relocate { .. } => "relocate",
             Self::Retry { .. } => "retry",
             Self::Aliased { .. } => "aliased",
@@ -111,7 +121,12 @@ impl Op {
             Self::SetPack { .. } => "setPack",
             Self::SetFolderMark { .. } => "setFolderMark",
             Self::Scores { .. } => "scores",
-            Self::Group { .. } => "group",
+            // A group that only says where a keyword came from, around one real change, *is* that change: the change
+            // list should name what happened to the library, not the bookkeeping that went with it.
+            Self::Group { ops } => match described(ops).as_slice() {
+                [only] => only.name(),
+                _ => "group",
+            },
         }
     }
 
@@ -143,6 +158,7 @@ impl Op {
             Self::Captured { changes } => changes.is_empty(),
             Self::Label { changes } => changes.is_empty(),
             Self::Tagged { changes } => changes.is_empty(),
+            Self::TagSourced { changes } => changes.is_empty(),
             Self::Relocate { changes } => changes.is_empty(),
             Self::Retry { changes } => changes.is_empty(),
             Self::Aliased { changes } => changes.is_empty(),
@@ -162,6 +178,9 @@ impl Op {
             Self::Label { changes } => changes.len(),
             Self::Captured { changes } => changes.len(),
             Self::Tagged { changes } => changes.len(),
+            // Provenance rides with the words it describes, so counting its photos as well would report a keyword
+            // added to forty photos as eighty. A source-only change is described by its own summary instead.
+            Self::TagSourced { .. } => 0,
             Self::Relocate { changes } => changes.len(),
             Self::Retry { changes } => changes.len(),
             Self::Aliased { .. } => 0,
@@ -187,6 +206,9 @@ impl Op {
                 format!("Set the capture date on {}", photos(changes.len()))
             }
             Self::Tagged { changes } => format!("Keyworded {}", photos(changes.len())),
+            Self::TagSourced { changes } => {
+                format!("Recorded where keywords came from on {}", photos(changes.len()))
+            }
             Self::Relocate { changes } => format!("Found {} somewhere else", photos(changes.len())),
             Self::Retry { changes } => format!("Queued {} for a metadata retry", photos(changes.len())),
             Self::Aliased { changes } => {
@@ -224,18 +246,35 @@ impl Op {
                 (false, Some(colour)) => format!("Set {key} to {colour:?}"),
                 (false, None) => format!("Cleared the mark on {key}"),
             },
-            Self::Group { ops } => match ops.first() {
-                Some(first) => {
-                    if ops.len() == 1 {
-                        first.summary()
-                    } else {
-                        format!("{} (+{} more change(s))", first.summary(), ops.len() - 1)
+            Self::Group { ops } => {
+                // Provenance is not a second change a person made: it is the receipt for the keyword they typed. Left
+                // in, every ordinary tag would read "Keyworded 1 photo (+1 more change(s))", which is noise about
+                // bookkeeping rather than news about the library.
+                let real = described(ops);
+                match real.first() {
+                    Some(first) => {
+                        if real.len() == 1 {
+                            first.summary()
+                        } else {
+                            format!("{} (+{} more change(s))", first.summary(), real.len() - 1)
+                        }
                     }
+                    None => match ops.first() {
+                        Some(first) => first.summary(),
+                        None => "Grouped change".to_string(),
+                    },
                 }
-                None => "Grouped change".to_string(),
-            },
+            }
         }
     }
+}
+
+/// The operations in a group that a person would recognise as changes.
+///
+/// Provenance travels in the same group as the keyword it describes, so it is left out: a keyword typed by hand is
+/// one change with a receipt, not two changes.
+fn described(ops: &[Op]) -> Vec<&Op> {
+    ops.iter().filter(|op| !matches!(op, Op::TagSourced { .. })).collect()
 }
 
 /// `1 photo` / `3 photos`, so summaries read like sentences.
@@ -281,6 +320,37 @@ mod tests {
             let back: Op = serde_json::from_str(&text).expect("deserialise");
             assert_eq!(back, op);
         }
+    }
+
+    /// A keyword typed by hand is one change, not two: the provenance rides with the word and must not read as a
+    /// second edit or count the photos twice.
+    #[test]
+    fn a_keyword_and_its_provenance_read_as_one_change() {
+        let op = Op::Group {
+            ops: vec![
+                Op::Tagged {
+                    changes: vec![(PhotoId(1), vec!["cat".into()])],
+                },
+                Op::TagSourced {
+                    changes: vec![(
+                        PhotoId(1),
+                        [("cat".to_string(), sortlens_core::TagSource::Manual)].into_iter().collect(),
+                    )],
+                },
+            ],
+        };
+        assert_eq!(op.summary(), "Keyworded 1 photo", "the receipt is not a second change");
+        assert_eq!(op.photo_count(), 1, "one photo, not two");
+        assert!(!op.is_noop());
+        // A change that is *only* provenance still describes itself, because it does change what the library knows.
+        let only = Op::TagSourced {
+            changes: vec![(
+                PhotoId(1),
+                [("cat".to_string(), sortlens_core::TagSource::Ai)].into_iter().collect(),
+            )],
+        };
+        assert_eq!(only.summary(), "Recorded where keywords came from on 1 photo");
+        assert_eq!(only.name(), "tagSourced");
     }
 
     #[test]

@@ -357,6 +357,8 @@ pub struct Photo {
     pub rating: u8,                   // 0..=5
     pub flag: Flag,                   // None | Pick | Reject
     pub label: Option<ColorLabel>,
+    pub tags: Vec<String>,            // sorted, lowercase
+    pub tag_sources: Map<String, TagSource>, // manual | ai | xmp, absent = not recorded
     pub deleted: Option<Deleted>,     // at, mode, restore handle
     pub preview: PreviewState,        // Missing | Micro | Grid | Full | Failed(reason)
     pub analysis: AnalysisState,      // blur score, hashes, ai, each with version
@@ -365,6 +367,16 @@ pub struct Photo {
 
 Annotations are explicit fields, not a bag, so batch ops and counters are O(n) and typed.
 Tags are the one many-to-many relation, held in the tag index (§3.4).
+
+**Tag provenance** (SL-D12) is the one annotation that is a map rather than a field, because it is a
+fact about a word rather than about the photo: `tag_sources` holds an entry for each keyword whose
+origin was recorded, and a keyword with no entry is `TagSource::Unrecorded` — derived, never stored,
+so a library written before sources existed says "nobody wrote it down" instead of inventing "typed
+by hand". It rides in the log as its own `Op::TagSourced` committed in the same `Op::Group` as the
+`Op::Tagged` it describes: one ⌘Z restores the word and its origin together, and the 2-tuple `tagged`
+records already on disk still decode. `rev` is deliberately not bumped by it — `rev` is what a stale
+sidecar writer is refused against, and provenance is never written to a sidecar. Renaming a keyword
+carries its source to the new name; deleting one takes the source away.
 
 `Deleted { at, mode, original: PathKey, restore: Option<PathBuf> }` powers the rejects bin,
 undo and the audit log from one record.

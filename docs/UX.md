@@ -162,7 +162,13 @@ holds the scope selector and a date-range chip.
 ### 5.2 Filter bar (collapsible, identical in every view)
 
 Row 1: rating operator (≥/=/≤) + five stars · flag toggles (Pick / Unflagged / Reject) · five
-colour-label swatches · kind (All/Photos/RAW/Videos) · edited state.
+colour-label swatches · kind (All/Photos/RAW/Videos) · source (Manual / AI / XMP / Not recorded) · edited state.
+
+The **source** chip answers "did a machine touch this photo's keywords". It is one click to cycle and
+one to clear, it counts in the header badge like every other dimension, and it asks about *some*
+keyword rather than all of them — a photo with one accepted suggestion among ten typed words belongs in
+the answer. "Not recorded" is a real choice, not a fallback: it finds the keywords that were in the
+library before sources were kept, which is the honest answer instead of calling them manual.
 Row 2 (when narrow): camera, lens, tag pickers · Save as Smart Collection · Clear · Presets.
 
 Every control is a toggle with a tooltip that states the semantics ("any of the selected labels
@@ -353,7 +359,7 @@ Four tabs (dockable, reorderable, hideable) plus a header that names the current
 | Tab | Contents | Applies to |
 | --- | --- | --- |
 | **Details** | file, dimensions, size, dates, camera, lens, exposure, GPS/place, video info | one photo |
-| **Tags** | tag chips with remove, add field with autocomplete, "re-apply previous", suggestion count | one or many |
+| **Tags** | tag chips with remove, add field with autocomplete, "re-apply previous", suggestion count; a chip that was not typed by hand says so (`cat · AI`), because a claim whose origin you have to hover to see is one you will not check | one or many |
 | **Suggestions** | grouped by source (objects / scene / EXIF), confidence, accept-all-of-kind, dismiss | one or many |
 | **Activity** | job list (also in the bell), history of the last operations, audit entries for destructive ops | library |
 

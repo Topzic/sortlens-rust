@@ -24,7 +24,7 @@ pub use sortlens_catalog::folder::{FolderMark, key_of as folder_key};
 pub use sortlens_catalog::history::Entry as HistoryEntry;
 pub use sortlens_catalog::photo::now_epoch;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
-pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
+pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result, TagSource};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
 pub use sortlens_cull::{Decision, Summary as CullSummary};
 pub use sortlens_export::{Collision, Format as ExportFormat, Report as ExportReport, Spec as ExportSpec};
@@ -1507,8 +1507,21 @@ impl Engine {
         Ok(changed)
     }
 
-    /// Add or remove one keyword on a selection.
+    /// Add or remove one keyword on a selection, recording that a person asked for it.
+    ///
+    /// The source travels with the write rather than being decided later: by the time the tag is on disk, the only
+    /// witness to who put it there is the write itself.
     pub fn set_tag(&mut self, ids: &[PhotoId], tag: &str, add: bool) -> Result<usize> {
+        self.set_tag_from(ids, tag, add, TagSource::Manual)
+    }
+
+    /// Add or remove one keyword, saying where it came from.
+    ///
+    /// The tag list and its provenance travel as one [`Op::Group`], so accepting a suggestion is one ⌘Z and not two:
+    /// an undo that restored the words but kept the provenance (or the reverse) would leave the library describing
+    /// itself wrongly. Removing a keyword drops its source with it, so a word typed again later is not credited with
+    /// the origin of the word it replaced.
+    pub fn set_tag_from(&mut self, ids: &[PhotoId], tag: &str, add: bool, source: TagSource) -> Result<usize> {
         let tag = normalize_tag(tag)?;
         // A keyword renamed earlier still means its current name.
         let tag = match self.catalog.as_ref() {
@@ -1516,6 +1529,7 @@ impl Engine {
             None => tag,
         };
         let mut changes = Vec::new();
+        let mut sources = Vec::new();
         for id in ids {
             let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
             let mut tags = photo.tags.clone();
@@ -1531,17 +1545,52 @@ impl Engine {
             if tags != photo.tags {
                 changes.push((*id, tags));
             }
+            let mut map = photo.tag_sources.clone();
+            if add {
+                // First writer wins: a word already on the photo is not written twice, and re-typing it by hand does
+                // not quietly relabel where it came from.
+                map.entry(tag.clone()).or_insert(source);
+            } else {
+                map.remove(&tag);
+            }
+            map.retain(|name, _| name == &tag || photo.has_tag(name));
+            if map != photo.tag_sources {
+                sources.push((*id, map));
+            }
         }
-        if changes.is_empty() {
+        if changes.is_empty() && sources.is_empty() {
             return Ok(0);
         }
         let count = changes.len();
-        self.mutate(Op::Tagged { changes })?;
+        // The tags first, then the provenance: the second op is pruned against the tags the first one set, so the map
+        // can never describe a keyword that is not on the photo.
+        let mut ops = Vec::new();
+        if !changes.is_empty() {
+            ops.push(Op::Tagged { changes });
+        }
+        if !sources.is_empty() {
+            ops.push(Op::TagSourced { changes: sources });
+        }
+        match ops.len() {
+            1 => {
+                if let Some(op) = ops.pop() {
+                    self.mutate(op)?;
+                }
+            }
+            _ => {
+                self.mutate(Op::Group { ops })?;
+            }
+        }
         if add {
             self.last_tag = Some(tag);
         }
         self.sync_sidecars(ids);
         Ok(count)
+    }
+
+    /// Where a keyword on a photo came from, for a tooltip or a CLI report.
+    pub fn tag_source(&self, id: PhotoId, tag: &str) -> Option<TagSource> {
+        self.photo(id).map(|photo| photo.tag_source(tag))
     }
 
     /// The keyword `photo.tagFromPrev` would apply, if any has been applied this session.
@@ -1984,7 +2033,9 @@ impl Engine {
     /// Accept one suggestion: add the keyword, through the same op every other tag uses.
     ///
     /// Returns whether anything changed, so the caller can say "already there" rather than reporting a
-    /// tag it did not add.
+    /// tag it did not add. The keyword is recorded as [`TagSource::Ai`] — proposed by a model or a pack and then
+    /// accepted — so the library can answer "which of these words did a machine suggest" later, and so a whole
+    /// library of accepted guesses can be reviewed by filtering on it.
     pub fn accept_suggestion(&mut self, id: PhotoId, tag: &str) -> Result<bool> {
         let photo = self.photo(id).ok_or(Error::NoSuchPhoto(id))?;
         let normalised = tag.trim().to_lowercase();
@@ -1994,7 +2045,7 @@ impl Engine {
         if photo.tags.iter().any(|existing| existing == &normalised) {
             return Ok(false);
         }
-        let changed = self.set_tag(&[id], &normalised, true)?;
+        let changed = self.set_tag_from(&[id], &normalised, true, TagSource::Ai)?;
         Ok(changed > 0)
     }
 
@@ -5126,6 +5177,7 @@ mod tests {
             shutter,
             focal,
             tags: tags.iter().map(|tag| tag.to_string()).collect(),
+            tag_sources: std::collections::BTreeMap::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -6199,6 +6251,74 @@ mod tests {
 
         assert!(engine.run("tag.delete", &json!({})).is_err(), "a keyword is required");
         assert!(engine.run("tag.delete", &json!({ "tag": "harbour" })).is_err(), "nothing to delete");
+    }
+
+    /// SL-D12: a keyword says who put it there, the filter can ask, and one undo takes the word and its origin back.
+    #[test]
+    fn a_keyword_records_whether_a_person_or_a_model_put_it_there() {
+        let folder = Temp::new("tag-provenance-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        std::fs::write(folder.0.join("a.jpg"), b"a").expect("write");
+        std::fs::write(folder.0.join("b.jpg"), b"b").expect("write");
+        let (_lib, mut engine) = library("tag-provenance");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+
+        engine.set_tag(&ids[..1], "typed", true).expect("tag by hand");
+        assert!(engine.accept_suggestion(ids[1], "Guessed").expect("accept"));
+        assert_eq!(
+            engine.tag_source(ids[0], "typed"),
+            Some(TagSource::Manual),
+            "a keyword typed here says so"
+        );
+        assert_eq!(
+            engine.tag_source(ids[1], "guessed"),
+            Some(TagSource::Ai),
+            "a suggestion that was accepted says so, in the same word a filter can ask for"
+        );
+
+        fn from(engine: &mut Engine, source: &str) -> u64 {
+            engine
+                .run("library.page", &json!({ "filter": { "tag_source": source } }))
+                .expect("page")["total"]
+                .as_u64()
+                .unwrap_or(0)
+        }
+        assert_eq!(
+            from(&mut engine, "manual"),
+            1,
+            "the filter is serialised through the same enum the log writes"
+        );
+        assert_eq!(from(&mut engine, "ai"), 1);
+        assert_eq!(from(&mut engine, "xmp"), 0, "nothing was read out of a sidecar here");
+        assert_eq!(
+            from(&mut engine, "unrecorded"),
+            0,
+            "every keyword in this library has a recorded source"
+        );
+
+        // One ⌘Z takes the keyword and its provenance, not just the word.
+        assert!(engine.undo().expect("undo"));
+        assert!(!engine.photo(ids[1]).expect("photo").has_tag("guessed"));
+        assert_eq!(from(&mut engine, "ai"), 0);
+        assert_eq!(engine.photo(ids[1]).expect("photo").tag_sources.len(), 0);
+
+        // Renaming the keyword keeps the origin, and deleting it takes the origin with it.
+        assert!(engine.accept_suggestion(ids[1], "guessed").expect("accept again"));
+        engine.rename_tag("guessed", "guesswork").expect("rename");
+        assert_eq!(engine.tag_source(ids[1], "guesswork"), Some(TagSource::Ai));
+        engine.delete_tag("guesswork").expect("delete");
+        assert_eq!(
+            engine.tag_source(ids[1], "guesswork"),
+            Some(TagSource::Unrecorded),
+            "the word is gone, so nothing claims an origin for it"
+        );
     }
 
     #[test]

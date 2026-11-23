@@ -5,8 +5,9 @@
 //! survives a rename.
 
 use serde::{Deserialize, Serialize};
-use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId, Review};
+use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId, Review, TagSource};
 use sortlens_meta::PhotoMeta;
+use std::collections::BTreeMap;
 
 /// Everything Sortlens knows about one file.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -78,6 +79,14 @@ pub struct Photo {
     /// Keyword tags, sorted and deduplicated, lowercase as typed by the user.
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Where each keyword came from, one entry per tag whose origin was recorded.
+    ///
+    /// A tag with no entry here is [`TagSource::Unrecorded`]: it was in the library before sources were kept, and
+    /// saying `Manual` would invent a decision nobody made. The map is pruned with the tags — a removed keyword
+    /// takes its entry with it, so a keyword typed again later is not credited with a source it inherited — and it
+    /// travels in the log and the snapshot, so a reopen reproduces exactly what was written.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tag_sources: BTreeMap<String, TagSource>,
     /// Whether another application has edit settings for this photo.
     #[serde(default)]
     pub edited: bool,
@@ -167,6 +176,7 @@ impl Photo {
             focal: None,
             retry: false,
             tags: Vec::new(),
+            tag_sources: BTreeMap::new(),
             edited: false,
             sharpness: None,
             location: None,
@@ -242,11 +252,43 @@ impl Photo {
         self.tags = review.tags.clone();
         self.tags.sort_unstable();
         self.tags.dedup();
+        // A sidecar was written by another application, so these keywords are that file's words and not words
+        // anybody typed here. Recording that is the whole point of provenance: a library built from sidecars says
+        // so, and a keyword that later gets typed by hand takes the hand's source instead.
+        for tag in &self.tags {
+            self.tag_sources.insert(tag.clone(), TagSource::Xmp);
+        }
     }
 
     /// Whether the photo carries a tag.
     pub fn has_tag(&self, tag: &str) -> bool {
         self.tags.iter().any(|existing| existing == tag)
+    }
+
+    /// Where a keyword on this photo came from.
+    ///
+    /// A tag with no recorded entry is [`TagSource::Unrecorded`] rather than a guess: a library written before
+    /// sources existed genuinely does not know, and the difference between "typed by a person" and "nobody wrote
+    /// it down" is the difference between a fact and an invention.
+    pub fn tag_source(&self, tag: &str) -> TagSource {
+        self.tag_sources.get(tag).copied().unwrap_or(TagSource::Unrecorded)
+    }
+
+    /// Whether any keyword on the photo came from this source.
+    pub fn carries_source(&self, source: TagSource) -> bool {
+        self.tags.iter().any(|tag| self.tag_source(tag) == source)
+    }
+
+    /// Whether every keyword on the photo came from this source. An untagged photo carries every source
+    /// vacuously, which is why callers ask [`Self::has_tag`]-shaped questions instead of relying on this alone.
+    pub fn all_tags_from(&self, source: TagSource) -> bool {
+        !self.tags.is_empty() && self.tags.iter().all(|tag| self.tag_source(tag) == source)
+    }
+
+    /// Forget keywords that are no longer on the photo, so the provenance map cannot outlive the tag it describes.
+    pub fn prune_tag_sources(&mut self) {
+        let live: Vec<String> = self.tags.clone();
+        self.tag_sources.retain(|tag, _| live.contains(tag));
     }
 
     /// Whether the photo carries any review state.

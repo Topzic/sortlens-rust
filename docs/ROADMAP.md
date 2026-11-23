@@ -772,8 +772,10 @@ and recover; export/import a library onto a second machine and remap the volume.
 ## M8 — AI + export · 2.5 w · tracks D,A
 
 **State:** the no-weights half is built — export (Original, JPEG and PNG), manifest, store, NMS, label map, EXIF
-hints, packs, the suggestion panel, accept-and-undo and the batch pass. **M8 is not closed**: real local
-inference (detector, embeddings, downloader, tag provenance) is open in Phase 2 below. The owner has signed off on pinning permissively licensed weights and on a user-initiated
+hints, packs, the suggestion panel, accept-and-undo and the batch pass. **M8 is not closed**: the real local
+inference rows (detector, embeddings, downloader) and tag provenance are in **Phase 2** below, where the
+detector, the embeddings and the consent-gated downloader have shipped and provenance closed on 2026-11-23.
+The owner has signed off on pinning permissively licensed weights and on a user-initiated
 download, so the earlier "needs weights we cannot ship" blocker no longer applies.
 
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
@@ -814,7 +816,8 @@ download, so the earlier "needs weights we cannot ship" blocker no longer applie
 
 The three rows this section used to hide — the `tract` detector session (SL-F03 part 2), the image/text
 embedding sessions and prompt packs (SL-F04) and `source = Ai` filtering via per-tag provenance (SL-D12) — are
-now unchecked rows in **Phase 2**. PNG export (SL-B24) is closed: it shipped as Phase 1 item 4 on 2026-11-23.
+now unchecked rows in **Phase 2**. PNG export (SL-B24) is closed: it shipped as Phase 1 item 4 on 2026-11-23,
+and `source = Ai` filtering (SL-D12) is closed too: it shipped as Phase 2 item 4 on 2026-11-23.
 
 **Demo:** on a clean machine, index 50 photos, run `batchsuggest`, accept ten proposals from the panel,
 undo one, switch on a keyword pack and watch its keywords appear for the matching folders; export a
@@ -1011,8 +1014,18 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
     the real downloaded pins (digests verified, tokeniser validated by the real text model's
     cosine ordering, a real cat photo ranking “a photo of a cat” first and the real detector
     answering `cat · 1.00` on it)
-- [ ] 4. Tag provenance (SL-D12): per-tag source `Manual`/`Ai`/`Xmp` in the catalog with a backwards-compatible
-  snapshot migration, filterable in the UI and CLI (A,B)
+- [x] 4. Tag provenance (SL-D12): per-tag source `Manual`/`Ai`/`Xmp` in the catalog with a backwards-compatible
+  snapshot migration, filterable in the UI and CLI (A,B) — shipped 2026-11-23, see the twenty-ninth entry:
+  `sortlens_core::TagSource` (`manual`, `ai`, `xmp`, plus `unrecorded` for keywords that were in a library before
+  sources were kept — the honest answer, not a guess of `manual`); `Photo::tag_sources` with
+  `#[serde(default, skip_serializing_if)]`, so a snapshot written by an older build replays and rewrites exactly
+  as it was, with no invented entries; a new additive `Op::TagSourced` committed in the same `Group` as the
+  `Op::Tagged` it describes, so one ⌘Z takes the word and its origin together and the pre-existing 2-tuple op
+  records still decode; `Engine::set_tag_from` (hand-typed is `Manual`, `accept_suggestion` is `Ai`, a sidecar
+  review adopted at import is `Xmp`), with rename carrying the source to the new name and delete taking it away;
+  `Filter::tag_source` answering "some keyword came from there" through `library.page`, the filter strip's
+  Source chip in the window, `sortlens-cli list/page --source`, and the keyword chip printing its source
+  (`cat · AI`) instead of hiding it in a tooltip
 
 ### Phase 3 — Adobe/ArtCraft UI/UX overhaul and a visual verification harness (M4–M6 surfaces)
 

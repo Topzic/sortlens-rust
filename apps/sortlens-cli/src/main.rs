@@ -7,7 +7,7 @@
 
 use serde_json::Value;
 use sortlens_core::Flag;
-use sortlens_engine::{Engine, Filter, Sort};
+use sortlens_engine::{Engine, Filter, Sort, TagSource};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -51,7 +51,9 @@ Commands:
                             list subfolders with recursive counts
   check                     verify every indexed file is still on disk
   relocate                  find missing files elsewhere under their root
-  list [--tag KW]           filter the listing by keyword
+  list [--tag KW] [--source SRC]
+                            filter the listing by keyword, or by where a keyword came from
+                            (manual, ai, xmp, unrecorded)
   models                    the pinned models, with licence, size and install state
   model-consent on|off      the opt-in switch for downloading models (network)
   model-install <id>        download a pinned model; resumable, digest-checked
@@ -965,6 +967,7 @@ fn run() -> Result<(), String> {
             let limit = flag_value(rest, "--limit").unwrap_or(20);
             let filter = Filter {
                 tags: text_value(rest, "--tag").into_iter().collect(),
+                tag_source: source_flag(rest)?,
                 ..Filter::default()
             };
             let page = engine.page(&filter, Sort::Natural, 0, limit);
@@ -1259,7 +1262,12 @@ fn run() -> Result<(), String> {
             let value = engine
                 .run(
                     "library.page",
-                    &serde_json::json!({ "offset": offset, "limit": limit, "sort": sort }),
+                    &serde_json::json!({
+                        "offset": offset,
+                        "limit": limit,
+                        "sort": sort,
+                        "filter": { "tag_source": source_flag(rest)? },
+                    }),
                 )
                 .map_err(|error| error.to_string())?;
             println!("{value}");
@@ -1329,6 +1337,27 @@ fn parse_id(value: Option<&String>) -> Result<sortlens_core::PhotoId, String> {
         .parse::<u64>()
         .map(sortlens_core::PhotoId)
         .map_err(|_| "photo id must be a number".to_string())
+}
+
+/// The `--source` flag, as the same enum the log writes.
+///
+/// A word the enum does not know is refused with the list of real ones: silently treating a typo as "no filter"
+/// would answer a different question than the one that was asked, which is the class of bug a filter must not have.
+fn source_flag(args: &[String]) -> Result<Option<TagSource>, String> {
+    let Some(text) = text_value(args, "--source") else {
+        return Ok(None);
+    };
+    TagSource::parse(&text).map(Some).ok_or_else(|| {
+        format!(
+            "--source {text} is not a source; use {}",
+            TagSource::ALL
+                .into_iter()
+                .chain([TagSource::Unrecorded])
+                .map(TagSource::id)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
 }
 
 fn text_value(args: &[String], name: &str) -> Option<String> {

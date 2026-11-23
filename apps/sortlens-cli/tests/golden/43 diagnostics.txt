@@ -34,7 +34,7 @@ changed = 0
 none installed
 
 [recent changes]
-25 group · Flagged 1 photo
+25 flag · Flagged 1 photo
 24 scores · Measured the sharpness of 6 photos
 23 tagged · Keyworded 1 photo
 22 label · Labelled 1 photo
