@@ -1,5 +1,46 @@
 # Checkpoint
 
+## 2026-11-23 (fortieth) — Phase 3B.6 part 5: the sidebar scrolls above its foot instead of over it
+
+- **The defect, reproduced before it was fixed.** At 1280×620 the left panel holds six scopes, two subfolders,
+  `FOLDERS`, twelve keyword rows and `COLLECTIONS`; the foot claims the last ~133 points, and egui happily laid
+  the sections out past the hairline, inside the panel's clip rect but *over* the four utility rows. The new test
+  failed on exactly that before the fix: `keyword kw04 is visible at [[45.0 446.5] - [73.0 455.5]], inside the
+  foot's band ([[0.0 451.0] - [264.0 580.0]])`.
+- **The fix is a clip, not a guess.** Everything below the `Library` header now lives in one
+  `egui::ScrollArea::vertical()` with `.id_salt("sidebar_sections")` and `.auto_shrink([false, false])`, so the
+  viewport is exactly the room the foot left. The foot is still laid out *first* (its `Panel::bottom` claim and
+  its exact height arithmetic are unchanged), which is what makes the viewport's bottom edge the hairline; a row
+  that does not fit is now scrolled rather than drawn across the utilities. `auto_shrink` keeps the bar absent
+  while the sections fit, so nothing changes on a tall window.
+- **Two halves of the claim, because hiding is not fixing.** The test paints the whole window at 1280×620 over a
+  library tagged with twelve keywords, and then: (1) **nothing from the sections is visible in the foot's band** —
+  "visible" is each painted text rect intersected with the clip rect its shape carries, so a row the scroll area
+  pushed past the viewport does not count while a row drawn over the utilities does; the four foot labels must all
+  be *readable* there, so a fix that clipped the footer too would fail the same test; and (2) **the sections
+  scroll** — a `MouseWheel` event over the sidebar brings a keyword that started below the fold into view, and
+  `Recently Deleted` does not move a point. The test refuses to pass vacuously: it asserts that fewer keyword rows
+  are visible than exist, so growing the window instead of fixing the layout says so out loud.
+- **Visual verification**: `short-sidebar-charcoal` and `short-sidebar-paper` added at 1280×620 and read — the
+  sections are cut cleanly at the hairline, the four utility rows sit on the bottom edge with clear space, and no
+  section text is drawn across them. `filters-charcoal`/`-paper` and `no-matches-charcoal`/`-paper` (1200×800)
+  were regenerated and read: their only change is that `+ New collection` — which used to sit *on* the hairline — is
+  now clipped above it. Every 1440×900 baseline is byte-identical, which is the evidence the tall window is
+  untouched. The five `places-*` `.diff.png`/`.old.png` leaves from an earlier failed comparison were removed.
+- **One defect found while reading the new baselines, not fixed here**: at 1280 points with both docks open the
+  filter strip's right-aligned `N shown` summary is painted *under* the `Clear` chip, so the two overlap. It is
+  recorded as ROADMAP 3B.6 (h) and is the next slice; it is visible in the new `short-sidebar-*` baselines on
+  purpose, because hiding it by choosing a flattering window width would make the baseline a claim rather than
+  evidence.
+- Files: `crates/ui/src/shell.rs` (`left_panel`'s scroll area, one new test), `crates/ui/tests/screenshots.rs`
+  (the new scene), `crates/ui/tests/snapshots/short-sidebar-{charcoal,paper}.png` (new),
+  `crates/ui/tests/snapshots/{filters,no-matches}-{charcoal,paper}.png` (regenerated), and the reconciled
+  `docs/UX.md` §4.4 + `docs/ROADMAP.md` (3B.6 (d) ticked, (e)–(g) left open in their own row, (h) opened).
+- Gates: `ci`, `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots` all green; 127 `sortlens-ui` unit
+  tests including the new one, and the workspace suite has no failures.
+- **Next**: 3B.6 (h), the strip's `N shown` summary colliding with `Clear` at 1280, then (e), (f), (g) in that
+  order; Phase 4 items 16–18 after them.
+
 ## 2026-11-23 (thirty-ninth) — Phase 3B.6 part 4: Places has a coast before you ask for one
 
 - **The outline ships, and it is the one the project may ship.** `sortlens_geo::coastline` embeds
@@ -3343,13 +3384,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     thirty-ninth entry: the Natural Earth 1:110m outline embedded in `sortlens-geo` with its credit on screen, split
     at the antimeridian and projected once, `bounds_centre`/`fit_zoom` replacing the fixed zoom and the mean centre,
     a `tiles/` folder still winning, a chosen zoom never overwritten, seven geo tests, two shell tests and both Places
-    baselines read. **(d) is the exact next slice**: at ~620 px of height the sidebar's pinned foot (Recently
-    Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps the keyword and collection rows above
-    it. Then (e) at 900 px with both docks open the canvas header's title runs under the right-aligned sort combo;
-    (f) the cull keyword row clips under the bottom bar at 900 px; (g) `←`/`→` are still text in the keymap overlay
-    and the registry's `shortcut` strings, where the bundled faces have no glyph. A fix here is a regenerated
-    baseline that is read, not a claim; (d)–(g) were each *observed*, so each one is "the baseline is clean and the
-    geometry test says so" or it is not done.
+    baselines read. (d) the sidebar's pinned foot overlapped the keyword and collection rows above it at ~620 px
+    — **done 2026-11-23**, see the fortieth entry: the sections live in one `ScrollArea` sized to the room the foot
+    left, a test intersects every painted text rect with its own clip rect so "visible" means visible, a wheel event
+    proves the rows under the fold are reachable while the foot stays put, and `short-sidebar-charcoal`/`-paper` were
+    added and read. **(h) is the exact next slice**: while reading those baselines, at 1280 px with both docks open
+    the filter strip's right-aligned `N shown` summary is painted *under* the `Clear` chip. Then (e) at 900 px with
+    both docks open the canvas header's title runs under the right-aligned sort combo; (f) the cull keyword row
+    clips under the bottom bar at 900 px; (g) `←`/`→` are still text in the keymap overlay and the registry's
+    `shortcut` strings, where the bundled faces have no glyph. A fix here is a regenerated baseline that is read,
+    not a claim; (e)–(h) were each *observed*, so each one is "the baseline is clean and the geometry test says so"
+    or it is not done.
 
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts.

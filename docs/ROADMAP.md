@@ -1153,10 +1153,27 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   Sydney where zoom 5 showed neither; a chosen zoom is never overwritten; and the view paints two dots inside the
   map with the outline beneath them, and paints neither for the person's own tile folder nor for a library with no
   location. `places-charcoal`/`-paper` regenerated and read
-- [ ] 3B.6 (d)–(g) The remaining visual defects (B): at ~620 px of height the sidebar's pinned foot overlaps
-  the keyword and collection rows above it; at 900 px with both docks open the canvas header's title runs under the
-  right-aligned sort combo; the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are still used
-  as text in the keymap overlay and the command registry's `shortcut` strings, where the bundled faces have no glyph
+- [x] 3B.6 (d) The sidebar's sections scroll above the pinned foot — **shipped 2026-11-23 (part 5)**: at 620 px of
+  height six scopes, two subfolders and twelve keyword rows are taller than the panel, and the rows used to keep
+  laying themselves out past the hairline and paint over the four utility rows. Everything below the `Library`
+  header now lives in one vertical `ScrollArea` sized to the room the foot left (`auto_shrink([false, false])`, so
+  the bar appears only when the sections really need it), which makes the boundary a clip rather than luck and
+  leaves the rows under the fold reachable by scrolling instead of lost. A headless test paints 1280×620 with
+  twelve keywords: no keyword row is *visible* inside the foot's band (visibility is a rect intersected with its
+  clip rect, so a clipped row does not count), the foot's own four labels are all readable there, the test refuses
+  to pass if the content happens to fit, and a wheel event brings a below-the-fold keyword up while
+  `Recently Deleted` does not move a point. `short-sidebar-charcoal`/`-paper` at 1280×620 added; `filters-*` and
+  `no-matches-*` regenerated and read — their only change is that the `+ New collection` row, which used to sit on
+  the hairline, is now clipped above it. `docs/UX.md` §4.4 updated: the sections scroll, they are still not
+  collapsible or reorderable
+- [ ] 3B.6 (e)–(g) The remaining visual defects (B): at 900 px with both docks open the canvas header's title runs
+  under the right-aligned sort combo; the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are
+  still used as text in the keymap overlay and the command registry's `shortcut` strings, where the bundled faces
+  have no glyph
+- [ ] 3B.6 (h) Observed while verifying (d), not yet fixed: at 1280 px with both docks open the filter strip's
+  right-aligned `N shown` summary is drawn underneath the `Clear` chip instead of on a row of its own, so the two
+  overlap. The new `short-sidebar-*` baselines are the evidence. The strip needs the summary to claim its width
+  before the chips wrap, or to fall to a row of its own when it cannot
 
 ### Phase 4 — Platform, keymap and remote polish (M9–M10)
 

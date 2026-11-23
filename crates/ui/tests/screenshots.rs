@@ -505,6 +505,26 @@ fn a_narrow_window_collapses_the_tab_row() {
     library.keep(shoot_at(kind, scene, "narrow-charcoal", egui::vec2(900.0, 620.0)));
 }
 
+/// A short window with the sidebar open: the sections scroll above the pinned foot instead of painting over it.
+///
+/// 3B.6 (d) was reported at ~620 px of height, where the six scopes, the two subfolders and the keyword and
+/// collection rows are taller than the panel. The baseline is the proof a person can read: the four utility
+/// rows sit on the bottom edge with clean space above them, the last visible section row is clipped at the
+/// hairline rather than drawn across it, and the scroll bar says the rest is still there.
+#[test]
+fn a_short_window_scrolls_the_sidebar_above_its_foot_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        library.keep(shoot_at(
+            kind,
+            scene,
+            &format!("short-sidebar-{}", kind_id(kind)),
+            egui::vec2(1280.0, 620.0),
+        ));
+    }
+}
+
 /// The filter strip while it is asking something: three stars and up, and one colour label.
 ///
 /// The resting strip appears in every other baseline; this is the one that proves its *active* state is

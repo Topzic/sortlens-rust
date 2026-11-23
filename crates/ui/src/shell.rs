@@ -2422,108 +2422,119 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             ui.add_space(6.0);
             ui.separator();
 
-            nav_section(ui, t, "Sources");
-            let now = sortlens_engine::now_epoch();
-            for source in Source::ALL {
-                // Each row's count is what that row would show, not the library total: a Picks row reading
-                // "0" while the grid holds thousands is the row doing its job.
-                let count = source_count(engine, state, source, now);
-                if nav_row(
-                    ui,
-                    t,
-                    source.icon(),
-                    source.label(),
-                    &format_count(count as u64),
-                    state.source_selected(source),
-                )
-                .clicked()
-                {
-                    if source == Source::All {
-                        state.root = None;
-                    }
-                    state.apply_source(source);
-                }
-            }
-            if let Some(progress) = engine.scan_progress()
-                && engine.is_scanning()
-            {
-                ui.label(
-                    RichText::new(format!("Scanning · {} files", format_count(progress.files as u64)))
-                        .size(11.0)
-                        .color(t.accent),
-                );
-            }
-
-            if let Some(root) = state.root.clone() {
-                let folders = engine.subfolders(&root, &state.folder);
-                if !folders.is_empty() {
-                    nav_section(ui, t, "Subfolders");
-                }
-                for (name, count) in folders {
-                    let prefix = format!("{}{name}/", state.folder);
-                    let selected = state.folder == prefix;
-                    if nav_row(ui, t, crate::icons::Icon::Folder, &name, &format_count(count as u64), selected).clicked() {
-                        state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
-                    }
-                }
-            }
-
-            folders_section(ui, t, state, engine, actions);
-
-            ui.horizontal(|ui| {
-                nav_section(ui, t, "Keywords");
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui
-                        .add(Button::new(RichText::new(state.tag_order.label()).size(9.5)).frame(false))
-                        .on_hover_text("Switch between most used and A–Z")
+            // Everything below the header can outgrow the panel: six scopes, the folder rows and twelve
+            // keywords are taller than a 620-point window, and a section that keeps laying itself out past
+            // the hairline paints over the utilities. The scroll area takes exactly the room the foot left
+            // and clips at that edge, so the boundary a person sees is the boundary the paint obeys — and the
+            // rows under the fold scroll up instead of being lost. `auto_shrink` keeps the viewport at the
+            // full height the foot left, so the scrollbar appears only when the sections really need it.
+            egui::ScrollArea::vertical()
+                .id_salt("sidebar_sections")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    nav_section(ui, t, "Sources");
+                    let now = sortlens_engine::now_epoch();
+                    for source in Source::ALL {
+                        // Each row's count is what that row would show, not the library total: a Picks row reading
+                        // "0" while the grid holds thousands is the row doing its job.
+                        let count = source_count(engine, state, source, now);
+                        if nav_row(
+                            ui,
+                            t,
+                            source.icon(),
+                            source.label(),
+                            &format_count(count as u64),
+                            state.source_selected(source),
+                        )
                         .clicked()
+                        {
+                            if source == Source::All {
+                                state.root = None;
+                            }
+                            state.apply_source(source);
+                        }
+                    }
+                    if let Some(progress) = engine.scan_progress()
+                        && engine.is_scanning()
                     {
-                        state.tag_order = state.tag_order.flipped();
+                        ui.label(
+                            RichText::new(format!("Scanning · {} files", format_count(progress.files as u64)))
+                                .size(11.0)
+                                .color(t.accent),
+                        );
                     }
-                });
-            });
-            let vocabulary = engine.tag_vocabulary_in(state.tag_order);
-            if vocabulary.is_empty() {
-                hint(ui, t, "Select a photo, press K and type a keyword.");
-            }
-            let mut tag_delete: Option<String> = None;
-            for (tag, count) in vocabulary.iter().take(12) {
-                let selected = state.tag_filters.iter().any(|active| active == tag);
-                let aliases = engine.registry_aliases_of(tag);
-                let row = if aliases.is_empty() {
-                    nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
-                } else {
-                    // Say where a keyword came from: a rename leaves a trail behind it.
-                    nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
-                        .on_hover_text(format!("also written as {}", aliases.join(", ")))
-                };
-                if row.clicked() {
-                    if selected {
-                        state.tag_filters.retain(|active| active != tag);
-                    } else {
-                        state.tag_filters.push(tag.clone());
-                    }
-                }
-                row.context_menu(|ui| {
-                    if ui.button("Rename or merge…").clicked() {
-                        state.tag_edit = Some((tag.clone(), tag.clone()));
-                        ui.close();
-                    }
-                    if ui
-                        .button("Delete everywhere")
-                        .on_hover_text("Take the keyword off every photo; one undo brings it back")
-                        .clicked()
-                    {
-                        tag_delete = Some(tag.clone());
-                        ui.close();
-                    }
-                });
-            }
-            if let Some(tag) = tag_delete {
-                delete_keyword_everywhere(state, engine, &tag);
-            }
 
-            collections_section(ui, t, state, engine);
+                    if let Some(root) = state.root.clone() {
+                        let folders = engine.subfolders(&root, &state.folder);
+                        if !folders.is_empty() {
+                            nav_section(ui, t, "Subfolders");
+                        }
+                        for (name, count) in folders {
+                            let prefix = format!("{}{name}/", state.folder);
+                            let selected = state.folder == prefix;
+                            if nav_row(ui, t, crate::icons::Icon::Folder, &name, &format_count(count as u64), selected).clicked() {
+                                state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
+                            }
+                        }
+                    }
+
+                    folders_section(ui, t, state, engine, actions);
+
+                    ui.horizontal(|ui| {
+                        nav_section(ui, t, "Keywords");
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui
+                                .add(Button::new(RichText::new(state.tag_order.label()).size(9.5)).frame(false))
+                                .on_hover_text("Switch between most used and A–Z")
+                                .clicked()
+                            {
+                                state.tag_order = state.tag_order.flipped();
+                            }
+                        });
+                    });
+                    let vocabulary = engine.tag_vocabulary_in(state.tag_order);
+                    if vocabulary.is_empty() {
+                        hint(ui, t, "Select a photo, press K and type a keyword.");
+                    }
+                    let mut tag_delete: Option<String> = None;
+                    for (tag, count) in vocabulary.iter().take(12) {
+                        let selected = state.tag_filters.iter().any(|active| active == tag);
+                        let aliases = engine.registry_aliases_of(tag);
+                        let row = if aliases.is_empty() {
+                            nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
+                        } else {
+                            // Say where a keyword came from: a rename leaves a trail behind it.
+                            nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
+                                .on_hover_text(format!("also written as {}", aliases.join(", ")))
+                        };
+                        if row.clicked() {
+                            if selected {
+                                state.tag_filters.retain(|active| active != tag);
+                            } else {
+                                state.tag_filters.push(tag.clone());
+                            }
+                        }
+                        row.context_menu(|ui| {
+                            if ui.button("Rename or merge…").clicked() {
+                                state.tag_edit = Some((tag.clone(), tag.clone()));
+                                ui.close();
+                            }
+                            if ui
+                                .button("Delete everywhere")
+                                .on_hover_text("Take the keyword off every photo; one undo brings it back")
+                                .clicked()
+                            {
+                                tag_delete = Some(tag.clone());
+                                ui.close();
+                            }
+                        });
+                    }
+                    if let Some(tag) = tag_delete {
+                        delete_keyword_everywhere(state, engine, &tag);
+                    }
+
+                    collections_section(ui, t, state, engine);
+                });
         });
 }
 
@@ -11277,6 +11288,198 @@ mod tests {
             lowest_section < column.min.y - 60.0,
             "the sections end well above the foot (lowest {lowest_section} vs foot top {})",
             column.min.y
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 3B.6 (d): a short window has more sections than the sidebar can show, and the pinned foot must not be
+    /// painted over by them.
+    ///
+    /// At 1280×620 the six scopes, the subfolders and twelve keyword rows are taller than the panel, so the
+    /// sections used to keep laying themselves out past the foot's hairline and draw on top of the four
+    /// utility rows. The claim is geometric and made twice: **nothing from the sections is visible inside the
+    /// foot's band** (the boundary is a clip, not luck), and **the sections scroll**, so the rows below the
+    /// fold are reachable rather than merely hidden. A keyword that was below the fold before a wheel event is
+    /// above it afterwards, and the foot has not moved a point.
+    #[test]
+    fn the_sidebar_scrolls_its_sections_above_the_foot_in_a_short_window() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-short-sidebar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-short-sidebar");
+        for name in ["a.jpg", "b.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "two photos indexed");
+        // Distinct names in a fixed order so the test knows which row it is looking for: the vocabulary is
+        // most-used first, and twelve rows is what the panel paints.
+        let tags: Vec<String> = (1..=12).map(|n| format!("kw{n:02}")).collect();
+        for tag in &tags {
+            engine.set_tag(&ids, tag, true).expect("tag");
+        }
+        assert_eq!(
+            engine.tag_vocabulary().len(),
+            tags.len(),
+            "the sidebar has twelve keyword rows to paint"
+        );
+
+        let t = ThemeKind::Charcoal.tokens();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 620.0));
+        let mut frame = |input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, &mut state, &mut engine, &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let input = egui::RawInput {
+            screen_rect: Some(screen),
+            ..egui::RawInput::default()
+        };
+        let output = frame(input);
+
+        let column_bottom = screen.bottom() - t.bottom_bar_h;
+        let band = Rect::from_min_max(
+            pos2(0.0, column_bottom - sidebar_foot_height(&ctx.global_style().spacing)),
+            pos2(t.left_w, column_bottom),
+        );
+
+        // Everything painted inside a shape's own clip rect: a row the scroll area pushed past its viewport is
+        // still in the display list, and whether a person can see it is the intersection of the two.
+        fn visible(rect: Rect, clip: Rect) -> Option<Rect> {
+            let hit = clip.intersect(rect);
+            (hit.width() > 0.5 && hit.height() > 0.5).then_some(hit)
+        }
+        fn texts(output: &egui::FullOutput) -> Vec<(String, Rect, Rect)> {
+            fn walk(shape: &egui::Shape, clip: Rect, sink: &mut Vec<(String, Rect, Rect)>) {
+                match shape {
+                    egui::Shape::Text(text) => {
+                        sink.push((text.galley.job.text.clone(), text.visual_bounding_rect(), clip));
+                    }
+                    egui::Shape::Vec(shapes) => {
+                        for shape in shapes {
+                            walk(shape, clip, sink);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, clipped.clip_rect, &mut sink);
+            }
+            sink
+        }
+
+        let painted = texts(&output);
+        // The foot is the only thing allowed in its own band, and each of its four rows must be readable there:
+        // a fix that clipped the footer too would leave the band empty rather than clean.
+        let in_band: Vec<&str> = painted
+            .iter()
+            .filter(|(_, rect, clip)| visible(*rect, *clip).is_some_and(|hit| band.intersects(hit)) && rect.center().y > band.min.y)
+            .map(|(text, _, _)| text.as_str())
+            .collect();
+        let registry = sortlens_engine::command::Registry::v0();
+        for (command, _) in SIDEBAR_FOOT {
+            let label = registry.get(command.id()).expect("the foot row names a real command").label;
+            assert!(
+                in_band.iter().any(|text| text.starts_with(label)),
+                "`{label}` is painted in the foot's band; the band holds {in_band:?}"
+            );
+        }
+        // And nothing else is: every keyword row that sits below the fold is clipped at the boundary instead of
+        // drawn over the utilities.
+        for (text, rect, clip) in &painted {
+            if !tags.iter().any(|tag| tag == text) {
+                continue;
+            }
+            if let Some(hit) = visible(*rect, *clip) {
+                assert!(
+                    hit.max.y <= band.min.y + 0.5,
+                    "keyword `{text}` is visible at {hit:?}, inside the foot's band ({band:?})"
+                );
+            }
+        }
+        // The sections really do overflow at this height, so those assertions are not passing vacuously.
+        let visible_tags: Vec<&str> = painted
+            .iter()
+            .filter(|(text, rect, clip)| tags.iter().any(|tag| tag == text) && visible(*rect, *clip).is_some())
+            .map(|(text, _, _)| text.as_str())
+            .collect();
+        assert!(
+            visible_tags.len() < tags.len(),
+            "the window is tall enough that every keyword fits, so this test proves nothing: {visible_tags:?}"
+        );
+
+        // The fold is not a hole: a wheel event over the sidebar brings the rows under it up, and the foot stays
+        // exactly where it was.
+        let foot_before = label_at(&output, "Recently Deleted").expect("the foot is painted");
+        let hidden = tags
+            .iter()
+            .find(|tag| {
+                !painted
+                    .iter()
+                    .any(|(text, rect, clip)| text == *tag && visible(*rect, *clip).is_some())
+            })
+            .expect("a keyword row starts below the fold")
+            .clone();
+        let scroll = egui::RawInput {
+            screen_rect: Some(screen),
+            events: vec![
+                egui::Event::PointerMoved(pos2(120.0, 320.0)),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -260.0),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                    modifiers: egui::Modifiers::default(),
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        let mut output = frame(scroll);
+        // Smooth scrolling eases towards its target over a few frames; a single wheel event is not a promise
+        // that the list has arrived.
+        for _ in 0..12 {
+            output = frame(egui::RawInput {
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            });
+        }
+        let painted = texts(&output);
+        assert!(
+            painted
+                .iter()
+                .any(|(text, rect, clip)| { text == &hidden && visible(*rect, *clip).is_some() }),
+            "`{hidden}` was below the fold and did not come up when the sidebar was scrolled"
+        );
+        let foot_after = label_at(&output, "Recently Deleted").expect("the foot is still painted");
+        assert!(
+            (foot_after.min.y - foot_before.min.y).abs() < 0.5,
+            "the foot moved with the sections ({:?} → {:?}) instead of staying pinned",
+            foot_before,
+            foot_after
         );
 
         let _ = std::fs::remove_dir_all(&dir);

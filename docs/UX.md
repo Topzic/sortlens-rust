@@ -164,13 +164,18 @@ bin's count), `Check Library`, `Recent Changes` and `Keyboard Shortcuts`. These 
 dialog instead of choosing what the grid holds, so they are not sources and they do not move when the
 sections above them grow.
 
+The sections scroll in the room the foot leaves, and they are clipped at the hairline rather than painted
+across it: a short window (620 points is the reported case) has more scopes, folders and keywords than the
+panel can show, and a section row drawn over the utilities makes the one strip that must always be
+reachable unreadable. The four utility rows stay put while the sections move under them.
+
 Each row *is* a command palette row: its label and its shortcut are the command registry's (`library.deleted`,
 `library.health`, `library.history`, `app.shortcuts`) and clicking it runs the same handler `⌘K` does. That is
 deliberate — a hand-written copy of four dialog flags beside the palette's copy is drift waiting to happen.
 
 Not shipped: the footer's storage summary (photo count, on-disk size, cache size for the selected scope) and
-the version/credits block; and the sections are not yet collapsible, reorderable or scrollable as §4 opens by
-describing.
+the version/credits block; and the sections are not yet collapsible or reorderable as §4 opens by describing.
+(They do scroll; that is the minimum a section list taller than its panel owes the person reading it.)
 
 ---
 
