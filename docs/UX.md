@@ -345,24 +345,33 @@ day's cut would make the review appear to make a claim it did not.
 
 ### 5.9 Places
 
-Full-canvas map centred on the mean of the library's own photographs, with dots over it. A dot's
-radius grows with the square root of its photo count — area tracks the count, so a dot standing
-for four hundred photographs is twice the width of one rather than a hundred times — and a dot
-for more than one photo has its count printed in it.
+Full-canvas map centred on the **middle of the library's own photographs' spread** and opened at the deepest zoom
+that still shows all of them, with dots over it. (The mean of the latitudes is not the middle: Brighton and Lima
+average 19°N, 1,400 km north of the box's centre, and a view centred there pushes the northern dot towards the edge of
+its own fit. The zoom is fitted on every frame until the person picks one with `+`/`−`, after which it is theirs.) A
+dot's radius grows with the square root of its photo count — area tracks the count, so a dot standing for four hundred
+photographs is twice the width of one rather than a hundred times — and a dot for more than one photo has its count
+printed in it.
 
-Clicking a dot **selects those photos** and names where they are ("Selected 42 photo(s) at
-50.82N 0.14W"); clicking the sea selects nothing and clears nothing. `+` and `−` sit over the
-map's top-right corner and stop at the ends of the tile set's range: zooming past the top clamps,
-because the tiles stopping is not a reason for the dots to stop.
+Clicking a dot **selects those photos** and names where they are ("Selected 42 photo(s) at 50.82N 0.14W"); clicking
+the sea selects nothing and clears nothing. `+` and `−` sit over the map's top-right corner and stop at the ends of
+the tile set's range: zooming past the top clamps, because the tiles stopping is not a reason for the dots to stop.
 
-The basemap is a `{z}/{x}/{y}.png` tile folder the person supplies, in `tiles/` beside the
-catalog, with an `attribution.txt` beside it. **The credit is printed over the map every frame it
-is drawn**, bottom-left, and a folder without one is refused outright — an unlabelled map implies
-the application made it. Nothing is downloaded and no map data ships. A tile that is missing or
-will not decode is painted as background: a hole in a tile set is a hole, not a notice.
+**A coastline ships with the application**, so a first-run library is geography rather than a field of dots on a blank
+rectangle: the public-domain Natural Earth 1:110m outline, embedded in `sortlens-geo`, stroked under the dots in the
+theme's `map_coast` colour. Its credit — "Coastline: Natural Earth 1:110m (public domain)" — is printed over the map
+every frame the outline is drawn, exactly as a tile folder's credit is. It is a *schematic*: 1:110m is a world map for
+a wall, so at street zoom the shore is a staircase and there is a footer line saying so.
 
-The footer states what is on the map — "4,182 photo(s) with a location · 96 dot(s) · click a dot
-to select it" — and the state of the basemap: absent, refused (with the reason), or fine.
+A **`{z}/{x}/{y}.png` tile folder the person supplies**, in `tiles/` beside the catalog with an `attribution.txt`
+beside it, replaces that outline with a real basemap and wins over it. **The credit is printed over the map every
+frame it is drawn**, bottom-left, and a folder without one is refused outright — an unlabelled map implies the
+application made it. Nothing is downloaded. A tile that is missing or will not decode is painted as background: a hole
+in a tile set is a hole, not a notice.
+
+The footer states what is on the map — "4,182 photo(s) with a location · 96 dot(s) · click a dot to select it" — and
+the state of the basemap: the shipped coastline (with where to put a tile folder to replace it), refused (with the
+reason), or the person's own tiles.
 
 **Names come from the person's own gazetteer.** A `places.txt` beside the catalog, tab-separated
 `name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a dot within
@@ -371,10 +380,10 @@ Brighton (50.82N 0.14W)". A dot with no place near enough says its coordinates �
 true answer and an invented place name is not. The file is re-read when it changes and nothing is
 downloaded; the footer says whether names are in use or why they are not.
 
-**Deliberately absent here:** a vector basemap (a tile folder is what a person can legally supply),
-thumbnail fans inside a dot, a geo-bounds filter on the Library (`library.filter {geoBounds}` does
-not exist; selecting is what a dot does), and label decluttering — a dense gazetteer will overlap
-its labels, and curating the file is the answer until there is a pass that hides colliding ones.
+**Not here yet:** a real (non-schematic) vector basemap beyond the 1:110m outline — that is what a tile folder is
+for; thumbnail fans inside a dot; a geo-bounds filter on the Library (`library.filter {geoBounds}` does not exist;
+selecting is what a dot does); and label decluttering — a dense gazetteer will overlap its labels, and curating the
+file is the answer until there is a pass that hides colliding ones.
 
 ### 5.10 Insights
 

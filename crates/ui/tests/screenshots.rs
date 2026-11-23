@@ -416,13 +416,13 @@ fn similar_paints_in_both_themes() {
     }
 }
 
-/// Places: the map as it is today — dots from real EXIF on the library's background, with the
-/// basemap status line saying there is no coastline yet (Phase 3 item 15 is what changes that).
+/// Places: the shipped coastline under dots from real EXIF, with the credit line that travels with it.
 ///
-/// The scene opens zoomed out to 3 rather than the view's default 5, because this library's photos are
-/// on two continents: at 5 the map centres on the mean of them and both clusters fall outside the
-/// viewport, so the baseline would be an empty rectangle. That the view opens at a zoom that can show
-/// nothing is recorded in CHECKPOINT's Next, not papered over here.
+/// The scene pins zoom 3 rather than letting the view fit the library, because a baseline must not move
+/// when the fitting arithmetic is touched: the fit itself is proved by `sortlens-geo`'s unit tests and
+/// by the shell's `run_ui` test, and this baseline is here to show what the outline and the dots look
+/// like in both presets. With the pin removed the view fits Brighton and Lima into the viewport on its
+/// own, which is the behaviour the fit exists for.
 #[test]
 fn places_paints_in_both_themes() {
     let mut library = library();
@@ -430,6 +430,7 @@ fn places_paints_in_both_themes() {
         let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
         scene.state.view = View::Places;
         scene.state.places_zoom = 3;
+        scene.state.places_zoom_chosen = true;
         library.keep(shoot(kind, scene, &format!("places-{}", kind_id(kind))));
     }
 }

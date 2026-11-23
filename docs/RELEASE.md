@@ -57,8 +57,9 @@ phases"), and the list shrinks as those rows are ticked.
   source is printed on the keyword chip, rides in the same undo step as the word, and is a filter in the window
   and in the CLI (`list --source ai`).
 - **Export is Original, JPEG and PNG.** TIFF and WebP export are not planned.
-- **The map needs your tiles.** Places draws a tile folder (`tiles/`) and a gazetteer (`places.txt`) you
-  supply; the bundled offline basemap is Phase 3.
+- **The map is schematic until you supply tiles.** Places ships the public-domain Natural Earth 1:110m coastline,
+  so there is geography with no setup, and it opens fitted to your photographs. A real basemap is a `tiles/`
+  folder you supply, and names are a `places.txt` you supply; nothing is downloaded.
 - **No remote.** There is no server and no phone client (Phase 4); the design is in
   `docs/ARCHITECTURE.md` §11.
 - **No localisation and no keymap editor.** The interface is English and shortcuts cannot be rebound yet
@@ -67,7 +68,7 @@ phases"), and the list shrinks as those rows are ticked.
 - **A prototype-grade layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` is Phase 3.
 
 What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF
-thumbnails, RAW previews, and the tile-folder map.
+thumbnails, RAW previews, the shipped coastline and the tile-folder map.
 
 ## Checksums
 

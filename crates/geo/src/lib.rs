@@ -1,8 +1,9 @@
-//! Geotag parsing, offline gazetteer, clustering, and the tile folder that goes under them.
+//! Geotag parsing, offline gazetteer, clustering, the coastline that ships, and the tile folder that can replace it.
 //!
 //! Turn a latitude and longitude into a point on a **Web Mercator** map at a zoom level, group nearby points into
 //! **clusters** that stay stable from frame to frame, look a coordinate up in an **offline gazetteer** so a photo can be
-//! remembered as "Brighton" rather than 50.82°N 0.14°W, and find the **tiles** for a cell in a folder on disk.
+//! remembered as "Brighton" rather than 50.82°N 0.14°W, draw the **coastline** that is embedded in the binary, and find
+//! the **tiles** for a cell in a folder on disk.
 //!
 //! # Decisions that shape this crate
 //!
@@ -17,9 +18,10 @@
 //!   current zoom and each cell becomes a cluster. The output is sorted by a stable key, so the same photos produce
 //!   the same clusters in the same order on every run — a cluster dot that jumps between refreshes is a bug the eye
 //!   notices long before the code does.
-//! - **The basemap is a folder, and its credit is not optional.** `tiles::Tileset` reads a `{z}/{x}/{y}.png` folder
-//!   with an `attribution.txt` beside it, and refuses a folder without one: an unlabelled map implies the application
-//!   made it. Nothing is fetched at runtime and no map data ships with the application.
+//! - **The basemap is a coastline that ships, with a tile folder on top.** `coastline::Coastline` embeds the public-domain
+//!   Natural Earth 1:110m outline, so Places has geography with no setup, no download and no licence to negotiate. It is
+//!   a schematic starter, and `tiles::Tileset` — a `{z}/{x}/{y}.png` folder with an `attribution.txt` beside it — is
+//!   what replaces it with a real basemap when the person has one. Nothing is fetched at runtime either way.
 //! - **The gazetteer is a file, never a network call.** This crate parses a tab-separated file the user puts in the
 //!   library; it holds no place data of its own and downloads nothing, so the app stays local, and the data's licence
 //!   stays where its attribution can be read.
@@ -546,6 +548,7 @@ impl Gazetteer {
     }
 }
 
+pub mod coastline;
 pub mod tiles;
 
 #[cfg(test)]

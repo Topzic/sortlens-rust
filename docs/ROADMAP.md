@@ -637,9 +637,11 @@ remap a moved drive; run the wizard on a clean machine.
   - **Not verified by hand**: how the counts look at real library scale, and whether `zoom 6` is the right summary.
 - [x] Places **part 3a**: the basemap decision, made and implemented — **a folder of tiles the person supplies**
   - **The decision**: `{z}/{x}/{y}.png` in a `tiles/` folder beside the catalog, with an `attribution.txt` beside it.
-    Chosen over a bundled vector basemap (which would need map data the project does not have and a licence it cannot
-    clean-room) and over MBTiles (which would need a SQLite reader in the dependency tree for one format). The layout
-    is what falls out of unzipping any tile archive, so the tiles somebody can legally use are the tiles that work.
+    Chosen over a bundled *real* basemap — satellite or street tiles need map data the project cannot ship free of
+    charge or licensing — and over MBTiles (which would need a SQLite reader in the dependency tree for one format).
+    The layout is what falls out of unzipping any tile archive, so the tiles somebody can legally use are the tiles
+    that work. The one world outline this project *can* ship is the public-domain Natural Earth 1:110m coastline,
+    which arrived later as the starter basemap: 3B.6 (c). A tile folder is still what replaces it.
   - **The folder is part of the library, not a global setting**: two libraries can have different basemaps, and moving
     a library brings its map with it.
   - **`sortlens_geo::tiles::Tileset::open` refuses a folder without a credit**, with a message naming the file to
@@ -1134,9 +1136,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   halves with a real press (a zero-result filter shows the card and its button restores the grid; an actually-empty
   catalog still paints the Welcome card and never claims a filter), a search-only query is covered too, and a
   `no-matches-charcoal`/`-paper` baseline pair at 1200 px was regenerated and read
-- [ ] 3B.6 (c)–(g) The remaining visual defects (B): Places ships an offline coastline basemap and falls back to the
-  user's `tiles/` and `places.txt` when present, which also fixes Places opening at zoom 5 with both clusters
-  off-screen (the baseline zooms to 3 to show the dots); at ~620 px of height the sidebar's pinned foot overlaps
+- [x] 3B.6 (c) Places has geography out of the box — **shipped 2026-11-23 (part 4)**: `sortlens_geo::coastline`
+  embeds `assets/coastline.txt`, the Natural Earth 1:110m coastline (public domain): 134 shorelines and 5,128
+  points, rounded to 0.001° and split at the antimeridian, so a first-run library is a map rather than dots on a
+  blank rectangle, with the credit line printed every frame the outline is drawn. `Coastline::parse` refuses and
+  counts what it cannot use, and clamps only the six Antarctic points below Mercator's limit — a photograph beyond
+  it is still refused, because a coastline is a drawing of land while a coordinate is a claim about a photograph.
+  `screen_lines` projects once at zoom 0 and returns only the runs of consecutive segments that touch the viewport. A
+  `tiles/` folder still wins and replaces the outline rather than being drawn over it. `coastline::bounds_centre` and
+  `coastline::fit_zoom` replace the fixed opening zoom: Places centres on the **middle of the photographs' spread**
+  (the mean of Brighton and Lima is 1,400 km north of it, which pushed the northern dot towards the edge of its own
+  fit) and opens at the deepest zoom that still shows every located photograph, which is the reported "opens at zoom
+  5 with both clusters off screen". Seven geo tests and two shell tests (one new, one extended): the shipped file is a whole world with zero
+  refusals and every projected point inside the world square; a walk across the antimeridian is two shores rather
+  than a world-wide stripe; refusals are counted; only on-screen segments are returned; the fit shows Brighton and
+  Sydney where zoom 5 showed neither; a chosen zoom is never overwritten; and the view paints two dots inside the
+  map with the outline beneath them, and paints neither for the person's own tile folder nor for a library with no
+  location. `places-charcoal`/`-paper` regenerated and read
+- [ ] 3B.6 (d)–(g) The remaining visual defects (B): at ~620 px of height the sidebar's pinned foot overlaps
   the keyword and collection rows above it; at 900 px with both docks open the canvas header's title runs under the
   right-aligned sort combo; the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are still used
   as text in the keymap overlay and the command registry's `shortcut` strings, where the bundled faces have no glyph

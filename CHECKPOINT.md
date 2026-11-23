@@ -1,5 +1,74 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-ninth) — Phase 3B.6 part 4: Places has a coast before you ask for one
+
+- **The outline ships, and it is the one the project may ship.** `sortlens_geo::coastline` embeds
+  `assets/coastline.txt` with `include_str!`: the Natural Earth **1:110m coastline**, which is public domain, so the
+  earlier "no bundled basemap" decision (ROADMAP part 3a) was not overturned but narrowed — satellite and street
+  tiles still need data the project cannot ship, while a world outline in the public domain does not. 134 shorelines,
+  5,128 points, rounded to 0.001° and one polyline per line, with the source, the transform and the licence in the
+  file's own header. 77 KB of text, inspectable in a diff, and no fetch at run time.
+- **The antimeridian splits a line at parse time.** The source happens to keep no walk across ±180°, but a parser that
+  joined one would paint a stripe through every other continent; two consecutive points more than 180° apart now end
+  the run, and the test feeds exactly that walk and asserts two shores and no segment wider than 100 px at zoom 2.
+- **Antarctica is clamped, and only Antarctica.** Six source points sit below −85.05°, where Mercator diverges.
+  Clamping them to the limit draws the continent's edge along the projection's own border; the alternative is a
+  missing continent. A *photograph* beyond the limit is still refused rather than clamped (that decision is unchanged
+  — a coordinate is a claim about a photograph, a coastline is a drawing of land), and the test walks every projected
+  point and asserts it is inside the world square.
+- **Projection happens once, at parse time.** `screen_lines` scales zoom-0 world pixels by `2^zoom` and subtracts the
+  viewport origin, so five thousand tangents and logarithms are not computed per frame; and it returns only the runs
+  of consecutive segments whose box touches the viewport, so the caller gets geometry it can hand straight to a
+  painter instead of a world-sized polyline for egui to clip. An impossible viewport (zero width, non-finite origin)
+  returns nothing instead of panicking in a paint path.
+- **Refusals are counted, not swallowed.** `Coastline::skipped()` counts a malformed token, a coordinate off the globe,
+  and a line left with one point. The shipped file asserts **zero** — that is the test that would catch a truncated
+  `include_str!`, a lon,lat export, or a rounding pass that wrote `NaN`.
+- **Places opens fitted, which was the reported defect.** `coastline::bounds_centre` is the middle of the photographs'
+  projected box, not the mean of their latitudes: Brighton and Lima average 19°N, 1,400 km north of the box's middle,
+  and the old mean-based centre pushed the northern dot towards the edge of its own fit. `coastline::fit_zoom` picks
+  the deepest zoom at which the whole spread fits inside the viewport with 28 px clear on every side, never deeper
+  than the caller's ceiling (a tile folder's top zoom) or `MAX_FIT_ZOOM` (10, because the outline is 1:110m and a
+  deeper view would be a staircase). `UiState::places_zoom_chosen` is the flag that separates the view's fit from the
+  person's choice: the fit runs every frame until `+`/`−` is pressed, after which the zoom is theirs and a library
+  that grows does not move their map.
+- **The view draws one basemap, never two.** A usable `tiles/` folder is painted as before and the shipped outline is
+  skipped; with no folder the outline is stroked in the new `Tokens::map_coast` (one value per preset, geography
+  rather than chrome) under the dots, and the credit line swaps to `Coastline: Natural Earth 1:110m (public domain)`.
+  The "no basemap is installed" copy is gone because that state no longer exists: it now says the coastline is
+  schematic and names the `tiles/` folder that would replace it.
+- **Tests that fail when the behaviour is absent** (verified by two mutations, both reverted): hardcoding `fit_zoom`
+  to 5 fails `fitting_the_view_puts_the_photographs_on_screen_where_a_fixed_zoom_loses_them` (which first asserts the
+  old zoom really did lose both dots) and the new shell test on its first assertion; skipping the coastline paint
+  fails `places_reports_the_basemap_or_why_there_is_none` on "a library with no tile folder still gets the shipped
+  coastline" and the new shell test on "the shipped outline is the basemap when no tiles are installed". The stale
+  full-output `paint` closure in the basemap test now returns its output so the same test can assert both halves —
+  outline present without tiles, absent with them.
+- **The new `run_ui` test** paints Places at 1200×800 over a library in Brighton and Sydney: the view chose a zoom
+  below 5, exactly two filled dots (radius `dot_radius(1)`) are painted and both centres are inside the map rectangle
+  (a dot's ring is a second circle, which is why the count filters on the fill), the coastline runs are strokes in
+  `map_coast` with at least one longer than four points and every point finite, a manually chosen zoom 9 survives the
+  next frame, and a library with no location paints neither outline nor dot.
+- **Visual verification**: `places-charcoal` and `places-paper` regenerated with `cargo xtask screenshots --update`
+  and read — both show the coastlines under the Brighton and Lima dots, the new credit in the footer, and the schematic
+  notice naming the tiles folder; the scene now pins zoom 3 *and* `places_zoom_chosen`, because a baseline must not
+  move when the fitting arithmetic is touched. No other baseline moved.
+- Files: `assets/coastline.txt` (new), `crates/geo/src/coastline.rs` (new, 7 tests), `crates/geo/src/lib.rs`,
+  `crates/geo/src/tiles.rs`, `crates/ui/src/theme.rs` (`map_coast`), `crates/ui/src/shell.rs` (the fit, the coastline
+  pass, the credit, the status copy, `places_zoom_chosen`, `coastline_runs`, one new test, one extended),
+  `crates/ui/tests/screenshots.rs`, and the reconciled `docs/{ROADMAP,UX,ARCHITECTURE,ATTRIBUTION,RELEASE}.md` +
+  `README.md`. ROADMAP's 3B.6 row is split again: (c) ticked, (d)–(g) still open in their own row, nothing moved into
+  an absent table.
+- 714 tests (seven geo, one shell new, one shell extended); ci, snapshot, deny, wasm, screenshots, a11y, docs,
+  layers, roots, assets, attribution green.
+- **Not verified by hand**: the outline at a zoom where its 0.001° steps are visible as staircases (the arithmetic
+  says zoom 8+ and the Paper baseline is the deepest read), a library whose photographs ring the globe at ±180°
+  (the fit would choose zoom 0 and the world square would sit inside the viewport with sea beside it), and whether a
+  two-line `Basemap` footer plus the `places.txt` line crowds the map at 620 px of height — that is defect (d)'s
+  neighbourhood, not a claim made here. **Also visible in the baseline and left as it is**: at 1:110m a coastal city's
+  dot can sit a few pixels offshore (Lima's does), because the outline is a world map's coast and not a harbour chart —
+  which is why the credit says 1:110m rather than claiming a map.
+
 ## 2026-11-23 (thirty-eighth) — Phase 3B.6 part 3: a library filtered to nothing says so, instead of greeting you
 
 - **The empty canvas is decided by two counts, not one.** `canvas` already carried the filtered count, and the
@@ -3269,15 +3338,18 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     **done 2026-11-23**, see the thirty-eighth entry: `canvas_empty` splits the catalog's total from the filtered
     count, so a narrowed-to-zero library paints *Nothing matches these filters*, the library's own count and one
     `Clear filters` button, an actually-empty catalog still paints the Welcome card, and `Not now` finally stays
-    dismissed. Two baselines at 1200 px read. **(c) is the exact next slice: Places ships the offline coastline
-    basemap** and falls back to the user's `tiles/` and `places.txt`, which also fixes Places opening at zoom 5
-    with both clusters off-screen (the baseline zooms to 3 to show the dots); (d) at ~620 px of height the sidebar's pinned
-    foot (Recently Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps the keyword and
-    collection rows above it; (e) at 900 px with both docks open the canvas header's title runs under the
-    right-aligned sort combo; (f) the cull keyword row clips under the bottom bar at 900 px; (g) `←`/`→` are still
-    text in the keymap overlay and the registry's `shortcut` strings, where the bundled faces have no glyph. A
-    fix here is a regenerated baseline that is read, not a claim; (d)–(g) were each *observed*, so each one is
-    "the baseline is clean and the geometry test says so" or it is not done.
+    dismissed. Two baselines at 1200 px read. (c) Places ships the offline coastline basemap and falls back to the
+    user's `tiles/` and `places.txt`, and opens fitted instead of at zoom 5 — **done 2026-11-23**, see the
+    thirty-ninth entry: the Natural Earth 1:110m outline embedded in `sortlens-geo` with its credit on screen, split
+    at the antimeridian and projected once, `bounds_centre`/`fit_zoom` replacing the fixed zoom and the mean centre,
+    a `tiles/` folder still winning, a chosen zoom never overwritten, seven geo tests, two shell tests and both Places
+    baselines read. **(d) is the exact next slice**: at ~620 px of height the sidebar's pinned foot (Recently
+    Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps the keyword and collection rows above
+    it. Then (e) at 900 px with both docks open the canvas header's title runs under the right-aligned sort combo;
+    (f) the cull keyword row clips under the bottom bar at 900 px; (g) `←`/`→` are still text in the keymap overlay
+    and the registry's `shortcut` strings, where the bundled faces have no glyph. A fix here is a regenerated
+    baseline that is read, not a claim; (d)–(g) were each *observed*, so each one is "the baseline is clean and the
+    geometry test says so" or it is not done.
 
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts.

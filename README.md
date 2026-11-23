@@ -22,8 +22,8 @@ scripts and AI agents.
 
 > **Status: M0–M10 built, core completion in progress.** The milestones are built, but several core
 > features are still open and tracked as unchecked rows under "Completion phases" in `docs/ROADMAP.md`
-> (PNG export, real local AI tagging, an out-of-the-box map, the Adobe/ArtCraft layout
-> pass, the keymap editor, the remote client). A working local photo library: scanning and indexing, a virtualised grid,
+> (the Adobe/ArtCraft layout pass, the keymap editor, the remote client). A working local photo library: scanning
+> and indexing, a virtualised grid,
 > filters and search, keywords with an alias registry, XMP sidecars, the cull machine with gestures and
 > zoom, collections, duplicate and colour matching, insights, memories, detail and side-by-side compare,
 > backup/restore, audit and compaction, one-writer locking, move with undo, a change viewer, export to
@@ -135,13 +135,11 @@ table is in the app under `?`.
 
 ### What is not built yet
 
-Named so that nothing here reads as finished: blur-up, an out-of-the-box map,
-blur scoring, local model inference (the owner has approved pinning permissively licensed weights and a
-consent-gated downloader), PNG export, the remote/companion server, localisation and right-to-left layout,
-shortcut rebinding, high contrast and reduced motion, theme import, per-platform installers and signing,
-and a wired update checker. Each is an unchecked row under "Completion phases" in `docs/ROADMAP.md` (or, when
+Named so that nothing here reads as finished: blur-up and blur scoring, the remote/companion server, localisation
+and right-to-left layout, shortcut rebinding, high contrast and reduced motion, theme import, per-platform installers
+and signing, and a wired update checker. Each is an unchecked row under "Completion phases" in `docs/ROADMAP.md` (or, when
 it needs something this repository lacks, a row in a "Deliberately absent" table there), and is disabled in
-the UI rather than faked. (HEIC thumbnails and the tile-folder map have shipped.)
+the UI rather than faked. (HEIC thumbnails, the shipped coastline, and the tile-folder map have shipped.)
 
 `docs/TOOLING.md` §5 lists the platform prerequisites and the optional cargo tools.
 

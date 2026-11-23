@@ -310,6 +310,9 @@ pub struct Tokens {
     pub reject: Color32,
     /// Grid thumbnail background, one step away from the canvas.
     pub thumb_bg: Color32,
+    /// The shipped coastline on Places: geography, not chrome, so it has its own colour rather than borrowing a
+    /// hairline's. Quiet enough that a dot sits clearly on top of it in both a dark and a light preset.
+    pub map_coast: Color32,
     /// Drop shadow, used sparingly.
     pub shadow: Color32,
     /// Height of the top bar.
@@ -345,6 +348,7 @@ impl Tokens {
         pick: Color32::from_rgb(0x5d, 0xc0, 0x7a),
         reject: Color32::from_rgb(0xe0, 0x5c, 0x5c),
         thumb_bg: Color32::from_rgb(0x15, 0x15, 0x15),
+        map_coast: Color32::from_rgb(0x3c, 0x3c, 0x3a),
         shadow: Color32::from_black_alpha(90),
         top_bar_h: 44.0,
         bottom_bar_h: 40.0,
@@ -372,6 +376,7 @@ impl Tokens {
         pick: Color32::from_rgb(0x5f, 0xc8, 0x86),
         reject: Color32::from_rgb(0xe3, 0x63, 0x63),
         thumb_bg: Color32::from_rgb(0x0a, 0x0c, 0x10),
+        map_coast: Color32::from_rgb(0x2c, 0x35, 0x40),
         shadow: Color32::from_black_alpha(110),
         ..Self::CHARCOAL
     };
@@ -394,6 +399,7 @@ impl Tokens {
         pick: Color32::from_rgb(0x2f, 0x7d, 0x46),
         reject: Color32::from_rgb(0xb3, 0x2d, 0x2d),
         thumb_bg: Color32::from_rgb(0xdc, 0xd9, 0xd3),
+        map_coast: Color32::from_rgb(0x9a, 0x95, 0x8c),
         shadow: Color32::from_black_alpha(40),
         ..Self::CHARCOAL
     };
@@ -416,6 +422,7 @@ impl Tokens {
         pick: Color32::from_rgb(0x25, 0x6b, 0x3b),
         reject: Color32::from_rgb(0x9e, 0x24, 0x24),
         thumb_bg: Color32::from_rgb(0xe8, 0xe8, 0xe3),
+        map_coast: Color32::from_rgb(0xa8, 0xa8, 0xa1),
         shadow: Color32::from_black_alpha(28),
         ..Self::CHARCOAL
     };

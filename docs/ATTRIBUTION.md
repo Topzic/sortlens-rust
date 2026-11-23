@@ -155,6 +155,7 @@ encoder: no photographs are stored, so no photograph's licence needs recording.
 |---|---|---|
 | `assets/icon.svg` | Drawn for this project in `crates/icon/src/lib.rs`; the file is a rendering of that geometry, and a test fails when the two disagree | MIT OR Apache-2.0 |
 | `assets/icons/*.svg` | Drawn for this project as the shell's monochrome icon set: 24-unit stroke drawings (`currentColor`, 2-unit stroke) that `craft_ui::icons` tints with the active theme; a test fails when a glyph has a hard-coded colour, and another when the set and `crate::icons::Icon` disagree | MIT OR Apache-2.0 |
+| `assets/coastline.txt` | **Natural Earth 1:110m coastline**, the `ne_110m_coastline.geojson` layer from [Natural Earth](https://www.naturalearthdata.com/) (nvkelso/natural-earth-vector). Derived for this project by rounding every coordinate to three decimals and writing one polyline per line as `lat,lon` pairs; the file's own header records the source and the transform, and `sortlens_geo::coastline` embeds it. The credit line `Coastline: Natural Earth 1:110m (public domain)` is printed wherever the outline is drawn | Public domain (no permission needed; credit given) |
 
 The window icon is not committed: `apps/sortlens/build.rs` renders the same drawing to RGBA in `OUT_DIR`,
 so there is no binary blob in the repository and no second copy that could disagree with the first.

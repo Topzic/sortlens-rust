@@ -718,7 +718,13 @@ pub struct UiState {
     pub sharpness_percentile: f32,
     /// The map's zoom, session state like the softness cut: a remembered zoom would open Places somewhere the person
     /// did not choose.
+    ///
+    /// Until the person picks a zoom this is **fitted to the library's own spread on every frame** (see
+    /// [`sortlens_geo::coastline::fit_zoom`]), so a library in Brighton and Sydney opens showing both rather than at a
+    /// fixed guess that put both off screen. A chosen zoom is never overridden.
     pub places_zoom: u8,
+    /// Whether [`Self::places_zoom`] is the person's choice rather than the view's fit.
+    pub places_zoom_chosen: bool,
     /// Decoded basemap tiles, so panning and repainting do not decode the same tile again.
     pub places_tiles: places::TileCache,
     /// Place names from the library's own `places.txt`, re-read when the file changes.
@@ -960,6 +966,7 @@ impl UiState {
             palette_anchor: None,
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
+            places_zoom_chosen: false,
             places_tiles: places::TileCache::new(),
             places_names: places::Names::new(),
             similar_delete_open: false,
@@ -5950,15 +5957,18 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     }
 }
 
-/// Where the photographs were taken: a basemap under the dots, and the credit on top of it.
+/// Where the photographs were taken: a coastline under the dots, and the credit on top of it.
 ///
-/// The tiles are the person's own folder (see `sortlens_geo::tiles`), drawn beneath the clusters, with the credit line
-/// printed over the map every frame — the view cannot show a tile whose attribution it does not have, because
-/// `Tileset` cannot exist without one. A tile that is missing from the set is painted as background: a hole in a
-/// basemap is a hole, not an error to shout about.
+/// The basemap has two sources, in order. A **tile folder the person supplies** (see `sortlens_geo::tiles`) is a real
+/// map and wins: it is drawn with its own credit line printed over it every frame, and `Tileset` cannot exist without
+/// one. Otherwise the **shipped coastline** — the public-domain Natural Earth 1:110m outline, embedded in
+/// `sortlens_geo::coastline` — is stroked under the dots, so a first-run library is geography rather than a field of
+/// dots on a blank rectangle. A tile that is missing from a set is painted as background: a hole in a basemap is a
+/// hole, not an error to shout about.
 ///
-/// The map is centred on the library's own photos rather than on a place name: opening Places should show where these
-/// photographs are, not where the atlas starts.
+/// The map opens **fitted to the library's own photographs**: centred on the middle of their spread and zoomed to the
+/// deepest level that still shows all of them. The old fixed zoom 5 opened over the Atlantic with both clusters off
+/// screen for a library on two continents, which reads as an empty map.
 fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     let located = engine.geotagged();
     let tileset = engine.tileset();
@@ -5991,14 +6001,22 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         Some(Ok(set)) => Some(set.zoom_range()),
         _ => None,
     };
+    let located_photos = engine.located();
+    // Every located photograph is a point to fit the view around, whether or not it clusters into a dot of its own.
+    let centres: Vec<sortlens_geo::LatLon> = located_photos.iter().map(|(_, at)| *at).collect();
+    // A tileset's top zoom is the deepest that can be drawn; with the shipped coastline the fit's own ceiling applies.
+    let highest = range.map_or(sortlens_geo::coastline::MAX_FIT_ZOOM, |(_, high)| high);
+    if !state.places_zoom_chosen {
+        state.places_zoom = sortlens_geo::coastline::fit_zoom(&centres, f64::from(map_size.x), f64::from(map_size.y), highest);
+    }
     if let Some(range) = range {
         state.places_zoom = places::clamp_zoom(state.places_zoom, range);
     }
     let zoom = state.places_zoom;
-    let located_photos = engine.located();
-    // The mean of the photos, falling back to the first one: both are places the person has actually been, and the
-    // fallback cannot be reached with an empty list because `located == 0` returned above.
-    let centre = map_centre(&located_photos).unwrap_or(located_photos[0].1);
+    // The middle of the spread, not the mean of the latitudes: the mean of Brighton and Lima is 1,400 km north of the
+    // box's middle, so a view centred on it pushes one dot towards the edge of its own fit. The fallback cannot be
+    // reached with an empty list because `located == 0` returned above.
+    let centre = sortlens_geo::coastline::bounds_centre(&centres).unwrap_or(located_photos[0].1);
 
     let (rect, response) = ui.allocate_exact_size(map_size, Sense::click());
     // A clickable region that a screen reader can land on and name: the map, and how many dots it holds.
@@ -6017,7 +6035,8 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     painter.rect_filled(rect, 0.0, t.thumb_bg);
     let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map_size.x), f64::from(map_size.y));
 
-    // Tiles first, then dots: the coastline is the backdrop, not a participant.
+    // Tiles first, then the shipped coastline if there are none, then dots: the coastline is the backdrop, not a
+    // participant. The credit for whichever was drawn is printed below.
     if let (Some(Ok(set)), Some(origin)) = (&tileset, origin) {
         for cell in sortlens_geo::visible_tiles(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
             let place = sortlens_geo::tile_rect(cell, origin);
@@ -6040,6 +6059,20 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
             } else {
                 painter.rect_filled(tile_rect, 0.0, t.thumb_bg);
             }
+        }
+    } else if let Some(origin) = origin {
+        // No tile folder, so the embedded outline is the basemap. One stroke per run of visible coast, painted before
+        // the dots so a dot always sits on top of the land it is on.
+        let coastline = sortlens_geo::coastline::Coastline::shipped();
+        for line in coastline.screen_lines(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
+            if line.len() < 2 {
+                continue;
+            }
+            let points: Vec<egui::Pos2> = line
+                .iter()
+                .map(|at| egui::pos2(rect.min.x + at.x as f32, rect.min.y + at.y as f32))
+                .collect();
+            painter.add(egui::Shape::line(points, egui::Stroke::new(1.0, t.map_coast)));
         }
     }
 
@@ -6114,10 +6147,12 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
             let (low, high) = range.unwrap_or((zoom, zoom));
             if ui.add_enabled(zoom < high, Button::new(RichText::new("+").size(13.0))).clicked() {
                 state.places_zoom = zoom.saturating_add(1);
+                state.places_zoom_chosen = true;
                 zoom_changed = true;
             }
             if ui.add_enabled(zoom > low, Button::new(RichText::new("−").size(13.0))).clicked() {
                 state.places_zoom = zoom.saturating_sub(1);
+                state.places_zoom_chosen = true;
                 zoom_changed = true;
             }
             ui.label(RichText::new(format!("zoom {zoom}")).size(10.5).color(t.text_muted));
@@ -6131,7 +6166,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
                 ui.label(RichText::new(set.attribution()).size(9.5).color(t.text_muted));
             }
             _ => {
-                ui.label(RichText::new("No basemap · dots only").size(9.5).color(t.text_faint));
+                ui.label(RichText::new(sortlens_geo::coastline::CREDIT).size(9.5).color(t.text_muted));
             }
         }
         ui.add_space(8.0);
@@ -6176,20 +6211,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     basemap_status(ui, t, engine, &tileset);
 }
 
-/// Where to centre the map: the mean of the photos, which is inside the library's spread rather than an arbitrary
-/// corner of the world.
-fn map_centre(located: &[(PhotoId, sortlens_geo::LatLon)]) -> Option<sortlens_geo::LatLon> {
-    if located.is_empty() {
-        return None;
-    }
-    #[allow(clippy::cast_precision_loss)]
-    let count = located.len() as f64;
-    let lat = located.iter().map(|(_, at)| at.lat).sum::<f64>() / count;
-    let lon = located.iter().map(|(_, at)| at.lon).sum::<f64>() / count;
-    sortlens_geo::LatLon::new(lat, lon)
-}
-
-/// The basemap's state as a sentence: absent, refused, or absent from this library.
+/// The basemap's state as a sentence: which outline is drawn, and what a real one would cost.
 fn basemap_status(
     ui: &mut Ui,
     t: &Tokens,
@@ -6199,11 +6221,16 @@ fn basemap_status(
     match tileset {
         None => {
             ui.add_space(4.0);
-            ui.label(RichText::new("No basemap is installed").size(10.5).color(t.text_muted));
+            ui.label(
+                RichText::new("Schematic coastline · install a tile folder for a real basemap")
+                    .size(10.5)
+                    .color(t.text_muted),
+            );
             if let Some(dir) = engine.tiles_dir() {
                 ui.label(
                     RichText::new(format!(
-                        "Put {{z}}/{{x}}/{{y}}.png tiles and an attribution.txt in {} — nothing is downloaded.",
+                        "Put {{z}}/{{x}}/{{y}}.png tiles and an attribution.txt in {} to replace the 1:110m \
+                         outline — nothing is downloaded.",
                         dir.display()
                     ))
                     .size(9.5)
@@ -9329,11 +9356,21 @@ mod tests {
             let mut output = output;
             output.textures_delta.clear();
             assert!(!output.shapes.is_empty(), "the view paints in every state");
+            output
         };
 
-        // No folder at all.
+        // No folder at all: the shipped coastline is the basemap, so the map is geography and not a blank rectangle.
         assert!(engine.tileset().is_none(), "a library with no tiles says so");
-        paint(&mut state, &engine);
+        let output = paint(&mut state, &engine);
+        let shipped = coastline_runs(&output, &tokens);
+        assert!(
+            !shipped.is_empty(),
+            "a library with no tile folder still gets the shipped coastline"
+        );
+        assert!(
+            shipped.iter().any(|run| run.points.len() >= 3),
+            "the outline is drawn as polylines, not as a single segment"
+        );
 
         // A tile folder with tiles but no credit: refused, and the error names the file to write.
         let tiles = engine.tiles_dir().expect("a catalog directory");
@@ -9365,7 +9402,12 @@ mod tests {
         assert_eq!(set.attribution(), "© Example Maps, CC-BY 4.0");
         assert_eq!(set.zoom_range(), (5, 5));
         assert_eq!(state.places_tiles.len(), 0, "nothing decoded before a map was drawn");
-        paint(&mut state, &engine);
+        let output = paint(&mut state, &engine);
+        // The person's own map wins: with a usable folder the shipped outline is not painted underneath it.
+        assert!(
+            coastline_runs(&output, &tokens).is_empty(),
+            "a tile folder replaces the shipped coastline rather than being drawn over it"
+        );
         // The claim of this run: the map decodes the tiles under the viewport and paints them, once.
         assert!(!state.places_tiles.is_empty(), "the map decoded the tiles it drew");
         assert_eq!(state.places_tiles.failures(), 0, "every fixture tile was a real PNG");
@@ -9375,6 +9417,119 @@ mod tests {
         paint(&mut state, &engine);
         assert_eq!(state.places_tiles.decodes(), decoded, "a second frame decodes nothing new");
         assert_eq!(state.places_tiles.len(), held);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Places opens fitted to the library and draws the coastline that ships with it.
+    ///
+    /// The reported defect: a library in Brighton and Sydney opened at a fixed zoom 5 over the middle of the Atlantic
+    /// with both clusters outside the viewport, so Places looked empty. The test asserts the two halves of the fix —
+    /// the view chose a zoom of its own that shows both dots, and (with no tile folder) it painted the shipped outline
+    /// under them — and the two things the fix must not break: the fit is only the default, so a chosen zoom stays
+    /// chosen, and a library with no location still says so instead of drawing an empty map.
+    #[test]
+    fn places_opens_fitted_to_its_photographs_with_the_shipped_coastline_under_them() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-fit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-fit");
+        for (name, lat, lon) in [("BRIGHTON.jpg", 50.8225, -0.1372), ("SYDNEY.jpg", -33.8688, 151.2093)] {
+            std::fs::copy(fixture.jpeg_with_location(name, [40, 90, 160], 48, 32, lat, lon), root.join(name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.geotagged(), 2);
+
+        let tokens = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0));
+        let frame = |state: &mut UiState| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        places_view(ui, &tokens, state, &engine);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            output
+        };
+
+        let output = frame(&mut state);
+        assert!(!state.places_zoom_chosen, "the view fits; nobody has chosen a zoom yet");
+        assert!(
+            state.places_zoom < 5,
+            "the fit must zoom out from 5 to show two continents, got {}",
+            state.places_zoom
+        );
+
+        // Both clusters are on screen: the two dots are painted, and both inside the map's own rectangle.
+        let map = all_shapes(&output)
+            .into_iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect) if rect.fill == tokens.thumb_bg && rect.rect.width() > 100.0 => Some(rect.rect),
+                _ => None,
+            })
+            .expect("the map painted");
+        let dots: Vec<_> = painted_circles(&output)
+            .into_iter()
+            // A dot is a filled circle plus a ring around it, so the fill is what counts one dot once.
+            .filter(|circle| (circle.radius - places::dot_radius(1)).abs() < 0.5 && circle.fill.a() > 0)
+            .collect();
+        assert_eq!(dots.len(), 2, "one dot per continent, got {}", dots.len());
+        for dot in &dots {
+            assert!(map.contains(dot.center), "the dot at {:?} is outside the map {map:?}", dot.center);
+        }
+
+        // The coastline under them, in its own colour, as polylines.
+        let runs = coastline_runs(&output, &tokens);
+        assert!(!runs.is_empty(), "the shipped outline is the basemap when no tiles are installed");
+        assert!(runs.iter().any(|run| run.points.len() > 4), "a real shoreline, not a stub");
+        for run in &runs {
+            for point in &run.points {
+                assert!(point.x.is_finite() && point.y.is_finite(), "a coastline point is not a number");
+            }
+        }
+
+        // A zoom the person chose is theirs: the fit is a default, not a policy.
+        state.places_zoom = 9;
+        state.places_zoom_chosen = true;
+        let _ = frame(&mut state);
+        assert_eq!(state.places_zoom, 9, "the view must not overwrite a chosen zoom");
+
+        // And a library with no locations is still the sentence, never an empty map.
+        let empty = Engine::open(dir.join("elsewhere")).expect("open");
+        let mut empty_state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut empty_output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    places_view(ui, &tokens, &mut empty_state, &empty);
+                });
+            },
+        );
+        empty_output.textures_delta.clear();
+        assert!(
+            coastline_runs(&empty_output, &tokens).is_empty(),
+            "no map is drawn when there is nowhere to draw"
+        );
+        assert!(painted_circles(&empty_output).is_empty(), "and no dot is invented");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -11232,6 +11387,25 @@ mod tests {
                     .as_ref()
                     .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
                     .map(|_| shape.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Every stroke painted in the shipped coastline's own colour, in paint order.
+    ///
+    /// The coastline is the only thing drawn in [`Tokens::map_coast`], so this is the assertion "the outline was
+    /// painted" without depending on how many shorelines happen to be on screen.
+    fn coastline_runs<'a>(output: &'a egui::FullOutput, tokens: &Tokens) -> Vec<&'a egui::epaint::PathShape> {
+        all_shapes(output)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Path(path)
+                    if path.points.len() >= 2
+                        && matches!(path.stroke.color, egui::epaint::ColorMode::Solid(color) if color == tokens.map_coast) =>
+                {
+                    Some(path)
+                }
                 _ => None,
             })
             .collect()
