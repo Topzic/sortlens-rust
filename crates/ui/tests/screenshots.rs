@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use egui_kittest::Harness;
-use sortlens_core::Flag;
+use sortlens_core::{ColorLabel, Flag};
 use sortlens_engine::{Engine, PhotoId, SIMILAR_THRESHOLD};
 use sortlens_testkit::{Fixture, Pattern};
 use sortlens_ui::{GridMode, ThemeKind, Thumbnails, UiState, View};
@@ -502,6 +502,29 @@ fn a_narrow_window_collapses_the_tab_row() {
     scene.state.left_open = false;
     scene.state.right_open = false;
     library.keep(shoot_at(kind, scene, "narrow-charcoal", egui::vec2(900.0, 620.0)));
+}
+
+/// The filter strip while it is asking something: three stars and up, and one colour label.
+///
+/// The resting strip appears in every other baseline; this is the one that proves its *active* state is
+/// pictures — three lit stars instead of a numeral and a typed `★`, the label's own colour in the
+/// swatch instead of a droplet — and, at 1200 points with both docks open, that the row wraps rather
+/// than pushing `Clear` off the canvas edge.
+#[test]
+fn the_filter_strip_paints_its_state_in_both_themes() {
+    let mut library = library();
+    let photos = library.photos.clone();
+    let mut engine = library.take();
+    // Two of the five-star frames carry a colour label, so the filtered answer is not empty and the
+    // grid behind the strip is two photographs rather than the Welcome card.
+    engine.label(&photos[0..2], Some(ColorLabel::Green)).expect("label");
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, engine, &library.cache()), &library.root);
+        scene.state.min_rating = 3;
+        scene.state.label_filter = Some(ColorLabel::Green);
+        engine = shoot_at(kind, scene, &format!("filters-{}", kind_id(kind)), egui::vec2(1200.0, 800.0));
+    }
+    library.keep(engine);
 }
 
 /// A stable name fragment per preset, so a baseline file name does not depend on enum order.

@@ -3117,8 +3117,14 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             }
             ui.add_space(8.0);
             // The strip is a surface, not a fact: the Filter chip in the top bar puts it away, and a
-            // hidden strip must leave no gap behind it.
-            if state.filters_open {
+            // hidden strip must leave no gap behind it. It also needs a library to narrow: over an
+            // empty one it was nine controls asking about photographs that do not exist yet, sitting
+            // on top of the Welcome card that says where photographs come from.
+            //
+            // "Empty" is the catalog's own total, never the filtered one: a filter that happens to
+            // hide every photo must keep its strip, because clearing it is what the strip is for.
+            let library_is_empty = engine.stats().total == 0;
+            if state.filters_open && !library_is_empty {
                 filter_strip(ui, t, state, engine, total);
                 ui.add_space(10.0);
             }
@@ -3951,12 +3957,11 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
         .corner_radius(t.corner())
         .inner_margin(Margin::symmetric(8, 6))
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let rating = if state.min_rating == 0 {
-                    "Rating".to_string()
-                } else {
-                    format!("{}★ and up", state.min_rating)
-                };
+            // Wrapped, not one line: nine chips plus a five-star minimum are wider than the canvas at
+            // 1200 points with both docks open, and a filter bar that pushes its own Clear button off
+            // the edge is a filter bar that cannot be undone. A second row is a shorter strip, not a
+            // missing control.
+            ui.horizontal_wrapped(|ui| {
                 if let Some(id) = state.collection_filter
                     && let Some(collection) = engine.collections().into_iter().find(|entry| entry.id == id)
                     && chip(ui, t, Some(crate::icons::Icon::Layers), &collection.name, true).clicked()
@@ -3972,34 +3977,40 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 if let Some(tag) = drop_tag {
                     state.tag_filters.retain(|active| *active != tag);
                 }
-                ui.menu_button(RichText::new("+ keyword").size(10.5), |ui| {
-                    ui.add(
-                        TextEdit::singleline(&mut state.tag_picker_query)
-                            .hint_text("Find a keyword")
-                            .desired_width(180.0),
-                    );
-                    ui.separator();
-                    let needle = state.tag_picker_query.trim().to_lowercase();
-                    let vocabulary: Vec<(String, usize)> = engine
-                        .tag_vocabulary_in(state.tag_order)
-                        .into_iter()
-                        .filter(|(tag, _)| needle.is_empty() || tag.contains(&needle))
-                        .collect();
-                    if vocabulary.is_empty() {
-                        ui.label(RichText::new("No keywords").size(10.5));
-                    }
-                    for (tag, count) in vocabulary.iter().take(24) {
-                        let active = state.tag_filters.iter().any(|chosen| chosen == tag);
-                        let label = format!("{}{tag}  ({count})", if active { "✓ " } else { "" });
-                        if ui.add(Button::new(RichText::new(label).size(11.0)).frame(false)).clicked() {
-                            if active {
-                                state.tag_filters.retain(|chosen| chosen != tag);
-                            } else {
-                                state.tag_filters.push(tag.clone());
+                ui.menu_button(
+                    (
+                        RichText::new("+ keyword").size(10.5),
+                        crate::icons::image(crate::icons::Icon::Chevron, 10.0).tint(t.text_muted),
+                    ),
+                    |ui| {
+                        ui.add(
+                            TextEdit::singleline(&mut state.tag_picker_query)
+                                .hint_text("Find a keyword")
+                                .desired_width(180.0),
+                        );
+                        ui.separator();
+                        let needle = state.tag_picker_query.trim().to_lowercase();
+                        let vocabulary: Vec<(String, usize)> = engine
+                            .tag_vocabulary_in(state.tag_order)
+                            .into_iter()
+                            .filter(|(tag, _)| needle.is_empty() || tag.contains(&needle))
+                            .collect();
+                        if vocabulary.is_empty() {
+                            ui.label(RichText::new("No keywords").size(10.5));
+                        }
+                        for (tag, count) in vocabulary.iter().take(24) {
+                            let active = state.tag_filters.iter().any(|chosen| chosen == tag);
+                            let label = format!("{}{tag}  ({count})", if active { "✓ " } else { "" });
+                            if ui.add(Button::new(RichText::new(label).size(11.0)).frame(false)).clicked() {
+                                if active {
+                                    state.tag_filters.retain(|chosen| chosen != tag);
+                                } else {
+                                    state.tag_filters.push(tag.clone());
+                                }
                             }
                         }
-                    }
-                });
+                    },
+                );
                 if state.tag_filters.len() > 1 {
                     let label = format!("match {}", state.tag_mode.label());
                     if chip(
@@ -4014,7 +4025,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                         state.tag_mode = state.tag_mode.flipped();
                     }
                 }
-                if chip(ui, t, Some(crate::icons::Icon::Star), &rating, state.min_rating > 0).clicked() {
+                if rating_chip(ui, t, state.min_rating).clicked() {
                     state.min_rating = (state.min_rating + 1) % 6;
                 }
 
@@ -4024,7 +4035,11 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     Some(Flag::Reject) => "Rejects".to_string(),
                     Some(Flag::None) => "Unflagged".to_string(),
                 };
-                if chip(ui, t, Some(crate::icons::Icon::Flag), &flag_label, state.flag_filter.is_some()).clicked() {
+                // The flag's own state is a glyph, not only a word: a pick is the pick tick and a
+                // reject is the reject cross, the same two the bottom bar's pill wears, so the chip
+                // says which of the four states it is in before you read it.
+                let flag_icon = flag_filter_icon(state.flag_filter);
+                if chip(ui, t, Some(flag_icon), &flag_label, state.flag_filter.is_some()).clicked() {
                     state.flag_filter = match state.flag_filter {
                         None => Some(Flag::Pick),
                         Some(Flag::Pick) => Some(Flag::Reject),
@@ -4037,7 +4052,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     None => "Colour".to_string(),
                     Some(label) => label.label().to_string(),
                 };
-                if chip(ui, t, Some(crate::icons::Icon::Droplet), &label_text, state.label_filter.is_some()).clicked() {
+                if colour_chip(ui, t, state.label_filter, &label_text).clicked() {
                     state.label_filter = match state.label_filter {
                         None => Some(sortlens_core::ColorLabel::ALL[0]),
                         Some(current) => {
@@ -4156,6 +4171,96 @@ fn chip(ui: &mut Ui, t: &Tokens, icon: Option<crate::icons::Icon>, label: &str, 
             .fill(if active { t.selection } else { Color32::TRANSPARENT })
             .stroke(if active { Stroke::new(1.0, t.accent) } else { Stroke::NONE }),
     )
+}
+
+/// One star, in points, and the pitch a row of them is laid out on.
+const STAR_GLYPH: f32 = 12.0;
+const STAR_PITCH: f32 = 14.0;
+
+/// A row of star glyphs, painted as one content atom for a button.
+///
+/// Painted rather than typed: `★` is a character the bundled faces render at different widths and
+/// heights (and not at all in some of them), so "three stars and up" was a numeral followed by a
+/// speck. Three glyphs say it without a number, and they are the same picture the bottom bar's pill
+/// and the cells' captions use.
+fn stars_atom(stars: u8, tint: Color32) -> egui::Atom<'static> {
+    let width = STAR_PITCH * stars.max(1) as f32 - (STAR_PITCH - STAR_GLYPH);
+    egui::Atom::paint(vec2(width, STAR_GLYPH), move |ui, args| {
+        for index in 0..stars {
+            let glyph = Rect::from_min_size(
+                pos2(args.rect.left() + index as f32 * STAR_PITCH, args.rect.top()),
+                Vec2::splat(STAR_GLYPH),
+            );
+            crate::icons::paint(ui, crate::icons::Icon::Star, glyph, tint);
+        }
+    })
+}
+
+/// The minimum-rating chip: at rest it names the question, and while filtering it answers it in stars.
+///
+/// The chip still cycles 0→1→…→5→0, because that is a control a person has already learnt; what
+/// changed is that its state is drawn, not spelled.
+fn rating_chip(ui: &mut Ui, t: &Tokens, stars: u8) -> egui::Response {
+    if stars == 0 {
+        let colour = t.text_muted;
+        let response = ui.add(
+            Button::new((
+                crate::icons::image(crate::icons::Icon::Star, STAR_GLYPH).tint(colour),
+                RichText::new("Rating").size(11.0).color(colour),
+            ))
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::NONE),
+        );
+        a11y::label_widget(ui, &response, egui::Role::Button, "Rating filter: any rating", false);
+        return response.on_hover_text("Only photos rated at least this many stars");
+    }
+    let spoken = format!("Rating filter: {stars} star{} and up", if stars == 1 { "" } else { "s" });
+    let response = ui.add(
+        Button::new(stars_atom(stars, t.accent))
+            .fill(t.selection)
+            .stroke(Stroke::new(1.0, t.accent)),
+    );
+    a11y::label_widget(ui, &response, egui::Role::Button, &spoken, true);
+    response.on_hover_text(format!("{spoken} — one more click raises the minimum, a click past five clears it"))
+}
+
+/// Which glyph a flag filter wears: the state's own, so the four states are pictures and not just words.
+fn flag_filter_icon(flag: Option<Flag>) -> crate::icons::Icon {
+    match flag {
+        Some(Flag::Pick) => crate::icons::Icon::Pick,
+        Some(Flag::Reject) => crate::icons::Icon::Reject,
+        _ => crate::icons::Icon::Flag,
+    }
+}
+
+/// The colour-label chip: the swatch is the colour, and the word only names it.
+fn colour_chip(ui: &mut Ui, t: &Tokens, label: Option<sortlens_core::ColorLabel>, text: &str) -> egui::Response {
+    let fill = label.map(|label| t.label(label));
+    let ring = t.text_muted;
+    let swatch = egui::Atom::paint(Vec2::splat(12.0), move |ui, args| {
+        let centre = args.rect.center();
+        match fill {
+            Some(colour) => {
+                ui.painter().circle_filled(centre, 4.5, colour);
+            }
+            None => {
+                ui.painter().circle_stroke(centre, 4.5, Stroke::new(1.0, ring));
+            }
+        }
+    });
+    let active = label.is_some();
+    let colour = if active { t.text } else { t.text_muted };
+    let response = ui.add(
+        Button::new((swatch, RichText::new(text).size(11.0).color(colour)))
+            .fill(if active { t.selection } else { Color32::TRANSPARENT })
+            .stroke(if active { Stroke::new(1.0, t.accent) } else { Stroke::NONE }),
+    );
+    let spoken = match label {
+        Some(label) => format!("Colour filter: {}", label.label()),
+        None => "Colour filter: any colour".to_string(),
+    };
+    a11y::label_widget(ui, &response, egui::Role::Button, &spoken, active);
+    response.on_hover_text("Only photos with this colour label — an empty ring means every colour")
 }
 
 /// Which step of the first-run wizard the library is on, if any.
@@ -11050,6 +11155,56 @@ mod tests {
         output.shapes.iter().find_map(|clipped| walk(&clipped.shape, needle))
     }
 
+    /// Every shape in the output, flattened through layout shapes.
+    ///
+    /// A widget paints its contents inside an `egui::Shape::Vec`, so a test that only looked at the top level
+    /// finds no picture at all and reads as "nothing was painted" — the same trap [`label_at`] avoids for text.
+    fn all_shapes(output: &egui::FullOutput) -> Vec<&egui::Shape> {
+        fn walk<'a>(shape: &'a egui::Shape, sink: &mut Vec<&'a egui::Shape>) {
+            sink.push(shape);
+            if let egui::Shape::Vec(shapes) = shape {
+                for shape in shapes {
+                    walk(shape, sink);
+                }
+            }
+        }
+        let mut sink = Vec::new();
+        for clipped in &output.shapes {
+            walk(&clipped.shape, &mut sink);
+        }
+        sink
+    }
+
+    /// The rects of every picture painted in the output.
+    ///
+    /// An image in this egui paints as a textured rectangle (the fork moved images from meshes to `RectShape`
+    /// brushes), so "a glyph was painted here" is a rect whose brush carries a texture that is not the font atlas.
+    fn painted_pictures(output: &egui::FullOutput) -> Vec<Rect> {
+        all_shapes(output)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                egui::Shape::Rect(shape) => shape
+                    .brush
+                    .as_ref()
+                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                    .map(|_| shape.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Every painted circle, in paint order.
+    fn painted_circles(output: &egui::FullOutput) -> Vec<egui::epaint::CircleShape> {
+        all_shapes(output)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Circle(circle) => Some(*circle),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The rect of a text shape whose whole string is exactly `needle`.
     ///
     /// `label_at` answers "is this string painted somewhere", which is the wrong question when a row paints `3×` for
@@ -11773,6 +11928,18 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-filter-bar-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let mut engine = Engine::open(&dir).expect("open");
+        // One photograph, because a strip needs a library to narrow (the next test is about that).
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-filter-bar");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
         let mut thumbs = Thumbnails::new(dir.join("cache"));
         let window = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails| {
             let input = egui::RawInput {
@@ -11801,7 +11968,222 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The top bar and the palette paint only glyphs the bundled faces have.
+    /// A strip of filter chips needs a library to narrow.
+    ///
+    /// On a first launch it sat above the Welcome card — nine questions about photographs that did not
+    /// exist yet, on the one screen whose whole job is to say where photographs come from. The test also
+    /// pins the other half of the rule: a *filter* that hides every photo must keep its strip, because
+    /// clearing it is what the strip is for. So the gate is the catalog's total, never the filtered count.
+    #[test]
+    fn the_filter_strip_needs_a_library_to_narrow() {
+        let ctx = egui::Context::default();
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-filter-empty-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.filters_open = true;
+        let window = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails| {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))),
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, engine, thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        let output = window(&mut state, &mut engine, &mut thumbs);
+        assert!(
+            label_at(&output, "Welcome to Sortlens").is_some(),
+            "an empty library is the Welcome screen"
+        );
+        assert!(
+            label_at(&output, "All kinds").is_none(),
+            "and the strip is not drawn over it, even though the Filter toggle says open"
+        );
+        assert!(
+            label_at(&output, "0 shown").is_none(),
+            "no chip of the strip is left behind — not even the count on its right edge, which the sidebar never prints"
+        );
+        // One photograph is enough: the strip appears at the same toggle state.
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-filter-empty");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let output = window(&mut state, &mut engine, &mut thumbs);
+        assert!(label_at(&output, "All kinds").is_some(), "one photo and the strip is back");
+
+        // A question with no answer is still a question being asked: the strip stays and offers Clear.
+        state.min_rating = 5;
+        assert_eq!(engine.count(&state.filter()), 0, "nothing in this library is rated five stars");
+        let output = window(&mut state, &mut engine, &mut thumbs);
+        assert!(
+            label_at(&output, "All kinds").is_some(),
+            "a filter that hides every photo keeps the strip that can clear it"
+        );
+        assert!(
+            label_at(&output, "Clear").is_some(),
+            "and the strip's own Clear chip is reachable, because the row wraps rather than overflowing"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The strip's state is pictures: lit stars, the label's own colour, the state's own flag, a chevron.
+    ///
+    /// Painted one control at a time, because the assertion is exact: a chip alone in a panel paints
+    /// exactly as many glyphs as it means, and a channel that carries text would fail the "no text"
+    /// half. The typed `★` this replaced was a character, not the app's star.
+    #[test]
+    fn the_filter_strip_paints_its_state_as_pictures() {
+        let ctx = egui::Context::default();
+        let t = Tokens::CHARCOAL;
+        // The chips paint icons, so the loader `show` installs has to be installed for this panel too.
+        crate::icons::install(&ctx);
+        let paint = |body: &dyn Fn(&mut Ui)| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| body(ui));
+            });
+            output.textures_delta.clear();
+            output
+        };
+        // The rating chip at rest: one faint star and the word "Rating".
+        let idle = paint(&|ui| {
+            rating_chip(ui, &t, 0);
+        });
+        assert_eq!(painted_pictures(&idle).len(), 1, "the unset chip is one star glyph and no more");
+        assert!(label_at(&idle, "Rating").is_some(), "and it names the question");
+
+        // Three stars and up: three glyphs, one per star, and no numeral or typed `★` anywhere.
+        let three = paint(&|ui| {
+            rating_chip(ui, &t, 3);
+        });
+        let mut stars = painted_pictures(&three);
+        stars.sort_by(|a, b| a.left().total_cmp(&b.left()));
+        assert_eq!(stars.len(), 3, "three stars means three pictures");
+        assert!(
+            stars.iter().all(|rect| (rect.width() - STAR_GLYPH).abs() < 0.5),
+            "each one is the icon set's star at its own size"
+        );
+        assert!(
+            stars.windows(2).all(|pair| pair[0].right() < pair[1].left()),
+            "and they are laid out in a row, not stacked"
+        );
+        assert!(
+            label_at(&three, "★").is_none() && label_at(&three, "3").is_none(),
+            "the count is drawn, so neither a typed star nor a numeral is painted"
+        );
+
+        // The colour chip paints the label's own colour, and an empty ring when no colour is asked for.
+        let green = paint(&|ui| {
+            colour_chip(ui, &t, Some(ColorLabel::Green), "Green");
+        });
+        let dots = painted_circles(&green);
+        let Some(dot) = dots.first() else {
+            panic!("the colour chip paints a swatch, not a droplet icon");
+        };
+        assert_eq!(dot.fill, t.label(ColorLabel::Green), "the swatch is the label's colour");
+        assert_eq!(dot.stroke.width, 0.0, "a chosen colour is filled, not outlined");
+        assert!(label_at(&green, "Green").is_some(), "and the word names it");
+
+        let any = paint(&|ui| {
+            colour_chip(ui, &t, None, "Colour");
+        });
+        let outlined = painted_circles(&any);
+        let Some(ring) = outlined.first() else {
+            panic!("the unset colour chip still paints its ring");
+        };
+        assert_eq!(ring.fill, Color32::TRANSPARENT, "nothing chosen means nothing filled");
+        assert!(ring.stroke.width > 0.0, "the ring is the outline");
+        assert!(
+            label_at(&any, "Droplet").is_none(),
+            "the droplet that stood in for every colour is gone"
+        );
+
+        // The flag chip wears the state's own glyph: a reject is the reject cross.
+        assert_eq!(flag_filter_icon(None), crate::icons::Icon::Flag);
+        assert_eq!(flag_filter_icon(Some(Flag::Pick)), crate::icons::Icon::Pick);
+        assert_eq!(flag_filter_icon(Some(Flag::Reject)), crate::icons::Icon::Reject);
+    }
+
+    /// The strip's stars and swatch are clickable, because a picture inside a button is still the button.
+    #[test]
+    fn the_filter_strip_stars_and_swatch_take_clicks() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-filter-clicks-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-filter-clicks");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ctx = egui::Context::default();
+        let t = Tokens::CHARCOAL;
+        // The strip paints icons, and this test draws it without `show`; install the same loader.
+        crate::icons::install(&ctx);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let frame = |state: &mut UiState, engine: &Engine, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    filter_strip(ui, &t, state, engine, 1);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // The rating chip at rest states its question in words; clicking it asks for one star, and the
+        // chip then answers with one lit glyph instead.
+        let output = frame(&mut state, &engine, egui::RawInput::default());
+        let idle = label_at(&output, "Rating").expect("the rating chip names itself at rest");
+        for input in press_and_release(idle.center()) {
+            frame(&mut state, &engine, input);
+        }
+        assert_eq!(state.min_rating, 1, "one click asks for one star");
+
+        // Clicking the painted star again raises the minimum: the atom really is inside the button.
+        let output = frame(&mut state, &engine, egui::RawInput::default());
+        // The first picture at the star's size is the lit star: the only smaller glyph in the strip is
+        // the keyword menu's chevron, and the chips after it are not painted yet at this point in the test.
+        let star = painted_pictures(&output)
+            .into_iter()
+            .find(|rect| (rect.width() - STAR_GLYPH).abs() < 0.5)
+            .expect("the lit star is painted");
+        for input in press_and_release(star.center()) {
+            frame(&mut state, &engine, input);
+        }
+        assert_eq!(state.min_rating, 2, "the glyph takes the click the chip always took");
+
+        // The swatch is the colour control now, and the Droplet glyph is no longer anywhere in the strip.
+        state.min_rating = 0;
+        let output = frame(&mut state, &engine, egui::RawInput::default());
+        let swatch = label_at(&output, "Colour").expect("the colour chip names itself at rest");
+        for input in press_and_release(swatch.center()) {
+            frame(&mut state, &engine, input);
+        }
+        assert_eq!(state.label_filter, Some(ColorLabel::Red), "one click asks for the first colour");
+        assert_eq!(state.active_filter_count(), 1);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     ///
     /// The same audit the detail view gets, aimed at the strings this slice introduced: the palette's
     /// "Up/Down choose · Enter run" footer, the ⌘ in the search hint, and every registry label it can

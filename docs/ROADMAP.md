@@ -1115,15 +1115,22 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   dismissed anything writes no such field. Two new baselines (`suggestions-charcoal`/`-paper`) and all 25 existing
   ones regenerated and read; the fixture gained a keyword pack and two frames with real camera EXIF, because a
   fixture JPEG is silent and one family would not test a grouping
-- [ ] 3B.6 Visual defects: Welcome bullets as proper icons — **part 1 shipped 2026-11-23**: the three promises
-  start with `folder`, `history` and `reject` in one 16-point column (the typed `·` was a per-face speck), a shell
-  test asserts exactly three 14-point textured glyphs in that column with each title beside its own glyph, and
-  `welcome-charcoal`/`welcome-paper` were regenerated and read; filter bar hidden on an empty library, with glyphs,
-  swatches and chevrons on its controls; Places ships an offline coastline basemap and falls back to the user's
-  `tiles/` and `places.txt` when present (B). The 3A baselines recorded three more: Places opens at zoom 5, so a
-  library spread across continents opens with both clusters off-screen (the baseline zooms to 3 to show the
-  dots); the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are still used as text in the
-  keymap overlay and the command registry's `shortcut` strings, where the bundled faces have no glyph
+- [x] 3B.6 (a) Welcome bullets as proper icons — **shipped 2026-11-23 (part 1)**: the three promises start with
+  `folder`, `history` and `reject` in one 16-point column (the typed `·` was a per-face speck), a shell test asserts
+  exactly three 14-point textured glyphs in that column with each title beside its own glyph, and
+  `welcome-charcoal`/`welcome-paper` were regenerated and read
+- [x] 3B.6 (b) The filter strip's own controls — **shipped 2026-11-23 (part 2)**: the strip is not painted on an
+  empty library (the catalog's total, not the filtered count, so a filter that hides every photo keeps the strip
+  that clears it); the rating chip states its minimum in lit star glyphs instead of `3★ and up`, the colour chip
+  paints the label's own swatch instead of a droplet, the flag chip wears the state's own glyph, and the keyword
+  menu carries a chevron; the row wraps instead of pushing `Clear` past the canvas edge. Two `run_ui` tests and a
+  `filters-charcoal`/`-paper` baseline pair at 1200 px, regenerated and read
+- [ ] 3B.6 (c)–(g) The remaining visual defects (B): Places ships an offline coastline basemap and falls back to the
+  user's `tiles/` and `places.txt` when present, which also fixes Places opening at zoom 5 with both clusters
+  off-screen (the baseline zooms to 3 to show the dots); at ~620 px of height the sidebar's pinned foot overlaps
+  the keyword and collection rows above it; at 900 px with both docks open the canvas header's title runs under the
+  right-aligned sort combo; the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are still used
+  as text in the keymap overlay and the command registry's `shortcut` strings, where the bundled faces have no glyph
 
 ### Phase 4 — Platform, keymap and remote polish (M9–M10)
 

@@ -1,5 +1,58 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-seventh) — Phase 3B.6 part 2: the strip asks in pictures, and only when there is something to narrow
+
+- **The strip is not painted on an empty library, and "empty" is the catalog, not the filter.** Over a first-run
+  library it was nine controls asking questions about photographs that do not exist yet, sitting on top of the
+  Welcome card whose whole job is to say where photographs come from. The gate is `engine.stats().total`, never the
+  filtered count `canvas` already has: a filter that hides every photo must keep the strip, because clearing it is
+  what the strip is for. The rule lives at the call site, so the Filter toggle in the top bar can still be on when
+  there is nothing to show — and the moment a photo is indexed the strip appears at that same toggle state.
+- **The rating chip answers in stars, not in `3★ and up`.** One star glyph per star of the minimum, tinted `accent`,
+  in a themed chip; at rest it is the old faint star plus the word "Rating", because a chip with no picture and no
+  word would be a mystery. The typed `★` is gone from the strip — a character the bundled faces render at different
+  widths and heights and not at all in some — and so is the numeral, because the count was the answer all along.
+  The cycle (0→1→…→5→0) is unchanged: the pictures changed, the behaviour did not.
+- **The colour chip paints the colour.** A filled 4.5-point dot in the chosen label's own token colour, an outlined
+  ring for "any colour", and the colour's name beside it (a dot alone is not an answer for a colourblind reader).
+  The `droplet` glyph that stood in for every colour is out of the strip.
+- **The flag chip wears the state's own glyph** — `pick`, `reject` or `flag` — through `flag_filter_icon`, a pure
+  mapping with its own assertions, so the four states are pictures before they are words. The keyword menu gained
+  the set's `chevron`, because it is a menu and now looks like one.
+- **The row wraps instead of overflowing.** Nine chips plus a five-star minimum are wider than the canvas at 1200
+  points with both docks open, which pushed `Clear` — the one control that undoes the strip — past the canvas edge.
+  `horizontal_wrapped` turns that into a second line. This is a defect the new test found rather than one the note
+  named: the assertion "the strip stays when a filter hides everything" failed because `Clear` was never painted at
+  all, and the frame's own text dump showed the row ending at `Missing`. A five-star chip has the same width as the
+  old `5★ and up` label, so this predates the slice; it is fixed here because a filter bar that cannot be cleared is
+  worse than a taller one.
+- **Tests that fail when the behaviour is absent** (3 new, 1 updated; verified by removing the gate, which fails
+  `the_filter_strip_needs_a_library_to_narrow` on its first assertion): the strip absent over the Welcome card and
+  back after one indexed photo, still present — and still counting — when the filter answers nothing; painted alone,
+  the rating chip at three stars paints exactly three 12-point glyphs in a row and no `★` or numeral, the colour
+  chip's circle is `t.label(Green)` filled and the unset one is an outline; clicks on the painted star and on the
+  swatch drive `min_rating`/`label_filter` (a `Button` atom really is the button). Two new test helpers flatten
+  `Shape::Vec` (`all_shapes`, `painted_pictures`, `painted_circles`), because a picture inside a button is nested and
+  a top-level scan reads as "nothing painted" — the trap the existing `label_at` already avoided for text.
+- **Visual verification**: a new `filters-charcoal`/`filters-paper` baseline pair at 1200×800 with three stars and a
+  green label — the only baselines that show the strip *asking* something. Both read: three accent stars in the
+  chip, a green swatch beside the word "Green", and `Missing | Clear` wrapped onto a second line with `2 shown`
+  right-aligned under the first row. All 26 existing baselines regenerated; the Welcome pair lost the strip (the
+  fix) and every other scene's only change is the strip's own glyphs. The narrow 900×620 baseline still fits on one
+  row, so wrapping costs nothing where it is not needed.
+- Files: `crates/ui/src/shell.rs` (the gate, `stars_atom`, `rating_chip`, `colour_chip`, `flag_filter_icon`, the
+  chevron, `horizontal_wrapped`, the test helpers and four tests), `crates/ui/tests/screenshots.rs` (the filter
+  scene), `crates/ui/tests/snapshots/*` (28 regenerated, 2 new), and the reconciled `docs/{ROADMAP,UX,ARCHITECTURE}.md`
+  — the ROADMAP row is split so (a) and (b) are ticked and (c)–(g) stay open in one row, with no work moved into an
+  absent table.
+- 705 tests (3 new); ci, snapshot, deny, wasm, screenshots, a11y, docs, layers, roots, attribution green.
+- **Not fixed, and observed**: with a filter that hides every photo the canvas shows the *Welcome* card ("Add
+  Folder…") under the strip, because `empty_library` derives its stage from the filtered count. The strip is now
+  right (it stays) but the copy under it is not — that is the "nothing matches these filters" empty state, and it is
+  the next thing in this row's neighbourhood rather than a claim made here. Also unverified by hand: the wrapped
+  row at a width where only one chip fits per line (the chip row would become a column of chips), and whether a
+  five-star minimum plus a wrapped `Clear` reads as one control group at 1200 points.
+
 ## 2026-11-23 (thirty-sixth) — Phase 3B.6 part 1: the Welcome promises start with pictures
 
 - **The three first-run promises carry the icon set's glyphs, not a typed bullet.** `folder` (nothing is uploaded,
@@ -3167,9 +3220,16 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     family name is unverified at the panel's 250-point minimum.
 15. **The visual defects (3B.6), in this order.** (a) the Welcome bullets are `•` text where they should be the
     icon set's own glyphs — **done 2026-11-23**, see the thirty-sixth entry: `folder`/`history`/`reject` in one
-    16-point column, an exact-count `run_ui` test, two baselines regenerated and read.
-    **Next: (b)** — the filter strip paints on an empty library and should be hidden there, its controls want
-    star/flag glyphs, colour swatches and dropdown chevrons rather than flat text; (c) Places ships the offline coastline basemap and
+    16-point column, an exact-count `run_ui` test, two baselines regenerated and read. (b) the strip on an empty
+    library, and its flat-text controls — **done 2026-11-23**, see the thirty-seventh entry: hidden while the
+    catalog is empty (a filter that hides everything keeps it), stars as glyphs, the label's own colour as a
+    swatch, the state's own flag, a chevron on the keyword menu, and a wrapping row that found `Clear` was
+    unreachable at 1200 px with both docks open. (b') **Next — half-shipped by (b), and the exact next slice:**
+    the empty state under the strip still says *Welcome to Sortlens / Add Folder…* when a filter hides every
+    photo, because `empty_library` derives its stage from the filtered count. Give the canvas a third stage —
+    "nothing matches these filters", the count of photographs in the library, and one `Clear filters` button —
+    with a `run_ui` test that a narrowed-to-zero library paints it and an actually-empty one does not, plus a
+    baseline pair read at 1200 px. Then (c) Places ships the offline coastline basemap and
     falls back to the user's `tiles/` and `places.txt`, which also fixes Places opening at zoom 5 with both
     clusters off-screen (the baseline zooms to 3 to show the dots); (d) at ~620 px of height the sidebar's pinned
     foot (Recently Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps the keyword and

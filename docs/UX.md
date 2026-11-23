@@ -195,6 +195,17 @@ holds the scope selector and a date-range chip.
 Row 1: rating operator (≥/=/≤) + five stars · flag toggles (Pick / Unflagged / Reject) · five
 colour-label swatches · kind (All/Photos/RAW/Videos) · source (Manual / AI / XMP / Not recorded) · edited state.
 
+Shipped today: the minimum-rating chip prints its answer as lit star glyphs (`3★ and up` is gone — a typed
+`★` is a per-face speck, not the app's star), the colour chip paints the chosen label's own swatch and an
+empty ring for "any colour", the flag chip wears the state's own glyph (`pick`, `reject`, `flag`), and the
+keyword menu ends in a chevron. Every one of them is still a cycling toggle with a spoken name, so the
+pictures changed and the behaviour did not. The row **wraps** rather than overflowing: at 1200 points with
+both docks open, a five-star minimum plus the other chips used to push `Clear` past the canvas edge, and a
+filter bar that cannot be undone is worse than a taller one. The whole strip is not painted while the
+catalog is empty — nine questions about photographs that do not exist yet sat on top of the Welcome card —
+and "empty" is the catalog's own total, never the filtered count, because a filter that hides every photo
+must keep the strip that clears it.
+
 The **source** chip answers "did a machine touch this photo's keywords". It is one click to cycle and
 one to clear, it counts in the header badge like every other dimension, and it asks about *some*
 keyword rather than all of them — a photo with one accepted suggestion among ten typed words belongs in
@@ -576,10 +587,11 @@ Four tests hold the set together. The enum, the catalog and the folder must name
 directions; a glyph with a hard-coded colour or a missing `currentColor` fails; every glyph must rasterise
 through the real loader to something with both ink and empty space at 14 and 32 px; and the shell test counts
 the textured rectangles painted in the top bar, bottom bar and sidebar, so a surface that loses its icons
-fails rather than quietly shrinking, and a second counts the three Welcome glyphs in their own column. Still target
-state: swatches and chevrons on the filter bar, the filter bar itself on an empty library, and the `←`/`→` text in
-the keymap overlay (3B.6). The `⌘K` palette's rows are text by design — a
-command is a sentence, and a glyph for every verb would be a second vocabulary to learn.
+fails rather than quietly shrinking; a second counts the three Welcome glyphs in their own column; and two more
+hold the filter strip (three lit stars for a three-star minimum and the label's own swatch, plus the strip's
+absence on an empty library). Still target state: the `←`/`→` text in the keymap overlay (3B.6c–g). The `⌘K`
+palette's rows are text by design — a command is a sentence, and a glyph for every verb would be a second
+vocabulary to learn.
 
 The widget states themselves come from the same place: `Tokens::palette` is the `craft_ui::theme::WidgetPalette`
 mapping, and `apply` installs it, so a suite widget reading `Visuals` and a Sortlens widget reading `Tokens`
