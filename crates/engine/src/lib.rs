@@ -5756,10 +5756,20 @@ mod tests {
         assert_eq!(value["ran"], false);
         assert!(value["program"].as_str().expect("program").len() > 1);
         let args = value["args"].as_array().expect("args");
-        assert!(
-            args.iter().any(|arg| arg.as_str().unwrap_or_default().ends_with("a.jpg")),
-            "the file should be named in the command: {args:?}"
-        );
+        // The two platforms promise different things: macOS and Windows select the file, Linux's
+        // `xdg-open` can only open the containing folder — the deviation `reveal` documents. Each
+        // assertion checks its own platform's contract, so CI on every OS asserts the real thing.
+        if cfg!(target_os = "linux") || cfg!(target_os = "freebsd") {
+            assert!(
+                args.iter().any(|arg| arg.as_str().unwrap_or_default() == folder.0.to_string_lossy()),
+                "Linux opens the containing folder: {args:?}"
+            );
+        } else {
+            assert!(
+                args.iter().any(|arg| arg.as_str().unwrap_or_default().ends_with("a.jpg")),
+                "the file should be named in the command: {args:?}"
+            );
+        }
 
         let opened = engine.run("photo.open", &json!({ "id": id.0 })).expect("open");
         assert_ne!(opened["line"], value["line"], "the two actions differ");
