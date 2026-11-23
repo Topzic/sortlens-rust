@@ -375,7 +375,14 @@ fn attribution() -> Result<(), String> {
             problems.push(format!("{name} is linked but docs/ATTRIBUTION.md does not attribute it"));
         }
     }
-    let (linked_section, pending_section) = split_attribution(&doc);
+    // The "Data and models" section is a table of pinned model files, not dependencies; its names
+    // are checked against the manifest's pinned URLs below instead of against Cargo.toml.
+    let dependency_doc = doc
+        .split("## ")
+        .filter(|section| !section.trim_start().starts_with("Data and models"))
+        .collect::<Vec<_>>()
+        .join("## ");
+    let (linked_section, pending_section) = split_attribution(&dependency_doc);
     for name in &pending {
         if !pending_section.contains(&format!("`{name}`")) {
             problems.push(format!(
@@ -390,6 +397,26 @@ fn attribution() -> Result<(), String> {
                 problems.push(format!("docs/ATTRIBUTION.md lists `{name}`, which is not a dependency any more"));
             }
         }
+    }
+
+    // Pinned model weights: every release URL the manifest pins must be attributed, and a manifest
+    // with no pins must say plainly that it has none.
+    let manifest_source = fs::read_to_string("crates/ai/src/manifest.rs").map_err(|error| format!("manifest.rs: {error}"))?;
+    let pinned: Vec<&str> = manifest_source
+        .lines()
+        .filter_map(|line| line.split("https://github.com/Topzic/sortlens-rust/releases/download/").nth(1))
+        .filter_map(|rest| rest.split('"').next())
+        .collect();
+    for url in &pinned {
+        let file = url.rsplit('/').next().unwrap_or("");
+        if !file.is_empty() && !doc.contains(file) {
+            problems.push(format!("the manifest pins {file}, but docs/ATTRIBUTION.md does not attribute it"));
+        }
+    }
+    if !manifest_source.contains("models: Vec::new()") && pinned.is_empty() {
+        problems.push(
+            "the manifest pins real weights but none of their release URLs appear in crates/ai/src/manifest.rs's expected form".into(),
+        );
     }
 
     // Every family an embedded build carried has to be attributed, once each.

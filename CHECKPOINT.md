@@ -2482,6 +2482,40 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   9); the change is one dialog branch and one new chip painted through the existing `chip`/`hint` rows,
   so the headless `run_ui` suite covers it.
 
+## 2026-11-23 (twenty-fifth) — Phase 2 item 1: real weights, pinned by digest
+
+- **`Manifest::shipped()` is no longer empty.** Three real, permissively licensed ONNX files are pinned:
+  `yolos-tiny` — YOLOS-tiny detector, Apache-2.0, fp16 export, 13,251,235 bytes, input 1×3×512×800,
+  answering `logits` [1,100,92] and `pred_boxes` [1,100,4]; and the CLIP ViT-B/32 int8 pair — MIT,
+  `clip-vit-b32-vision` (89,023,662 bytes, 1×3×224×224 → `image_embeds` [1,512]) and
+  `clip-vit-b32-text` (64,390,561 bytes, `input_ids` [1,77] int64 → `text_embeds` [1,512]). The files
+  live in the GitHub release `models-v1` on this repository and are fetched only by the opt-in
+  `model.install` command once it exists (Phase 2 item 2); nothing ships inside the app.
+- **The pins are verified, not believed.** Candidate exports were rejected until each pinned file was
+  proven to load *and run* under `tract-onnx` 0.23.10: the quantized CLIP pair and YOLOS-tiny answer
+  real inputs with all-finite values; the 2019 zoo tiny-yolov3 (TF-style Squeeze), zoo ssd-mobilenet
+  (unimplemented Loop), yolos as published and the transformers.js exports as published (symbolic
+  `batch_size`/`num_channels` dims that tract cannot type) were all found and rejected — hence the
+  pinned derivatives. YOLO-family/RT-DETR models under AGPL (YOLOv5/v8) and non-permissive licences
+  (MobileCLIP's Apple ML licence) were excluded by the owner's sign-off.
+- **The transformation is documented, not hidden.** Each pinned file is a derivative of an upstream
+  export (Xenova's): the exporter's symbolic input shapes concretized (batch 1) and shape-inference
+  annotations stripped, which changes no weights; upstream digests were checked against the
+  publishers' recorded hashes before deriving, and GitHub records the same SHA-256 for each release
+  asset. ATTRIBUTION.md's "Data and models" section now states all of this, keeps the sentence that
+  no weights ship with the app, and records the I/O contracts (including that the COCO-91 label map
+  and the CLIP BPE vocabulary ship with the inference slice).
+- **The store and the manifest keep each other honest.** New tests: the shipped manifest satisfies
+  its own `parse`, every shipped licence is one the owner approved (MIT/Apache-2.0), the pin is one
+  detector plus one embedder pair with distinct digests, every pin is real-world sized (>10 MB — a
+  fake few-byte pin would verify garbage perfectly), and every shipped id appears in ATTRIBUTION.md.
+  `xtask attribution` learned the difference between the model-pins table and a dependency table, and
+  now checks every release URL named in `manifest.rs` against ATTRIBUTION.md instead.
+- ROADMAP's Phase 2 item 1 and the M8 manifest row ticked/named in the same commit; RELEASE.md's
+  "no bundled models" bullet now says pins exist and what is still open (downloader, inference).
+- 614 tests (4 new); ci, snapshot, deny, wasm green. No UI change, so no run_ui or screenshot work
+  applies; the screenshot harness does not exist yet (Phase 3 item 9).
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -2499,7 +2533,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
    twenty-fourth entry.
 
 **Phase 2 — real local AI tagging**
-5. Pin real ONNX models (detector + CLIP/MobileCLIP) in `Manifest::shipped()` and `ATTRIBUTION.md`.
+5. Pin real ONNX models (detector + CLIP/MobileCLIP) in `Manifest::shipped()` and `ATTRIBUTION.md` —
+   **done 2026-11-23**, see the twenty-fifth entry.
 6. `model.install`/`model.remove` consent-gated resumable downloader in `sortlens-engine`; Settings → AI.
 7. `tract-onnx` inference (per-pack text embeddings, detection, image embeddings) through NMS and `suggest::merge`.
 8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI.

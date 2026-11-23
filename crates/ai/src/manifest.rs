@@ -164,14 +164,51 @@ fn current_schema() -> u32 {
 impl Manifest {
     /// The manifest that ships with this build.
     ///
-    /// It is empty, and that is the honest state: no model has been chosen, pinned and licensed for
-    /// redistribution yet, so there is nothing to describe. The moment one is, its entry goes here with
-    /// its digest, and the store and the download job start having something to do.
+    /// Three real, permissively licensed models, pinned by digest. Nothing ships *inside* the
+    /// application — the files live in a GitHub release (`models-v1`) and are fetched only when the
+    /// user runs the opt-in `model.install` command (Phase 2). [`Model::verify`] refuses anything
+    /// whose size or SHA-256 does not match the pin, so the manifest is the contract, not the
+    /// download. Every entry was verified to load and run under `tract-onnx` before it was pinned,
+    /// and every entry is attributed in `docs/ATTRIBUTION.md` — a test keeps those two honest
+    /// against each other.
     #[must_use]
     pub fn shipped() -> Manifest {
         Manifest {
             schema: SCHEMA,
-            models: Vec::new(),
+            models: vec![
+                Model {
+                    id: "yolos-tiny".into(),
+                    label: "YOLOS-tiny detector (COCO)".into(),
+                    kind: ModelKind::Detector,
+                    licence: "Apache-2.0".into(),
+                    sha256: "f4d8c3ec0ad9a573d32c0c6646498baf8ea3d89e478a62f617bf6735cb4384fc".into(),
+                    bytes: 13_251_235,
+                    url: "https://github.com/Topzic/sortlens-rust/releases/download/models-v1/yolos-tiny-fp16-static.onnx".into(),
+                    // 512×800 is not square, so the one-edge opinion does not apply; the true input is
+                    // documented in ATTRIBUTION.md.
+                    input_edge: None,
+                },
+                Model {
+                    id: "clip-vit-b32-vision".into(),
+                    label: "CLIP ViT-B/32 image embedder (int8)".into(),
+                    kind: ModelKind::Embedder,
+                    licence: "MIT".into(),
+                    sha256: "cd5bb3cba859097c0c8c1b5bb34f365d6e6583b47956eaa2626024da2acd8050".into(),
+                    bytes: 89_023_662,
+                    url: "https://github.com/Topzic/sortlens-rust/releases/download/models-v1/clip-vit-b32-vision-int8-static.onnx".into(),
+                    input_edge: Some(224),
+                },
+                Model {
+                    id: "clip-vit-b32-text".into(),
+                    label: "CLIP ViT-B/32 text embedder (int8)".into(),
+                    kind: ModelKind::Embedder,
+                    licence: "MIT".into(),
+                    sha256: "8fba28dbcca353679e8d444e8f5114ba299c709b84b7e289b7698002bbbadc43".into(),
+                    bytes: 64_390_561,
+                    url: "https://github.com/Topzic/sortlens-rust/releases/download/models-v1/clip-vit-b32-text-int8-static.onnx".into(),
+                    input_edge: None,
+                },
+            ],
         }
     }
 
@@ -288,12 +325,65 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_manifest_is_empty_and_says_so() {
+    fn the_shipped_manifest_parses_and_every_entry_is_usable() {
         let manifest = Manifest::shipped();
-        assert!(manifest.is_empty(), "no model has been licensed for redistribution yet");
-        assert!(manifest.get("anything").is_none());
-        assert!(manifest.of_kind(ModelKind::Detector).is_empty());
-        assert_eq!(manifest.schema, SCHEMA);
+        let text = serde_json::to_string(&manifest).expect("serialise the shipped manifest");
+        let parsed = Manifest::parse(&text).expect("the shipped manifest must satisfy its own parse");
+        assert_eq!(parsed, manifest);
+        for model in &manifest.models {
+            assert!(model.digest().is_some(), "{} has no usable digest", model.id);
+            assert!(!model.url.is_empty(), "{} has no download URL", model.id);
+            assert!(!model.label.is_empty(), "{} has no label", model.id);
+        }
+    }
+
+    #[test]
+    fn every_shipped_licence_is_one_the_owner_approved() {
+        for model in Manifest::shipped().models {
+            assert!(
+                model.licence == "MIT" || model.licence == "Apache-2.0",
+                "{} is under {}, and the sign-off allows MIT / Apache-2.0 / public domain",
+                model.id,
+                model.licence
+            );
+        }
+    }
+
+    #[test]
+    fn the_shipped_pin_is_one_detector_and_one_embedder_pair() {
+        let manifest = Manifest::shipped();
+        assert_eq!(manifest.of_kind(ModelKind::Detector).len(), 1);
+        let pair = manifest.of_kind(ModelKind::Embedder);
+        assert_eq!(pair.len(), 2, "CLIP needs an image and a text encoder");
+        assert_ne!(pair[0].sha256, pair[1].sha256, "the pair must be two real files");
+        assert_eq!(manifest.models.len(), 3);
+    }
+
+    #[test]
+    fn a_shipped_pin_is_real_world_sized() {
+        // A placeholder pin — a fake digest and a handful of bytes — would let a broken downloader
+        // install garbage that verifies perfectly. Every pinned model is tens of megabytes.
+        for model in Manifest::shipped().models {
+            assert!(
+                model.bytes > 10_000_000,
+                "{} pins {} bytes, which is not a real model",
+                model.id,
+                model.bytes
+            );
+        }
+    }
+
+    #[test]
+    fn every_shipped_model_id_is_attributed_in_the_docs() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/ATTRIBUTION.md");
+        let doc = std::fs::read_to_string(path).expect("ATTRIBUTION.md travels with the repository");
+        for model in Manifest::shipped().models {
+            assert!(
+                doc.contains(&model.id),
+                "model {} is pinned by the manifest but not attributed",
+                model.id
+            );
+        }
     }
 
     #[test]

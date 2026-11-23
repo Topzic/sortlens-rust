@@ -778,7 +778,8 @@ download, so the earlier "needs weights we cannot ship" blocker no longer applie
 
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
   and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
-  — SL-F01; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
+  — SL-F01; real weights (YOLOS-tiny, CLIP ViT-B/32 pair) pinned in `Manifest::shipped()` 2026-11-23,
+  Phase 2 item 1; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
 - [x] Non-maximum suppression per class + label map parsing, as pure functions over normalised boxes,
   with the crowd, the empty-box and the tie-order cases tested (D) — SL-F03 part 1
 - [x] EXIF hint rules: camera and lens as keywords, three focal bands, low light and long exposure,
@@ -973,9 +974,12 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 
 ### Phase 2 — Real local AI tagging (M8)
 
-- [ ] 1. Pin real models: a CPU-friendly ONNX object detector (YOLO-family or RT-DETR) and a CLIP/MobileCLIP
+- [x] 1. Pin real models: a CPU-friendly ONNX object detector (YOLO-family or RT-DETR) and a CLIP/MobileCLIP
   image + text pair, with real URLs, byte sizes, SHA-256 digests and licences in `Manifest::shipped()` and
-  `docs/ATTRIBUTION.md` (D)
+  `docs/ATTRIBUTION.md` (D) — shipped 2026-11-23: YOLOS-tiny (Apache-2.0, 1×3×512×800, 100 queries × 92
+  classes + boxes) and the CLIP ViT-B/32 int8 image + text pair (MIT, 224 px / 77 ids, 512-d embeddings);
+  concretized and shape-stripped derivatives of the Xenova ONNX exports, each verified to load and run
+  under `tract-onnx` 0.23.10 before pinning, hosted in the `models-v1` release
 - [ ] 2. Consent-gated downloader (SL-F02): `model.install`/`model.remove` in `sortlens-engine` (never in
   `sortlens-ai`), resumable, progress and cancel in Activity, SHA-256 via `sortlens-ai::store`, status in Settings → AI (D,A)
 - [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04): text embeddings cached per enabled keyword pack at

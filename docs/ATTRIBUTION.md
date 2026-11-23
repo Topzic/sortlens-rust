@@ -103,11 +103,37 @@ with no craft faces ships egui's bundled fonts instead, which are also permissiv
 
 ## Data and models
 
-**No model weights, corpora or datasets ship with this project.** The AI half is built and tested — a
-digest-verified model store, non-maximum suppression, label maps, EXIF hint rules, keyword packs — but no
-model is pinned, so there is nothing to attribute and no download that could be attributed later without
-editing this section. Keyword packs are files the user writes or installs; each pack carries its own
-`licence` field, which the app shows beside it.
+**No model weights, corpora or datasets are stored in this repository or bundled into the
+application.** What ships is a *pin*: `sortlens-ai::manifest::Manifest::shipped()` names three
+permissively licensed model files with their byte sizes and SHA-256 digests, and the opt-in
+`model.install` command (a user-initiated network call, Phase 2) fetches them from a GitHub release
+on this repository. A downloaded file is refused unless its size and digest match the pin, and a
+test keeps this table and the manifest pinned against each other.
+
+The pinned files are derivatives of upstream weights: the exporter's symbolic input shapes were
+concretized (batch 1) and its shape-inference annotations stripped, because `tract-onnx` cannot type
+those exports as published. Each derived file was verified to load and run under `tract-onnx` 0.23.10
+before its digest was pinned. The transformations change no weights, and the upstream licences (MIT,
+Apache-2.0) permit the derivative. The upstream files themselves were verified by digest against the
+publishers' recorded hashes before the derivative was built.
+
+| Model | Kind | Licence | Provenance | Bytes | SHA-256 | Pinned file |
+|---|---|---|---|---|---|---|
+| `yolos-tiny` | Detector | Apache-2.0 | [hustvl/yolos-tiny](https://huggingface.co/hustvl/yolos-tiny), fp16 ONNX export by [Xenova/yolos-tiny](https://huggingface.co/Xenova/yolos-tiny) | 13,251,235 | `f4d8c3ec0ad9a573d32c0c6646498baf8ea3d89e478a62f617bf6735cb4384fc` | [`yolos-tiny-fp16-static.onnx`](https://github.com/Topzic/sortlens-rust/releases/download/models-v1/yolos-tiny-fp16-static.onnx) |
+| `clip-vit-b32-vision` | Image embedder | MIT | [openai/clip-vit-base-patch32](https://huggingface.co/openai/clip-vit-base-patch32) (MIT), int8 ONNX export by [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32) | 89,023,662 | `cd5bb3cba859097c0c8c1b5bb34f365d6e6583b47956eaa2626024da2acd8050` | [`clip-vit-b32-vision-int8-static.onnx`](https://github.com/Topzic/sortlens-rust/releases/download/models-v1/clip-vit-b32-vision-int8-static.onnx) |
+| `clip-vit-b32-text` | Text embedder | MIT | [openai/clip-vit-base-patch32](https://huggingface.co/openai/clip-vit-base-patch32) (MIT), int8 ONNX export by [Xenova/clip-vit-base-patch32](https://huggingface.co/Xenova/clip-vit-base-patch32) | 64,390,561 | `8fba28dbcca353679e8d444e8f5114ba299c709b84b7e289b7698002bbbadc43` | [`clip-vit-b32-text-int8-static.onnx`](https://github.com/Topzic/sortlens-rust/releases/download/models-v1/clip-vit-b32-text-int8-static.onnx) |
+
+I/O contracts, for the inference slice to code against: the detector takes `pixel_values`
+1×3×512×800 fp32 (image-net mean/std normalisation) and answers `logits` 1×100×92 (100 queries,
+COCO-91 classes plus the EOS slot, so the label map ships with that slice) and `pred_boxes` 1×100×4
+(cxcywh, normalised); the vision embedder takes 1×3×224×224 fp32 and answers `image_embeds` 1×512;
+the text embedder takes `input_ids` 1×77 int64 (CLIP BPE tokenisation, padded to 77) and answers
+`text_embeds` 1×512 — the pair shares one embedding space, so pack phrases and photos compare
+directly. The BPE vocabulary the text side needs is small and ships with the inference slice,
+attributed here then.
+
+Keyword packs are files the user writes or installs; each pack carries its own `licence` field, which
+the app shows beside it.
 
 The test fixtures are generated at run time by `sortlens-testkit` from solid colours through a real JPEG
 encoder: no photographs are stored, so no photograph's licence needs recording.

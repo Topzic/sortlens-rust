@@ -8,12 +8,14 @@
 //!
 //! Two deliberate absences, stated so nobody assumes otherwise:
 //!
-//! - **No inference yet.** `tract` sessions, non-maximum suppression and the label map are the next
-//!   piece of M8; this crate currently has no model to run, so it ships no runtime for one.
-//! - **No downloader.** The manifest carries the licence and digest a download would be checked
-//!   against, and [`store::Store::install_file`] accepts a file the user already has. Fetching it is a
-//!   separate, consent-gated job that does not exist yet, and the engine exposes no command for it —
-//!   a menu item that fails on an empty manifest would be worse than no menu item.
+//! - **No inference yet.** The manifest pins real, permissively licensed ONNX weights (a YOLOS-tiny
+//!   detector and a CLIP ViT-B/32 image + text pair), each verified to load and run under
+//!   `tract-onnx` before it was pinned — but the sessions, the non-maximum-suppression glue and the
+//!   label map that would actually answer questions with them are the next piece of M8.
+//! - **No downloader.** [`store::Store::install_file`] accepts a file the user already has, and the
+//!   pinned URLs plus digests give the future download job something to fetch; fetching itself is a
+//!   separate, consent-gated engine command (`model.install`, Phase 2) that does not exist yet, and
+//!   the engine exposes no command for it — a menu item that fails would be worse than no menu item.
 //!
 //! There is no networking code in this crate, and a test enforces that rather than trusting review.
 
