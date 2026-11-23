@@ -85,17 +85,17 @@ impl Store {
 
     /// What is on disk for one model, verified rather than assumed.
     ///
-    /// Verification reads the whole file. That is the cost of trusting it, and it is why the answer is
-    /// asked once per session rather than per photo.
+    /// Verification streams the whole file (never held in RAM whole). That is the cost of trusting
+    /// it, and it is why the answer is asked once per session rather than per photo.
     #[must_use]
     pub fn status(&self, model: &Model) -> Status {
         let path = self.root.join(model.file_name());
-        match fs::read(&path) {
-            Ok(bytes) => match model.verify(&bytes) {
-                Ok(()) => Status::Installed { path },
-                Err(reason) => Status::Wrong { path, reason },
-            },
-            Err(_) => Status::Missing,
+        if !path.is_file() {
+            return Status::Missing;
+        }
+        match model.verify_file(&path) {
+            Ok(()) => Status::Installed { path },
+            Err(reason) => Status::Wrong { path, reason },
         }
     }
 

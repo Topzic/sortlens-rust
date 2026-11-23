@@ -52,6 +52,10 @@ Commands:
   check                     verify every indexed file is still on disk
   relocate                  find missing files elsewhere under their root
   list [--tag KW]           filter the listing by keyword
+  models                    the pinned models, with licence, size and install state
+  model-consent on|off      the opt-in switch for downloading models (network)
+  model-install <id>        download a pinned model; resumable, digest-checked
+  model-remove <id>         delete an installed model from the store
   undo                      undo the last change
   remap <old> <new>         repoint a moved or renamed root, sample checked
   history [--limit N]       recent changes, newest first
@@ -71,7 +75,7 @@ Commands:
 
 --json prints the engine's own answer instead of prose, for the read verbs: roots, list, stats,
   keywords, folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs,
-  suggest, jobs. The shape of each is the schema; it changes only with a compatibility note.
+  suggest, jobs, models. The shape of each is the schema; it changes only with a compatibility note.
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
 ";
@@ -167,6 +171,76 @@ fn sharpen(engine: &mut Engine) -> Result<(), String> {
         println!("{} photo(s) could not be judged and were left unscored", report.unjudged);
     }
     Ok(())
+}
+
+/// List the pinned models, install one (resuming where a previous attempt stopped), remove one, or
+/// switch the consent for the one network call Sortlens can make.
+fn models(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(), String> {
+    if command == "models" {
+        let rows = engine.models_status().map_err(|error| error.to_string())?;
+        if rows.is_empty() {
+            println!("no models pinned");
+        }
+        for row in rows {
+            let state = if row.installed { "on " } else { "off" };
+            println!("{state}  {} · {}", row.label, row.summary);
+        }
+        return Ok(());
+    }
+    if command == "model-consent" {
+        let on = match rest.first().map(String::as_str) {
+            Some("on") => true,
+            Some("off") => false,
+            _ => return Err("say on or off".into()),
+        };
+        engine.set_models_consent(on);
+        println!(
+            "model downloads {}",
+            if on {
+                "allowed — nothing downloads until you install one"
+            } else {
+                "switched off"
+            }
+        );
+        return Ok(());
+    }
+    let id = rest.first().ok_or("a model id is required (see models)")?;
+    if command == "model-remove" {
+        let reclaimed = engine.remove_model(id).map_err(|error| error.to_string())?;
+        if reclaimed == 0 {
+            println!("{id}: nothing installed");
+        } else {
+            println!("{id}: removed · {} reclaimed", sortlens_core::format_bytes(reclaimed));
+        }
+        return Ok(());
+    }
+    // model-install: a progress verb, like sharpen — it starts the download, waits and reports.
+    engine.install_model(id).map_err(|error| error.to_string())?;
+    println!("downloading {id}…");
+    let mut last = 0;
+    for _ in 0..86_400_000 {
+        if let Some((done, total_bytes)) = engine.model_progress()
+            && done / (10 * 1024 * 1024) > last / (10 * 1024 * 1024)
+        {
+            last = done;
+            println!(
+                "  {} of {}",
+                sortlens_core::format_bytes(done),
+                sortlens_core::format_bytes(total_bytes)
+            );
+        }
+        if let Some(result) = engine.poll_model_install() {
+            return match result {
+                Ok(install) => {
+                    println!("{} · {}", install.headline(), install.path.display());
+                    Ok(())
+                }
+                Err(message) => Err(message),
+            };
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Err("the download did not finish".into())
 }
 
 fn batch_suggest(engine: &mut Engine) -> Result<(), String> {
@@ -517,6 +591,12 @@ const SCHEMAS: &[Schema] = &[
         command: "library.jobs",
         kind: Kind::Read,
         note: "long-running work with its progress; a finished job keeps its last report",
+    },
+    Schema {
+        verb: "models",
+        command: "model.status",
+        kind: Kind::Read,
+        note: "every pinned model with its licence, size and digest-checked install state; `consent` says whether downloads are allowed",
     },
     Schema {
         verb: "suggest",
@@ -973,6 +1053,7 @@ fn run() -> Result<(), String> {
         "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
         "suggest" | "accept" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
+        "models" | "model-consent" | "model-install" | "model-remove" => models(&mut engine, &command, rest),
         "batchsuggest" => batch_suggest(&mut engine),
         "delete" => delete_photos(&mut engine, rest),
         "sharpen" => sharpen(&mut engine),

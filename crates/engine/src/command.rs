@@ -836,6 +836,53 @@ impl Registry {
                     menu: "Sortlens > Quit Sortlens",
                     status: Status::Ready,
                 },
+                // The model downloader (SL-F02). Desktop only: the wasm build has no store, so the
+                // commands and their handlers are gated together.
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "model.status",
+                    label: "AI Model Status",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > AI Model Status",
+                    status: Status::Ready,
+                },
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "model.install",
+                    label: "Install Model",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Install Model…",
+                    status: Status::Ready,
+                },
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "model.remove",
+                    label: "Remove Model",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Remove Model…",
+                    status: Status::Ready,
+                },
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "model.cancel",
+                    label: "Stop Model Download",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Stop Model Download",
+                    status: Status::Ready,
+                },
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "model.consent",
+                    label: "Allow Model Downloads",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Allow Model Downloads…",
+                    status: Status::Ready,
+                },
             ],
         }
     }

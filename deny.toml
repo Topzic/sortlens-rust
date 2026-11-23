@@ -31,6 +31,7 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
     "IJG",
     "ISC",
     "MIT",
@@ -53,6 +54,9 @@ exceptions = [
     { allow = ["Unicode-3.0"], crate = "unicode-ident" },
     # Ubuntu-font on the bundled Hack/Ubuntu faces egui ships; attribution is in docs/ATTRIBUTION.md.
     { allow = ["Ubuntu-font-1.0"], crate = "epaint_default_fonts" },
+    # CDLA-Permissive-2.0 is a permissive community *data* licence on webpki-roots' bundled TLS root
+    # certificate list, which the model downloader's rustls needs. No code ships under it.
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
 ]
 
 [bans]

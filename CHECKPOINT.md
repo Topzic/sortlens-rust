@@ -2516,6 +2516,60 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - 614 tests (4 new); ci, snapshot, deny, wasm green. No UI change, so no run_ui or screenshot work
   applies; the screenshot harness does not exist yet (Phase 3 item 9).
 
+## 2026-11-23 (twenty-sixth) — Phase 2 item 2: the consent-gated model downloader (SL-F02)
+
+- **`crates/engine/src/models.rs` is the only thing in the repository that fetches a model.** It was placed
+  deliberately outside `sortlens-ai` — whose `no_network` test still holds, untouched — and deliberately
+  desktop-only: the wasm build compiles the engine without the module and without the two new target-gated
+  dependencies (`ureq` over rustls for HTTPS with a `Range` header; `craft-atomic` for the Windows-safe
+  rename and the fsync before it).
+- **Resumable, and the resume is tested.** The bytes stream into `<library>/models/<digest>.<kind>.part` in
+  64 KiB chunks; a download that stops — cancelled between chunks, or the network dropped mid-body — leaves
+  the part exactly where it got to. The next attempt sends `Range: bytes=<len>-` and appends. Three
+  dishonest servers are answered by code, not luck: one that ignores the range (a fresh 200 body triggers a
+  restart, never a splice), one that truncates (the part is kept, the error says "running it again resumes"),
+  and one that sends more than the manifest promised (the part is removed — it can never be a resume point).
+- **The digest is the contract, enforced twice.** A finished part is verified against the manifest
+  (streaming, 64 KiB at a time — a 166 MB model is never held in RAM) before it is renamed into place under
+  its digest name, and the renamed file is read back and verified again. A file that is not the model never
+  becomes a model, and it never sits where a reader would find one.
+- **`sortlens-ai` gains two pure, offline additions**: an incremental SHA-256 (`Hasher`, pinned equal to the
+  one-shot over every padding boundary 55/56/64/65/…) and `Model::verify_file`, the streaming check that
+  `Store::status` now uses — so a Settings row no longer reads a model file into memory to answer
+  "is it installed".
+- **Consent is a state, checked before anything moves.** `Engine::models_consent` starts `false` every
+  session; the app persists the switch in Settings → AI (`prefs.ai.download_consent`) and restores it at
+  launch. `model.install` refuses without it from every face — UI, CLI, MCP — with a refusal that names the
+  setting. The engine answers the model verbs from `self.model_manifest` (the shipped pins; a test swaps in
+  a loopback manifest, because no test can serve bytes under a digest it does not know).
+- **The surfaces**: Settings → AI lists every pinned model with licence · kind · size and its verified
+  state; the Install buttons exist only behind the consent switch; a download draws its progress and a Stop
+  that keeps the partial file. Activity gained a `Model` job whose detail is the byte count while running
+  and the install receipt when done. CLI: `models`, `model-consent on|off`, `model-install <id>` (a
+  progress verb like `sharpen`), `model-remove <id>`, plus a `models` JSON schema. MCP: a `model.status`
+  example and executable examples for `model.cancel`/`model.remove`; `model.install` and `model.consent`
+  carry notes (a proven example cannot download).
+- **Tests that fail when the behaviour is absent** (8 module tests + 5 engine tests, all over loopback
+  servers — no network): the verified install under its digest name; interrupted-then-resumed with the
+  Range request asserted on the wire; the 200-restart; wrong bytes refused with the part removed; a
+  mid-copy cancel keeping the part byte-for-byte and resuming from it; a stale too-long part not trusted;
+  a manifest without a URL refused before any fetch; the worker polled to an install; consent refusal
+  naming Settings; install/remove/progress and the row cache following the store; the UI gate driven by a
+  real pointer click on the checkbox in the headless `run_ui` harness (Install absent without consent,
+  present after, gone again when consent is withdrawn; `Action::SetModelConsent` pushed both ways).
+- `cargo deny` gained one licence decision, written in `deny.toml` where it belongs: webpki-roots' bundled
+  TLS root list is CDLA-Permissive-2.0 — permissive community *data*, no code under it. ATTRIBUTION.md
+  moved `ureq` and `craft-atomic` to "Linked today".
+- ROADMAP's Phase 2 item 2 and the M8 manifest row ticked in the same commit; RELEASE.md's model bullet now
+  says the downloader exists and what is still open (inference); UX.md's dialog table and ARCHITECTURE.md
+  §9 + the store layout gained the downloader and the `.part` file.
+- 633 tests (19 new); ci, snapshot (two goldens updated: the schema list gained `models`), deny, wasm green.
+  CLI verified by hand against a fresh library: `models` lists three pins, `model-install` without consent
+  refuses naming Settings, `model-remove` reports nothing to reclaim.
+- **Not verified against the real release**: a live download of the pinned 13/89/64 MB files from the
+  `models-v1` GitHub release (this run keeps the tree offline by choice; the loopback suite covers the
+  protocol, and the digest pins make any wrong byte a refusal, not a usable model).
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -2535,7 +2589,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 **Phase 2 — real local AI tagging**
 5. Pin real ONNX models (detector + CLIP/MobileCLIP) in `Manifest::shipped()` and `ATTRIBUTION.md` —
    **done 2026-11-23**, see the twenty-fifth entry.
-6. `model.install`/`model.remove` consent-gated resumable downloader in `sortlens-engine`; Settings → AI.
+6. `model.install`/`model.remove` consent-gated resumable downloader in `sortlens-engine`; Settings → AI —
+   **done 2026-11-23**, see the twenty-sixth entry.
 7. `tract-onnx` inference (per-pack text embeddings, detection, image embeddings) through NMS and `suggest::merge`.
 8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI.
 

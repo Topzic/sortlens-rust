@@ -55,6 +55,8 @@ These are the crates a manifest actually asks for and the build links.
 | `unicode-normalization` | MIT OR Apache-2.0 | Unicode tables for `PathKey`: macOS writes filenames in NFD, a person types NFC, and one folder must be one key |
 | `crc32fast` | MIT OR Apache-2.0 | One checksum per op-log record |
 | `trash` | MIT | Moving rejects to the operating system's trash |
+| `craft-atomic` | MIT OR Apache-2.0 | Crash-safe writes and Windows-safe renames: the model download lands by verified rename |
+| `ureq` | MIT OR Apache-2.0 | The opt-in model downloader's HTTP(S) client, TLS via rustls; engine only, desktop only |
 
 `craft-tiff`, `craft-jpeg`, `craft-image-codecs` and `craft-raw` sit below the UI layer on purpose: they
 decode pixels and know nothing about a window, so the CLI and the wasm build can use them too.
@@ -69,7 +71,6 @@ promise nobody intends to keep.
 
 | Crate | Licence | Why it is declared | Linked by |
 |---|---|---|---|
-| `craft-atomic` | MIT OR Apache-2.0 | Atomic file replacement for the resumable model downloader | Phase 2 |
 | `rayon` | MIT OR Apache-2.0 | The low-priority compute pool for local inference | Phase 2 |
 | `craft-keymap` | MIT OR Apache-2.0 | The rebinding editor, conflict detection and import/export | Phase 4 |
 | `craft-update` | MIT OR Apache-2.0 | Opt-in update checks (a user-approved network call) | Phase 4 |

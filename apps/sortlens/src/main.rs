@@ -145,6 +145,11 @@ impl App {
                 Engine::new()
             }
         };
+        // The model downloader's consent is a setting, not a session default: it was switched on
+        // deliberately once, and it stays on until it is switched off.
+        let mut engine = engine;
+        let consent = store.get().ai.download_consent;
+        engine.set_models_consent(consent);
 
         Self {
             engine,
@@ -344,6 +349,14 @@ impl App {
             } else {
                 "Sidecar writing off; changes stay in the catalog"
             }),
+            Action::SetModelConsent(on) => {
+                self.store.update(|prefs| prefs.ai.download_consent = on);
+                self.ui.notice(if on {
+                    "Model downloads allowed — nothing downloads until you install one"
+                } else {
+                    "Model downloads switched off"
+                });
+            }
             Action::Backup => {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_title("Back up the Sortlens library")

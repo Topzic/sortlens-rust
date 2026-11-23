@@ -91,6 +91,50 @@ impl Model {
         Ok(())
     }
 
+    /// The same check for a file on disk, streamed: a 166 MB model is hashed in 64 KiB chunks,
+    /// never held in RAM whole. The size is taken from the filesystem first, so a truncated file
+    /// is refused before a byte is read.
+    pub fn verify_file(&self, path: &std::path::Path) -> Result<(), Mismatch> {
+        let expected = self.digest().ok_or_else(|| Mismatch::Malformed(self.sha256.clone()))?;
+        let metadata = std::fs::metadata(path).map_err(|_| Mismatch::Size {
+            expected: self.bytes,
+            actual: 0,
+        })?;
+        let actual_size = metadata.len();
+        if actual_size != self.bytes {
+            return Err(Mismatch::Size {
+                expected: self.bytes,
+                actual: actual_size,
+            });
+        }
+        let file = std::fs::File::open(path).map_err(|_| Mismatch::Size {
+            expected: self.bytes,
+            actual: actual_size,
+        })?;
+        let mut reader = std::io::BufReader::with_capacity(64 * 1024, file);
+        let mut hasher = sha256::Hasher::new();
+        let mut chunk = vec![0u8; 64 * 1024];
+        loop {
+            use std::io::Read;
+            let read = reader.read(&mut chunk).map_err(|_| Mismatch::Digest {
+                expected: sha256::to_hex(&expected),
+                actual: "unreadable".into(),
+            })?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&chunk[..read]);
+        }
+        let actual = hasher.finish();
+        if actual != expected {
+            return Err(Mismatch::Digest {
+                expected: sha256::to_hex(&expected),
+                actual: sha256::to_hex(&actual),
+            });
+        }
+        Ok(())
+    }
+
     /// The file name the store uses: the digest, so two models cannot overwrite each other and a
     /// renamed file is still identifiable.
     #[must_use]
@@ -297,6 +341,26 @@ mod tests {
         let error = model().verify(b"weightz").expect_err("wrong bytes");
         assert!(matches!(error, Mismatch::Digest { .. }), "{error:?}");
         assert!(error.detail().contains("not the model the manifest describes"));
+    }
+
+    /// The streaming file check agrees with the in-memory one, and catches a file that was
+    /// truncated after its metadata was taken.
+    #[test]
+    fn a_file_verifies_like_its_bytes_do() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ai-verify-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("model.bin");
+        std::fs::write(&path, b"weights").expect("write");
+        assert!(model().verify_file(&path).is_ok());
+        std::fs::write(&path, b"weightz").expect("rewrite");
+        let error = model().verify_file(&path).expect_err("wrong bytes");
+        assert!(matches!(error, Mismatch::Digest { .. }), "{error:?}");
+        std::fs::write(&path, b"weigh").expect("truncate");
+        assert!(matches!(model().verify_file(&path), Err(Mismatch::Size { expected: 7, actual: 5 })));
+        let missing = dir.join("gone.bin");
+        assert!(model().verify_file(&missing).is_err(), "a missing file is not the model");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

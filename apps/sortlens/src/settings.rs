@@ -110,6 +110,9 @@ pub struct Ai {
     pub model: String,
     /// Write accepted suggestions to XMP keywords.
     pub write_keywords: bool,
+    /// The owner-approved opt-in for the one network call: downloading models. The files are
+    /// digest-verified against the manifest; nothing downloads until a model is installed.
+    pub download_consent: bool,
 }
 
 /// Phone and browser access.
@@ -141,6 +144,7 @@ mod tests {
         assert_eq!(prefs.library.sort, "added");
         assert_eq!(prefs.library.delete_mode, "trash");
         assert!(!prefs.ai.enabled, "models are opt-in");
+        assert!(!prefs.ai.download_consent, "model downloads are opt-in");
         assert!(!prefs.remote.enabled, "the server is opt-in");
     }
 

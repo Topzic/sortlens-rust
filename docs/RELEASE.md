@@ -39,13 +39,14 @@ Named here because a release is where "later" turns into "not in it". These are 
 decisions**: each line points at the roadmap phase that closes it (`docs/ROADMAP.md`, "Completion
 phases"), and the list shrinks as those rows are ticked.
 
-- **No bundled or downloadable models yet.** Tagging suggestions come from the photo's own EXIF and from
-  keyword packs you write or install. The model store, the manifest and the refusal to run without a digest
-  are built and tested, and real permissively licensed weights are now pinned by digest (a YOLOS-tiny
-  detector and a CLIP ViT-B/32 image + text pair, attributed in `docs/ATTRIBUTION.md`); what is still to
-  come from Phase 2 is the consent-gated `model.install` downloader (an explicit, user-initiated network
-  call — `crates/ai` itself stays offline) and the `tract-onnx` inference that answers questions with the
-  pinned files.
+- **Models are pinned, downloaded on consent, not yet used.** Tagging suggestions come from the photo's own
+  EXIF and from keyword packs you write or install. The model store, the manifest and the refusal to run
+  without a digest are built and tested, real permissively licensed weights are pinned by digest (a YOLOS-tiny
+  detector and a CLIP ViT-B/32 image + text pair, attributed in `docs/ATTRIBUTION.md`), and Settings → AI can
+  install them: the consent-gated `model.install` downloader streams, resumes an interrupted download and
+  refuses anything whose size or SHA-256 disagrees with the pin (an explicit, user-initiated network call —
+  `crates/ai` itself stays offline). What is still to come from Phase 2 is the `tract-onnx` inference that
+  answers questions with the pinned files.
 - **Export is Original, JPEG and PNG.** TIFF and WebP export are not planned.
 - **The map needs your tiles.** Places draws a tile folder (`tiles/`) and a gazetteer (`places.txt`) you
   supply; the bundled offline basemap is Phase 3.

@@ -779,7 +779,7 @@ download, so the earlier "needs weights we cannot ship" blocker no longer applie
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
   and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
   — SL-F01; real weights (YOLOS-tiny, CLIP ViT-B/32 pair) pinned in `Manifest::shipped()` 2026-11-23,
-  Phase 2 item 1; the **downloader** (SL-F02, consent-gated, resumable) is still unbuilt and unlisted
+  Phase 2 item 1; the **downloader** (SL-F02) shipped 2026-11-23, Phase 2 item 2 below
 - [x] Non-maximum suppression per class + label map parsing, as pure functions over normalised boxes,
   with the crowd, the empty-box and the tie-order cases tested (D) — SL-F03 part 1
 - [x] EXIF hint rules: camera and lens as keywords, three focal bands, low light and long exposure,
@@ -980,8 +980,16 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   classes + boxes) and the CLIP ViT-B/32 int8 image + text pair (MIT, 224 px / 77 ids, 512-d embeddings);
   concretized and shape-stripped derivatives of the Xenova ONNX exports, each verified to load and run
   under `tract-onnx` 0.23.10 before pinning, hosted in the `models-v1` release
-- [ ] 2. Consent-gated downloader (SL-F02): `model.install`/`model.remove` in `sortlens-engine` (never in
+- [x] 2. Consent-gated downloader (SL-F02): `model.install`/`model.remove` in `sortlens-engine` (never in
   `sortlens-ai`), resumable, progress and cancel in Activity, SHA-256 via `sortlens-ai::store`, status in Settings → AI (D,A)
+  — shipped 2026-11-23: `crates/engine/src/models.rs` streams into `<library>/models/<digest>.<kind>.part`,
+  resumes with `Range: bytes=<len>-` (a server that ignores the range is answered by a restart), verifies the
+  finished part against the manifest before renaming it under its digest name, and reads the renamed file back
+  once more; `sortlens-ai` gains only incremental SHA-256 and the streaming file check, and its `no_network`
+  test still holds (the fetcher — `ureq` over rustls — lives in the engine, desktop-only, wasm compiles without
+  the module). Consent is an engine state the app persists in Settings → AI (`ai.download_consent`), and the
+  `model.install` command refuses without it from every face: UI, CLI (`models`, `model-consent`,
+  `model-install`, `model-remove`) and MCP. Progress and cancel sit in the Activity stack as a `Model` job.
 - [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04): text embeddings cached per enabled keyword pack at
   install, detection and image embeddings on the low-priority pool over 384 px previews, through `detect::suppress`
   and `suggest::merge` (D)

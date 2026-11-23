@@ -115,6 +115,8 @@ pub enum Action {
     SetSort(Sort),
     /// Write a verified backup of the catalog somewhere the host chooses.
     Backup,
+    /// The model-downloader consent was switched on or off, and should be persisted.
+    SetModelConsent(bool),
     /// Verify an archive and unpack it into a folder the host chooses.
     RestoreBackup,
     /// Repoint an indexed root, which the host asks a folder for.
@@ -6371,6 +6373,11 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             );
             ui.add_space(8.0);
             ui.separator();
+            // The model downloader (SL-F02) is desktop-only; the wasm build compiles the shell
+            // without the section and without the engine methods it calls.
+            #[cfg(not(target_arch = "wasm32"))]
+            ai_models_section(ui, t, engine, actions);
+            ui.separator();
             ui.label(RichText::new("Keyword packs").size(11.0).color(t.text_muted));
             keyword_packs(ui, t, engine, actions);
             if ui
@@ -6388,6 +6395,108 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             );
         });
     state.settings_open = open;
+}
+
+/// Settings → AI: the consent switch and every pinned model, with what is on disk for it.
+///
+/// The consent switch is the whole gate: with it off, no model can be installed from here, from the
+/// CLI or from an agent — the engine refuses, not just the button. With it on, each row offers
+/// install (a download, resumable, cancelled from here) and removal; nothing runs inference yet, so
+/// the hint says what a model is *for* before the panel promises anything.
+#[cfg(not(target_arch = "wasm32"))]
+fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    ui.label(RichText::new("AI models (local)").size(11.0).color(t.text_muted));
+    let mut consent = engine.models_consent();
+    let response = ui.checkbox(&mut consent, "Allow downloading models (network)");
+    if response.changed() {
+        engine.set_models_consent(consent);
+        actions.push(Action::SetModelConsent(consent));
+    }
+    ui.label(
+        RichText::new(
+            "Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.",
+        )
+        .size(10.5)
+        .color(t.text_faint),
+    );
+    match engine.models_status() {
+        Ok(rows) => {
+            for row in rows {
+                ui.add_space(2.0);
+                ui.horizontal_wrapped(|ui| {
+                    let state = if row.downloading {
+                        match engine.model_progress() {
+                            Some((done, total)) => {
+                                let share = if total == 0 { 0.0 } else { done as f32 / total as f32 };
+                                ui.add(
+                                    egui::ProgressBar::new(share)
+                                        .text(sortlens_core::format_bytes(done))
+                                        .desired_width(140.0),
+                                );
+                                if ui
+                                    .button(RichText::new("Stop").size(11.0))
+                                    .on_hover_text("Keeps the partial download; installing again resumes it")
+                                    .clicked()
+                                {
+                                    engine.cancel_model_install();
+                                }
+                                return;
+                            }
+                            None => "".to_string(),
+                        }
+                    } else {
+                        row.status.clone()
+                    };
+                    ui.label(RichText::new(row.label.clone()).size(11.5));
+                    ui.label(RichText::new(row.summary.clone()).size(10.0).color(t.text_faint));
+                    if !state.is_empty() {
+                        ui.label(RichText::new(state).size(10.0).color(t.text_muted));
+                    }
+                    if consent && !row.downloading {
+                        if !row.installed
+                            && ui
+                                .button(RichText::new("Install").size(11.0))
+                                .on_hover_text(format!("Download from the pinned release · {}", row.summary))
+                                .clicked()
+                        {
+                            let id = row.id.clone();
+                            if let Err(error) = engine.install_model(&id) {
+                                actions.push(Action::Notice(error.to_string()));
+                            }
+                        }
+                        if row.installed
+                            && ui
+                                .button(RichText::new("Remove").size(11.0))
+                                .on_hover_text("Delete the file from the model store; you can install it again later")
+                                .clicked()
+                        {
+                            match engine.remove_model(&row.id.clone()) {
+                                Ok(0) => {}
+                                Ok(bytes) => {
+                                    actions.push(Action::Notice(format!(
+                                        "Removed · {} reclaimed",
+                                        sortlens_core::format_bytes(bytes)
+                                    )));
+                                }
+                                Err(error) => actions.push(Action::Notice(error.to_string())),
+                            }
+                        }
+                    }
+                });
+            }
+            if engine.poll_model_install().is_some() {
+                // A finished download is announced through the row's own state; nothing to keep.
+            }
+        }
+        Err(_) => {
+            ui.label(
+                RichText::new("Open a library to manage models — they are stored beside its catalog.")
+                    .size(10.5)
+                    .color(t.text_faint),
+            );
+        }
+    }
+    ui.add_space(8.0);
 }
 
 /// The keyword packs found in the library, each with a switch.
@@ -9340,6 +9449,113 @@ mod tests {
         assert!(state.live_notice().is_some() || state.notice.is_some(), "the reason is not silent");
         assert_eq!(state.unread_notices(), 1, "and the bell carries it after the toast has gone");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Settings → AI: the consent checkbox is the gate, and the Install buttons only exist behind
+    /// it. Clicked through the real widget, over a real (empty) model store.
+    ///
+    /// No download is started here — the pinned models are on the network, and a headless test does
+    /// not fetch them. What this test owns is the gate: consent off paints no Install button, the
+    /// checkbox click reaches the engine, and consent on paints them.
+    #[test]
+    fn the_ai_settings_section_gates_install_behind_consent() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-models-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine_cell = std::cell::RefCell::new(Engine::open(&dir).expect("open"));
+        assert!(!engine_cell.borrow().models_consent(), "consent starts off");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.settings_open = true;
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let frame = |state: &mut UiState, mut input: egui::RawInput| {
+            // The window needs a screen to land in; a bare RawInput has none.
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0)));
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(ui, state, &tokens, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // With consent off: the rows paint, the switch is off, and there is no Install button.
+        // The window positions itself on its first frame, so the claims are read on the second.
+        let _warm = frame(&mut state, egui::RawInput::default());
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text().contains("YOLOS-tiny"))),
+            "the manifest's models are listed"
+        );
+        assert!(
+            !output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Install")),
+            "no Install button without consent"
+        );
+        assert!(actions_cell.borrow().is_empty(), "painting alone changes nothing");
+
+        // Click the consent checkbox: the label's own rect is the click target.
+        let label = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text().starts_with("Allow downloading models") => {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .expect("the consent checkbox painted its label");
+        let at = label.center();
+        let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        frame(&mut state, click(at, true));
+        frame(&mut state, click(at, false));
+        assert!(engine_cell.borrow().models_consent(), "the click reached the engine");
+        assert!(
+            actions_cell.borrow().iter().any(|action| action == &Action::SetModelConsent(true)),
+            "and asked the host to persist it"
+        );
+
+        // With consent on, each row offers Install — and removal only for what is installed.
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Install")),
+            "Install appears behind consent"
+        );
+        assert!(
+            !output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Remove")),
+            "nothing is installed, so nothing offers Remove"
+        );
+
+        // And the gate can be withdrawn: the switch goes off and the buttons go with it.
+        actions_cell.borrow_mut().clear();
+        frame(&mut state, click(at, true));
+        frame(&mut state, click(at, false));
+        assert!(!engine_cell.borrow().models_consent(), "consent is withdrawn");
+        assert!(actions_cell.borrow().iter().any(|action| action == &Action::SetModelConsent(false)));
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            !output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Install")),
+            "the buttons are gone with the consent"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

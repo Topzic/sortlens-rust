@@ -103,7 +103,8 @@ a realistic target for a focused culling tool, not a photo editor.
   previews/
     <xx>/<shard>/<hash>-<size>.jpg
   models/
-    <sha256>/…            # downloaded model files + manifest
+    <sha256>/<kind>       # downloaded model files, digest-named, consent-gated
+    <sha256>.<kind>.part  # an interrupted download; the next install resumes it
   sidecars/               # optional: our own metadata cache when XMP is off
   logs/
   audit.jsonl             # destructive operations only, append-only, never compacted
@@ -487,6 +488,7 @@ so shortcuts and enablement agree).
 ```
 model store (sha256, size, licence, packs)   ← explicit download, no auto-fetch
       │
+      ├── downloader (engine, consent-gated, resumable, Range + digest rename)
       ├── object detector (YOLO-family, tract)  → labels + boxes + confidence
       ├── image embedder (CLIP-family, tract)   → 512-d vector
       ├── text embedder (same model)            → cached per pack prompt at install

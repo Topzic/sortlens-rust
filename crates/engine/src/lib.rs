@@ -12,6 +12,10 @@ pub mod diagnostics;
 pub mod job;
 pub mod moves;
 
+// The model downloader (SL-F02) is desktop-only; the wasm build compiles the crate without it.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod models;
+
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Suggestion};
@@ -103,6 +107,13 @@ struct PendingSharpness {
     done: Arc<std::sync::atomic::AtomicUsize>,
     unjudged: Arc<std::sync::atomic::AtomicUsize>,
     cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// A model download in flight (SL-F02, desktop only).
+#[cfg(not(target_arch = "wasm32"))]
+struct PendingModel {
+    job: u64,
+    download: crate::models::Download,
 }
 
 /// What a finished sharpness pass measured.
@@ -199,6 +210,21 @@ pub struct Engine {
     /// pasting somebody else's older tags onto a photo is a wrong write rather than a convenience. Only an
     /// *added* keyword counts — removing one is not something you then want repeated.
     last_tag: Option<String>,
+    /// A model download in flight (SL-F02, desktop only).
+    #[cfg(not(target_arch = "wasm32"))]
+    pending_model: Option<PendingModel>,
+    /// The owner's opt-in for the one approved network call. False every session until the
+    /// setting is switched on, and checked before anything is fetched.
+    #[cfg(not(target_arch = "wasm32"))]
+    models_consent: bool,
+    /// Settings → AI rows, verified once per session and invalidated by install and remove: a
+    /// verified status hashes every model file, which is not a per-frame cost.
+    #[cfg(not(target_arch = "wasm32"))]
+    model_rows: Option<Vec<crate::models::ModelRow>>,
+    /// The manifest the model verbs answer from. The shipped pins, unless a test swaps in a
+    /// loopback one — the manifest is the contract, and the contract is data, not a constant.
+    #[cfg(not(target_arch = "wasm32"))]
+    model_manifest: sortlens_ai::Manifest,
 }
 
 impl Engine {
@@ -232,6 +258,14 @@ impl Engine {
             write_sidecars: true,
             warnings: Vec::new(),
             last_tag: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            pending_model: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            models_consent: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            model_rows: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            model_manifest: sortlens_ai::Manifest::shipped(),
         }
     }
 
@@ -3721,6 +3755,43 @@ impl Engine {
                 self.last_effect = Effect::Quit;
                 Ok(json!({ "quitting": true }))
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            "model.status" => Ok(json!({
+                "consent": self.models_consent(),
+                "models": self.models_status()?,
+            })),
+            #[cfg(not(target_arch = "wasm32"))]
+            "model.install" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("id is required".into()))?;
+                self.install_model(id)?;
+                Ok(json!({ "installing": id }))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            "model.remove" => {
+                let id = args
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("id is required".into()))?;
+                let reclaimed = self.remove_model(id)?;
+                Ok(json!({ "reclaimed": reclaimed }))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            "model.cancel" => {
+                self.cancel_model_install();
+                Ok(json!({ "cancelled": true }))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            "model.consent" => {
+                let on = args
+                    .get("on")
+                    .and_then(Value::as_bool)
+                    .ok_or_else(|| Error::Invalid("on (true or false) is required".into()))?;
+                self.set_models_consent(on);
+                Ok(json!({ "consent": self.models_consent() }))
+            }
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
         };
         // Every response carries the catalog revision, per the SL-D11 design note: a stale render
@@ -3734,6 +3805,188 @@ impl Engine {
             }
             other => other,
         })
+    }
+}
+
+// The model downloader (SL-F02): the engine's face for consent, install, progress and removal.
+// Desktop only — the wasm build compiles this crate without the module, and the UI gates the same
+// way, so a browser build never reaches for a socket.
+#[cfg(not(target_arch = "wasm32"))]
+impl Engine {
+    /// Where models are stored: a `models` folder beside the catalog. One library's models are its
+    /// own, the way its keyword packs are; there is no shared machine-wide store to agree on.
+    pub fn models_dir(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join("models"))
+    }
+
+    /// The model store, creating the folder if needed.
+    fn model_store(&self) -> Result<sortlens_ai::Store> {
+        let dir = self.models_dir().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        sortlens_ai::Store::open(dir).map_err(Error::Invalid)
+    }
+
+    /// Whether the one approved network call is allowed this session. The app persists it in its
+    /// settings and turns it back on at launch; the engine itself starts every session strict.
+    pub fn models_consent(&self) -> bool {
+        self.models_consent
+    }
+
+    /// Set the consent. Returns whether it changed, so a settings row can report what it did.
+    pub fn set_models_consent(&mut self, on: bool) -> bool {
+        let changed = self.models_consent != on;
+        self.models_consent = on;
+        changed
+    }
+
+    /// Every manifest model, with what is on disk for it. Verified once per session; installs and
+    /// removals invalidate the cache, so the rows always answer with the store's own verdict.
+    pub fn models_status(&mut self) -> Result<Vec<crate::models::ModelRow>> {
+        if self.model_rows.is_none() {
+            self.recompute_model_rows()?;
+        }
+        Ok(self.model_rows.clone().unwrap_or_default())
+    }
+
+    /// Re-verify the store and refill the rows cache.
+    fn refresh_model_rows(&mut self) {
+        self.model_rows = None;
+        let _ = self.recompute_model_rows();
+    }
+
+    fn recompute_model_rows(&mut self) -> Result<Vec<crate::models::ModelRow>> {
+        let store = self.model_store()?;
+        let rows: Vec<crate::models::ModelRow> = self
+            .model_manifest
+            .models
+            .iter()
+            .map(|model| {
+                let status = store.status(model);
+                crate::models::ModelRow {
+                    id: model.id.clone(),
+                    label: model.label.clone(),
+                    summary: model.summary(),
+                    status: status.label(),
+                    installed: status.is_installed(),
+                    downloading: self.pending_model.as_ref().is_some_and(|pending| pending.download.id == model.id),
+                }
+            })
+            .collect();
+        self.model_rows = Some(rows.clone());
+        Ok(rows)
+    }
+
+    /// Start `id` downloading on the worker thread. Refuses without consent, names the setting;
+    /// refuses when the model is already installed; and refuses when a download is already in
+    /// flight, because the store's part file is per-model and two writers would fight over it.
+    pub fn install_model(&mut self, id: &str) -> Result<()> {
+        self.install_model_with(id, Arc::new(crate::models::Http))
+    }
+
+    /// The same, with a fetcher supplied by the caller — the test seam that keeps the network out
+    /// of the tests.
+    pub fn install_model_with(&mut self, id: &str, fetcher: Arc<dyn crate::models::Fetcher>) -> Result<()> {
+        if !self.models_consent {
+            return Err(Error::Invalid(
+                "model downloads are switched off — allow them in Settings → AI first".into(),
+            ));
+        }
+        if self.pending_model.is_some() {
+            return Err(Error::Invalid("a model is already downloading".into()));
+        }
+        let model = self
+            .model_manifest
+            .get(id)
+            .cloned()
+            .ok_or_else(|| Error::Invalid(format!("unknown model: {id}")))?;
+        let store = self.model_store()?;
+        if store.status(&model).is_installed() {
+            return Err(Error::Invalid(format!("{id} is already installed")));
+        }
+        let download = crate::models::begin_download(&store, &model, fetcher).map_err(Error::Invalid)?;
+        let job = self.start_job(
+            JobKind::ModelInstall,
+            format!("{} · {}", model.label, sortlens_core::format_bytes(model.bytes)),
+        );
+        self.pending_model = Some(PendingModel { job, download });
+        self.refresh_model_rows();
+        Ok(())
+    }
+
+    /// (downloaded, total) bytes for the running download.
+    pub fn model_progress(&self) -> Option<(u64, u64)> {
+        self.pending_model.as_ref().map(|pending| pending.download.share())
+    }
+
+    /// Ask the running download to stop. The part file is kept, so a later install resumes.
+    pub fn cancel_model_install(&mut self) -> bool {
+        match &self.pending_model {
+            Some(pending) => {
+                pending.download.cancel();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Collect a finished download, if there is one. The activity job gets its last word, the row
+    /// cache is refreshed, and the answer is one of: the receipt, the cancel, or the failure.
+    pub fn poll_model_install(&mut self) -> Option<std::result::Result<sortlens_ai::Install, String>> {
+        let pending = self.pending_model.as_ref()?;
+        let outcome = match pending.download.rx.try_recv() {
+            Ok(outcome) => outcome,
+            Err(TryRecvError::Empty) => {
+                // Keep the activity row honest while the bytes land.
+                let (done, total) = pending.download.share();
+                let text = format!("{} of {}", sortlens_core::format_bytes(done), sortlens_core::format_bytes(total));
+                if let Some(job) = self.jobs.iter_mut().find(|job| job.id == pending.job) {
+                    job.progress = Some(text);
+                }
+                return None;
+            }
+            Err(TryRecvError::Disconnected) => {
+                // The worker died without an answer; the part file, if any, still resumes.
+                crate::models::Outcome::Failed("the download worker stopped".into())
+            }
+        };
+        let pending = self.pending_model.take()?;
+        let id = pending.download.id.clone();
+        let (status, detail, error, finished) = match &outcome {
+            crate::models::Outcome::Installed(install) => (JobStatus::Done, Some(install.headline()), None, Ok(install.clone())),
+            crate::models::Outcome::Cancelled => (JobStatus::Cancelled, Some(outcome.message()), None, Err(outcome.message())),
+            crate::models::Outcome::Failed(message) => (JobStatus::Failed, None, Some(message.clone()), Err(message.clone())),
+        };
+        if let Some(job) = self.jobs.iter_mut().find(|job| job.id == pending.job) {
+            job.progress = detail;
+            job.error = error.clone();
+            job.finish(status);
+        }
+        self.refresh_model_rows();
+        let _ = id;
+        Some(finished)
+    }
+
+    /// Remove an installed model, reporting the bytes reclaimed. An unverified file in the store
+    /// is refused and left where it is, not deleted.
+    pub fn remove_model(&mut self, id: &str) -> Result<u64> {
+        let manifest = self.model_manifest.clone();
+        let Some(model) = manifest.get(id) else {
+            return Err(Error::Invalid(format!("unknown model: {id}")));
+        };
+        if self.pending_model.as_ref().is_some_and(|pending| pending.download.id == id) {
+            return Err(Error::Invalid(format!("{id} is downloading — stop it first")));
+        }
+        let store = self.model_store()?;
+        let reclaimed = store.remove(model).map_err(Error::Invalid)?;
+        self.refresh_model_rows();
+        Ok(reclaimed)
+    }
+
+    /// Point the model verbs at another manifest. Test-only: the product answers from the shipped
+    /// pins, and a test cannot serve bytes under a pin it does not know the digest of.
+    #[cfg(test)]
+    pub(crate) fn use_manifest_for_tests(&mut self, manifest: sortlens_ai::Manifest) {
+        self.model_manifest = manifest;
+        self.model_rows = None;
     }
 }
 
@@ -6706,5 +6959,212 @@ mod tests {
         }
         let engine = Engine::open(&temp.0).expect("reopen");
         assert_eq!(engine.revision(), 0, "no writes, no revision");
+    }
+
+    // ---- The model downloader (SL-F02). The fetcher is a loopback HTTP server, so these tests
+    // never touch the real network.
+
+    /// A loopback HTTP server serving one body, honouring ranges like a file host does.
+    struct FakeRelease {
+        url: String,
+    }
+
+    impl FakeRelease {
+        fn serve(name: &str, body: Vec<u8>) -> Self {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+            let port = listener.local_addr().expect("addr").port();
+            let url_name = name.to_string();
+            let served = body.clone();
+            std::thread::Builder::new()
+                .name(url_name.clone())
+                .spawn(move || {
+                    for stream in listener.incoming().flatten() {
+                        let mut stream = stream;
+                        let mut request = String::new();
+                        let mut buffer = [0u8; 2048];
+                        loop {
+                            match std::io::Read::read(&mut stream, &mut buffer) {
+                                Ok(0) | Err(_) => break,
+                                Ok(read) => {
+                                    request.push_str(&String::from_utf8_lossy(&buffer[..read]));
+                                    if request.contains("\r\n\r\n") {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        let start = request
+                            .lines()
+                            .find(|line| line.to_lowercase().starts_with("range:"))
+                            .and_then(|line| line.split(':').nth(1))
+                            .and_then(|value| value.trim().strip_prefix("bytes="))
+                            .and_then(|value| value.split('-').next())
+                            .and_then(|value| value.parse::<usize>().ok())
+                            .unwrap_or(0);
+                        let head = if start > 0 {
+                            format!(
+                                "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{}/{}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                                served.len() - 1,
+                                served.len(),
+                                served.len() - start
+                            )
+                        } else {
+                            format!(
+                                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                                served.len()
+                            )
+                        };
+                        let _ = std::io::Write::write_all(&mut stream, head.as_bytes());
+                        let _ = std::io::Write::write_all(&mut stream, &served[start.min(served.len())..]);
+                    }
+                })
+                .expect("spawn server");
+            Self {
+                url: format!("http://127.0.0.1:{port}/{url_name}"),
+            }
+        }
+    }
+
+    /// An engine with the shipped manifest's first slot pointed at a loopback release: the
+    /// manifest's contract (digest, size, licence) is kept, only the bytes travel over a fake.
+    fn loopback_engine(name: &str, body: &[u8]) -> (Temp, Engine, FakeRelease) {
+        let release = FakeRelease::serve(name, body.to_vec());
+        let mut manifest = sortlens_ai::Manifest::shipped();
+        let model = manifest.models.first_mut().expect("a shipped model");
+        model.url = release.url.clone();
+        model.bytes = body.len() as u64;
+        model.sha256 = sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(body));
+        let temp = Temp::new(name);
+        let mut engine = Engine::open(&temp.0).expect("open");
+        engine.use_manifest_for_tests(manifest);
+        engine.set_models_consent(true);
+        (temp, engine, release)
+    }
+
+    /// Walk a model download to its end.
+    fn wait_for_model(engine: &mut Engine) -> std::result::Result<sortlens_ai::Install, String> {
+        for _ in 0..600 {
+            if let Some(result) = engine.poll_model_install() {
+                return result;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("the download did not finish");
+    }
+
+    #[test]
+    fn model_status_lists_the_manifest_with_nothing_installed() {
+        let (_temp, mut engine) = library("model-status");
+        let status = engine.run("model.status", &json!({})).expect("status");
+        assert_eq!(status["consent"], false, "consent is off until it is switched on");
+        let models = status["models"].as_array().expect("rows");
+        assert_eq!(models.len(), 3, "the shipped manifest has three models");
+        assert!(models.iter().all(|model| model["installed"] == false));
+        assert!(models.iter().all(|model| model["status"] == "Not installed"));
+        assert!(models[0]["summary"].as_str().unwrap_or_default().contains("Detector"));
+        assert_eq!(engine.models_status().expect("typed").len(), 3);
+    }
+
+    #[test]
+    fn install_refuses_without_consent_and_names_the_setting() {
+        let (_temp, mut engine) = library("model-consent");
+        let error = engine.install_model("yolos-tiny").expect_err("no consent");
+        assert!(
+            error.to_string().contains("Settings → AI"),
+            "the refusal says where to turn it on: {error}"
+        );
+        let refused = engine.run("model.install", &json!({ "id": "yolos-tiny" })).expect_err("no consent");
+        assert!(refused.to_string().contains("switched off"), "{refused}");
+        assert!(engine.model_progress().is_none(), "nothing started");
+    }
+
+    #[test]
+    fn consent_flips_through_its_command() {
+        let (_temp, mut engine) = library("model-consent-cmd");
+        let on = engine.run("model.consent", &json!({ "on": true })).expect("on");
+        assert_eq!(on["consent"], true);
+        assert!(engine.models_consent());
+        let off = engine.run("model.consent", &json!({ "on": false })).expect("off");
+        assert_eq!(off["consent"], false);
+        assert!(!engine.models_consent(), "consent can be withdrawn mid-session");
+    }
+
+    /// The full worker path, offline: consent on, a loopback release, the download on the worker,
+    /// the job finishing Done, and the row cache refreshed to Installed.
+    #[test]
+    fn the_worker_download_installs_and_the_rows_follow() {
+        let body: Vec<u8> = (0..90_000u32).map(|index| (index % 251) as u8).collect();
+        let (_temp, mut engine, _release) = loopback_engine("model-install", &body);
+
+        engine.install_model("yolos-tiny").expect("start");
+        assert!(engine.model_progress().is_some(), "a download is running");
+        // A second install while one is running is refused: the store's part file is per-model.
+        let again = engine.install_model("yolos-tiny").expect_err("already running");
+        assert!(again.to_string().contains("already downloading"), "{again}");
+
+        let install = wait_for_model(&mut engine).expect("installed");
+        assert_eq!(install.bytes, body.len() as u64);
+        assert!(engine.model_progress().is_none(), "the download is over");
+        let rows = engine.models_status().expect("rows");
+        let row = rows.iter().find(|row| row.id == "yolos-tiny").expect("row");
+        assert!(row.installed, "the row cache followed the install");
+        assert!(row.status.contains("Installed"), "{}", row.status);
+        assert!(
+            engine
+                .jobs()
+                .iter()
+                .any(|job| job.kind == JobKind::ModelInstall && job.status == JobStatus::Done && job.detail().contains("installed"))
+        );
+
+        // Installing again is refused: the store already holds it.
+        let twice = engine.install_model("yolos-tiny").expect_err("already installed");
+        assert!(twice.to_string().contains("already installed"), "{twice}");
+    }
+
+    #[test]
+    fn removing_an_installed_model_reclaims_and_the_row_follows() {
+        let body: Vec<u8> = (0..50_000u32).map(|index| (index % 251) as u8).collect();
+        let (temp, mut engine, _release) = loopback_engine("model-remove", &body);
+        engine.install_model("yolos-tiny").expect("start");
+        wait_for_model(&mut engine).expect("installed");
+        assert!(
+            engine
+                .models_status()
+                .expect("rows")
+                .iter()
+                .any(|row| row.id == "yolos-tiny" && row.installed)
+        );
+
+        let reclaimed = engine.remove_model("yolos-tiny").expect("remove");
+        assert_eq!(reclaimed, body.len() as u64);
+        assert!(
+            engine
+                .models_status()
+                .expect("rows")
+                .iter()
+                .any(|row| row.id == "yolos-tiny" && !row.installed)
+        );
+        // The command face agrees, and a second remove is a quiet nothing.
+        assert_eq!(
+            engine.run("model.remove", &json!({ "id": "yolos-tiny" })).expect("quiet")["reclaimed"],
+            0
+        );
+        assert!(temp.0.join("models").exists(), "the store folder stays");
+    }
+
+    /// An unknown id is refused by both faces, and a removal while a download runs is refused.
+    #[test]
+    fn model_verbs_refuse_what_they_cannot_do() {
+        let body: Vec<u8> = (0..60_000u32).map(|index| (index % 251) as u8).collect();
+        let (_temp, mut engine, _release) = loopback_engine("model-refuse", &body);
+        let unknown = engine.run("model.install", &json!({ "id": "no-such-model" })).expect_err("unknown");
+        assert!(unknown.to_string().contains("unknown model"), "{unknown}");
+        assert!(engine.remove_model("no-such-model").is_err());
+
+        engine.install_model("yolos-tiny").expect("start");
+        let busy = engine.remove_model("yolos-tiny").expect_err("downloading");
+        assert!(busy.to_string().contains("downloading"), "{busy}");
+        assert!(engine.cancel_model_install(), "the running download is asked to stop");
+        wait_for_model(&mut engine).expect_err("cancelled");
     }
 }

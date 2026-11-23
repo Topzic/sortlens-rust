@@ -24,6 +24,8 @@ pub enum JobKind {
     Suggest,
     /// Measuring how much fine detail each photograph has.
     Sharpness,
+    /// Fetching a model into the store (SL-F02, opt-in).
+    ModelInstall,
 }
 
 impl JobKind {
@@ -38,6 +40,7 @@ impl JobKind {
             Self::Insights => "Insights",
             Self::Suggest => "Suggestions",
             Self::Sharpness => "Sharpness",
+            Self::ModelInstall => "Model",
         }
     }
 }
@@ -91,6 +94,8 @@ pub struct Job {
     pub unreadable: usize,
     /// The failure, when the job failed.
     pub error: Option<String>,
+    /// A running detail the counters cannot express — a download's bytes, for one.
+    pub progress: Option<String>,
     /// When it started.
     pub started: Instant,
     /// When it stopped, if it has.
@@ -109,6 +114,7 @@ impl Job {
             dirs: 0,
             unreadable: 0,
             error: None,
+            progress: None,
             started: Instant::now(),
             finished: None,
         }
@@ -121,6 +127,9 @@ impl Job {
 
     /// One-line summary for the activity row.
     pub fn detail(&self) -> String {
+        if let Some(progress) = &self.progress {
+            return progress.clone();
+        }
         match self.status {
             JobStatus::Running => format!("{} files · {} folders", self.files, self.dirs),
             JobStatus::Done => {

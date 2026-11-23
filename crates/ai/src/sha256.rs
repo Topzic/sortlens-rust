@@ -26,6 +26,92 @@ const H0: [u32; 8] = [
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ];
 
+/// An incremental SHA-256, for files too large to read whole.
+///
+/// A 166 MB model does not belong in RAM just to be hashed. `update` as many chunks as come, then
+/// `finish` pads and closes the stream. The answer is the one `digest` gives over the same bytes
+/// concatenated, which a test pins.
+#[derive(Debug, Clone)]
+pub struct Hasher {
+    state: [u32; 8],
+    /// Bytes not yet compressed, at most one block.
+    tail: [u8; 64],
+    /// How many bytes of `tail` are real.
+    filled: usize,
+    /// Total bytes fed, before padding.
+    length: u64,
+}
+
+impl Default for Hasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Hasher {
+    /// A fresh hash.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            state: H0,
+            tail: [0u8; 64],
+            filled: 0,
+            length: 0,
+        }
+    }
+
+    /// Feed more bytes.
+    pub fn update(&mut self, data: &[u8]) {
+        self.length = self.length.wrapping_add(data.len() as u64);
+        let mut data = data;
+        if self.filled > 0 {
+            let take = (64 - self.filled).min(data.len());
+            self.tail[self.filled..self.filled + take].copy_from_slice(&data[..take]);
+            self.filled += take;
+            data = &data[take..];
+            if self.filled == 64 {
+                let block = self.tail;
+                compress(&mut self.state, &block);
+                self.filled = 0;
+            }
+        }
+        let mut chunks = data.chunks_exact(64);
+        for chunk in &mut chunks {
+            let mut block = [0u8; 64];
+            block.copy_from_slice(chunk);
+            compress(&mut self.state, &block);
+        }
+        let rest = chunks.remainder();
+        if self.filled == 0 {
+            self.tail[..rest.len()].copy_from_slice(rest);
+            self.filled = rest.len();
+        }
+    }
+
+    /// Close the stream: padding, the bit length, and the digest.
+    #[must_use]
+    pub fn finish(mut self) -> Digest {
+        let rest = self.filled;
+        let mut tail = [0u8; 128];
+        tail[..rest].copy_from_slice(&self.tail[..rest]);
+        tail[rest] = 0x80;
+        let tail_blocks = if rest + 1 + 8 <= 64 { 1 } else { 2 };
+        let bits = self.length.wrapping_mul(8);
+        let length_at = tail_blocks * 64 - 8;
+        tail[length_at..length_at + 8].copy_from_slice(&bits.to_be_bytes());
+        for index in 0..tail_blocks {
+            let mut block = [0u8; 64];
+            block.copy_from_slice(&tail[index * 64..index * 64 + 64]);
+            compress(&mut self.state, &block);
+        }
+        let mut out = [0u8; 32];
+        for (index, word) in self.state.iter().enumerate() {
+            out[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
+        }
+        out
+    }
+}
+
 /// Hash `data`.
 #[must_use]
 pub fn digest(data: &[u8]) -> Digest {
@@ -189,5 +275,29 @@ mod tests {
         assert_ne!(before, after);
         let differences = before.iter().zip(after.iter()).filter(|(a, b)| a != b).count();
         assert!(differences > 20, "a changed digest looks changed: {differences} bytes differ");
+    }
+
+    /// An incremental hash is the same hash, fed a few bytes at a time — the boundary cases land
+    /// on 55/56/64/65, where the padding moves.
+    #[test]
+    fn the_incremental_hasher_matches_the_one_shot() {
+        for length in [0usize, 1, 55, 56, 63, 64, 65, 127, 128, 129, 1000] {
+            let data: Vec<u8> = (0..length).map(|index| (index % 251) as u8).collect();
+            for chunk in [1usize, 7, 64, 333] {
+                let mut hasher = Hasher::new();
+                for piece in data.chunks(chunk.max(1)) {
+                    hasher.update(piece);
+                }
+                assert_eq!(hasher.finish(), digest(&data), "length {length} in chunks of {chunk}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_hasher_swallows_an_empty_update() {
+        let mut hasher = Hasher::new();
+        hasher.update(b"abc");
+        hasher.update(b"");
+        assert_eq!(hasher.finish(), digest(b"abc"));
     }
 }

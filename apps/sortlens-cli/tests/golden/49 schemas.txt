@@ -86,6 +86,12 @@ exit 0
     "verb": "jobs"
   },
   {
+    "command": "model.status",
+    "kind": "read",
+    "note": "every pinned model with its licence, size and digest-checked install state; `consent` says whether downloads are allowed",
+    "verb": "models"
+  },
+  {
     "command": "suggest.list",
     "kind": "read",
     "note": "proposals for one photo: keyword, source, confidence. Nothing is written until `accept`",

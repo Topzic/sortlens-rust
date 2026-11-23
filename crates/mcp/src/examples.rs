@@ -52,6 +52,14 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
     ),
     ("packs.set", "name: the pack; on: true or false"),
     (
+        "model.install",
+        "id: the model to download (see model.status). Refused until consent is on (model.consent). Downloads tens of MB on a worker; resumable across attempts and restarts",
+    ),
+    (
+        "model.consent",
+        "on: true or false; the owner-approved opt-in for the one network call Sortlens makes, downloading models",
+    ),
+    (
         "suggest.start",
         "no arguments; proposes keywords for the whole library on a worker, writes nothing",
     ),
@@ -448,6 +456,21 @@ pub const EXAMPLES: &[Example] = &[
         command: "view.detail",
         args: "{}",
         note: "Asks the host to open the detail view.",
+    },
+    Example {
+        command: "model.status",
+        args: "{}",
+        note: "Every pinned model with its licence, size, digest-checked install state and the consent flag.",
+    },
+    Example {
+        command: "model.cancel",
+        args: "{}",
+        note: "Stops a running download; the partial file stays and a later install resumes it.",
+    },
+    Example {
+        command: "model.remove",
+        args: r#"{"id": "yolos-tiny"}"#,
+        note: "Removes a verified model, reporting bytes reclaimed; 0 when nothing was installed.",
     },
 ];
 
