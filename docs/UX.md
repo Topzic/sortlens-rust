@@ -385,7 +385,7 @@ Everything in this bar is also a menu item and a command, so nothing is only-her
 | Shortcuts | `?` | Searchable table, grouped by mode; rebinding and import/export arrive with `craft-keymap` (M7+) |
 | Apply cull decisions | `Apply` | Mode, counts, size, file list, primary/secondary |
 | Delete permanently | second confirmation for the `Permanent` mode | Type-to-confirm, counts |
-| Export | selection | Format (original/JPEG/PNG), size, quality, metadata, destination, collision policy |
+| Export | selection | Format (original/JPEG/PNG), size, quality (JPEG only), metadata (JPEG only), destination, collision policy |
 | First run | launch with no library | 3 steps: create/open library → add folder → optional remote test |
 | About / credits | Help | version, licences, font/model attribution, update check |
 | Library doctor | Settings → Library / Missing source | Per-folder status table, rescan, remap, remove-missing |

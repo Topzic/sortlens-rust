@@ -60,7 +60,7 @@ Commands:
   moves                     list recent moves with their ids
   unmove <id>               put a moved batch back where it came from
   export <dest> [ids...]    write picks out; no ids means the whole library
-                            --format original|jpeg --max N --quality N
+                            --format original|jpeg|png --max N --quality N
                             --collision skip|rename|overwrite --no-metadata
   changed                   list files whose size or time no longer matches the index
   refresh                   re-read exactly the changed files

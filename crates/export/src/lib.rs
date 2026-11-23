@@ -15,11 +15,11 @@ use sortlens_core::{Error, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The only formats M8 ships.
+/// The formats this build can write.
 ///
-/// PNG, TIFF and WebP were planned and are not here: the suite has one encoder, so promising a format
-/// this build cannot write would be a lie in the UI. `Original` covers "give me the raw files", which
-/// is what most exports actually want.
+/// TIFF and WebP are still not here: the suite's encoder writes what it writes, so promising a format
+/// this build cannot produce would be a lie in the UI. `Original` covers "give me the raw files",
+/// which is what most exports actually want.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Format {
     /// Copy the file as it is: no re-encode, no loss, no resize.
@@ -27,11 +27,13 @@ pub enum Format {
     Original,
     /// Decode and re-encode as JPEG with the requested quality.
     Jpeg,
+    /// Decode and write as PNG: lossless, with alpha carried through.
+    Png,
 }
 
 impl Format {
     /// Every format this build can write.
-    pub const ALL: [Format; 2] = [Format::Original, Format::Jpeg];
+    pub const ALL: [Format; 3] = [Format::Original, Format::Jpeg, Format::Png];
 
     /// The extension written for this format, or `None` when it depends on the source.
     #[must_use]
@@ -39,6 +41,7 @@ impl Format {
         match self {
             Format::Original => None,
             Format::Jpeg => Some("jpg"),
+            Format::Png => Some("png"),
         }
     }
 
@@ -48,6 +51,7 @@ impl Format {
         match self {
             Format::Original => "Original",
             Format::Jpeg => "JPEG",
+            Format::Png => "PNG",
         }
     }
 
@@ -57,6 +61,7 @@ impl Format {
         match text.trim().to_ascii_lowercase().as_str() {
             "original" | "copy" => Some(Format::Original),
             "jpeg" | "jpg" => Some(Format::Jpeg),
+            "png" => Some(Format::Png),
             _ => None,
         }
     }
@@ -67,6 +72,7 @@ impl Format {
         match self {
             Format::Original => "original",
             Format::Jpeg => "jpeg",
+            Format::Png => "png",
         }
     }
 }
@@ -165,14 +171,23 @@ impl Spec {
     #[must_use]
     pub fn summary(&self) -> String {
         let mut text = self.format.label().to_string();
-        if self.format == Format::Jpeg {
-            text.push_str(&format!(" · quality {}", self.quality));
-            if let Some(edge) = self.max_edge {
-                text.push_str(&format!(" · {edge} px longest edge"));
+        match self.format {
+            Format::Jpeg => {
+                text.push_str(&format!(" · quality {}", self.quality));
+                if let Some(edge) = self.max_edge {
+                    text.push_str(&format!(" · {edge} px longest edge"));
+                }
+                if !self.metadata {
+                    text.push_str(" · without metadata");
+                }
             }
-            if !self.metadata {
-                text.push_str(" · without metadata");
+            Format::Png => {
+                text.push_str(" · lossless");
+                if let Some(edge) = self.max_edge {
+                    text.push_str(&format!(" · {edge} px longest edge"));
+                }
             }
+            Format::Original => {}
         }
         text
     }
@@ -364,6 +379,21 @@ pub fn export_one(spec: &Spec, job: &Job) -> Result<u64> {
             )
             .map_err(|error| Error::Invalid(format!("could not encode {}: {error:?}", job.dest.display())))?
         }
+        Format::Png => {
+            let edge = spec.max_edge.unwrap_or(u32::MAX);
+            let decoded = sortlens_thumbs::decode_file(&job.source, edge).or_else(|_| sortlens_thumbs::decode_image(&original, edge))?;
+            // The suite's PNG encoder is lossless, so `quality` is inert here; alpha is carried
+            // through, because dropping it is what separates a JPEG from a PNG.
+            let image =
+                craft_image_codecs::Image::from_u8(decoded.width, decoded.height, craft_image_codecs::ChannelLayout::Rgba, decoded.rgba)
+                    .map_err(|error| Error::Invalid(format!("could not build {}: {error:?}", job.dest.display())))?;
+            craft_image_codecs::encode(
+                &image,
+                craft_image_codecs::Format::Png,
+                &craft_image_codecs::EncodeOptions::default(),
+            )
+            .map_err(|error| Error::Invalid(format!("could not encode {}: {error:?}", job.dest.display())))?
+        }
     };
     fs::write(&job.dest, &bytes).map_err(|error| Error::io(job.dest.display().to_string(), error))?;
     Ok(bytes.len() as u64)
@@ -493,6 +523,39 @@ mod tests {
     }
 
     #[test]
+    fn a_png_export_switches_the_extension() {
+        let spec = Spec {
+            format: Format::Png,
+            ..Spec::default()
+        };
+        let jobs = plan(&spec, &sources(&["/a/IMG_0001.CR3"]), Path::new("/out"), &[]);
+        assert_eq!(jobs[0].dest, PathBuf::from("/out/IMG_0001.png"));
+    }
+
+    #[test]
+    fn png_is_a_real_format_on_every_face() {
+        assert_eq!(Format::parse("PNG"), Some(Format::Png));
+        assert_eq!(Format::parse(" png "), Some(Format::Png));
+        assert_eq!(Format::Png.label(), "PNG");
+        assert_eq!(Format::Png.id(), "png");
+        assert_eq!(Format::Png.extension(), Some("png"));
+        assert_eq!(Format::ALL, [Format::Original, Format::Jpeg, Format::Png]);
+    }
+
+    #[test]
+    fn a_png_summary_says_what_will_be_written() {
+        let spec = Spec {
+            format: Format::Png,
+            max_edge: Some(2048),
+            ..Spec::default()
+        };
+        let text = spec.summary();
+        assert!(text.contains("PNG"));
+        assert!(text.contains("lossless"), "a PNG export must never promise a lossy quality number");
+        assert!(text.contains("2048 px"));
+    }
+
+    #[test]
     fn an_original_export_keeps_the_source_extension() {
         let spec = Spec::default();
         let jobs = plan(&spec, &sources(&["/a/IMG_0001.CR3"]), Path::new("/out"), &[]);
@@ -582,6 +645,67 @@ mod tests {
         export_one(&spec, &jobs[0]).expect("export");
         let decoded = sortlens_thumbs::decode_file(&jobs[0].dest, 4096).expect("decode");
         assert_eq!((decoded.width, decoded.height), (100, 50), "the long edge is the one clamped");
+    }
+
+    #[test]
+    fn a_png_export_carries_pixels_and_alpha_through_unchanged() {
+        let fixture = sortlens_testkit::Fixture::new("export-png-alpha");
+        // A source with every alpha value a byte can hold, in a checker of two colours, so a lossy
+        // or channel-swapped path cannot pass by accident.
+        let (width, height) = (7u32, 5u32);
+        let mut rgba = Vec::with_capacity((width * height) as usize * 4);
+        for y in 0..height {
+            for x in 0..width {
+                let checker = ((x + y) % 2 == 0) as u8;
+                rgba.extend_from_slice(&[
+                    if checker == 1 { 200 } else { 30 },
+                    40 * checker + 10,
+                    90 * checker + 5,
+                    if checker == 1 { 255 } else { 0 },
+                ]);
+            }
+        }
+        let source =
+            craft_image_codecs::Image::from_u8(width, height, craft_image_codecs::ChannelLayout::Rgba, rgba.clone()).expect("source image");
+        let bytes = craft_image_codecs::encode(
+            &source,
+            craft_image_codecs::Format::Png,
+            &craft_image_codecs::EncodeOptions::default(),
+        )
+        .expect("encode source png");
+        let source_path = fixture.write("checker.png", &bytes);
+
+        let dest = fixture.root().join("out");
+        let spec = Spec {
+            format: Format::Png,
+            ..Spec::default()
+        };
+        let jobs = plan(&spec, std::slice::from_ref(&source_path), &dest, &[]);
+        assert_eq!(jobs[0].dest, dest.join("checker.png"));
+        let written = export_one(&spec, &jobs[0]).expect("png export");
+        assert!(written > 0);
+        let decoded = sortlens_thumbs::decode_file(&jobs[0].dest, 4096).expect("decode exported png");
+        assert_eq!((decoded.width, decoded.height), (width, height));
+        assert_eq!(decoded.rgba, rgba, "a lossless export must reproduce the source pixels exactly");
+    }
+
+    #[test]
+    fn a_png_export_resizes_a_jpeg_source() {
+        let fixture = sortlens_testkit::Fixture::new("export-png-from-jpeg");
+        let source = fixture.jpeg("a.jpg", [200, 200, 40], 200, 100);
+        let dest = fixture.root().join("out");
+        let spec = Spec {
+            format: Format::Png,
+            max_edge: Some(100),
+            ..Spec::default()
+        };
+        let jobs = plan(&spec, &[source], &dest, &[]);
+        export_one(&spec, &jobs[0]).expect("export");
+        let decoded = sortlens_thumbs::decode_file(&jobs[0].dest, 4096).expect("decode");
+        assert_eq!((decoded.width, decoded.height), (100, 50), "the long edge is the one clamped");
+        assert_eq!(decoded.rgba[3], 255, "pixels from a jpeg source are fully opaque");
+        let bytes = std::fs::read(&jobs[0].dest).expect("read export");
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "the export really is a png file");
     }
 
     #[test]

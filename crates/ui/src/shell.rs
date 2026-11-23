@@ -5496,18 +5496,22 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                     }
                     ui.label(RichText::new("px · 0 keeps the original size").size(10.0).color(t.text_muted));
                 });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Quality").size(11.0).color(t.text_muted));
-                    let mut quality = u32::from(state.export_spec.quality);
-                    if ui.add(egui::Slider::new(&mut quality, 1..=100)).changed() {
-                        state.export_spec.quality = quality.min(100) as u8;
-                    }
-                });
-                if ui
-                    .checkbox(&mut state.export_spec.metadata, "Keep EXIF and IPTC")
-                    .on_hover_text("Carries the camera's metadata into the new file")
-                    .changed()
-                {}
+                if state.export_spec.format == sortlens_engine::ExportFormat::Jpeg {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Quality").size(11.0).color(t.text_muted));
+                        let mut quality = u32::from(state.export_spec.quality);
+                        if ui.add(egui::Slider::new(&mut quality, 1..=100)).changed() {
+                            state.export_spec.quality = quality.min(100) as u8;
+                        }
+                    });
+                    if ui
+                        .checkbox(&mut state.export_spec.metadata, "Keep EXIF and IPTC")
+                        .on_hover_text("Carries the camera's metadata into the new file")
+                        .changed()
+                    {}
+                } else {
+                    hint(ui, t, "PNG is lossless: no quality to pick, and alpha is kept.");
+                }
             }
 
             ui.add_space(4.0);
@@ -9129,6 +9133,33 @@ mod tests {
             });
         });
         output.textures_delta.clear();
+
+        // A PNG spec paints its own branch — edge but no quality, because PNG is lossless — and
+        // drawing it must not quietly turn the spec into something else.
+        state.export_open = true;
+        state.export_receipt = None;
+        state.export_spec = sortlens_engine::ExportSpec {
+            format: sortlens_engine::ExportFormat::Png,
+            max_edge: Some(1024),
+            quality: 90,
+            metadata: true,
+            collision: sortlens_engine::Collision::Skip,
+        };
+        let mut actions: Vec<Action> = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                export_dialog(ui, &mut state, &tokens, &mut engine, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(
+            state.export_spec.format == sortlens_engine::ExportFormat::Png,
+            "the dialog does not rewrite the format"
+        );
+        assert!(
+            state.export_spec.summary().contains("lossless"),
+            "the PNG spec is described as lossless, never by a quality number"
+        );
 
         // A receipt draws too, and closing it clears it.
         state.export_open = false;

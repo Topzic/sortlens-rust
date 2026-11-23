@@ -771,10 +771,9 @@ and recover; export/import a library onto a second machine and remap the volume.
 
 ## M8 — AI + export · 2.5 w · tracks D,A
 
-**State:** the no-weights half is built — export (Original and JPEG), manifest, store, NMS, label map, EXIF
+**State:** the no-weights half is built — export (Original, JPEG and PNG), manifest, store, NMS, label map, EXIF
 hints, packs, the suggestion panel, accept-and-undo and the batch pass. **M8 is not closed**: real local
-inference (detector, embeddings, downloader, tag provenance) and PNG export are open rows in Phase 1 and
-Phase 2 below. The owner has signed off on pinning permissively licensed weights and on a user-initiated
+inference (detector, embeddings, downloader, tag provenance) is open in Phase 2 below. The owner has signed off on pinning permissively licensed weights and on a user-initiated
 download, so the earlier "needs weights we cannot ship" blocker no longer applies.
 
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
@@ -806,13 +805,15 @@ download, so the earlier "needs weights we cannot ship" blocker no longer applie
 - [x] No-network assertion for `sortlens-ai`: a source scan for socket APIs and a dependency scan for
   HTTP clients, both proved to fail on a planted hit (D) — SL-F10
 - [x] Export: original copies and JPEG re-encodes, longest-edge resize, quality, EXIF/IPTC carried
-  forward, four collision policies, worker progress and cancel, a dialog and a receipt (A) — SL-B24
+  forward, four collision policies, worker progress and cancel, a dialog and a receipt (A) — SL-B24;
+  **PNG export** (lossless, alpha carried, licence-approved encoder through `craft-image-codecs`) shipped
+  2026-11-23 — Phase 1 item 4
 
 ### Re-opened from M8
 
-The four rows this section used to hide — the `tract` detector session (SL-F03 part 2), the image/text
-embedding sessions and prompt packs (SL-F04), `source = Ai` filtering via per-tag provenance (SL-D12) and
-PNG export (SL-B24) — are now unchecked rows in **Phase 1** (PNG) and **Phase 2** (the rest).
+The three rows this section used to hide — the `tract` detector session (SL-F03 part 2), the image/text
+embedding sessions and prompt packs (SL-F04) and `source = Ai` filtering via per-tag provenance (SL-D12) — are
+now unchecked rows in **Phase 2**. PNG export (SL-B24) is closed: it shipped as Phase 1 item 4 on 2026-11-23.
 
 **Demo:** on a clean machine, index 50 photos, run `batchsuggest`, accept ten proposals from the panel,
 undo one, switch on a keyword pack and watch its keywords appear for the matching folders; export a
@@ -966,8 +967,9 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 - [x] 3. `Recently Added` (SL-A14 part 2): an `added` timestamp on `Photo` with a backwards-compatible snapshot
   migration (never approximated from `mtime`), last 30 days, in catalog, engine and sidebar (A,B)
   — shipped 2026-11-23, see the M1 "Sources, part 2" row above
-- [ ] 4. PNG export (SL-B24): a licence-approved encoder (`cargo xtask deny`) in `sortlens-export`, offered in the
+- [x] 4. PNG export (SL-B24): a licence-approved encoder (`cargo xtask deny`) in `sortlens-export`, offered in the
   export dialog and the CLI (A)
+  — shipped 2026-11-23, see the M8 row above
 
 ### Phase 2 — Real local AI tagging (M8)
 

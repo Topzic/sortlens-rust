@@ -3674,6 +3674,7 @@ dependencies = [
 name = "sortlens-export"
 version = "0.1.0"
 dependencies = [
+ "craft-image-codecs",
  "craft-jpeg",
  "sortlens-core",
  "sortlens-testkit",

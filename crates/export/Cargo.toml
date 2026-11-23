@@ -12,6 +12,7 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 sortlens-thumbs = { workspace = true }
 craft-jpeg = { workspace = true }
+craft-image-codecs = { workspace = true }
 
 [dev-dependencies]
 sortlens-testkit = { workspace = true }

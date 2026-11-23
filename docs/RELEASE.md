@@ -44,7 +44,7 @@ phases"), and the list shrinks as those rows are ticked.
   are built and tested; no weights are pinned and there is no `model.install`. Phase 2 pins real,
   permissively licensed weights, adds a consent-gated downloader (an explicit, user-initiated network
   call — `crates/ai` itself stays offline) and runs detection and embeddings with `tract-onnx`.
-- **Export is Original and JPEG only.** PNG export is Phase 1; TIFF and WebP are not planned.
+- **Export is Original, JPEG and PNG.** TIFF and WebP export are not planned.
 - **The map needs your tiles.** Places draws a tile folder (`tiles/`) and a gazetteer (`places.txt`) you
   supply; the bundled offline basemap is Phase 3.
 - **No remote.** There is no server and no phone client (Phase 4); the design is in

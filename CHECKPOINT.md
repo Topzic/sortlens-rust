@@ -2457,6 +2457,31 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   no layout or drawing logic changed, only a new sidebar row painted through the existing `nav_row`, so
   the headless `run_ui` suite covers it.
 
+## 2026-11-23 (twenty-fourth) — Phase 1 item 4: PNG export (SL-B24)
+
+- **`Format::Png`** joins `sortlens-export`, so `Format::ALL` is `[Original, Jpeg, Png]` and the format id,
+  CLI `--format png` and the dialog chip all exist. The export decodes through the ordinary pipeline
+  (`sortlens_thumbs::decode_file`, falling back to `decode_image`), clamps the longest edge when asked, and
+  re-encodes with `craft-image-codecs::encode` as PNG — the suite's own licence-approved encoder, so
+  `cargo xtask deny` stays clean. **Lossless means lossless**: a source PNG exported to PNG reproduces
+  every RGBA byte exactly, alpha included, and the test pins that byte-for-byte rather than “close
+  enough”. A JPEG source exports fully opaque, and the output is verified to start with the PNG magic.
+- **`Spec::summary()` no longer lies about PNG**: a PNG export says `PNG · lossless` and its longest edge,
+  and never quotes a JPEG quality number. `quality` and `metadata` stay in the spec (a JPEG still uses
+  them) but are inert for PNG; the dialog's PNG branch shows only the edge control and a hint that there
+  is nothing lossy to pick, and the “Keep EXIF and IPTC” checkbox is JPEG-only.
+- UI: the export dialog draws all three chips from `Format::ALL`; the PNG branch is covered by the
+  headless `run_ui` test (the dialog does not rewrite the format, and the summary line says lossless).
+  Engine: a worker export asked for PNG writes `.png` files that decode back as PNG — round-tripped
+  through `begin_export`/`poll_export` like the JPEG face. CLI: `--format png` parses and the help text
+  lists it.
+- ROADMAP's Phase 1 item 4 and the M8 export row ticked in the same commit; the “Re-opened from M8”
+  paragraph now lists three remaining Phase 2 rows; RELEASE.md's export limit names Original/JPEG/PNG;
+  UX.md's export row marks quality and metadata as JPEG-only.
+- 610 tests (6 new); ci, snapshot, deny, wasm green. Screenshot harness does not exist yet (Phase 3 item
+  9); the change is one dialog branch and one new chip painted through the existing `chip`/`hint` rows,
+  so the headless `run_ui` suite covers it.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -2470,7 +2495,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
    **done 2026-11-23**, see the twenty-second entry.
 3. `Recently Added` (SL-A14 part 2): `added` timestamp, snapshot migration, catalog/engine/sidebar —
    **done 2026-11-23**, see the twenty-third entry.
-4. PNG export (SL-B24): licence-approved encoder, export dialog and CLI.
+4. PNG export (SL-B24): licence-approved encoder, export dialog and CLI — **done 2026-11-23**, see the
+   twenty-fourth entry.
 
 **Phase 2 — real local AI tagging**
 5. Pin real ONNX models (detector + CLIP/MobileCLIP) in `Manifest::shipped()` and `ATTRIBUTION.md`.

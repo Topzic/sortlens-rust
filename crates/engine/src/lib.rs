@@ -4797,6 +4797,27 @@ mod tests {
     }
 
     #[test]
+    fn a_png_export_writes_png_files_the_command_face_can_ask_for() {
+        let (library_dir, _photos, mut engine) = library_with_images("export-png", 2);
+        let dest = Temp::new("export-png-dest");
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        let spec = sortlens_export::Spec {
+            format: sortlens_export::Format::Png,
+            max_edge: Some(512),
+            ..Default::default()
+        };
+        assert_eq!(engine.begin_export(&dest.0, &ids, &spec).expect("begin"), 2);
+        let report = wait_for_export(&mut engine);
+        assert_eq!(report.written, 2);
+        assert!(report.is_clean(), "{:?}", report.failures);
+        let bytes = std::fs::read(dest.0.join("IMG_0000.png")).expect("export");
+        assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "the file really is a png");
+        let decoded = sortlens_thumbs::decode_file(&dest.0.join("IMG_0000.png"), 4096).expect("decode");
+        assert_eq!(decoded.rgba[3], 255, "a jpeg source exports fully opaque");
+        drop(library_dir);
+    }
+
+    #[test]
     fn an_export_refuses_a_relative_folder_and_a_missing_photo() {
         let (_library_dir, _photos, mut engine) = library_with_images("export-refuse", 1);
         let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
