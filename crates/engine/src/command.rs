@@ -725,6 +725,22 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "view.compare",
+                    label: "Compare",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Compare",
+                    status: Status::Ready,
+                },
+                CommandSpec {
+                    id: "view.softFocus",
+                    label: "Soft Focus",
+                    group: Group::View,
+                    shortcut: None,
+                    menu: "View > Soft Focus",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "view.similar",
                     label: "Similar Photos",
                     group: Group::View,
@@ -754,7 +770,9 @@ impl Registry {
                     group: Group::View,
                     shortcut: Some("M"),
                     menu: "View > Places",
-                    status: Status::Planned("M5"),
+                    // Ready, and it has been for a while: the map shipped in Phase 3's Places slices and
+                    // this row still said M5, which kept a working view out of the palette and out of MCP.
+                    status: Status::Ready,
                 },
                 CommandSpec {
                     id: "view.insights",

@@ -32,19 +32,38 @@ pub enum View {
     Library,
     /// Full-screen cull review.
     Cull,
+    /// One photograph, large, with its facts.
+    Detail,
+    /// Two photographs side by side, at one magnification.
+    Compare,
     /// Memories and resurfacing cards.
     ForYou,
     /// Map of geotagged photos.
     Places,
     /// Library statistics.
     Insights,
+    /// The relative sharpness review: the softest slice of this library, never a verdict on a frame.
+    SoftFocus,
     /// Results of a similar-photo search.
     Similar,
 }
 
 impl View {
     /// Every destination, in bottom-bar order.
-    pub const ALL: [Self; 6] = [Self::Library, Self::ForYou, Self::Cull, Self::Places, Self::Insights, Self::Similar];
+    ///
+    /// The order is the tab order and, when the window is too narrow for nine labelled tabs, the menu's
+    /// order: a destination must not move because the window shrank.
+    pub const ALL: [Self; 9] = [
+        Self::Library,
+        Self::ForYou,
+        Self::Cull,
+        Self::Detail,
+        Self::Compare,
+        Self::Places,
+        Self::Similar,
+        Self::SoftFocus,
+        Self::Insights,
+    ];
 
     /// Label for the bottom bar and the contextual header.
     pub const fn label(self) -> &'static str {
@@ -52,8 +71,11 @@ impl View {
             Self::Library => "Library",
             Self::ForYou => "For You",
             Self::Cull => "Cull",
+            Self::Detail => "Detail",
+            Self::Compare => "Compare",
             Self::Places => "Places",
             Self::Insights => "Insights",
+            Self::SoftFocus => "Soft Focus",
             Self::Similar => "Similar",
         }
     }
@@ -64,10 +86,22 @@ impl View {
             Self::Library => crate::icons::Icon::Library,
             Self::ForYou => crate::icons::Icon::Sparkle,
             Self::Cull => crate::icons::Icon::Judge,
+            Self::Detail => crate::icons::Icon::Info,
+            Self::Compare => crate::icons::Icon::Compare,
             Self::Places => crate::icons::Icon::Pin,
             Self::Insights => crate::icons::Icon::Chart,
+            Self::SoftFocus => crate::icons::Icon::Focus,
             Self::Similar => crate::icons::Icon::Similar,
         }
+    }
+
+    /// Whether this destination draws one photograph large (alone or beside a second).
+    ///
+    /// Detail and Compare are two views of the same canvas, so everything that asks "is the photograph on
+    /// screen rather than the grid?" asks this, and the keyboard guards read one answer, not two booleans
+    /// that could disagree.
+    pub const fn is_detail(self) -> bool {
+        matches!(self, Self::Detail | Self::Compare)
     }
 
     /// The milestone that still has to arrive before this view can open, or `None` when it opens today.
@@ -757,11 +791,10 @@ pub struct UiState {
     pub kind_filter: Option<MediaKind>,
     /// Show only edited photos, or only unedited ones.
     pub edited_filter: Option<bool>,
-    /// Whether the single-photo detail view is open.
-    pub detail_open: bool,
     /// Zoom the detail view to 1:1 instead of fitting the window.
     pub detail_zoom: bool,
-    /// The second photo in a side-by-side compare, if one is open.
+    /// The second photo in a side-by-side compare. It is `Some` exactly while [`View::Compare`] is the
+    /// open view: a second pane that outlived the view it belongs to would be a compare nobody can see.
     pub compare: Option<PhotoId>,
     /// Only this collection, chosen in the sidebar.
     pub collection_filter: Option<sortlens_core::CollectionId>,
@@ -866,7 +899,6 @@ impl UiState {
             recently_added: false,
             kind_filter: None,
             edited_filter: None,
-            detail_open: false,
             detail_zoom: false,
             compare: None,
             collection_filter: None,
@@ -1544,6 +1576,9 @@ fn appearance_button(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PaletteCommand {
     Detail,
+    Compare,
+    SoftFocus,
+    Places,
     Similar,
     Insights,
     StartCull,
@@ -1568,7 +1603,7 @@ enum PaletteCommand {
 
 impl PaletteCommand {
     /// Every palette command, in the registry's group order (Library, Review, Organise, View, App, Help).
-    const ALL: [Self; 21] = [
+    const ALL: [Self; 24] = [
         Self::AddFolder,
         Self::Rescan,
         Self::Health,
@@ -1584,6 +1619,9 @@ impl PaletteCommand {
         Self::Export,
         Self::Suggest,
         Self::Detail,
+        Self::Compare,
+        Self::SoftFocus,
+        Self::Places,
         Self::Similar,
         Self::Insights,
         Self::Settings,
@@ -1596,6 +1634,9 @@ impl PaletteCommand {
     const fn id(self) -> &'static str {
         match self {
             Self::Detail => "view.detail",
+            Self::Compare => "view.compare",
+            Self::SoftFocus => "view.softFocus",
+            Self::Places => "view.places",
             Self::Similar => "view.similar",
             Self::Insights => "view.insights",
             Self::StartCull => "cull.start",
@@ -1626,8 +1667,21 @@ impl PaletteCommand {
         match self {
             Self::Detail => {
                 primary(state)?;
-                state.detail_open = true;
-                state.right_tab = RightTab::Details;
+                activate_view(state, engine, View::Detail);
+                Ok(())
+            }
+            Self::Compare => {
+                // `toggle_compare` notices when there is nothing to compare with, so the palette closes on
+                // one sentence rather than on two.
+                toggle_compare(state, engine);
+                Ok(())
+            }
+            Self::SoftFocus => {
+                activate_view(state, engine, View::SoftFocus);
+                Ok(())
+            }
+            Self::Places => {
+                activate_view(state, engine, View::Places);
                 Ok(())
             }
             Self::Similar => {
@@ -1872,68 +1926,303 @@ fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 }
 
 fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
-    let stats = engine.stats();
     egui::Panel::bottom("bottom_bar")
         .exact_size(t.bottom_bar_h)
         .frame(Frame::NONE.fill(t.chrome).inner_margin(Margin::symmetric(10, 0)))
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
-                for view in View::ALL {
-                    let selected = state.view == view;
-                    let response = ui.add_enabled(
-                        view.milestone().is_none() || selected,
-                        Button::image_and_text(crate::icons::image(view.icon(), 14.0), RichText::new(view.label()).size(12.0))
-                            .image_tint_follows_text_color(true)
-                            .fill(if selected { t.selection } else { Color32::TRANSPARENT })
-                            .stroke(Stroke::NONE),
-                    );
-                    crate::a11y::label_widget(ui, &response, egui::Role::Button, view.label(), selected);
-                    if response.clicked() {
-                        match view.milestone() {
-                            Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
-                            None => state.view = view,
-                        }
+                // Nine destinations do not fit a narrow window, and a row that silently dropped the last
+                // few would be a tab bar lying about what the app can do. The width is measured from the
+                // labels rather than guessed from the window, so a wider face or a translated label
+                // collapses at the width where the row really stops fitting.
+                let tabs: f32 = View::ALL.iter().map(|view| tab_width(ui, view.label())).sum();
+                if tabs_collapse(ui.available_width(), tabs) {
+                    view_menu(ui, t, state, engine, actions);
+                } else {
+                    for view in View::ALL {
+                        view_tab(ui, t, state, engine, view, actions);
                     }
                 }
 
-                ui.add_space(12.0);
-                match engine.scan_progress() {
-                    Some(progress) if engine.is_scanning() => {
-                        ui.label(
-                            RichText::new(format!(
-                                "Indexing · {} files · {} folders",
-                                format_count(progress.files as u64),
-                                format_count(progress.dirs as u64)
-                            ))
-                            .size(11.5)
-                            .color(t.accent),
-                        );
-                    }
-                    _ => {
-                        ui.label(RichText::new(summary(&stats)).size(11.5).color(t.text_muted));
-                    }
-                }
+                ui.add_space(10.0);
+                annotation_pill(ui, t, state, engine);
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if let Some((text, kind)) = state.live_notice() {
-                        let colour = match kind {
-                            NoticeKind::Info => t.accent,
-                            NoticeKind::Problem => t.reject,
-                        };
-                        ui.label(RichText::new(text.to_owned()).size(11.5).color(colour));
-                        ui.add_space(10.0);
+                    let help = ui.add(
+                        Button::new(RichText::new("?").size(12.0).color(t.text_muted))
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::NONE),
+                    );
+                    crate::a11y::label_widget(ui, &help, egui::Role::Button, "Keyboard shortcuts", false);
+                    if help.on_hover_text("Every shortcut in this mode  ?").clicked() {
+                        state.shortcuts_open = true;
+                        state.shortcut_query.clear();
                     }
-                    if let Some(selected) = state.selection.primary().and_then(|id| engine.photo(id)) {
-                        ui.label(RichText::new(format!("{}★", selected.rating)).size(11.5).color(t.text_muted));
-                        ui.label(RichText::new(selected.name.clone()).size(11.5).color(t.text_muted));
-                    } else {
-                        ui.label(RichText::new("No selection").size(11.5).color(t.text_faint));
+                    // A person who asked for less motion should be able to see that it is still on, without
+                    // hunting through Appearance: a setting you cannot confirm is one you will toggle twice.
+                    if state.motion == Motion::Reduced {
+                        glyph_button(ui, t, crate::icons::Icon::Wave, "Reduced motion", true);
                     }
-                    ui.add_space(6.0);
-                    ui.label(RichText::new("Fit").size(11.5).color(t.text_faint));
+                    if state.view.is_detail() {
+                        let zoom = if state.detail_zoom { "1:1" } else { "Fit" };
+                        if chip(ui, t, None, zoom, state.detail_zoom)
+                            .on_hover_text("Fit the photograph to the window, or show it at 1:1  Z")
+                            .clicked()
+                        {
+                            state.detail_zoom = !state.detail_zoom;
+                        }
+                    } else if state.view == View::Library {
+                        // The same three steps the canvas header cycles, on a control that shows where
+                        // between them you are. One state, so the chip and the slider cannot disagree.
+                        let mut step = state.density.index() as f32;
+                        ui.spacing_mut().slider_width = 72.0;
+                        let slider = ui.add(
+                            egui::Slider::new(&mut step, 0.0..=2.0)
+                                .step_by(1.0)
+                                .show_value(false)
+                                .trailing_fill(true),
+                        );
+                        crate::a11y::label_widget(ui, &slider, egui::Role::Slider, "Thumbnail size", false);
+                        if slider.changed() {
+                            let density = Density::from_index(step);
+                            if density != state.density {
+                                state.density = density;
+                                actions.push(Action::SetDensity(density));
+                            }
+                        }
+                        slider.on_hover_text(format!("Thumbnail size: {}", state.density.label()));
+                    }
+                    match engine.scan_progress() {
+                        Some(progress) if engine.is_scanning() => {
+                            ui.label(
+                                RichText::new(format!(
+                                    "Indexing · {} files · {} folders",
+                                    format_count(progress.files as u64),
+                                    format_count(progress.dirs as u64)
+                                ))
+                                .size(11.0)
+                                .color(t.accent),
+                            );
+                        }
+                        _ => {
+                            if let Some((text, kind)) = state.live_notice() {
+                                let colour = match kind {
+                                    NoticeKind::Info => t.accent,
+                                    NoticeKind::Problem => t.reject,
+                                };
+                                // Clipped rather than allowed to run under the pill: the bar is laid out
+                                // from the right, so a long sentence would push the controls off the edge.
+                                // The whole sentence is a hover away.
+                                ui.label(RichText::new(truncate(text, 64)).size(11.0).color(colour))
+                                    .on_hover_text(text.to_owned());
+                            }
+                        }
+                    }
                 });
             });
         });
+}
+
+/// How wide one labelled tab paints: its glyph, the gap between them, and the button's padding.
+fn tab_width(ui: &Ui, label: &str) -> f32 {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), FontId::proportional(12.0), Color32::WHITE);
+    galley.size().x + 34.0
+}
+
+/// Room the annotation pill and the right-hand controls need beside the tab row.
+const BAR_SIDE_W: f32 = 360.0;
+
+/// Whether the bar is too narrow to show every destination as a labelled tab.
+///
+/// A pure function so the threshold can be tested without painting: the bar is only allowed to collapse
+/// when the tabs plus the controls beside them genuinely do not fit.
+fn tabs_collapse(available: f32, tabs: f32) -> bool {
+    tabs + BAR_SIDE_W > available
+}
+
+/// One labelled destination.
+fn view_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, view: View, actions: &mut Vec<Action>) {
+    let selected = state.view == view;
+    let response = ui.add_enabled(
+        view.milestone().is_none() || selected,
+        Button::image_and_text(crate::icons::image(view.icon(), 14.0), RichText::new(view.label()).size(12.0))
+            .image_tint_follows_text_color(true)
+            .fill(if selected { t.selection } else { Color32::TRANSPARENT })
+            .stroke(Stroke::NONE),
+    );
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, view.label(), selected);
+    if response.clicked() {
+        match view.milestone() {
+            Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
+            None => {
+                activate_view(state, engine, view);
+            }
+        }
+    }
+}
+
+/// The current destination, and every other one behind it, for a window too narrow for the full row.
+///
+/// The collapsed form is the same list: a narrow window loses width, not destinations.
+fn view_menu(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
+    // The caret is a glyph from the icon set, not a character: the bundled faces have no `▾`, and a
+    // menu button that paints tofu teaches the person to distrust the bar.
+    let button = Button::new((
+        crate::icons::image(state.view.icon(), 14.0).tint(t.text),
+        RichText::new(state.view.label()).size(12.0),
+        crate::icons::image(crate::icons::Icon::Chevron, 10.0).tint(t.text_faint),
+    ))
+    .fill(t.selection)
+    .stroke(Stroke::NONE);
+    let mut chosen = None;
+    let (response, _) = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| {
+        ui.set_min_width(170.0);
+        for view in View::ALL {
+            let selected = state.view == view;
+            let row = ui.add(
+                Button::image_and_text(crate::icons::image(view.icon(), 13.0), RichText::new(view.label()).size(12.0))
+                    .image_tint_follows_text_color(true)
+                    .fill(if selected { t.selection } else { Color32::TRANSPARENT })
+                    .stroke(Stroke::NONE),
+            );
+            crate::a11y::label_widget(ui, &row, egui::Role::Button, view.label(), selected);
+            if row.clicked() {
+                chosen = Some(view);
+                ui.close();
+            }
+        }
+    });
+    crate::a11y::label_widget(
+        ui,
+        &response,
+        egui::Role::Button,
+        &format!("Views, now {}", state.view.label()),
+        true,
+    );
+    response.on_hover_text("Every destination. The row returns when the window is wide enough.");
+    if let Some(view) = chosen {
+        match view.milestone() {
+            Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
+            None => {
+                activate_view(state, engine, view);
+            }
+        }
+    }
+}
+
+/// The centre of the bar: what the selection is, and the two judgements made most often.
+///
+/// Rating and flag are the same operations the number and letter keys run — [`rate_selection`] and
+/// [`flag_selection`] are the one implementation — so a click here and a press there cannot drift apart.
+fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    let photo = state.selection.primary().and_then(|id| engine.photo(id).cloned());
+    let rating = photo.as_ref().map_or(0, |photo| photo.rating);
+    let flag = photo.as_ref().map(|photo| photo.flag);
+    Frame::NONE
+        .fill(t.card)
+        .stroke(Stroke::new(1.0, t.border))
+        .corner_radius(t.corner())
+        .inner_margin(Margin::symmetric(8, 2))
+        .show(ui, |ui| {
+            ui.horizontal_centered(|ui| {
+                for stars in 1..=5u8 {
+                    let lit = stars <= rating;
+                    let colour = if lit { t.accent } else { t.text_faint };
+                    let button = ui.add(
+                        Button::image(crate::icons::image(crate::icons::Icon::Star, 12.0).tint(colour))
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::NONE),
+                    );
+                    let name = format!("{stars} star{}", if stars == 1 { "" } else { "s" });
+                    crate::a11y::label_widget(ui, &button, egui::Role::Button, &name, lit);
+                    if button
+                        .on_hover_text(format!("Rate {stars}★ — the same star again clears it"))
+                        .clicked()
+                    {
+                        rate_selection(state, engine, if rating == stars { 0 } else { stars });
+                    }
+                }
+                for (wanted, icon, name, colour) in [
+                    (sortlens_core::Flag::Pick, crate::icons::Icon::Pick, "Pick", t.pick),
+                    (sortlens_core::Flag::None, crate::icons::Icon::Flag, "Unflag", t.text_muted),
+                    (sortlens_core::Flag::Reject, crate::icons::Icon::Reject, "Reject", t.reject),
+                ] {
+                    let active = flag == Some(wanted);
+                    let tint = if active { colour } else { t.text_faint };
+                    let button = ui.add(
+                        Button::image(crate::icons::image(icon, 12.0).tint(tint))
+                            .fill(if active { t.selection } else { Color32::TRANSPARENT })
+                            .stroke(Stroke::NONE),
+                    );
+                    crate::a11y::label_widget(ui, &button, egui::Role::Button, name, active);
+                    if button.on_hover_text(name).clicked() {
+                        flag_selection(state, engine, wanted);
+                    }
+                }
+                // How many keywords the primary carries: a fact the inspector also shows, but the bar is
+                // where a person checks "did the keyword land" without opening a panel.
+                if let Some(photo) = &photo
+                    && !photo.tags.is_empty()
+                {
+                    ui.add_space(2.0);
+                    ui.add(crate::icons::image(crate::icons::Icon::Tag, 11.0).tint(t.text_faint))
+                        .on_hover_text(photo.tags.join(", "));
+                    ui.label(RichText::new(photo.tags.len().to_string()).size(10.5).color(t.text_faint));
+                }
+                ui.add_space(4.0);
+                let count = state.selection.len();
+                let text = match count {
+                    0 => "No selection".to_string(),
+                    1 => "1 selected".to_string(),
+                    many => format!("{many} selected"),
+                };
+                ui.label(
+                    RichText::new(text)
+                        .size(11.0)
+                        .color(if count == 0 { t.text_faint } else { t.text_muted }),
+                );
+            });
+        });
+}
+
+/// Rate the selection, saying what happened the way the keyboard does.
+fn rate_selection(state: &mut UiState, engine: &mut Engine, stars: u8) {
+    let targets = state.selection.ids();
+    if targets.is_empty() {
+        return;
+    }
+    let count = targets.len();
+    match engine.rate(&targets, stars) {
+        Ok(_) => state.notice(match (stars, count) {
+            (0, 1) => "Cleared rating".to_string(),
+            (0, many) => format!("Cleared the rating on {many} photos"),
+            (stars, 1) => format!("Rated {stars}★"),
+            (stars, many) => format!("Rated {stars}★ on {many} photos"),
+        }),
+        Err(error) => state.notice_problem(error.to_string()),
+    }
+}
+
+/// Flag the selection, saying what happened the way the keyboard does.
+fn flag_selection(state: &mut UiState, engine: &mut Engine, flag: Flag) {
+    let targets = state.selection.ids();
+    if targets.is_empty() {
+        return;
+    }
+    let count = targets.len();
+    match engine.flag(&targets, flag) {
+        Ok(_) => state.notice(match (flag, count) {
+            (Flag::Pick, 1) => "Picked".to_string(),
+            (Flag::Reject, 1) => "Rejected".to_string(),
+            (Flag::None, 1) => "Unflagged".to_string(),
+            (Flag::Pick, many) => format!("Picked {many} photos"),
+            (Flag::Reject, many) => format!("Rejected {many} photos"),
+            (Flag::None, many) => format!("Unflagged {many} photos"),
+        }),
+        Err(error) => state.notice_problem(error.to_string()),
+    }
 }
 
 /// The sort and search a folder should be opened with.
@@ -2642,7 +2931,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             }
 
             match state.view {
-                View::Library if state.detail_open => {
+                View::Detail | View::Compare => {
                     detail_view(ui, t, state, engine, thumbs, actions);
                 }
                 View::Library => {
@@ -2652,6 +2941,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         grid(ui, t, state, engine, thumbs, &filter, actions);
                     }
                 }
+                View::SoftFocus => soft_focus_view(ui, t, state, engine),
                 View::ForYou => for_you_view(ui, t, state, engine, thumbs),
                 View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
                 View::Insights => insights_view(ui, t, state, engine),
@@ -2696,7 +2986,7 @@ fn cell_gestures(
         state.right_tab = RightTab::Details;
     }
     if response.double_clicked() {
-        state.detail_open = true;
+        open_detail(state);
     }
     response.context_menu(|ui| {
         if ui.button("Export…").clicked() {
@@ -3280,7 +3570,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         state.shortcut_query.clear();
         return;
     }
-    if state.detail_open {
+    if state.view.is_detail() {
         // Arrows, Space, Z, D and Esc belong to the detail view; rating and flag keys still work
         // below, which is why this does not return.
         detail_keyboard(ui, state, engine);
@@ -3289,7 +3579,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         return;
     }
     // The layout is a view, so it has a key: G flips between rows and a lattice without a trip to the chip.
-    if ui.input(|input| input.key_pressed(Key::G) && !input.modifiers.command) && !state.detail_open {
+    if ui.input(|input| input.key_pressed(Key::G) && !input.modifiers.command) && !state.view.is_detail() {
         let next = state.grid_mode.next();
         state.grid_mode = next;
         actions.push(Action::SetGrid(next));
@@ -3297,7 +3587,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     }
     // Starting a session works before anything is selected: the queue comes from the filters.
     // A session restored from a previous run is opened rather than replaced.
-    if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) && !state.detail_open {
+    if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) && !state.view.is_detail() {
         open_cull(state, engine);
         return;
     }
@@ -3315,7 +3605,10 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         state.notice(format!("Selected {total} photos"));
         return;
     }
-    if !state.detail_open && ui.input(|input| input.key_pressed(Key::Escape) && !input.modifiers.command) && !state.selection.is_empty() {
+    if !state.view.is_detail()
+        && ui.input(|input| input.key_pressed(Key::Escape) && !input.modifiers.command)
+        && !state.selection.is_empty()
+    {
         state.selection.clear();
         return;
     }
@@ -3375,8 +3668,8 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         }
     });
 
-    if !state.detail_open && ui.input(|input| input.key_pressed(Key::D) && !input.modifiers.command) {
-        state.detail_open = true;
+    if !state.view.is_detail() && ui.input(|input| input.key_pressed(Key::D) && !input.modifiers.command) {
+        activate_view(state, engine, View::Detail);
         return;
     }
 
@@ -3420,28 +3713,10 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     }
 
     if let Some(stars) = rating {
-        match engine.rate(&targets, stars) {
-            Ok(_) => state.notice(match (stars, count) {
-                (0, 1) => "Cleared rating".to_string(),
-                (0, many) => format!("Cleared the rating on {many} photos"),
-                (stars, 1) => format!("Rated {stars}★"),
-                (stars, many) => format!("Rated {stars}★ on {many} photos"),
-            }),
-            Err(error) => state.notice_problem(error.to_string()),
-        }
+        rate_selection(state, engine, stars);
     }
     if let Some(flag) = flag {
-        match engine.flag(&targets, flag) {
-            Ok(_) => state.notice(match (flag, count) {
-                (Flag::Pick, 1) => "Picked".to_string(),
-                (Flag::Reject, 1) => "Rejected".to_string(),
-                (Flag::None, 1) => "Unflagged".to_string(),
-                (Flag::Pick, many) => format!("Picked {many} photos"),
-                (Flag::Reject, many) => format!("Rejected {many} photos"),
-                (Flag::None, many) => format!("Unflagged {many} photos"),
-            }),
-            Err(error) => state.notice_problem(error.to_string()),
-        }
+        flag_selection(state, engine, flag);
     }
 }
 
@@ -3834,7 +4109,14 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         toggle_compare(state, engine);
     }
     if close {
-        state.detail_open = false;
+        if state.view == View::Compare {
+            // Escape from a compare closes the second pane and keeps the photograph: a comparison is
+            // a way of looking at a frame, not somewhere you went.
+            state.compare = None;
+            state.view = View::Detail;
+        } else {
+            state.view = View::Library;
+        }
     }
     if step != 0
         && let Some(id) = state.selection.primary()
@@ -3851,7 +4133,7 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
 /// The modifier shortcuts the command registry promises. Returns whether one fired, so the plain
 /// key handlers behind it do not also react to the same press.
 fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) -> bool {
-    let detail_open = &state.detail_open;
+    let detail_open = state.view.is_detail();
     let (open, rescan, redo, undo, collection, settings, quit, apply, view) = ui.input_mut(|input| {
         (
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
@@ -3866,10 +4148,12 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
             input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Enter)),
             // The view keys are only view keys when no modifier is held and no mode owns the letter:
             // S swaps a compare and P/X judge a cull session, so those stay theirs.
-            if input.modifiers.command || *detail_open || engine.cull().is_some() {
+            if input.modifiers.command || detail_open || engine.cull().is_some() {
                 None
             } else if input.key_pressed(Key::I) {
                 Some(View::Insights)
+            } else if input.key_pressed(Key::M) {
+                Some(View::Places)
             } else if input.key_pressed(Key::S) {
                 Some(View::Similar)
             } else {
@@ -3943,8 +4227,30 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
 /// Switch to a destination and start whatever that destination needs.
 ///
 /// One function rather than a copy per entrance: a key, the palette and the bottom bar all agree about
-/// what opening Similar means, including beginning the hash pass it cannot show without.
-fn activate_view(state: &mut UiState, engine: &mut Engine, view: View) {
+/// what opening a view means, including beginning the hash pass Similar cannot show without and finding
+/// the second photograph Compare cannot show without.
+///
+/// Returns `false` when the destination cannot open, so a tab does not paint itself selected for a view
+/// that did not open. The notice already says why.
+fn activate_view(state: &mut UiState, engine: &mut Engine, view: View) -> bool {
+    // The second pane belongs to Compare and nowhere else. Leaving it closes it, so `compare` and the
+    // open view cannot disagree about whether a compare is on screen.
+    if view != View::Compare {
+        state.compare = None;
+    }
+    if view == View::Compare && state.compare.is_none() {
+        match compare_partner(state, engine) {
+            Some(second) => state.compare = Some(second),
+            None => {
+                state.notice("Compare needs two photos: select one with a neighbour in view");
+                return false;
+            }
+        }
+    }
+    if view == View::Detail {
+        // The facts panel is the reason to open one photograph, so opening it says so.
+        state.right_tab = RightTab::Details;
+    }
     state.view = view;
     // A similar search needs hashes; asking for the view should start the work.
     if view == View::Similar && engine.similar_groups().is_empty() && engine.hash_progress().is_none() {
@@ -3954,6 +4260,7 @@ fn activate_view(state: &mut UiState, engine: &mut Engine, view: View) {
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
+    true
 }
 
 /// Open the cull view, starting a queue from the current filters when no session is restored.
@@ -3975,22 +4282,47 @@ fn rescan_root(state: &UiState, engine: &Engine) -> Option<String> {
         .or_else(|| engine.counts_by_root().first().map(|(root, _)| root.clone()))
 }
 
+/// Open one photograph large: the Detail view with its facts panel, and no second pane.
+///
+/// Detail needs nothing from the engine — it draws whatever the selection already names — so this is
+/// separate from [`activate_view`], which the places that may need to prepare a destination use.
+fn open_detail(state: &mut UiState) {
+    state.compare = None;
+    state.view = View::Detail;
+    state.right_tab = RightTab::Details;
+}
+
+/// The photograph a compare should put beside the primary.
+///
+/// A second ticked photo is the comparison the person asked for; with only one ticked, the next frame in the
+/// sorted order is the one they were about to look at anyway. `None` means there is nothing honest to show.
+fn compare_partner(state: &UiState, engine: &Engine) -> Option<PhotoId> {
+    let id = state.selection.primary()?;
+    if let Some(second) = state.selection.ids().into_iter().find(|other| *other != id) {
+        return Some(second);
+    }
+    let filter = state.filter();
+    engine
+        .neighbour(&filter, state.sort, id, 1)
+        .or_else(|| engine.neighbour(&filter, state.sort, id, -1))
+}
+
 /// Open a compare against the next photo in order, or close one that is open.
 pub fn toggle_compare(state: &mut UiState, engine: &Engine) {
-    if state.compare.take().is_some() {
+    if state.view == View::Compare {
+        // Closing a compare keeps the photograph and drops the second pane: you were looking at a frame,
+        // and the pair was a way of looking at it.
+        state.compare = None;
+        state.view = View::Detail;
         return;
     }
-    let Some(id) = state.selection.primary() else {
-        state.notice("Pick a photo first");
-        return;
-    };
-    let filter = state.filter();
-    if let Some(next) = engine.neighbour(&filter, state.sort, id, 1) {
-        state.compare = Some(next);
-    } else if let Some(previous) = engine.neighbour(&filter, state.sort, id, -1) {
-        state.compare = Some(previous);
-    } else {
-        state.notice("Nothing to compare with");
+    match compare_partner(state, engine) {
+        Some(second) => {
+            state.compare = Some(second);
+            state.view = View::Compare;
+        }
+        None if state.selection.primary().is_none() => state.notice("Pick a photo first"),
+        None => state.notice("Nothing to compare with"),
     }
 }
 
@@ -4067,22 +4399,28 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                     .color(t.text_muted),
             );
             if ui.button("Back to the grid").clicked() {
-                state.detail_open = false;
+                state.view = View::Library;
             }
         });
         return;
     };
     let Some(photo) = engine.photo(id).cloned() else {
-        state.detail_open = false;
+        state.view = View::Library;
+        state.compare = None;
         return;
     };
     let position = engine.position(&filter, state.sort, id);
 
-    // The other half of a compare, when one is open. A photo that has gone missing closes it rather
-    // than leaving an empty pane behind.
-    let other = state.compare.and_then(|other| engine.photo(other).cloned());
-    if state.compare.is_some() && other.is_none() {
+    // The other half of a compare, when the Compare view is the one being drawn. A photo that has gone
+    // missing closes the compare rather than leaving an empty pane behind.
+    let other = if state.view == View::Compare {
+        state.compare.and_then(|other| engine.photo(other).cloned())
+    } else {
+        None
+    };
+    if state.view == View::Compare && other.is_none() {
         state.compare = None;
+        state.view = View::Detail;
     }
 
     ui.horizontal(|ui| {
@@ -4118,7 +4456,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                 state.export_open = true;
             }
             if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
-                state.detail_open = false;
+                state.view = View::Library;
                 state.compare = None;
             }
             let zoom_label = if state.detail_zoom { "Fit  Z" } else { "1:1  Z" };
@@ -4135,8 +4473,15 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                     state.selection.replace(second);
                     state.compare = Some(id);
                 }
-                if ui.button(RichText::new("Compare  C").size(11.0)).clicked() {
+                // The button is a toggle, so in a compare it says what it will do: closing the pair
+                // rather than opening one you are already looking at.
+                if ui
+                    .button(RichText::new("Close compare  C").size(11.0))
+                    .on_hover_text("Go back to the single photograph")
+                    .clicked()
+                {
                     state.compare = None;
+                    state.view = View::Detail;
                 }
             } else if ui
                 .button(RichText::new("Compare  C").size(11.0))
@@ -4159,6 +4504,11 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         &format!("Preview of {}", crate::a11y::describe_photo(&photo)),
         false,
     );
+    // Click the photograph to look closer: on a one-photo view the picture is the biggest target on
+    // screen, and a person who clicks it means "show me this", not "select it again".
+    if area_response.clicked() {
+        state.detail_zoom = !state.detail_zoom;
+    }
     ui.painter().rect_filled(area, t.corner(), t.thumb_bg);
 
     let aspect = if photo.width > 0 && photo.height > 0 {
@@ -5489,28 +5839,9 @@ fn basemap_status(
     }
 }
 
-/// Totals, distributions and breakdowns, all recomputed from the catalog./// Totals, distributions and breakdowns, all recomputed from the catalog.
+/// Totals, distributions and breakdowns, all recomputed from the catalog.
 fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let _ = engine.poll_insights();
-    // The sharpness pass lands here rather than on a timer: this is the view that asked for it, and a pass that
-    // finished while another view was open would otherwise sit in its channel until someone came back.
-    if let Some(report) = engine.poll_sharpness() {
-        if report.remaining == 0 {
-            let message = match report.unjudged {
-                0 => format!("Measured {} photo(s)", report.measured),
-                unjudged => format!(
-                    "Measured {} photo(s); {unjudged} could not be judged and were left unscored",
-                    report.measured
-                ),
-            };
-            state.notice(message);
-        } else {
-            state.notice(format!(
-                "Sharpness pass stopped after {} photo(s)",
-                report.measured + report.unjudged
-            ));
-        }
-    }
     let insights = engine.insights();
     if let Some((done, total)) = engine.insights_progress() {
         // A library of thousands is not instant, so the pass says how far it has come instead of
@@ -5646,9 +5977,46 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                 }
             });
         });
-        ui.add_space(18.0);
-        sharpness_section(ui, t, state, engine);
     });
+}
+
+/// Soft Focus: the sharpness review as its own destination rather than the last thing you scroll to.
+///
+/// The pass lands here, not on a timer: this is the view that asked for it, and a pass that finished while not
+/// looking at it would otherwise sit in its channel until someone came back. The review is the same
+/// [`sharpness_section`] the insights page used to end with, so there is one review, not two that could disagree.
+fn soft_focus_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    if let Some(report) = engine.poll_sharpness() {
+        if report.remaining == 0 {
+            let message = match report.unjudged {
+                0 => format!("Measured {} photo(s)", report.measured),
+                unjudged => format!(
+                    "Measured {} photo(s); {unjudged} could not be judged and were left unscored",
+                    report.measured
+                ),
+            };
+            state.notice(message);
+        } else {
+            state.notice(format!(
+                "Sharpness pass stopped after {} photo(s)",
+                report.measured + report.unjudged
+            ));
+        }
+    }
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Soft Focus").size(15.0).strong().color(t.text));
+        ui.label(RichText::new("A relative cut, never a verdict").size(10.5).color(t.text_faint));
+    });
+    hint(
+        ui,
+        t,
+        "Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the \
+         softest N%, so it can only ever claim to be relative to these photographs.",
+    );
+    ui.add_space(8.0);
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| sharpness_section(ui, t, state, engine));
 }
 
 /// The softness review: how detail is distributed, what a relative cut would select, and the button that selects it.
@@ -5722,11 +6090,14 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
     );
     ui.add_space(4.0);
     let mut percentile = state.sharpness_percentile;
-    ui.add(
+    let slider = ui.add(
         egui::Slider::new(&mut percentile, sharpness::MIN_PERCENTILE..=sharpness::MAX_PERCENTILE)
             .suffix("%")
             .fixed_decimals(0),
     );
+    // The slider is the whole question this section asks, so it needs a name a screen reader can read:
+    // the screenshot harness's accessibility pass found it unnamed, and a value with no question is noise.
+    crate::a11y::label_widget(ui, &slider, egui::Role::Slider, "Softest share of the library to review", false);
     state.sharpness_percentile = percentile;
     ui.label(RichText::new(review.cut_label()).size(11.0).color(t.text));
     ui.add_space(4.0);
@@ -6080,7 +6451,7 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                     }
                     if response.on_hover_text(format!("{} · {}", photo.name, card.kind.label())).clicked() {
                         state.selection.replace(*id);
-                        state.detail_open = true;
+                        activate_view(state, engine, View::Detail);
                     }
                 }
             });
@@ -7662,20 +8033,6 @@ fn truncate(text: &str, max_chars: usize) -> String {
     out
 }
 
-fn summary(stats: &sortlens_engine::Stats) -> String {
-    let mut parts = vec![format!("{} photos", format_count(stats.total as u64))];
-    if stats.picks > 0 {
-        parts.push(format!("{} picks", format_count(stats.picks as u64)));
-    }
-    if stats.rejects > 0 {
-        parts.push(format!("{} rejects", format_count(stats.rejects as u64)));
-    }
-    if stats.missing > 0 {
-        parts.push(format!("{} missing", format_count(stats.missing as u64)));
-    }
-    parts.join(" · ")
-}
-
 fn format_count(count: u64) -> String {
     sortlens_core::format_count(count)
 }
@@ -7797,8 +8154,9 @@ mod tests {
         );
         assert_eq!(
             in_band(screen.bottom() - t.bottom_bar_h, screen.bottom(), screen.right()),
-            View::ALL.len(),
-            "every destination in the bottom bar carries its glyph"
+            View::ALL.len() + 8,
+            "every destination in the bottom bar carries its glyph, and the annotation pill carries \
+             five stars and three flags"
         );
         assert!(
             in_band(t.top_bar_h, screen.bottom() - t.bottom_bar_h, t.left_w) >= Source::ALL.len() + 5,
@@ -9438,7 +9796,7 @@ mod tests {
         };
         let mut state = UiState::new(ThemeKind::Midnight, 0.0);
         state.selection.replace(id);
-        state.detail_open = true;
+        state.view = View::Detail;
         let mut thumbs = Thumbnails::new(dir.join("cache"));
         let actions: Vec<Action> = Vec::new();
         let mut painted = 0;
@@ -9882,6 +10240,21 @@ mod tests {
         assert_eq!(Density::from_id("enormous"), Density::Comfortable, "an unknown id is the default");
         assert!(Density::Compact.min_cell() < Density::Comfortable.min_cell());
         assert!(Density::Comfortable.min_cell() < Density::Roomy.min_cell());
+    }
+
+    /// The size control and the density chip are one state: every step has a position, every position
+    /// names a step, and a value dragged between stops lands on the nearer one rather than inventing a
+    /// fourth density the grid would then have to answer for.
+    #[test]
+    fn the_size_control_positions_name_the_real_density_steps() {
+        for (position, step) in Density::ALL.into_iter().enumerate() {
+            assert_eq!(step.index(), position);
+            assert_eq!(Density::from_index(position as f32), step);
+            assert_eq!(Density::from_index(position as f32 + 0.49), step);
+            assert_eq!(Density::from_index(position as f32 - 0.49), step);
+        }
+        assert_eq!(Density::from_index(-3.0), Density::Compact, "below the track clamps");
+        assert_eq!(Density::from_index(9.0), Density::Roomy, "above the track clamps");
     }
 
     /// The grid paints at every density, over a real library, without asking for anything.
@@ -10693,9 +11066,11 @@ mod tests {
         let engine = Engine::open(&dir).expect("open");
         let mut state = UiState::new(ThemeKind::Midnight, 0.0);
 
+        state.view = View::Compare;
         state.compare = Some(PhotoId(4));
         toggle_compare(&mut state, &engine);
         assert_eq!(state.compare, None, "a second press closes the compare");
+        assert_eq!(state.view, View::Detail, "and leaves the photograph it was about, not the grid");
 
         // With nothing selected there is nothing to compare against, and the reason is said out loud.
         state.selection.clear();
@@ -11143,6 +11518,377 @@ mod tests {
         }
         assert!(painted > 0, "the bar painted something");
         assert!(missing.is_empty(), "these strings have no glyphs in the bundled faces: {missing:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Paint only the bottom bar and hand back what it drew.
+    ///
+    /// The bar is the whole subject here: a scene that painted the grid too would make "which glyph did I
+    /// click" a question about the canvas.
+    fn paint_bar(
+        ctx: &egui::Context,
+        screen: Vec2,
+        state: &mut UiState,
+        engine: &mut Engine,
+        actions: &mut Vec<Action>,
+    ) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+            ..egui::RawInput::default()
+        };
+        // Twice: the SVG loader is asynchronous, so the first frame lays the bar out and the second
+        // paints its glyphs. A single frame would read as "no icons" for a bar full of them.
+        let mut settled = None;
+        for _ in 0..2 {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    bottom_bar(ui, state, &Tokens::CHARCOAL, engine, actions);
+                });
+            });
+            output.textures_delta.clear();
+            settled = Some(output);
+        }
+        settled.expect("two frames were painted")
+    }
+
+    /// The icon-only buttons inside `area`, left to right.
+    fn glyphs_in(output: &egui::FullOutput, area: Rect) -> Vec<Rect> {
+        let mut rects: Vec<Rect> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                egui::Shape::Rect(shape) => shape
+                    .brush
+                    .as_ref()
+                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                    .map(|_| shape.rect),
+                _ => None,
+            })
+            .filter(|rect| area.contains(rect.center()))
+            .collect();
+        rects.sort_by(|left, right| left.center().x.total_cmp(&right.center().x));
+        rects
+    }
+
+    /// The annotation pill's own background: the one card-filled surface in the bar.
+    fn pill_in(output: &egui::FullOutput, tokens: &Tokens, screen: Vec2) -> Rect {
+        output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Rect(shape) if shape.fill == tokens.card && shape.rect.center().y > screen.y - tokens.bottom_bar_h => {
+                    Some(shape.rect)
+                }
+                _ => None,
+            })
+            .expect("the annotation pill has a surface of its own")
+    }
+
+    /// Phase 3B.4 from the window: the centre pill rates and flags the selection, and clicking the star that
+    /// is already set clears it. Driven by real clicks on the painted glyphs, because a control that is only
+    /// reachable from a keyboard is not the control the bar claims to be.
+    #[test]
+    fn the_annotation_pill_rates_and_flags_the_selection() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-pill-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-pill");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 * index as u8, 90, 170], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2);
+        let (first, second) = (ids[0], ids[1]);
+
+        let ctx = egui::Context::default();
+        let screen = vec2(1280.0, 300.0);
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.select_many(&ids);
+        let mut actions: Vec<Action> = Vec::new();
+        // The shell installs this on every frame it owns; painting the bar on its own has to say it.
+        crate::icons::install(&ctx);
+
+        let output = paint_bar(&ctx, screen, &mut state, &mut engine, &mut actions);
+        assert!(actions.is_empty(), "painting presses nothing");
+        assert!(
+            label_at(&output, "2 selected").is_some(),
+            "the pill's count is the selection, in words"
+        );
+        let pill = pill_in(&output, &tokens, screen);
+        let glyphs = glyphs_in(&output, pill);
+        assert_eq!(
+            glyphs.len(),
+            8,
+            "five stars and three flags, and nothing else in the pill: {}",
+            glyphs.len()
+        );
+
+        // A keyword count joins the pill when the primary carries keywords: the bar answers "did it land"
+        // without a trip to the Tags panel.
+        engine.set_tag(&[first], "sea", true).expect("tag");
+        let tagged = paint_bar(&ctx, screen, &mut state, &mut engine, &mut actions);
+        assert_eq!(
+            glyphs_in(&tagged, pill_in(&tagged, &tokens, screen)).len(),
+            9,
+            "the tag glyph joins the five stars and three flags"
+        );
+
+        // The third star rates both photographs: the pill acts on the selection, like the number keys.
+        click_frames(&ctx, screen, glyphs[2].center(), &mut state, &mut engine, &mut actions);
+        assert_eq!(engine.photo(first).expect("photo").rating, 3, "three stars on the primary");
+        assert_eq!(engine.photo(second).expect("photo").rating, 3, "and on the rest of the selection");
+        assert_eq!(
+            state.live_notice().map(|(text, _)| text.to_string()),
+            Some("Rated 3★ on 2 photos".to_string())
+        );
+
+        // The same star again clears it, which is what a star that is already lit should do.
+        let output = paint_bar(&ctx, screen, &mut state, &mut engine, &mut actions);
+        let glyphs = glyphs_in(&output, pill_in(&output, &tokens, screen));
+        click_frames(&ctx, screen, glyphs[2].center(), &mut state, &mut engine, &mut actions);
+        assert_eq!(engine.photo(first).expect("photo").rating, 0, "the lit star clears the rating");
+        assert_eq!(engine.photo(second).expect("photo").rating, 0);
+
+        // Pick sits after the five stars, and flags the whole selection.
+        click_frames(&ctx, screen, glyphs[5].center(), &mut state, &mut engine, &mut actions);
+        assert_eq!(engine.photo(first).expect("photo").flag, Flag::Pick);
+        assert_eq!(engine.photo(second).expect("photo").flag, Flag::Pick);
+        assert_eq!(
+            state.live_notice().map(|(text, _)| text.to_string()),
+            Some("Picked 2 photos".to_string())
+        );
+
+        // And Reject is the seventh glyph: the pill offers all three flag states, not only the happy one.
+        let output = paint_bar(&ctx, screen, &mut state, &mut engine, &mut actions);
+        let glyphs = glyphs_in(&output, pill_in(&output, &tokens, screen));
+        click_frames(&ctx, screen, glyphs[7].center(), &mut state, &mut engine, &mut actions);
+        assert_eq!(engine.photo(first).expect("photo").flag, Flag::Reject);
+        assert_eq!(engine.photo(second).expect("photo").flag, Flag::Reject);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Press and release at a point, painting the bar in between.
+    fn click_frames(
+        ctx: &egui::Context,
+        screen: Vec2,
+        at: egui::Pos2,
+        state: &mut UiState,
+        engine: &mut Engine,
+        actions: &mut Vec<Action>,
+    ) {
+        let tokens = Tokens::CHARCOAL;
+        for input in press_and_release(at) {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events: input.events,
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bottom_bar(ui, state, &tokens, engine, actions);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+        }
+    }
+
+    /// Phase 3B.4: a narrow window collapses the tab row into the current destination plus a menu, and the
+    /// menu still holds every destination. Width is lost, not reach.
+    #[test]
+    fn a_narrow_window_collapses_the_tab_row_instead_of_dropping_a_destination() {
+        // The threshold itself: the tabs plus the pill and the right-hand controls.
+        assert!(tabs_collapse(820.0, 732.0), "a narrow bar collapses");
+        assert!(!tabs_collapse(1440.0, 732.0), "a wide one does not");
+        assert_eq!(View::ALL.len(), 9, "every destination is in the row");
+        assert_eq!(View::ALL[0], View::Library, "the row starts where it always did");
+
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-collapse-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+
+        let wide = paint_bar(&ctx, vec2(1440.0, 300.0), &mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&wide, "Soft Focus").is_some(),
+            "the wide row shows the last-but-one destination"
+        );
+        assert!(label_at(&wide, "Insights").is_some(), "and the last");
+
+        let narrow = paint_bar(&ctx, vec2(820.0, 300.0), &mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&narrow, "Soft Focus").is_none(),
+            "the collapsed row is the current destination, not the whole list"
+        );
+        let current = label_at(&narrow, "Library").expect("the current destination is named");
+        click_frames(&ctx, vec2(820.0, 300.0), current.center(), &mut state, &mut engine, &mut actions);
+        let opened = paint_bar(&ctx, vec2(820.0, 300.0), &mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&opened, "Soft Focus").is_some(),
+            "the menu behind the collapsed tab still holds every destination"
+        );
+        assert!(actions.is_empty(), "opening the menu asks for nothing");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Phase 3B.4: Detail, Compare and Soft Focus are destinations, not a mode flag and a section.
+    ///
+    /// The invariant is the part worth testing: a second pane exists exactly while Compare is the view, so
+    /// no code path can leave a compare open that nothing is drawing.
+    #[test]
+    fn detail_compare_and_soft_focus_are_peer_views() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-peers-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-peers");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [50, 60 * index as u8, 120], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.replace(id);
+
+        assert!(activate_view(&mut state, &mut engine, View::Detail));
+        assert_eq!(state.view, View::Detail);
+        assert_eq!(state.compare, None, "one photograph, no second pane");
+        assert_eq!(state.right_tab, RightTab::Details, "opening one photograph shows its facts");
+
+        toggle_compare(&mut state, &engine);
+        assert_eq!(state.view, View::Compare, "the compare is a destination of its own");
+        let second = state.compare.expect("a second photograph");
+        assert_ne!(second, id, "and it is a different photograph");
+
+        // Leaving Compare closes the pane, whatever the destination is.
+        assert!(activate_view(&mut state, &mut engine, View::Library));
+        assert_eq!(state.compare, None, "a compare that outlived its view would be invisible state");
+
+        // Entering Compare from the row picks a pair again rather than opening an empty view.
+        assert!(activate_view(&mut state, &mut engine, View::Compare));
+        assert_eq!(state.view, View::Compare);
+        assert!(state.compare.is_some());
+
+        assert!(activate_view(&mut state, &mut engine, View::SoftFocus));
+        assert_eq!(state.view, View::SoftFocus);
+        assert_eq!(state.compare, None, "and leaving Compare still closed it");
+
+        // With nothing selected Compare has nothing to show, so it refuses and says why instead of
+        // painting a selected tab for a view that did not open.
+        state.selection.clear();
+        state.view = View::Library;
+        assert!(!activate_view(&mut state, &mut engine, View::Compare));
+        assert_eq!(state.view, View::Library, "the tab did not take");
+        assert!(state.live_notice().is_some() || state.notice.is_some(), "and the refusal is spoken");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Click-zoom in the Detail view: the photograph is the target, and a click on it means "closer".
+    #[test]
+    fn clicking_the_detail_photograph_toggles_its_zoom() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-clickzoom-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-clickzoom");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [80, 140, 200], 96, 64), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.replace(id);
+        state.view = View::Detail;
+        let screen = vec2(1440.0, 900.0);
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut last = egui::FullOutput::default();
+        for _ in 0..3 {
+            last = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, &mut state, &mut engine, &mut thumbs);
+                    });
+                },
+            );
+            last.textures_delta.clear();
+        }
+        // The photograph is the largest textured rectangle above the bottom bar.
+        let photo = last
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                egui::Shape::Rect(shape) => shape
+                    .brush
+                    .as_ref()
+                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                    .map(|_| shape.rect),
+                _ => None,
+            })
+            .filter(|rect| rect.center().y < screen.y - Tokens::CHARCOAL.bottom_bar_h)
+            .max_by(|left, right| (left.width() * left.height()).total_cmp(&(right.width() * right.height())))
+            .expect("the detail canvas painted the photograph");
+        assert!(photo.width() > 200.0, "a full-size canvas, not a thumbnail");
+
+        for input in press_and_release(photo.center()) {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events: input.events,
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, &mut state, &mut engine, &mut thumbs);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+        }
+        assert!(state.detail_zoom, "a click on the photograph zooms to 1:1");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

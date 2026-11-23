@@ -446,10 +446,16 @@ impl eframe::App for App {
 
         if let sortlens_engine::Effect::ShowView(view) = self.engine.last_effect() {
             match view {
-                "detail" => {
-                    self.ui.view = sortlens_ui::View::Library;
-                    self.ui.detail_open = true;
-                }
+                // A view named by an engine command is a view the window opens; the shell's own
+                // `activate_view` is not reachable from here, so the two views that need preparation
+                // (Compare's second pane, Similar's hashes) arrive through the same commands the
+                // palette and the bottom bar use.
+                "detail" => self.ui.view = sortlens_ui::View::Detail,
+                // Compare needs a second photograph, and only the shell can pick one: the same helper the
+                // Compare tab and the C key use, so the command lands on a real pair or on a notice.
+                "compare" => sortlens_ui::toggle_compare(&mut self.ui, &self.engine),
+                "softFocus" => self.ui.view = sortlens_ui::View::SoftFocus,
+                "places" => self.ui.view = sortlens_ui::View::Places,
                 "similar" => self.ui.view = sortlens_ui::View::Similar,
                 "insights" => self.ui.view = sortlens_ui::View::Insights,
                 _ => {}

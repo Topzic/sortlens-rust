@@ -215,8 +215,13 @@ fn pump(harness: &mut Harness<'_, Scene>) {
 ///
 /// Returns the engine, so the next scene paints the same library without scanning it again.
 fn shoot(kind: ThemeKind, scene: Scene, name: &str) -> Engine {
+    shoot_at(kind, scene, name, egui::vec2(WIDTH, HEIGHT))
+}
+
+/// The same, at another window size: the narrow-window layout is a baseline too, not a claim.
+fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engine {
     let mut harness = Harness::builder()
-        .with_size(egui::vec2(WIDTH, HEIGHT))
+        .with_size(size)
         .with_pixels_per_point(1.0)
         .with_max_steps(240)
         .with_context_setup(move |ctx| sortlens_ui::apply(ctx, kind))
@@ -296,12 +301,12 @@ fn detail_and_compare_paint_in_both_themes() {
     let mut library = library();
     for kind in THEMES {
         let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
-        scene.state.detail_open = true;
+        scene.state.view = View::Detail;
         scene.state.selection.replace(library.photos[0]);
         library.keep(shoot(kind, scene, &format!("detail-{}", kind_id(kind))));
 
         let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
-        scene.state.detail_open = true;
+        scene.state.view = View::Compare;
         scene.state.selection.replace(library.photos[0]);
         scene.state.compare = Some(library.photos[1]);
         library.keep(shoot(kind, scene, &format!("compare-{}", kind_id(kind))));
@@ -364,6 +369,37 @@ fn command_palette_paints_in_both_themes() {
     }
 }
 
+/// Soft Focus: the relative sharpness review as its own destination, with stored scores.
+///
+/// A library with measured scores shows the histogram and the cut it would select; this is the proof that
+/// Phase 3B.4's peer view is the review that used to be the last thing you scrolled to on Insights.
+#[test]
+fn soft_focus_paints_in_both_themes() {
+    let mut library = library();
+    let mut engine = library.take();
+    let scores: Vec<(PhotoId, sortlens_quality::Score)> = library
+        .photos
+        .iter()
+        .enumerate()
+        .map(|(index, id)| {
+            (
+                *id,
+                sortlens_quality::Score {
+                    value: 0.4 + index as f32 * 0.35,
+                    version: sortlens_quality::SCORE_VERSION,
+                },
+            )
+        })
+        .collect();
+    engine.set_scores(&scores).expect("scores");
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, engine, &library.cache()), &library.root);
+        scene.state.view = View::SoftFocus;
+        engine = shoot(kind, scene, &format!("soft-focus-{}", kind_id(kind)));
+    }
+    library.keep(engine);
+}
+
 /// Insights: the figures and the distributions, from the same library the grid shows.
 #[test]
 fn insights_paints_in_both_themes() {
@@ -373,6 +409,20 @@ fn insights_paints_in_both_themes() {
         scene.state.view = View::Insights;
         library.keep(shoot(kind, scene, &format!("insights-{}", kind_id(kind))));
     }
+}
+
+/// A window too narrow for nine labelled destinations: the row collapses to the current one plus a
+/// menu, and the pill and the right-hand controls keep their places. Phase 3B.4's other half.
+#[test]
+fn a_narrow_window_collapses_the_tab_row() {
+    let mut library = library();
+    let kind = ThemeKind::Charcoal;
+    let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+    // The panels are closed so the baseline is about the bar rather than about a canvas squeezed to
+    // 340 px by two docks. A narrow window with its docks hidden is a real way to use the app.
+    scene.state.left_open = false;
+    scene.state.right_open = false;
+    library.keep(shoot_at(kind, scene, "narrow-charcoal", egui::vec2(900.0, 620.0)));
 }
 
 /// A stable name fragment per preset, so a baseline file name does not depend on enum order.

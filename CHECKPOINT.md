@@ -1,5 +1,56 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-fourth) — Phase 3B.4: nine destinations, and a bar that says what you are looking at
+
+- **Detail, Compare and Soft Focus are destinations now, not a mode flag and a section.** `View::ALL` is nine:
+  Library, For You, Cull, Detail, Compare, Places, Similar, Soft Focus, Insights. `state.detail_open` is gone; the
+  question every keyboard guard used to ask is `View::is_detail()`, so the grid's shortcuts and the detail view's
+  shortcuts cannot both answer the same press. `state.compare` is `Some` exactly while `View::Compare` is open —
+  `activate_view` clears it on every other destination and `toggle_compare` closes the pane rather than the
+  photograph — because a second pane that outlived the view drawing it was invisible state nobody could see.
+  `open_detail` is the state-only path a grid double-click uses; `activate_view` is the one path for the tabs, the
+  palette and the keyboard.
+- **Soft Focus left the foot of Insights.** `soft_focus_view` polls the sharpness pass (the view that asked for it
+  owns the report), states what a relative cut can claim, and reuses `sharpness_section` unchanged. Insights no
+  longer scrolls to a review it was not about.
+- **The bar itself.** Labels are measured (`tab_width` sums the real galleys), and `tabs_collapse` turns the row
+  into the current destination plus a menu when the tabs and the controls beside them do not fit — the same nine
+  items, on the icon set's own new `chevron` glyph, because no bundled face has `▾` (a caret character painted
+  tofu in the 900 px detail baseline before this). The centre is an annotation pill: five stars (clicking the lit
+  one clears it), Pick/Unflag/Reject, the primary's keyword count and "N selected". The stars and flags call the
+  same `rate_selection`/`flag_selection` the `0–5` and `P`/`X`/`U` keys call, so the two cannot drift. The right
+  side carries the three-step thumbnail slider in the grid (same `state.density` the canvas-header chip cycles,
+  snapping through `Density::index`/`from_index` so there is no fourth step), Fit/1:1 in Detail and Compare plus
+  click-zoom on the photograph itself, `?`, and a reduced-motion indicator. The old one-line library summary left
+  the bar: the canvas header already says the count and the selection.
+- **Every destination is a command.** `view.compare` and `view.softFocus` are new `Ready` rows with `ShowView`
+  effects, and `view.places` was still `Planned("M5")` — the map shipped slices ago, so a working view was hidden
+  from the palette and from MCP. `M` now opens the map (the keymap overlay lists it, and the CLI's shortcut golden
+  grew by that one line), the palette is 24 rows, and Compare is reached through `toggle_compare` in the window
+  because only the shell knows which second photograph to show. Examples added for the three new MCP tools.
+- Files: `crates/ui/src/shell.rs` (View, `activate_view`/`toggle_compare`/`open_detail`, `soft_focus_view`,
+  `bottom_bar` + `view_tab`/`view_menu`/`annotation_pill`/`rate_selection`/`flag_selection`), `crates/ui/src/theme.rs`
+  (`Density::index`/`from_index`), `crates/ui/src/icons.rs` + `assets/icons/{compare,focus,chevron}.svg` (39 glyphs),
+  `crates/ui/src/keymap.rs`, `crates/engine/src/command.rs` (3 rows), `crates/engine/src/lib.rs` (3 effect arms,
+  `view.insights` now names itself)`, `crates/mcp/src/{examples,lib}.rs`, `apps/sortlens/src/main.rs`,
+  `crates/ui/tests/screenshots.rs`, and the reconciled `docs/UX.md` §5.6/§5.8/§7 + `docs/ARCHITECTURE.md` §8.1.
+- Tests: the pill driven by real clicks on its painted glyphs (rate both photos, the lit star clears, Pick and
+  Reject both land, a keyword count joins the pill); `tabs_collapse`'s threshold plus a wide row that names
+  Soft Focus and a narrow one that does not, whose menu still holds it; the peer-view invariant and Compare's
+  spoken refusal with nothing selected; click-zoom on the largest textured rect of the detail canvas; an engine
+  audit that every view destination is `Ready` and sets its `ShowView` effect; the size control's snapping. The
+  registry-vs-message milestone test now reads its milestone from the registry instead of hard-coding `M2`.
+- 696 tests; ci, wasm, deny, snapshot, screenshots (23 baselines), a11y, docs, layers, roots, attribution green.
+- **Visual verification**: 20 baselines regenerated and read, plus three new ones: `soft-focus-*` (the peer view
+  with stored scores, both themes) and `narrow-charcoal` (900 px with the docks closed) showing the collapsed
+  row: the current destination, the chevron, and the pill and controls in their places. The bottom bar is in
+  every baseline: nine tabs, the pill, the slider and `?` at 1440 px. The screenshot harness's accessibility
+  pass found the sharpness slider unnamed and that is fixed (`a11y::label_widget` with the question it asks).
+  Two older defects were seen while painting the 900 px scene and are recorded in `Next` under 3B.6 rather than
+  hidden by the new baseline: at 620 px of height the sidebar's foot overlaps its own list, and at 900 px with
+  both docks open the canvas header's title runs under the sort combo. Still not verified by hand: the slider's
+  feel at the width where the row is about to collapse, and whether a keyword count crowds the pill at 900 px.
+
 ## 2026-11-23 (thirty-third) — Phase 3 item 12 (3B.3): the sidebar asks six questions, and the utilities move to its foot
 
 - **`SOURCES` is six rows, one question each.** `Source::ALL` gained `Missing`, so the panel now lists
@@ -3012,13 +3063,21 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     scopes with live counts (Missing is new, backed by `Filter::missing`), and the four dialog rows moved to an
     exactly-sized foot whose words and handlers are the palette's. Named as not shipped there: the per-row
     "filtered" marker and the footer's storage summary.
-13. **The next slice — the bottom bar (3B.4).** `crates/ui/src/shell.rs`, `bottom_bar`: every view tab already
-    carries a glyph, so what is left is `Detail`, `Compare` and `Soft Focus` as peer views with a narrow-window
-    collapse, the centre annotation pill (5-star rating, Pick/Unflag/Reject, selection count), and the
-    right-side density/size, zoom and `?` controls. Read `docs/UX.md` §6 before starting and keep
-    `View::ALL`'s order as the tab order; the screenshots harness and its `library`/`cull` scenes are the proof.
-14. Right panel: Suggestions tab + iconic tool strip.
+13. **The bottom bar (3B.4) — done 2026-11-23**, see the thirty-fourth entry: nine destinations with a measured
+    narrow-window collapse, the annotation pill, the size slider and zoom/`?` controls, and three new `Ready`
+    view commands.
+14. **The next slice — the right panel (3B.5).** `crates/ui/src/shell.rs`, `RightTab` and `right_panel`: add a
+    fourth `Suggestions` tab beside Details, Tags and Activity (grouped by source — objects / scene / EXIF,
+    with confidence, accept-all-of-kind and dismiss; the engine's `suggestions(id)` and `accept_suggestion`
+    already exist, and the Suggestions *dialog* is the library-wide pass, not this tab), and put the far-edge
+    iconic tool strip down the panel's right edge so the panel never disappears when you switch tools. Read
+    `docs/UX.md` §6 and keep `RightTab::ALL` as the tab order; add a Suggestions row to the screenshots scenes
+    that show a selected photo and regenerate those baselines.
 15. Visual defects: Welcome bullets, empty-library filter bar, filter glyphs/chevrons, bundled offline basemap.
+    Two more were observed while painting 3B.4's 900×620 baseline and are *not* fixed there: at ~620 px of height
+    the sidebar's pinned foot (Recently Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps
+    the keyword and collection rows above it, and at 900 px with both docks open the canvas header's title runs
+    under the right-aligned sort combo.
 
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts.

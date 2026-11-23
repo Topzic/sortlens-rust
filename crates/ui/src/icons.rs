@@ -29,14 +29,17 @@ const CATALOG: &[(&str, &[u8])] = &[
     ("activity", include_bytes!("../../../assets/icons/activity.svg")),
     ("bell", include_bytes!("../../../assets/icons/bell.svg")),
     ("chart", include_bytes!("../../../assets/icons/chart.svg")),
+    ("chevron", include_bytes!("../../../assets/icons/chevron.svg")),
     ("clock", include_bytes!("../../../assets/icons/clock.svg")),
     ("close", include_bytes!("../../../assets/icons/close.svg")),
+    ("compare", include_bytes!("../../../assets/icons/compare.svg")),
     ("contrast", include_bytes!("../../../assets/icons/contrast.svg")),
     ("density", include_bytes!("../../../assets/icons/density.svg")),
     ("droplet", include_bytes!("../../../assets/icons/droplet.svg")),
     ("export", include_bytes!("../../../assets/icons/export.svg")),
     ("film", include_bytes!("../../../assets/icons/film.svg")),
     ("flag", include_bytes!("../../../assets/icons/flag.svg")),
+    ("focus", include_bytes!("../../../assets/icons/focus.svg")),
     ("folder", include_bytes!("../../../assets/icons/folder.svg")),
     ("folder-plus", include_bytes!("../../../assets/icons/folder-plus.svg")),
     ("funnel", include_bytes!("../../../assets/icons/funnel.svg")),
@@ -97,8 +100,14 @@ pub enum Icon {
     Pin,
     /// Insights.
     Chart,
+    /// A menu below this control.
+    Chevron,
     /// Similar-photo results.
     Similar,
+    /// Two photographs side by side.
+    Compare,
+    /// Sharpness, measured rather than guessed.
+    Focus,
     /// Details.
     Info,
     /// Keywords.
@@ -143,18 +152,21 @@ pub enum Icon {
 
 impl Icon {
     /// Every icon, in catalog order.
-    pub const ALL: [Self; 36] = [
+    pub const ALL: [Self; 39] = [
         Self::Activity,
         Self::Bell,
         Self::Chart,
+        Self::Chevron,
         Self::Clock,
         Self::Close,
+        Self::Compare,
         Self::Contrast,
         Self::Density,
         Self::Droplet,
         Self::Export,
         Self::Film,
         Self::Flag,
+        Self::Focus,
         Self::Folder,
         Self::FolderPlus,
         Self::Funnel,
@@ -188,8 +200,10 @@ impl Icon {
             Self::Activity => "activity",
             Self::Bell => "bell",
             Self::Chart => "chart",
+            Self::Chevron => "chevron",
             Self::Clock => "clock",
             Self::Close => "close",
+            Self::Compare => "compare",
             Self::Contrast => "contrast",
             Self::Density => "density",
             Self::Droplet => "droplet",
@@ -197,6 +211,7 @@ impl Icon {
             Self::Film => "film",
             Self::Funnel => "funnel",
             Self::Flag => "flag",
+            Self::Focus => "focus",
             Self::Folder => "folder",
             Self::FolderPlus => "folder-plus",
             Self::Health => "health",

@@ -388,8 +388,10 @@ mod tests {
         let names: Vec<&str> = tools.iter().filter_map(|tool| tool["name"].as_str()).collect();
         assert!(names.contains(&"photo.rate"), "{names:?}");
         assert!(names.contains(&"library.stats"), "{names:?}");
-        // Planned commands are not offered: a tool that can only refuse is noise.
-        assert!(!names.contains(&"view.places"), "planned commands stay out: {names:?}");
+        // Planned commands are not offered: a tool that can only refuse is noise. Places is not one of
+        // them any more — the map shipped, and the registry row that said otherwise was stale.
+        assert!(names.contains(&"view.places"), "the map is reachable: {names:?}");
+        assert!(!names.contains(&"library.import"), "planned commands stay out: {names:?}");
         // Every tool carries the description an agent needs to choose it.
         for tool in tools {
             assert!(tool["description"].as_str().is_some_and(|text| !text.is_empty()));
@@ -406,10 +408,10 @@ mod tests {
         assert!(text.contains("total"), "{text}");
 
         // A command that is not ready is an error result with a readable reason, not a crash.
-        let planned = call(&mut server, "tools/call", json!({ "name": "view.places" }));
+        let planned = call(&mut server, "tools/call", json!({ "name": "library.import" }));
         assert_eq!(planned["result"]["isError"], true);
         let reason = planned["result"]["content"][0]["text"].as_str().expect("reason");
-        assert!(reason.contains("M5") || reason.contains("planned"), "{reason}");
+        assert!(reason.contains("M1") || reason.contains("planned"), "{reason}");
 
         // So is an unknown tool, and a missing name is a protocol-level error.
         let unknown = call(&mut server, "tools/call", json!({ "name": "no.suchCommand" }));

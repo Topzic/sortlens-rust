@@ -455,7 +455,22 @@ pub const EXAMPLES: &[Example] = &[
     Example {
         command: "view.detail",
         args: "{}",
-        note: "Asks the host to open the detail view.",
+        note: "Asks the host to open the detail view for the current selection.",
+    },
+    Example {
+        command: "view.compare",
+        args: "{}",
+        note: "Asks the host to put the next selected or neighbouring photo beside the primary.",
+    },
+    Example {
+        command: "view.softFocus",
+        args: "{}",
+        note: "Asks the host to open the sharpness review, answering with how many photos are scored.",
+    },
+    Example {
+        command: "view.places",
+        args: "{}",
+        note: "Asks the host to open the map of geotagged photos.",
     },
     Example {
         command: "model.status",

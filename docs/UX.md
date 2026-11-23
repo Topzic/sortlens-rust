@@ -52,7 +52,7 @@ first-run setup, and export options. Nothing that is browsed repeatedly is a mod
 │  ★ Nova Scotia   259  │                                                      │  #dawn     ×  │
 │  ● Summer         13  │                                                      │               │
 ├───────────────────────┴──────────────────────────────────────────────────────┴───────────────┤
-│ ▤ Library  ▷ Cull  ◎ Detail  ⫼ Compare  ⚲ Places  ⧉ Similar  ◌ Soft Focus  ▦ Insights        │ 48
+│ ▤ Library ✦ For You ▷ Cull ◎ Detail ⫼ Compare ⚲ Places ⧉ Similar ◌ Soft Focus ▦ Insights   │ 48
 │              ★★★★☆   ⚑ Pick       3 selected   ─────●───   Fit ▾   100% ▾   ⌨                │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -301,9 +301,13 @@ only signal.
 
 ### 5.6 Compare / Survey
 
-Two-up compare with synced pan/zoom and a divider; survey tiles 2–9 selected photos; both are
-read-only except for rating/flag, which apply to the active photo. Auto-advance optional.
-(Deliberately P2: culling is the fast path, compare is the precision path.)
+Compare is a destination of its own in the bottom bar: two-up, the pair at one magnification, the
+differences that matter on the line beneath. It opens on the second ticked photo, or the next frame
+in the sorted order when only one is ticked, and `C` opens or closes it. Read-only except for
+rating/flag, which apply to the primary.
+
+Survey (tiles of 2–9 selected photos) has not shipped: culling is the fast path, compare is the
+precision path, and a survey would be a third way of looking at the same decision.
 
 ### 5.7 Similar Shots
 
@@ -314,7 +318,8 @@ because hashes are cached.
 
 ### 5.8 Soft Focus
 
-A section in **Insights**: a "Measure sharpness" button (shown when photos have no current score, with how many),
+Its own destination in the bottom bar, not a section at the foot of Insights: a "Measure sharpness"
+button (shown when photos have no current score, with how many),
 a histogram of stored scores, a slider for how much of the library to review, and a "Select N photo(s)" action that
 ticks them in the library so you can look before acting. It never deletes; it is a review surface.
 
@@ -401,16 +406,22 @@ so the panel never disappears when you switch tools.
 
 ## 7. Bottom bar
 
-Left: view switcher (Library, Cull, Detail, Compare, Places, Similar, Soft Focus, Insights) with
-icons + labels in the tooltip; when the window is narrow it collapses to the current view icon
-plus a menu, with the same items.
+Left: view switcher — Library, For You, Cull, Detail, Compare, Places, Similar, Soft Focus,
+Insights — each with its own icon and its name. The row is measured, not guessed: when the labels
+plus the controls beside them no longer fit, the row collapses to the current destination plus a
+caret that opens the same nine items. A narrow window loses width, never a destination.
 
-Centre: rating pill (5 stars), flag buttons (Unflag/Pick/Reject), tag count, "N selected".
+Centre: the annotation pill. Five stars (clicking the lit star clears the rating), Pick/Unflag/
+Reject, the primary's keyword count when it has keywords, and "N selected". The stars and flags
+call the same operations as `0–5` and `P`/`X`/`U`, and act on the whole selection.
 
-Right: thumbnail size slider (grid views), zoom + click-zoom (detail/compare), shortcut help
-(`?`), and a "reduce motion" indicator when animations are off.
+Right: thumbnail size slider in the grid view (the same three steps the canvas header cycles, from
+one state), Fit/1:1 in Detail and Compare (also toggled by a click on the photograph and by `Z`),
+shortcut help (`?`), and a "reduce motion" indicator while animations are off.
 
-Everything in this bar is also a menu item and a command, so nothing is only-here.
+Every destination is a `Ready` registry command (`view.detail`, `view.compare`, `view.softFocus`,
+`view.places`, `view.similar`, `view.insights`, `cull.start`), so the bar is a front door to the
+command registry rather than a second list that could drift from it.
 
 ---
 

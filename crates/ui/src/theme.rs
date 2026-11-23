@@ -144,6 +144,29 @@ impl Density {
             Self::Roomy => Self::Compact,
         }
     }
+
+    /// Where this step sits on the bottom bar's size control, smallest first.
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Compact => 0,
+            Self::Comfortable => 1,
+            Self::Roomy => 2,
+        }
+    }
+
+    /// The step at a position on the size control.
+    ///
+    /// A trackpad can land between stops, and there is no fourth density: the value snaps to the nearer
+    /// step, so the slider and the canvas header's chip always name a real one.
+    pub fn from_index(position: f32) -> Self {
+        if position <= 0.5 {
+            Self::Compact
+        } else if position <= 1.5 {
+            Self::Comfortable
+        } else {
+            Self::Roomy
+        }
+    }
 }
 
 /// How much movement the cull overlay is allowed to make.

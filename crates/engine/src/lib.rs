@@ -51,11 +51,12 @@ pub enum Effect {
     OpenSettings,
     /// Ask the host to close the window.
     Quit,
-    /// Ask the host to bring a view forward: `"detail"`, `"similar"` or `"insights"`.
+    /// Ask the host to bring a view forward: `"detail"`, `"compare"`, `"softFocus"`, `"places"`,
+    /// `"similar"` or `"insights"`.
     ///
     /// The engine knows the command and the data, but only the host knows what is on screen, so the
-    /// view is named rather than switched. A command in the registry must have a handler; these two
-    /// were `Ready` while `run` had no arm for them, which this variant and the examples test fixed.
+    /// view is named rather than switched. Compare is the one that needs the host's help most: which
+    /// photograph goes beside the primary is a question about the selection, not about the catalog.
     ShowView(&'static str),
 }
 
@@ -3018,11 +3019,9 @@ impl Engine {
         let spec = *self.registry.expect(command)?;
         if let Some(_milestone) = spec.milestone() {
             return Err(Error::NotYetAvailable(match command {
-                "library.import" => "card import arrives in M2",
+                "library.import" => "card import arrives in M1",
                 "photo.keyword" => "keywords arrive in M3",
                 "collection.new" | "collection.addTo" => "collections arrive in M5",
-                "view.detail" => "the detail view arrives in M4",
-                "view.places" => "the map arrives in M5",
                 "library.findMissing" => "missing-file repair arrives in M7",
                 _ => "this command is planned",
             }));
@@ -3336,14 +3335,33 @@ impl Engine {
                 self.last_effect = Effect::ShowView("detail");
                 Ok(json!({ "view": "detail" }))
             }
+            "view.compare" => {
+                // Which photograph to put beside the primary is a question only the shell can answer, so the
+                // engine names the destination and the window picks the pair.
+                self.last_effect = Effect::ShowView("compare");
+                Ok(json!({ "view": "compare" }))
+            }
+            "view.softFocus" => {
+                self.last_effect = Effect::ShowView("softFocus");
+                let scored = self.scores().len();
+                Ok(json!({ "view": "softFocus", "scored": scored }))
+            }
+            "view.places" => {
+                self.last_effect = Effect::ShowView("places");
+                Ok(json!({ "view": "places" }))
+            }
             "view.similar" => {
                 self.last_effect = Effect::ShowView("similar");
                 let groups = self.similar_groups().len();
                 Ok(json!({ "view": "similar", "groups": groups }))
             }
             "view.insights" => {
+                // Insights is a destination too, so its answer names it like every other view command;
+                // the numbers are the data the destination opens with.
+                self.last_effect = Effect::ShowView("insights");
                 let insights = self.insights();
                 Ok(json!({
+                "view": "insights",
                 "total": insights.stats.total,
                 "bytes": insights.stats.bytes,
                 "rated": insights.stats.rated,
@@ -5902,7 +5920,14 @@ mod tests {
         assert_eq!(about["name"], "Sortlens");
 
         let error = engine.run("library.import", &json!({})).expect_err("planned");
-        assert!(error.to_string().contains("M2"), "{error}");
+        // Read the milestone from the registry rather than repeating it: a message that names a different
+        // milestone from the row that refuses the command is how two sources of truth start.
+        let milestone = Registry::v0()
+            .expect("library.import")
+            .expect("a registry entry")
+            .milestone()
+            .expect("a planned command");
+        assert!(error.to_string().contains(milestone), "the refusal names {milestone}: {error}");
 
         let error = engine.run("library.addFolder", &json!({})).expect_err("path required");
         assert!(matches!(error, Error::Invalid(_)));
@@ -7232,6 +7257,39 @@ mod tests {
         assert_eq!(engine.neighbour(&filter, Sort::Name, ids[2], 1), None);
         assert_eq!(engine.neighbour(&filter, Sort::Name, ids[0], -1), None);
         assert_eq!(engine.position(&filter, Sort::Name, ids[1]), Some((2, 3)));
+    }
+
+    /// Every destination the bottom bar offers is a registry command the engine answers, and the three views
+    /// that used to be a mode or a section now name themselves: Detail, Compare and Soft Focus.
+    ///
+    /// Places is the regression this test also guards: the map shipped, but its registry row still said
+    /// `Planned("M5")`, which kept a working view out of the palette and out of MCP.
+    #[test]
+    fn every_view_destination_is_a_ready_command_with_a_show_view_effect() {
+        let (_lib, mut engine) = library("views");
+        let registry = Registry::v0();
+        for (id, view) in [
+            ("view.detail", "detail"),
+            ("view.compare", "compare"),
+            ("view.softFocus", "softFocus"),
+            ("view.places", "places"),
+            ("view.similar", "similar"),
+            ("view.insights", "insights"),
+        ] {
+            let spec = registry.expect(id).unwrap_or_else(|_| panic!("{id} is missing"));
+            assert!(spec.is_ready(), "{id} is still {}", spec.milestone().unwrap_or("planned"));
+            let value = engine.run(id, &json!({})).expect(id);
+            assert_eq!(value["view"], view, "{id} names its destination");
+            assert_eq!(
+                engine.last_effect(),
+                Effect::ShowView(view),
+                "{id} has to tell the window where to go"
+            );
+        }
+
+        // And the next call clears the effect, so a view is opened once rather than on every frame.
+        let _ = engine.run("library.stats", &json!({})).expect("stats");
+        assert_eq!(engine.last_effect(), Effect::None);
     }
 
     #[test]

@@ -1082,9 +1082,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   new baselines (`missing-charcoal`/`missing-paper`) show the scope on; all 20 existing ones were regenerated
   and read. Not shipped here, and named in `docs/UX.md` §4.1/§4.4: the per-row "filtered" marker, and the
   footer's storage summary and branding.
-- [ ] 3B.4 Bottom bar: icons on every view tab; `Detail`, `Compare` and `Soft Focus` as peer views with narrow-window
+- [x] 3B.4 Bottom bar: icons on every view tab; `Detail`, `Compare` and `Soft Focus` as peer views with narrow-window
   collapse; centre annotation pill (5-star rating, Pick/Unflag/Reject, selection count); right-side density/size,
-  zoom and `?` controls (B)
+  zoom and `?` controls (B) — shipped 2026-11-23, see the thirty-fourth entry: `View::ALL` is nine destinations
+  (Library, For You, Cull, Detail, Compare, Places, Similar, Soft Focus, Insights) and `View::is_detail` is the
+  one answer to "is a photograph on screen rather than the grid" (`detail_open` is gone). `state.compare` is
+  `Some` exactly while `View::Compare` is open, maintained by `activate_view`/`toggle_compare`, so a second pane
+  cannot outlive the view drawing it. The row is measured from its labels and collapses to the current
+  destination plus a menu on the icon set's own `chevron` (the bundled faces have no `▾`); the centre pill is
+  five stars (the lit one clears), Pick/Unflag/Reject, the primary's keyword count and "N selected", calling the
+  same `rate_selection`/`flag_selection` the number and letter keys call; the right side carries the three-step
+  thumbnail slider in the grid, Fit/1:1 plus click-zoom in Detail/Compare, `?` and the reduced-motion indicator.
+  `view.compare`, `view.softFocus` and `view.places` are `Ready` registry commands with `ShowView` effects (the
+  Places row had still said `Planned("M5")`; `M` now opens the map), and the palette grew to 24 rows. Tests: the
+  pill driven by real clicks on its painted glyphs, the collapse threshold plus the menu holding every
+  destination, the peer-view invariant and Compare's refusal, click-zoom, a registry/effect audit, and the size
+  control's snapping. Three new baselines (`soft-focus-charcoal`/`-paper`, and `narrow-charcoal` at 900 px for
+  the collapsed row) and all 20 existing ones regenerated and read; the screenshot accessibility pass found the
+  sharpness slider unnamed, which is fixed
 - [ ] 3B.5 Right panel: a `Suggestions` tab beside Details, Tags and Activity, and the far-edge iconic tool strip (B)
 - [ ] 3B.6 Visual defects: Welcome bullets as proper icons; filter bar hidden on an empty library, with glyphs,
   swatches and chevrons on its controls; Places ships an offline coastline basemap and falls back to the user's
@@ -1121,7 +1136,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 | --- | --- |
 | Native video playback | Poster frames cover culling; decoding + audio is a large surface |
 | Face detection/grouping (SL-F11) | Second model, privacy-sensitive, not core to culling |
-| Survey (SL-C14) | Cull and Compare cover the fast path; Compare/Detail/Soft Focus become peer views in Phase 3 |
+| Survey (SL-C14) | Compare is now a peer view, so what is deferred is the 2–9 tile survey specifically: culling is the fast path, compare the precision one, and a survey would be a third way of looking at the same decision |
 | Smart collections (SL-G05) | Filter presets + saved views cover most of it |
 | Keyword hierarchy (SL-D13) | Flat tags match the vendor and XMP interop |
 | Portable mode (SL-I15) | `--data-dir` exists; UI packaging later |

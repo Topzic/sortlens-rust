@@ -1,6 +1,6 @@
 exit 0
 --- stdout
-19 bound command(s)
+20 bound command(s)
   Ctrl+O         Library    Add Folder…
   Ctrl+Shift+R   Library    Rescan Folder
   0–5            Review     Set Rating
@@ -16,6 +16,7 @@ exit 0
   Ctrl+Enter     Review     Apply Rejects
   D              View       Detail
   S              View       Similar Photos
+  M              View       Places
   I              View       Insights
   Ctrl+,         App        Settings…
   ?              Help       Keyboard Shortcuts

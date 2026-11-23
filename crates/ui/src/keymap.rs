@@ -124,6 +124,7 @@ pub const BINDINGS: &[Binding] = &[
     binding("D", "Open the detail view", Context::Library, Some("view.detail")),
     binding("C", "Start a cull session from the filters", Context::Library, Some("cull.start")),
     binding("I", "Open insights", Context::Library, Some("view.insights")),
+    binding("M", "Open the map", Context::Library, Some("view.places")),
     binding("S", "Open the similar-photo search", Context::Library, Some("view.similar")),
     // Detail view.
     binding("→ / Space", "Next photo in the sorted order", Context::Detail, None),

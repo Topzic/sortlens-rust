@@ -418,7 +418,7 @@ delete when the preflight plan and the executed count disagrees.
 │ sources   │ filter bar (collapsible, badge count)               │ Details           │
 │ folders   │                                                     │ Tags              │
 │ collections│              view canvas                          │ Suggestions       │
-│           │      library · cull · detail · compare ·            │ Activity          │
+│           │      library · for you · cull · detail · compare ·  │ Activity          │
 │           │      places · similar · soft focus · insights       │                   │
 ├───────────┴─────────────────────────────────────────────────────┴───────────────────┤
 │ bottom bar: view switcher · ★/flag pill · selection · thumb size · zoom · ⌨ help    │
