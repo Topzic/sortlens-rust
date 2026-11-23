@@ -37,7 +37,11 @@ pub const SNAPSHOT_EVERY: usize = 256;
 /// a person is ever asked to walk.
 pub const UNDO_DEPTH: usize = 20;
 /// Snapshot schema, bumped when the record layout changes.
-pub const SCHEMA: u32 = 1;
+/// Snapshot schema, bumped when the record layout changes.
+///
+/// 2 added `Photo::added`; photos from a schema-1 snapshot decode with `added: None` and honestly
+/// cannot answer the Recently Added question, rather than borrowing the file's `mtime` as a stand-in.
+pub const SCHEMA: u32 = 2;
 
 /// One line of the log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1361,6 +1365,9 @@ impl Catalog {
                     let id = PhotoId(self.next_id);
                     self.next_id += 1;
                     let mut photo = Photo::from_scan(id, root, &seed.rel, seed.size, seed.modified, seed.kind, seed.key);
+                    // The record is born here, so this is the one honest instant for "added": the file's
+                    // `mtime` is when the camera wrote it, which is a different question.
+                    photo.added = Some(crate::photo::now_epoch());
                     photo.apply_meta(&seed.meta);
                     photo.edited = seed.edited;
                     photo.retry = seed.meta_unreadable;
@@ -3156,5 +3163,74 @@ mod tests {
         }
         let (reopened, _) = temp.open();
         assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rev, 2);
+    }
+
+    /// SL-A14 part 2: a new photo records the instant the catalog added it — the wall clock, never
+    /// the file's `mtime` — and a reopen reproduces the same number.
+    #[test]
+    fn a_new_photo_records_when_it_was_added_and_a_reopen_keeps_it() {
+        let temp = TempCatalog::new("photo-added");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        let added = catalog
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .remove(0)
+            .added
+            .expect("a fresh scan records the add instant");
+        let now = crate::photo::now_epoch();
+        assert!(now - added < 60, "the add instant is the wall clock, not the seed's mtime of 10");
+
+        let (reopened, _) = temp.open();
+        assert_eq!(
+            reopened.photo(PhotoId(1)).expect("photo").added,
+            Some(added),
+            "a reopen reproduces the same add instant"
+        );
+    }
+
+    /// The schema-1 migration: a photo from an older snapshot has no recorded add instant, so it
+    /// keeps none rather than borrowing the file's `mtime` — and the resaved snapshot is schema 2
+    /// with the field honestly absent, which the Recently Added filter refuses to answer from.
+    #[test]
+    fn a_schema_1_snapshot_migrates_without_inventing_an_add_instant() {
+        let temp = TempCatalog::new("photo-added-migration");
+        let old = Snapshot {
+            schema: 1,
+            seq: 0,
+            next_id: 2,
+            roots: vec!["/photos".into()],
+            photos: vec![Photo::from_scan(PhotoId(1), "/photos", "a.jpg", 100, Some(10), MediaKind::Image, 7)],
+            collections: Vec::new(),
+            aliases: BTreeMap::new(),
+            next_collection: 0,
+            packs: BTreeSet::new(),
+            folders: crate::folder::FolderMarks::new(),
+            undo: None,
+            undo_history: Vec::new(),
+        };
+        fs::create_dir_all(&temp.0).expect("dir");
+        fs::write(temp.0.join(SNAPSHOT_NAME), serde_json::to_string(&old).expect("serialise")).expect("write");
+
+        let (catalog, report) = temp.open();
+        assert!(report.warnings.is_empty(), "schema 1 is not newer than {SCHEMA}");
+        let photo = catalog.photo(PhotoId(1)).expect("photo");
+        assert_eq!(photo.added, None, "no invented instant, not even from the mtime of 10");
+        let thirty_days = 30 * 24 * 60 * 60;
+        assert!(
+            !Filter {
+                added_after: Some(crate::photo::now_epoch() - thirty_days),
+                ..Filter::default()
+            }
+            .matches(photo),
+            "a photo that never recorded an add instant stays out of Recently Added"
+        );
+
+        let mut catalog = catalog;
+        catalog.snapshot().expect("snapshot");
+        let text = fs::read_to_string(temp.0.join(SNAPSHOT_NAME)).expect("read back");
+        let value: serde_json::Value = serde_json::from_str(&text).expect("parse");
+        assert_eq!(value["schema"], serde_json::Value::from(SCHEMA), "the resaved snapshot is schema 2");
+        assert!(value["photos"][0].get("added").is_none(), "absence is preserved, not filled");
     }
 }

@@ -34,6 +34,12 @@ pub struct Filter {
     pub collection: Option<sortlens_core::CollectionId>,
     /// Only photos, raws or videos.
     pub kind: Option<sortlens_core::MediaKind>,
+    /// Only photos recorded into the catalog at or after this instant, seconds since the Unix epoch.
+    ///
+    /// This is the Recently Added question, and it is answered from `Photo::added`, never from the file's
+    /// `mtime`: a photo whose add time Sortlens never recorded (`added: None`) cannot answer it and is
+    /// excluded, rather than standing in with a modified time it did not choose.
+    pub added_after: Option<i64>,
     /// `Some(true)` for edited photos only, `Some(false)` for unedited only.
     pub edited: Option<bool>,
     /// Include entries whose file is missing.
@@ -92,6 +98,11 @@ impl Filter {
                 return false;
             }
         }
+        if let Some(after) = self.added_after
+            && photo.added.is_none_or(|added| added < after)
+        {
+            return false;
+        }
         if let Some(kind) = self.kind
             && photo.kind != kind
         {
@@ -127,16 +138,27 @@ pub enum Sort {
     Largest,
     /// Most stars first.
     Rating,
+    /// Recently added first: the record's birth, not the file's mtime.
+    RecentlyAdded,
 }
 
 impl Sort {
     /// Every order, in menu order.
-    pub const ALL: [Self; 6] = [Self::Natural, Self::Name, Self::Newest, Self::Oldest, Self::Largest, Self::Rating];
+    pub const ALL: [Self; 7] = [
+        Self::Natural,
+        Self::RecentlyAdded,
+        Self::Name,
+        Self::Newest,
+        Self::Oldest,
+        Self::Largest,
+        Self::Rating,
+    ];
 
     /// Stable id for settings and the command layer.
     pub const fn id(self) -> &'static str {
         match self {
             Self::Natural => "added",
+            Self::RecentlyAdded => "recently-added",
             Self::Name => "name",
             Self::Newest => "newest",
             Self::Oldest => "oldest",
@@ -149,6 +171,7 @@ impl Sort {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Natural => "Added order",
+            Self::RecentlyAdded => "Recently added first",
             Self::Name => "Name",
             Self::Newest => "Newest first",
             Self::Oldest => "Oldest first",
@@ -166,6 +189,10 @@ impl Sort {
     pub fn compare(self, left: &Photo, right: &Photo) -> Ordering {
         match self {
             Self::Natural => left.id.cmp(&right.id),
+            // Newest record first, and a photo whose add time was never recorded sinks to the end
+            // rather than pretending to be from 1970. Ties go to the later id, because ids are handed
+            // out in add order, so the tie-break is the same question answered more coarsely.
+            Self::RecentlyAdded => right.added.cmp(&left.added).then(right.id.cmp(&left.id)),
             Self::Name => left
                 .name
                 .to_lowercase()
@@ -327,6 +354,49 @@ mod tests {
         let b = photo(2, "same.jpg", 3, Flag::None, None);
         assert_eq!(Sort::Name.compare(&a, &b), Ordering::Less);
         assert_eq!(Sort::Newest.compare(&a, &b), Ordering::Greater);
+    }
+
+    /// SL-A14 part 2: the Recently Added window answers from the recorded add instant. A photo whose
+    /// add time was never recorded stays out, rather than standing in with a modified time.
+    #[test]
+    fn the_recent_window_answers_from_the_recorded_add_instant() {
+        let now = crate::photo::now_epoch();
+        let day: i64 = 24 * 60 * 60;
+        let mut fresh = photo(1, "fresh.jpg", 0, Flag::None, None);
+        fresh.added = Some(now);
+        let mut old = photo(2, "old.jpg", 0, Flag::None, None);
+        old.added = Some(now - 40 * day);
+        let unknown = photo(3, "unknown.jpg", 0, Flag::None, None);
+        assert!(unknown.added.is_none(), "from_scan records nothing");
+        let filter = Filter {
+            added_after: Some(now - 30 * day),
+            ..Filter::default()
+        };
+        assert!(filter.matches(&fresh));
+        assert!(!filter.matches(&old), "added 40 days ago is not a recent addition");
+        assert!(!filter.matches(&unknown), "a photo with no recorded add instant cannot answer");
+    }
+
+    /// The Recently Added order puts the newest record first, sinks photos with no recorded instant
+    /// to the end, and breaks ties by the later id, which ids being handed out in add order make
+    /// the same question answered more coarsely.
+    #[test]
+    fn recently_added_orders_by_the_record_and_sinks_the_unknown() {
+        let mut newest = photo(1, "new.jpg", 0, Flag::None, None);
+        newest.added = Some(200);
+        let mut older = photo(2, "old.jpg", 0, Flag::None, None);
+        older.added = Some(100);
+        let mut tied = photo(3, "tied.jpg", 0, Flag::None, None);
+        tied.added = Some(200);
+        let unknown = photo(4, "unknown.jpg", 0, Flag::None, None);
+        assert_eq!(Sort::RecentlyAdded.compare(&newest, &older), Ordering::Less);
+        assert_eq!(
+            Sort::RecentlyAdded.compare(&newest, &tied),
+            Ordering::Greater,
+            "the later id wins the tie"
+        );
+        assert_eq!(Sort::RecentlyAdded.compare(&newest, &unknown), Ordering::Less, "unknown sinks last");
+        assert_eq!(Sort::parse("recently-added"), Sort::RecentlyAdded);
     }
 }
 

@@ -2428,6 +2428,35 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   suite and the pure token test cover it; the screenshot harness does not exist yet (Phase 3 item 9).
 - 599 tests (6 new); ci, snapshot, deny, wasm green.
 
+## 2026-11-23 (twenty-third) — Phase 1 item 3: the Recently Added source, honestly timed (SL-A14 part 2)
+
+- **`Photo::added: Option<i64>`** — the instant Sortlens recorded a file entering the catalog, set by the
+  scan the moment a new photo id is born and kept through every later update (a rescan that finds changed
+  bytes re-indexes the file but does not reset its add instant, because the record did not re-enter the
+  catalog). It travels in the log, the snapshot and every `AddPhoto` op, so a reopen reproduces the same
+  number. **Never approximated from `mtime`** — that would answer "recently modified", a different and
+  more confusing question.
+- **The migration is the absence, faithfully carried.** The snapshot schema moved to 2; a schema-1 photo
+  decodes with `added: None` and keeps it — no instant is invented, not even from the mtime sitting right
+  there on the record. A `None` photo cannot answer the Recently Added question: the filter and the sort
+  exclude it, and a resave writes schema 2 with the field still honestly absent. Tested against a
+  hand-written schema-1 snapshot.
+- **Catalog**: `Filter::added_after` (only photos recorded into the catalog at or after an instant) and
+  `Sort::RecentlyAdded` (`recently-added`), newest record first, unknown sinks last, ties to the later id.
+- **Engine**: `library.page` answers the question from the command layer (`filter: {"added_after": n}`,
+  `sort: "recently-added"`), and the `added` value rides every photo envelope; the MCP examples document
+  the call and the no-mtime guarantee.
+- **Sidebar**: the `Recently Added` row joins Sources with its own count (the last 30 days, computed from
+  the clock at draw time, not cached), clicking it replaces the whole question like every source does and
+  asks it newest-record-first, and leaving it returns the user's sort. The window is stored as the
+  *question* (`recently_added: bool`), so the cutoff is always the current 30 days even in a library left
+  open past midnight.
+- ROADMAP's Phase 1 item 3 and the M1 "Sources, part 2" row ticked in the same commit. UX.md §Sources
+  already described the predicate ("indexed in the last 30 days") and now matches the shipped code.
+- 604 tests (5 new); ci, snapshot, deny, wasm green. Screenshot harness does not exist yet (Phase 3A);
+  no layout or drawing logic changed, only a new sidebar row painted through the existing `nav_row`, so
+  the headless `run_ui` suite covers it.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -2439,7 +2468,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
 2. Stale-revision rejection (SL-D11) + the stale-revision and badge-contrast tests that close M3 —
    **done 2026-11-23**, see the twenty-second entry.
-3. `Recently Added` (SL-A14 part 2): `added` timestamp, snapshot migration, catalog/engine/sidebar.
+3. `Recently Added` (SL-A14 part 2): `added` timestamp, snapshot migration, catalog/engine/sidebar —
+   **done 2026-11-23**, see the twenty-third entry.
 4. PNG export (SL-B24): licence-approved encoder, export dialog and CLI.
 
 **Phase 2 — real local AI tagging**

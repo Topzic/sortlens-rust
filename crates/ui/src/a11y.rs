@@ -246,6 +246,7 @@ mod tests {
             sharpness: None,
             location: None,
             rev: 0,
+            added: None,
         }
     }
 

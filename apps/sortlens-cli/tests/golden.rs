@@ -337,6 +337,39 @@ fn binary() -> &'static str {
 /// Only three things are allowed to vary: where the fixture lives, how long a scan took, and a
 /// file's modification time. Everything
 /// else in the output is the thing under test, so keeping this list short is the point.
+/// Replace epoch-second JSON values whose value is a property of the run, not of the library:
+/// a file's `mtime`, and the instant Sortlens added a photo (SL-A14 part 2). JSON printed by scripts
+/// has a space after the colon, so both spellings are normalised.
+fn normalise_epoch_keys(text: &str, keys: &[&str]) -> String {
+    let mut out = text.to_string();
+    for key in keys {
+        let mut stable = String::new();
+        let mut rest = out.as_str();
+        while let Some(index) = rest.find(key) {
+            stable.push_str(&rest[..index]);
+            let tail = &rest[index + key.len()..];
+            let offset = tail.len() - tail.trim_start().len();
+            let spaced = offset > 0;
+            let digits = tail[offset..].chars().take_while(char::is_ascii_digit).count();
+            if digits > 0 {
+                let placeholder = if spaced {
+                    format!("{} <epoch>", key)
+                } else {
+                    format!("{}<epoch>", key)
+                };
+                stable.push_str(&placeholder);
+                rest = &tail[offset + digits..];
+            } else {
+                stable.push_str(key);
+                rest = tail;
+            }
+        }
+        stable.push_str(rest);
+        out = stable;
+    }
+    out
+}
+
 fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
     let mut out = text.replace(&library.display().to_string(), "<library>");
     out = out.replace(&fixture.display().to_string(), "<photos>");
@@ -358,29 +391,11 @@ fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
         }
     }
     cleaned.push_str(rest);
-    let mut stable = String::new();
-    let mut rest = cleaned.as_str();
-    // A file's modification time is a property of the machine, not of the library. JSON printed by
-    // scripts has a space after the colon, so both spellings are normalised.
-    while let Some(index) = rest.find("\"modified\":") {
-        stable.push_str(&rest[..index]);
-        let tail = &rest[index + "\"modified\":".len()..];
-        let offset = tail.len() - tail.trim_start().len();
-        let spaced = offset > 0;
-        let digits = tail[offset..].chars().take_while(char::is_ascii_digit).count();
-        if digits > 0 {
-            stable.push_str(if spaced { "\"modified\": <mtime>" } else { "\"modified\":<mtime>" });
-            rest = &tail[offset + digits..];
-        } else {
-            stable.push_str("\"modified\":");
-            rest = tail;
-        }
-    }
-    stable.push_str(rest);
+    let stable_input = normalise_epoch_keys(&cleaned, &["\"modified\":", "\"added\":"]);
     // The diagnostics report records what the machine is, not what the library is: a golden that pinned
     // "os = macos" would fail on the ubuntu job for a reason that says nothing about the code.
     let mut portable = String::new();
-    for line in stable.split_inclusive('\n') {
+    for line in stable_input.split_inclusive('\n') {
         let host = ["os = ", "arch = "].iter().find(|prefix| line.starts_with(**prefix)).copied();
         let version = ["sortlens = ", "engine = "]
             .iter()
@@ -398,7 +413,7 @@ fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
             (None, None) => portable.push_str(line),
         }
     }
-    stable = portable;
+    let stable = portable;
 
     let mut cleaned = stable;
     // A trailing newline is not worth a diff.

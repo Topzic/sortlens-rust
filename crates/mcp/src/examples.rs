@@ -80,7 +80,7 @@ pub const EXAMPLES: &[Example] = &[
     Example {
         command: "library.page",
         args: r#"{"offset": 0, "limit": 5, "sort": "rating"}"#,
-        note: "One page of photos; sort: natural, name, rating, date, size, kind or edited.",
+        note: "One page of photos; sort: natural, name, rating, date, size, kind or edited. Add filter {\"added_after\": epoch} for what Sortlens added in the last 30 days (SL-A14), best read with sort \"recently-added\"; a photo with no recorded add time is never invented from its mtime.",
     },
     Example {
         command: "photo.rate",

@@ -106,6 +106,14 @@ pub struct Photo {
     /// clobber. Travels in the log and the snapshot, so a reopen reproduces the same numbers.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub rev: u64,
+    /// When Sortlens recorded this photo entering the catalog, seconds since the Unix epoch.
+    ///
+    /// `None` for every record that predates the field: Sortlens never approximates it from the file's
+    /// `mtime`, because "recently modified" is a different and more confusing question than "recently
+    /// added". A `None` photo simply cannot answer the Recently Added question, and stays out of that
+    /// source until new bytes bring it back through the scan, which records a real instant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub added: Option<i64>,
 }
 
 /// Serde's `skip_serializing_if` for a plain `u64`, so a photo nobody has annotated writes nothing
@@ -163,6 +171,7 @@ impl Photo {
             sharpness: None,
             location: None,
             rev: 0,
+            added: None,
         }
     }
 
@@ -254,6 +263,22 @@ impl Photo {
     pub fn timestamp(&self) -> i64 {
         self.captured.or(self.modified).unwrap_or(0)
     }
+
+    /// When this photo entered the catalog, as `2026-11-21 14:32`, when Sortlens recorded it.
+    pub fn added_label(&self) -> Option<String> {
+        self.added.map(sortlens_meta::format_epoch)
+    }
+}
+
+/// The current wall clock, as seconds since the Unix epoch.
+///
+/// The one place the catalog asks the clock, so tests and callers can share the same definition of
+/// "now" instead of each subtracting 30 days from a different instant.
+pub fn now_epoch() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 /// Aggregate counts, recomputed as the catalog changes.

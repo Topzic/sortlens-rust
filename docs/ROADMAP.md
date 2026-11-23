@@ -143,9 +143,13 @@ volume probe and `PathKey`.
   starred and tagged"); the folder scope survives, because that is where you are, not what you asked. The
   highlighted row is *derived* from the filter, so a filter chip that asks the same question highlights the
   same row — a stored flag would let the two disagree. Both behaviours tested (B) — SL-A14 part 1
-- [ ] Sources, part 2 — **Recently Added**: needs an `added` timestamp per photo, which is a snapshot schema
-  change with a migration for every existing library; inventing one from the file's mtime would be "recently
-  modified", a different and more confusing question. **Re-opened as Phase 1 item 3** below
+- [x] Sources, part 2 — **Recently Added**: an `added` instant on `Photo`, recorded by the scan when a
+  file first enters the catalog and never approximated from the file's `mtime`; the snapshot schema moved
+  to 2, and a schema-1 photo migrates with no instant rather than an invented one, so it honestly stays
+  out of the source instead of standing in with a modified time it did not choose. The source is the last
+  30 days in the sidebar with its own count, asked newest-record-first via `Sort::RecentlyAdded`, and the
+  question is callable from the engine (`library.page` with `filter.added_after`) and documented in the
+  MCP examples (A,B) — SL-A14 part 2
 - [x] Folder tree with recursive counts + drill-down (`library.subfolders`, breadcrumbs) (B) — SL-A03/A04
 - [x] Placeholder cell while decoding (kind glyph on the tile) and a **badge** for the two ways a cell can
   have no pixels: `?` for a file that is not on disk, `!` for a file that could not be decoded, each with a
@@ -959,8 +963,9 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 - [x] 2. Stale-revision rejection (SL-D11): `Error::StaleRevision` on conflicting mutations in
   `sortlens-catalog`/`sortlens-engine`, plus the stale-revision and badge-contrast tests that close M3's test row (A)
   — shipped 2026-11-23, see the M3 rows above
-- [ ] 3. `Recently Added` (SL-A14 part 2): an `added` timestamp on `Photo` with a backwards-compatible snapshot
+- [x] 3. `Recently Added` (SL-A14 part 2): an `added` timestamp on `Photo` with a backwards-compatible snapshot
   migration (never approximated from `mtime`), last 30 days, in catalog, engine and sidebar (A,B)
+  — shipped 2026-11-23, see the M1 "Sources, part 2" row above
 - [ ] 4. PNG export (SL-B24): a licence-approved encoder (`cargo xtask deny`) in `sortlens-export`, offered in the
   export dialog and the CLI (A)
 

@@ -4,6 +4,7 @@ exit 0
   "offset": 0,
   "photos": [
     {
+      "added": <epoch>,
       "aperture": null,
       "camera": "",
       "captured": 1685577600,
@@ -20,7 +21,7 @@ exit 0
       "label": null,
       "lens": "",
       "missing": false,
-      "modified": <mtime>,
+      "modified": <epoch>,
       "name": "d.jpg",
       "rating": 5,
       "rel": "Studio/d.jpg",
@@ -37,6 +38,7 @@ exit 0
       "width": 0
     },
     {
+      "added": <epoch>,
       "aperture": null,
       "camera": "",
       "captured": null,
@@ -53,7 +55,7 @@ exit 0
       "label": null,
       "lens": "",
       "missing": false,
-      "modified": <mtime>,
+      "modified": <epoch>,
       "name": "a.jpg",
       "rating": 3,
       "rel": "Trip/a.jpg",
@@ -69,6 +71,7 @@ exit 0
       "width": 0
     },
     {
+      "added": <epoch>,
       "aperture": null,
       "camera": "",
       "captured": null,
@@ -85,7 +88,7 @@ exit 0
       "label": null,
       "lens": "",
       "missing": false,
-      "modified": <mtime>,
+      "modified": <epoch>,
       "name": "b.jpg",
       "rating": 0,
       "rel": "Trip/b.jpg",

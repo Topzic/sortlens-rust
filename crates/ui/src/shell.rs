@@ -423,6 +423,10 @@ impl Selection {
 pub enum Source {
     /// Everything the library knows about.
     All,
+    /// What Sortlens recorded adding in the last 30 days (SL-A14 part 2). Answered from each
+    /// photo's `added` instant, never from the file's `mtime` — a photo whose add time was never
+    /// recorded stays out rather than standing in with a modified time it did not choose.
+    Added,
     /// Flags that survived a cull.
     Picks,
     /// Anything with at least one star.
@@ -431,15 +435,19 @@ pub enum Source {
     Rejects,
 }
 
+/// The Recently Added window: 30 days, in seconds.
+const RECENT_WINDOW: i64 = 30 * 24 * 60 * 60;
+
 impl Source {
     /// Every source, in sidebar order.
-    pub const ALL: [Source; 4] = [Source::All, Source::Picks, Source::Rated, Source::Rejects];
+    pub const ALL: [Source; 5] = [Source::All, Source::Added, Source::Picks, Source::Rated, Source::Rejects];
 
     /// The row's label.
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
             Source::All => "All Photos",
+            Source::Added => "Recently Added",
             Source::Picks => "Picks",
             Source::Rated => "Rated",
             Source::Rejects => "Rejects",
@@ -452,7 +460,7 @@ impl Source {
         match self {
             Source::Picks => Some(Flag::Pick),
             Source::Rejects => Some(Flag::Reject),
-            Source::All | Source::Rated => None,
+            Source::All | Source::Added | Source::Rated => None,
         }
     }
 
@@ -462,8 +470,15 @@ impl Source {
     pub fn min_rating(self) -> u8 {
         match self {
             Source::Rated => 1,
-            Source::All | Source::Picks | Source::Rejects => 0,
+            Source::All | Source::Added | Source::Picks | Source::Rejects => 0,
         }
+    }
+
+    /// The add-instant cutoff this source asks for, if any: photos recorded into the catalog after
+    /// this second. The caller supplies "now" so tests can pin the window.
+    #[must_use]
+    pub fn added_after(self, now: i64) -> Option<i64> {
+        (self == Source::Added).then_some(now - RECENT_WINDOW)
     }
 }
 
@@ -584,6 +599,12 @@ pub struct UiState {
     pub flag_filter: Option<Flag>,
     /// Only this colour label.
     pub label_filter: Option<sortlens_core::ColorLabel>,
+    /// Whether the Recently Added source is asking the question (SL-A14 part 2).
+    ///
+    /// Stored as the question, not as a cutoff instant: the window is always the *current* 30 days,
+    /// and the filter turns it into an instant at read time, so a library left open past midnight
+    /// still answers "the last 30 days" rather than the 30 days before the window was opened.
+    pub recently_added: bool,
     /// Whether missing files are shown.
     pub show_missing: bool,
     /// Keywords the view is narrowed to, chosen in the sidebar or the filter strip.
@@ -759,6 +780,7 @@ impl UiState {
             health: None,
             folder: String::new(),
             sort: Sort::Natural,
+            recently_added: false,
             kind_filter: None,
             edited_filter: None,
             detail_open: false,
@@ -846,6 +868,7 @@ impl UiState {
             folder: (self.root.is_some() && !self.folder.is_empty()).then(|| self.folder.clone()),
             kind: self.kind_filter,
             edited: self.edited_filter,
+            added_after: self.recently_added.then(|| sortlens_engine::now_epoch() - RECENT_WINDOW),
             include_missing: self.show_missing,
             ..Filter::default()
         }
@@ -866,6 +889,14 @@ impl UiState {
         self.edited_filter = None;
         self.search.clear();
         self.all_photos_selected = source == Source::All;
+        self.recently_added = source == Source::Added;
+        // A source is a question, and "what did I just import" is asked newest-record-first. Every
+        // other source goes back to the sort the user chose, the way closing a collection does.
+        self.sort = if source == Source::Added {
+            Sort::RecentlyAdded
+        } else {
+            self.library_sort
+        };
     }
 
     /// Whether a source is the one the sidebar should highlight.
@@ -881,6 +912,7 @@ impl UiState {
             && self.collection_filter.is_none()
             && self.kind_filter.is_none()
             && self.edited_filter.is_none()
+            && self.recently_added == (source == Source::Added)
     }
 
     /// How many filter dimensions are narrowing the view, for the header badge.
@@ -893,6 +925,7 @@ impl UiState {
         count += usize::from(self.collection_filter.is_some());
         count += usize::from(self.kind_filter.is_some());
         count += usize::from(self.edited_filter.is_some());
+        count += usize::from(self.recently_added);
         count += usize::from(self.show_missing);
         count += usize::from(self.root.is_some());
         count += usize::from(!self.folder.is_empty());
@@ -910,6 +943,7 @@ impl UiState {
             || !self.folder.is_empty()
             || self.kind_filter.is_some()
             || self.edited_filter.is_some()
+            || self.recently_added
             || self.show_missing
             || self.root.is_some()
             || !self.search.is_empty()
@@ -928,6 +962,7 @@ impl UiState {
         self.folder.clear();
         self.kind_filter = None;
         self.edited_filter = None;
+        self.recently_added = false;
         self.show_missing = false;
         self.root = None;
     }
@@ -1430,6 +1465,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             ui.separator();
 
             nav_section(ui, t, "Sources");
+            let now = sortlens_engine::now_epoch();
             for source in Source::ALL {
                 // Each row's count is what that row would show, not the library total: a Picks row reading
                 // "0" while the grid holds thousands is the row doing its job.
@@ -1440,6 +1476,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 };
                 filter.flag = source.flag();
                 filter.min_rating = source.min_rating();
+                filter.added_after = source.added_after(now);
                 let count = engine.count(&filter);
                 if nav_row(ui, t, source.label(), &format_count(count as u64), state.source_selected(source)).clicked() {
                     if source == Source::All {
@@ -6844,6 +6881,7 @@ mod tests {
             sharpness: None,
             location: None,
             rev: 0,
+            added: None,
         };
         assert_eq!(cell_badge(&photo, None), None, "a decoded cell needs no badge");
         assert_eq!(cell_badge(&photo, Some("bad jpeg")), Some(CellBadge::Unreadable));
@@ -6897,6 +6935,7 @@ mod tests {
             sharpness: None,
             location: None,
             rev: 0,
+            added: None,
         };
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -7883,6 +7922,7 @@ mod tests {
             sharpness: None,
             location: None,
             rev: 0,
+            added: None,
         };
         let present = photo(false);
         let gone = photo(true);
@@ -8886,14 +8926,25 @@ mod tests {
         state.apply_source(Source::Rejects);
         assert_eq!(state.filter().flag, Some(Flag::Reject));
 
+        state.apply_source(Source::Added);
+        let recent = state.filter();
+        assert!(recent.added_after.is_some(), "Recently Added asks for the last 30 days");
+        assert_eq!(recent.flag, None);
+        assert_eq!(recent.min_rating, 0);
+        assert!(state.source_selected(Source::Added));
+        assert!(!state.source_selected(Source::All));
+        assert_eq!(state.sort, Sort::RecentlyAdded, "the question is asked newest-record-first");
+
         state.apply_source(Source::All);
         assert!(state.filter().flag.is_none());
         assert_eq!(state.filter().min_rating, 0);
+        assert_eq!(state.filter().added_after, None, "leaving the row leaves the window");
+        assert_eq!(state.sort, state.library_sort, "the user's sort comes back");
         assert!(state.source_selected(Source::All));
         assert!(state.all_photos_selected, "All Photos is also what the cull queue starts from");
     }
 
-    /// The sidebar paints its four sources over a real library, with counts that differ.
+    /// The sidebar paints its five sources over a real library, with counts that differ.
     #[test]
     fn the_sidebar_lists_every_source_with_its_own_count() {
         let ctx = egui::Context::default();
@@ -8957,6 +9008,26 @@ mod tests {
             }),
             0
         );
+
+        // SL-A14 part 2: both photos were indexed this second, so Recently Added counts the whole
+        // library; the window is answered from each record's `added`, not from the file's mtime.
+        assert_eq!(
+            engine.count(&Filter {
+                added_after: Source::Added.added_after(sortlens_engine::now_epoch()),
+                ..Filter::default()
+            }),
+            2
+        );
+
+        // Picking the row replaces the question and asks it newest-record-first.
+        state.apply_source(Source::Added);
+        assert!(state.source_selected(Source::Added));
+        assert!(state.filter().added_after.is_some(), "the row's question carries a cutoff");
+        assert_eq!(state.sort, Sort::RecentlyAdded, "the question is asked newest-record-first");
+        assert_eq!(engine.count(&state.filter()), 2);
+        state.apply_source(Source::All);
+        assert_eq!(state.filter().added_after, None, "leaving the row leaves the window");
+        assert_eq!(state.sort, state.library_sort, "the user's sort comes back");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

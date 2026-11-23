@@ -18,6 +18,7 @@ pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Sugges
 pub use sortlens_catalog::backup::Backup;
 pub use sortlens_catalog::folder::{FolderMark, key_of as folder_key};
 pub use sortlens_catalog::history::Entry as HistoryEntry;
+pub use sortlens_catalog::photo::now_epoch;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
@@ -4442,6 +4443,7 @@ mod tests {
             sharpness: None,
             location: None,
             rev: 0,
+            added: None,
         };
         photo.tags.sort_unstable();
         photo
@@ -5426,6 +5428,43 @@ mod tests {
         let window = engine.run("library.page", &json!({ "offset": 1, "limit": 1 })).expect("page");
         assert_eq!(window["photos"].as_array().expect("photos").len(), 1);
         assert_eq!(window["offset"], 1);
+    }
+
+    /// SL-A14 part 2: the Recently Added question is callable from the command layer — a scan adds
+    /// every photo at the wall clock, so the last-30-days page holds everything, and a caller can
+    /// narrow it with `addedAfter` and order it by the recorded instant rather than the mtime.
+    #[test]
+    fn the_recently_added_question_is_callable_from_the_command_layer() {
+        let folder = Temp::new("recent-photos");
+        std::fs::create_dir_all(&folder.0).expect("dir");
+        for name in ["aa.jpg", "bb.jpg"] {
+            std::fs::write(folder.0.join(name), name.as_bytes()).expect("write");
+        }
+        let (_lib, mut engine) = library("lib-recent");
+        engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
+        wait_for_scan(&mut engine);
+
+        let recent = engine
+            .run(
+                "library.page",
+                &json!({ "filter": { "added_after": sortlens_catalog::photo::now_epoch() - 30 * 24 * 60 * 60 }, "sort": "recently-added", "limit": 10 }),
+            )
+            .expect("page");
+        assert_eq!(recent["total"], 2, "both photos were indexed this second");
+        assert_eq!(recent["sort"], "recently-added");
+        let first = recent["photos"][0]["added"].as_i64().expect("added travels in the envelope");
+        let second = recent["photos"][1]["added"].as_i64().expect("added travels in the envelope");
+        assert!(first >= second, "newest record first");
+
+        // A cutoff after everything excludes both: the question narrows, and photos with no recorded
+        // instant would be excluded too, not borrowed from the file's mtime.
+        let none = engine
+            .run(
+                "library.page",
+                &json!({ "filter": { "added_after": 4_102_444_800_i64 }, "limit": 10 }),
+            )
+            .expect("page");
+        assert_eq!(none["total"], 0);
     }
 
     #[test]
