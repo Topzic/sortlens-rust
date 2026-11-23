@@ -505,6 +505,28 @@ fn a_narrow_window_collapses_the_tab_row() {
     library.keep(shoot_at(kind, scene, "narrow-charcoal", egui::vec2(900.0, 620.0)));
 }
 
+/// A canvas squeezed by both docks: the header keeps its name whole and its controls, and gives up the rest.
+///
+/// 3B.6 (e) was reported at 900 points with both docks open, where the header's left block was handed the
+/// width the right block left over and, when that ran out, was painted underneath the sort combo. Laid out
+/// with `Sides::shrink_left` the controls are measured first: the name is whole, the sort combo and the two
+/// grid glyphs are all still there, and the count and the two chips — the row's statements, both repeated
+/// elsewhere — are the things that step aside. This is the baseline a person can read: at 1440 the same
+/// header shows all four.
+#[test]
+fn a_narrow_canvas_keeps_the_header_name_whole() {
+    let mut library = library();
+    for kind in THEMES {
+        let scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        library.keep(shoot_at(
+            kind,
+            scene,
+            &format!("narrow-canvas-{}", kind_id(kind)),
+            egui::vec2(900.0, 620.0),
+        ));
+    }
+}
+
 /// A short window with the sidebar open: the sections scroll above the pinned foot instead of painting over it.
 ///
 /// 3B.6 (d) was reported at ~620 px of height, where the six scopes, the two subfolders and the keyword and

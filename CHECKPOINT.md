@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-23 (forty-second) — Phase 3B.6 part 7: the canvas header keeps its name whole
+
+- **The defect was a layout that could not refuse.** The header was one `ui.horizontal` with the title and the live
+  count on the left and a `Layout::right_to_left` child for the controls. In egui a `horizontal` hands its last
+  child whatever the earlier ones left over, so when that number ran out the right-to-left row was laid out from a
+  cursor already past the right edge. At 900×620 with both docks open the canvas is ~310 points wide and the row
+  needs ~390: the title was painted at 287–335 *underneath* the sort combo at 283.5–348.5, and the count underneath
+  the scope chip. Reproduced exactly, on the old code, by the new sweep test before the fix.
+- **The fix is the fork's own `Sides` row, and it measures rather than hopes.** The row is now
+  `egui::containers::Sides::new().spacing(6.0).shrink_left().truncate()`: the controls are laid out and measured
+  first, the left block's max rect is the remainder, and the words give way instead of the controls. An overlap is
+  no longer a width-specific slip waiting to happen — there is no width at which the left block may enter the
+  controls' rect.
+- **The degradation is stated and measured, in that order.** The count's galley is measured against the room left
+  beside the name and the count steps aside when it will not fit (it is repeated by the filter strip's own summary
+  and spoken by the live line); the two chips are offered only above `HEADER_CHIP_ROOM` (430 points) because the
+  scope is also cleared from the sidebar and the active-filter count is also on the top bar's Filter chip, while the
+  sort combo and the two grid glyphs exist nowhere else on that line. Measured over the sweep: with a fresh
+  `UiState` per width the count appears from a 942-point window and the chips from 1059, so at 900 the header is
+  exactly the view's name, the sort and the two grid glyphs. A header with room to spare still shows all four — the
+  thirteen 1440×900 baselines are byte-identical, which is the evidence.
+- **The test is a sweep, and it fails on the old layout.** `the_canvas_header_title_never_runs_under_the_sort_combo_at_any_width`
+  paints the real shell at **every window width from 900 to 1300 points in one-point steps**, each from a fresh
+  `UiState` (a reused one carries the panel sizes the previous frame left behind, which would make the sweep depend
+  on how many frames came before it). Each step asserts: the sort combo is painted; the title is painted, is *not*
+  truncated, lies inside its own clip rect, and intersects neither the combo nor either chip; and the count, when
+  painted, intersects nothing. The canvas is identified as the clip the sort combo was painted in, because the
+  sidebar paints its own `Library` row on the same line. Old code: `at 900 points the title at [[287.0 72.0] -
+  [335.0 87.0]] is painted over Added order at [[283.5 73.5] - [348.5 82.5]]`. Non-vacuity is asserted in both
+  directions: the count and the chips must be absent at 900 and present at 1300, so a header that dropped them
+  everywhere fails as loudly as one that kept them in a row they do not fit.
+- **Visual verification**: `narrow-canvas-charcoal` and `narrow-canvas-paper` added at 900×620 with both docks open,
+  scoped to the library folder, and read: `Library` whole at the left, the density and layout glyphs and the
+  `Added order` combo beside it with clear space, no count and no chips, and the breadcrumb, strip and grid below
+  them unchanged. Every other baseline was regenerated under `--update` and none was rewritten — the change is
+  invisible at 1440 by construction, and the new pair is where it is legible.
+- Files: `crates/ui/src/shell.rs` (`canvas`'s `Sides` row, `HEADER_CHIP_ROOM`, `HEADER_COUNT_GAP`, one new sweep
+  test), `crates/ui/tests/screenshots.rs` (the new scene), `crates/ui/tests/snapshots/narrow-canvas-{charcoal,paper}.png`
+  (new), and the reconciled `docs/UX.md` §5.1 + `docs/ROADMAP.md` (3B.6 (e) ticked, (f)–(g) left open in their own
+  row). `docs/UX.md` §5.1's diagram was stale in a second way — it showed the count at the right edge and no chips —
+  so it now shows the shipped row and states the degradation order.
+- Gates: `ci`, `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots` (16 scenes) all green; 128
+  `sortlens-ui` unit tests, the new sweep among them.
+- **Next**: 3B.6 (f), the cull keyword row clipping under the bottom bar at 900 px, then (g), the `←`/`→` text in
+  the keymap overlay and the registry's `shortcut` strings; Phase 4 items 16–18 after them.
+
 ## 2026-11-23 (forty-first) — Phase 3B.6 part 6: the strip's count gets a column instead of a chip's lap
 
 - **The defect was in the layout, not in the drawing.** `filter_strip` ended its `horizontal_wrapped` row with a
@@ -3431,12 +3477,15 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     both docks open — **done 2026-11-23**, see the forty-first entry: the count is measured first and given a
     reserved column on the right, the chips wrap in the room that is actually theirs, and a test sweeps the strip
     from 320 to 760 points a step at a time asserting no painted text ever touches the count (it fails at 326 on
-    the old layout); all 29 baselines regenerated and read. **(e) is the exact next slice**: at 900 px with both
-    docks open the canvas header's title runs under the right-aligned sort combo. Then (f) the cull keyword row
-    clips under the bottom bar at 900 px; (g) `←`/`→` are still text in the keymap overlay and the registry's
-    `shortcut` strings, where the bundled faces have no glyph. A fix here is a regenerated baseline that is read,
-    not a claim; (e)–(g) were each *observed*, so each one is "the baseline is clean and the geometry test says so"
-    or it is not done.
+    the old layout); all 29 baselines regenerated and read. (e) the canvas header's title ran under the
+    right-aligned sort combo at 900 px with both docks open — **done 2026-11-23**, see the forty-second entry: one
+    `Sides::shrink_left` row that measures the controls first, a count that steps aside when it will not fit, chips
+    offered only above 430 points, a 401-width sweep that fails at 900 on the old layout, and two new
+    `narrow-canvas-*` baselines at 900×620 read. **(f) is the exact next slice**: the cull keyword row clips under
+    the bottom bar at 900 px. Then (g): `←`/`→` are still text in the keymap overlay and the registry's `shortcut`
+    strings, where the bundled faces have no glyph. A fix here is a regenerated baseline that is read, not a claim;
+    (f)–(g) were each *observed*, so each one is "the baseline is clean and the geometry test says so" or it is not
+    done.
 
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts.

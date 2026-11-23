@@ -3058,23 +3058,59 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         .show(ui, |ui| {
             let filter = state.filter();
             let total = engine.count(&filter);
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(state.view.label()).size(16.0).strong());
-                ui.add_space(6.0);
-                crate::a11y::live_line(ui, &crate::a11y::library_status(total, state.selection.len()), t.text_muted);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
-                        state.root = None;
-                        state.folder.clear();
+            // The view's name and the row of controls share one line, and the controls decide how much
+            // room the name has. Laid out as a plain `horizontal`, the right block is handed whatever the
+            // left block left over — and when that number ran small the right-to-left row was laid out
+            // from a cursor already past the right edge, so at 900 points with both docks open the title
+            // was painted underneath the sort combo. `Sides::shrink_left` measures the controls first and
+            // truncates the title into the room that is actually left over, which cannot collide at any
+            // width: the combos and chips keep their size and the words give way, never the reverse.
+            // The header's left block is read before the row is laid out: the two closures share `state`,
+            // and the right one edits it.
+            let title = state.view.label();
+            let status = crate::a11y::library_status(total, state.selection.len());
+            // The count is measured before it is offered: "does it fit" is an answer rather than a hope. The
+            // title is what the row is about; the count is a statement the filter strip repeats and the live
+            // line already speaks, so on a canvas too narrow for both the count steps aside and the name
+            // stays whole — the same rule the filter strip's summary follows.
+            let status_width = ui
+                .painter()
+                .layout_no_wrap(
+                    status.clone(),
+                    egui::FontId::new(10.5, egui::FontFamily::Proportional),
+                    t.text_muted,
+                )
+                .size()
+                .x;
+            let _ = egui::containers::Sides::new().spacing(6.0).shrink_left().truncate().show(
+                ui,
+                |ui| {
+                    ui.label(RichText::new(title).size(16.0).strong());
+                    if ui.available_width() >= HEADER_COUNT_GAP + status_width {
+                        ui.add_space(HEADER_COUNT_GAP);
+                        crate::a11y::live_line(ui, &status, t.text_muted);
                     }
-                    let active = state.active_filter_count();
-                    if active > 0
-                        && chip(ui, t, Some(crate::icons::Icon::Tag), &format!("{active} active"), true)
-                            .on_hover_text("Clear every filter")
-                            .clicked()
-                    {
-                        state.search.clear();
-                        state.clear_filters();
+                },
+                |ui| {
+                    // The chips are decoration on this line, and they are the first things a narrow canvas
+                    // gives up: the scope is cleared from the sidebar and the active-filter count also sits
+                    // on the Filter chip in the top bar, while the sort combo and the two grid glyphs exist
+                    // nowhere else in this row. Measured from the room the row actually has.
+                    let room = ui.available_width();
+                    if room >= HEADER_CHIP_ROOM {
+                        if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
+                            state.root = None;
+                            state.folder.clear();
+                        }
+                        let active = state.active_filter_count();
+                        if active > 0
+                            && chip(ui, t, Some(crate::icons::Icon::Tag), &format!("{active} active"), true)
+                                .on_hover_text("Clear every filter")
+                                .clicked()
+                        {
+                            state.search.clear();
+                            state.clear_filters();
+                        }
                     }
                     let mut chosen = state.sort;
                     let combo = egui::ComboBox::from_id_salt("sort_order")
@@ -3128,8 +3164,8 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         state.grid_mode = next;
                         actions.push(Action::SetGrid(next));
                     }
-                });
-            });
+                },
+            );
             if state.root.is_some() {
                 breadcrumbs(ui, t, state);
             }
@@ -4204,6 +4240,17 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
             }
         });
 }
+
+/// The narrowest canvas whose header still offers its two chips beside the sort combo and the grid glyphs.
+///
+/// Below this the chips step aside — the scope is cleared in the sidebar and the active-filter count is also
+/// on the top bar's Filter chip — because a row that lost its sort combo to keep a `1 active` badge would be a
+/// header with no controls left. This is the floor for the chips, not for the title: the title is measured
+/// against the room that is actually left over, at every width.
+const HEADER_CHIP_ROOM: f32 = 430.0;
+
+/// The gap between the canvas header's title and its count, in points.
+const HEADER_COUNT_GAP: f32 = 6.0;
 
 /// The narrowest strip that still answers "how many" without taking a chip's room.
 const STRIP_CHIP_ROOM: f32 = 180.0;
@@ -13518,6 +13565,185 @@ mod tests {
             output.textures_delta.clear();
         }
         assert!(state.detail_zoom, "a click on the photograph zooms to 1:1");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 3B.6 (e): the canvas header's title must never be painted under the right-hand controls.
+    ///
+    /// The header is a left block (the view's name and the library's count) and a right block (the scope
+    /// chip, the active-filter chip, the sort combo and the two grid glyphs). Laid out as a plain
+    /// `horizontal`, the right block is handed the width the left block left over, and when that number ran
+    /// small the right-to-left row was laid out from a cursor already past the right edge: at 900 points
+    /// with both docks open the title was painted underneath the sort combo, and the count underneath the
+    /// scope chip. Laid out with `Sides::shrink_left`, the controls are measured first and the words take
+    /// what is left, which is a claim a baseline cannot make precisely, so it is made here: at **every**
+    /// width from 900 to 1300 points, no painted header text intersects the sort combo or either chip, and
+    /// the title lies inside the clip it was painted with, so a fix that hid it would fail too.
+    ///
+    /// The degradation is asserted in both directions rather than tolerated: the title is whole at every
+    /// width, the count steps aside only when it would not fit beside the name (it is painted somewhere in
+    /// the sweep and absent somewhere in it), and the two chips are offered on wide canvases and gone on
+    /// narrow ones — a header that had simply dropped them everywhere would fail as loudly as one that
+    /// kept them in a row they do not fit.
+    #[test]
+    fn the_canvas_header_title_never_runs_under_the_sort_combo_at_any_width() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-header-title-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-header-title");
+        for name in ["a.jpg", "b.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 2, "the header needs a library to count");
+
+        let t = ThemeKind::Charcoal.tokens();
+        let scoped = root.to_string_lossy().to_string();
+        // Every width is measured from the same fresh state: a reused `UiState` carries the panel sizes the
+        // previous frame left behind, and a sweep whose rows depend on how many frames came before it is a
+        // sweep that cannot say what it tested.
+        let fresh = || {
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            // Scoped to the library's own folder, which is one active filter: the header then carries the
+            // scope chip and the active-filter chip as well, so the row is at its busiest for a given window.
+            state.root = Some(scoped.clone());
+            assert!(state.left_open && state.right_open, "both docks are open, the tight case");
+            state
+        };
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        // The title at its painted size, from the same layout call the shell makes.
+        let full_title = {
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx, ThemeKind::Charcoal);
+            let mut width = 0.0;
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    width = ui
+                        .painter()
+                        .layout_no_wrap(
+                            "Library".to_string(),
+                            egui::FontId::new(16.0, egui::FontFamily::Proportional),
+                            t.text,
+                        )
+                        .size()
+                        .x;
+                });
+            });
+            output.textures_delta.clear();
+            width
+        };
+
+        fn texts(output: &egui::FullOutput) -> Vec<(String, Rect, Rect)> {
+            fn walk(shape: &egui::Shape, clip: Rect, sink: &mut Vec<(String, Rect, Rect)>) {
+                match shape {
+                    egui::Shape::Text(text) => {
+                        sink.push((text.galley.job.text.clone(), text.visual_bounding_rect(), clip));
+                    }
+                    egui::Shape::Vec(shapes) => {
+                        for shape in shapes {
+                            walk(shape, clip, sink);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, clipped.clip_rect, &mut sink);
+            }
+            sink
+        }
+
+        let mut counted = 0;
+        let mut chip_widths: Vec<f32> = Vec::new();
+        let mut count_widths: Vec<f32> = Vec::new();
+        for step in 0..=400 {
+            let width = 900.0 + step as f32;
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx, ThemeKind::Charcoal);
+            let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 800.0));
+            let mut state = fresh();
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, &mut state, &mut engine, &mut thumbs);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            let painted = texts(&output);
+            // The canvas is the clip the sort combo was painted in: the sidebar and the right dock paint
+            // rows of their own on the same line, and a filter on `x` would have to know where the panels
+            // happen to be this frame.
+            let Some(sort_rect) = painted.iter().find(|(text, _, _)| text == "Added order").map(|(_, rect, _)| *rect) else {
+                panic!("at {width} points the header paints no sort combo at all");
+            };
+            let in_canvas: Vec<(String, Rect, Rect)> = painted
+                .into_iter()
+                .filter(|(_, _, clip)| clip.contains(sort_rect.center()))
+                .collect();
+            let Some((title_rect, title_clip)) = in_canvas
+                .iter()
+                .find(|(text, _, _)| text == "Library")
+                .map(|(_, rect, clip)| (*rect, *clip))
+            else {
+                panic!("at {width} points the header paints no title at all: {in_canvas:?}");
+            };
+            assert!(
+                title_clip.contains_rect(title_rect),
+                "at {width} points the title at {title_rect:?} is clipped away by {title_clip:?}"
+            );
+            assert!(
+                title_rect.width() >= full_title - 2.0,
+                "at {width} points the title was squeezed to {title_rect:?}, not the {full_title} points it \
+                 asks for: a name that cannot be read is not a title"
+            );
+            // Every control the header paints on that line, named so a failure says which one moved.
+            for anchor in ["Added order", "All Photos", "1 active"] {
+                let Some(other_rect) = in_canvas.iter().find(|(text, _, _)| text == anchor).map(|(_, rect, _)| *rect) else {
+                    continue;
+                };
+                assert!(
+                    !title_rect.intersects(other_rect),
+                    "at {width} points the title at {title_rect:?} is painted over `{anchor}` at {other_rect:?}"
+                );
+                if let Some(count) = in_canvas.iter().find(|(text, _, _)| text == "2 photos").map(|(_, rect, _)| *rect) {
+                    assert!(
+                        !count.intersects(other_rect),
+                        "at {width} points the count at {count:?} is painted over `{anchor}` at {other_rect:?}"
+                    );
+                }
+            }
+            if in_canvas.iter().any(|(text, _, _)| text == "1 active") {
+                chip_widths.push(width);
+            }
+            if in_canvas.iter().any(|(text, _, _)| text == "2 photos") {
+                count_widths.push(width);
+            }
+            counted += 1;
+        }
+        assert_eq!(counted, 401, "the header was painted at every swept width");
+        // The degradation, asserted in both directions rather than tolerated: the narrowest window keeps the
+        // name and the controls and gives up the count and the chips, and a wide one offers all four. A
+        // header that had dropped them everywhere would fail here as loudly as one that kept them in a row
+        // they do not fit — and at 900 with both docks open they do not fit.
+        assert!(!count_widths.contains(&900.0), "the count must step aside at the narrowest window");
+        assert!(count_widths.contains(&1300.0), "the count must be painted on a wide canvas");
+        assert!(!chip_widths.contains(&900.0), "the chips must step aside at the narrowest window");
+        assert!(chip_widths.contains(&1300.0), "the chips must be offered on a wide canvas");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

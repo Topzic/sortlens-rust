@@ -1166,10 +1166,25 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   `no-matches-*` regenerated and read — their only change is that the `+ New collection` row, which used to sit on
   the hairline, is now clipped above it. `docs/UX.md` §4.4 updated: the sections scroll, they are still not
   collapsible or reorderable
-- [ ] 3B.6 (e)–(g) The remaining visual defects (B): at 900 px with both docks open the canvas header's title runs
-  under the right-aligned sort combo; the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are
-  still used as text in the keymap overlay and the command registry's `shortcut` strings, where the bundled faces
-  have no glyph
+- [x] 3B.6 (e) The canvas header keeps its name whole on a narrow canvas — **shipped 2026-11-23 (part 7)**: the
+  header was a plain `horizontal`, so the right block was handed the width the left block left over and, when that
+  number ran small, was laid out from a cursor already past the right edge — at 900 px with both docks open the
+  title was painted underneath the sort combo (287..335 under 283.5..348.5) and the count underneath the scope
+  chip. It is now one `egui::containers::Sides` row with `shrink_left()`: the controls are measured first and the
+  words take the room that is actually left over, so an overlap is not a width-specific slip waiting to happen.
+  The row degrades by measurement rather than by luck — the count is measured against the room beside the name and
+  steps aside when it will not fit (it is repeated in the strip and spoken in the live line), and the two chips
+  are offered only above `HEADER_CHIP_ROOM` points, because the scope is also cleared in the sidebar and the
+  active-filter count is also on the top bar's Filter chip, while the sort combo and the two grid glyphs exist
+  nowhere else on that line. A headless test sweeps 900→1300 px a step at a time over a scoped library: no header
+  text ever intersects the combo or either chip (it fails at 900 on the old layout, on the reported overlap), the
+  title is never truncated, is inside its own clip, and the degradation is asserted in both directions — count and
+  chips absent at 900 and present at 1300, so a header that dropped them everywhere fails as loudly as one that
+  kept them in a row they do not fit. `narrow-canvas-charcoal`/`-paper` at 900×620 with both docks open added and
+  read; every other baseline is unchanged, because at 1440 the same header still shows all four
+- [ ] 3B.6 (f)–(g) The remaining visual defects (B): the cull keyword row clips under the bottom bar at 900 px; and
+  `←`/`→` are still used as text in the keymap overlay and the command registry's `shortcut` strings, where the
+  bundled faces have no glyph
 - [x] 3B.6 (h) The filter strip's `N shown` summary no longer lands on a chip — **shipped 2026-11-23 (part 6)**:
   the count was the wrapped row's last child, and a wrapped layout hands its last child the row's whole width, so a
   right-aligned label there was laid out from the wrap cursor and drawn underneath `Clear` (visible in the

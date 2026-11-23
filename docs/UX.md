@@ -186,14 +186,23 @@ the version/credits block; and the sections are not yet collapsible or reorderab
 Every view has the same header structure:
 
 ```
-[ View title ]                             [ count ]   [ layout toggle ] [ density ]
+[ View title   count ]                    [ All Photos ] [ N active ] [ sort v ] [ layout ] [ density ]
 ```
 
-In Library, the title is the scope (folder/collection name) and the count is live. In Cull, the
+In Library, the title is the view's name and the count is live. In Cull, the
 title is "Cull · <scope>" and the count is "photo 42 of 1,203". In Similar, the title is
 "Similar Shots" and the count is "12 groups · 47 photos". In Places the header carries the
 library's count and the map's own footer carries the geotagged count. In Insights, the header
 holds the scope selector and a date-range chip.
+
+The row is measured, not assumed: it lays the controls out first and gives the title and count
+the room that is left, so a narrow canvas truncates words and never paints them under a control.
+When even that is not enough the row degrades in one stated order — the count goes first (it is
+repeated in the filter strip and spoken in the live line), then the two chips (the scope is also
+cleared in the sidebar and the active-filter count is also on the top bar's Filter chip) — because
+the sort combo and the two grid glyphs exist nowhere else on that line, and a header that kept a
+`1 active` badge while losing its sort would be a header with no controls left. At 900 px with both
+docks open that is the whole of the header: the view's name, the sort and the two grid glyphs.
 
 ### 5.2 Filter bar (collapsible, identical in every view)
 
