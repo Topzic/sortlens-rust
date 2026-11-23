@@ -90,6 +90,7 @@ pub const BINDINGS: &[Binding] = &[
         Some("library.rescan"),
     ),
     binding("Ctrl+Shift+N", "New collection", Context::Any, Some("collection.new")),
+    binding("Ctrl+K", "Open the command palette, or close it", Context::Any, None),
     binding("Ctrl+,", "Open settings", Context::Any, Some("app.settings")),
     binding("Ctrl+Q", "Quit, asking about unsaved work", Context::Any, Some("app.quit")),
     binding("Ctrl+Z", "Undo the last change", Context::Any, Some("edit.undo")),

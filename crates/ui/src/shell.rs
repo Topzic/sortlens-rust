@@ -742,6 +742,23 @@ pub struct UiState {
     pub rename_target: Option<(sortlens_core::CollectionId, String)>,
     /// A transient message and the instant it expires.
     pub notice: Option<(String, std::time::Instant)>,
+    /// Whether the filter strip is showing. A filter bar that cannot be put away is chrome, and the
+    /// top bar's Filter chip is what puts it away.
+    pub filters_open: bool,
+    /// Whether the search field is in command mode: the ⌘K palette.
+    pub palette_open: bool,
+    /// What has been typed into the palette. Kept apart from [`Self::search`] so Esc returns to the
+    /// photo search that was there before the palette opened, rather than to an empty box.
+    pub palette_query: String,
+    /// The highlighted palette row.
+    pub palette_index: usize,
+    /// Ask the palette field for focus on the next frame, so ⌘K lands in it.
+    pub palette_focus: bool,
+    /// Ask the photo search field for focus on the next frame: Esc out of the palette goes back to
+    /// searching photographs.
+    pub focus_search: bool,
+    /// Where the search field was drawn last frame, so the palette hangs under it.
+    pub palette_anchor: Option<egui::Rect>,
 }
 
 impl UiState {
@@ -827,6 +844,13 @@ impl UiState {
             collection_filter: None,
             rename_target: None,
             notice: None,
+            filters_open: true,
+            palette_open: false,
+            palette_query: String::new(),
+            palette_index: 0,
+            palette_focus: false,
+            focus_search: false,
+            palette_anchor: None,
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
             places_tiles: places::TileCache::new(),
@@ -1067,6 +1091,17 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
     }
 
+    // ⌘K is the palette's front door and its way out. Handled before any surface draws, because the
+    // palette owns Enter and the caret keys while it is open and the search field's `TextEdit` would
+    // take them for itself; the same reason `command_palette` runs before the bar is laid out.
+    if ui.input_mut(|input| input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K))) {
+        if state.palette_open {
+            close_palette(state);
+        } else {
+            open_palette(state);
+        }
+    }
+    command_palette(ui, state, &t, engine, &mut actions);
     top_bar(ui, state, &t, engine, &mut actions);
     bottom_bar(ui, state, &t, engine, &mut actions);
     if state.left_open {
@@ -1116,13 +1151,7 @@ fn bell_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
     // The count is painted onto the button's own rectangle rather than laid out beside it: a count
     // inside the bar would shift everything to its right each time a notice arrived.
     if unread > 0 {
-        ui.painter().text(
-            response.rect.right_center() + vec2(-2.0, -7.0),
-            Align2::RIGHT_CENTER,
-            unread.to_string(),
-            t.font(9.5),
-            colour,
-        );
+        paint_badge(ui, &response, unread, colour, t.font(9.5));
     }
     if response.on_hover_text("What has happened recently").clicked() {
         state.bell_open = !state.bell_open;
@@ -1130,6 +1159,20 @@ fn bell_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
             state.mark_notices_read();
         }
     }
+}
+
+/// A count painted onto a control's own rectangle, so a badge never shifts its neighbours.
+///
+/// The bell and the Filter chip both carry a number, and both must put it in the same corner of the
+/// same-sized rect: a badge that reflows the bar on every notice is a bar that moves while you work.
+fn paint_badge(ui: &Ui, response: &egui::Response, count: usize, colour: Color32, font: FontId) {
+    ui.painter().text(
+        response.rect.right_center() + vec2(-2.0, -7.0),
+        Align2::RIGHT_CENTER,
+        count.to_string(),
+        font,
+        colour,
+    );
 }
 
 /// The bell: what happened recently, newest first, with a clear action.
@@ -1236,8 +1279,12 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.add_space(state.title_inset);
+                // The mark is the window icon's own geometry, registered from the icon crate rather than
+                // drawn a second time: the dock and the chrome show one product.
+                app_mark(ui, 16.0);
+                ui.add_space(6.0);
                 ui.label(RichText::new("Sortlens").size(14.0).strong());
-                ui.add_space(10.0);
+                ui.add_space(8.0);
                 ui.label(RichText::new("Local library").size(12.0).color(t.text_muted));
                 if engine.read_only() {
                     // Say it once, at the top: a library another window is writing cannot be changed
@@ -1252,85 +1299,542 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    // Every control from here on is a glyph with a name: the bar is what a person looks at
+                    // while deciding about a photograph, so it carries no words a picture can carry. The
+                    // four value chips that used to live here (theme, density, layout, motion) are gone:
+                    // two moved to the canvas header beside the sort, and two are in Appearance.
                     if glyph_button(ui, t, crate::icons::Icon::Sliders, "Settings", false).clicked() {
                         state.settings_open = true;
                     }
+                    if glyph_button(ui, t, crate::icons::Icon::Keyboard, "Help and shortcuts", false).clicked() {
+                        state.shortcuts_open = true;
+                        state.shortcut_query.clear();
+                    }
+                    appearance_button(ui, state, t, actions);
                     bell_button(ui, state, t);
+                    export_button(ui, state);
+                    if glyph_button(ui, t, crate::icons::Icon::FolderPlus, "Import a folder", false).clicked() {
+                        actions.push(Action::PickFolder);
+                    }
+                    filter_button(ui, state, t);
                     // Selected, not merely clickable: the button says whether the panel it toggles is
                     // open, which is the only thing an unlabelled glyph can be asked to show.
                     if glyph_button(ui, t, crate::icons::Icon::Panel, "Details panel", state.right_open).clicked() {
                         state.right_open = !state.right_open;
                     }
-                    if icon_button(ui, state.theme.label(), t).clicked() {
-                        actions.push(Action::SetTheme(next_theme(state.theme)));
-                    }
-                    // Density lives next to the theme because both are "how the library looks", and it is
-                    // one click, not a settings trip, to change how many photos you can see at once.
-                    if icon_button(ui, state.density.label(), t)
-                        .on_hover_text("Grid density: Compact, Comfortable, Roomy")
-                        .clicked()
-                    {
-                        let next = state.density.next();
-                        state.density = next;
-                        actions.push(Action::SetDensity(next));
-                    }
-                    // Next to density, because "square or justified" is the same kind of question as "how
-                    // big": both decide how much of the library you can see at once.
-                    if icon_button(ui, state.grid_mode.label(), t)
-                        .on_hover_text("Grid layout: Square or Justified")
-                        .clicked()
-                    {
-                        let next = state.grid_mode.next();
-                        state.grid_mode = next;
-                        actions.push(Action::SetGrid(next));
-                    }
-                    // Motion sits here rather than only in Settings because it is the setting a person turns
-                    // on *while* the animation is bothering them, not after a trip through a dialog.
-                    if icon_button(ui, state.motion.label(), t)
-                        .on_hover_text("Reduced motion: the cull overlay cuts instead of sliding")
-                        .clicked()
-                    {
-                        let next = state.motion.next();
-                        state.motion = next;
-                        actions.push(Action::SetMotion(next));
-                    }
-                    if ui
-                        .add(
-                            Button::image_and_text(crate::icons::image(crate::icons::Icon::FolderPlus, 14.0), "Add Folder…")
-                                .image_tint_follows_text_color(true),
-                        )
-                        .on_hover_text("Index a folder of photographs")
-                        .clicked()
-                    {
-                        actions.push(Action::PickFolder);
-                    }
 
                     ui.add_space(8.0);
-                    let hint = match state
-                        .collection_filter
-                        .and_then(|id| engine.collections().into_iter().find(|collection| collection.id == id))
-                    {
-                        Some(collection) => format!("Search in {}", collection.name),
-                        None => "Filter by name or folder".to_string(),
-                    };
-                    let search = ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
-                    if search.changed() {
-                        state.selection.clear();
-                    }
-                    // Commit the search to the collection when the box is left or Enter is pressed,
-                    // rather than writing an op for every keystroke. `has_focus` is read *outside*
-                    // `ui.input`: nested context access deadlocks the lock this fork holds while the
-                    // closure runs, and any Enter keypress — not only one in this box — reached it.
-                    let enter_on_search = ui.input(|input| input.key_pressed(Key::Enter)) && search.has_focus();
-                    if search.lost_focus() || enter_on_search {
-                        remember_search(state, engine);
-                    }
-                    if state.collection_filter.is_none() {
-                        state.library_search = state.search.clone();
-                    }
+                    search_field(ui, state, engine);
                 });
             });
         });
+}
+
+/// The one field, in its two modes: photographs live, commands on ⌘K.
+///
+/// The two buffers are separate so leaving command mode returns to the search that was there before,
+/// and the field records its own rectangle because the palette hangs from it rather than from a guess.
+fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
+    if state.palette_open {
+        let field = ui.add_sized(
+            [240.0, 24.0],
+            TextEdit::singleline(&mut state.palette_query).hint_text("Type a command…"),
+        );
+        if field.changed() {
+            state.palette_index = 0;
+        }
+        if state.palette_focus {
+            field.request_focus();
+            state.palette_focus = false;
+        }
+        state.palette_anchor = Some(field.rect);
+        return;
+    }
+    let hint = match state
+        .collection_filter
+        .and_then(|id| engine.collections().into_iter().find(|collection| collection.id == id))
+    {
+        Some(collection) => format!("Search in {}", collection.name),
+        None => "Search photos or ⌘K".to_string(),
+    };
+    let search = ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
+    if search.changed() {
+        state.selection.clear();
+    }
+    if state.focus_search {
+        // Esc out of the palette returns to the search you were running, so the caret goes after
+        // its text: coming back to a query should let you keep typing it, not type in front of it.
+        if let Some(mut edit) = TextEdit::load_state(ui.ctx(), search.id) {
+            let end = egui::text::CCursor::new(state.search.chars().count());
+            edit.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+            edit.store(ui.ctx(), search.id);
+        }
+        search.request_focus();
+        state.focus_search = false;
+    }
+    state.palette_anchor = Some(search.rect);
+    // Commit the search to the collection when the box is left or Enter is pressed,
+    // rather than writing an op for every keystroke. `has_focus` is read *outside*
+    // `ui.input`: nested context access deadlocks the lock this fork holds while the
+    // closure runs, and any Enter keypress — not only one in this box — reached it.
+    let enter_on_search = ui.input(|input| input.key_pressed(Key::Enter)) && search.has_focus();
+    if search.lost_focus() || enter_on_search {
+        remember_search(state, engine);
+    }
+    if state.collection_filter.is_none() {
+        state.library_search = state.search.clone();
+    }
+}
+
+/// The app mark, registered once per process and painted at the top-left.
+///
+/// The bytes come from `sortlens-icon`, the crate the window icon is generated from, so the tile, the
+/// stack of prints and the lens are the same drawing in both places.
+fn app_mark(ui: &mut Ui, size: f32) {
+    use std::sync::OnceLock;
+    static MARK: OnceLock<(String, egui::load::Bytes)> = OnceLock::new();
+    let (uri, bytes) = MARK.get_or_init(|| {
+        let svg = sortlens_icon::svg();
+        (
+            "bytes://sortlens/app-mark.svg".to_string(),
+            std::sync::Arc::<[u8]>::from(svg.into_bytes()).into(),
+        )
+    });
+    ui.ctx().include_bytes(uri.clone(), bytes.clone());
+    ui.add(
+        egui::Image::from_bytes(uri.clone(), bytes.clone())
+            .fit_to_exact_size(Vec2::splat(size))
+            .sense(Sense::hover()),
+    )
+    .on_hover_text("Sortlens");
+}
+
+/// The Filter chip: a toggle for the filter bar, carrying the count of what is narrowing the view.
+///
+/// The number is [`UiState::active_filter_count`] — the same one the canvas header and the strip's Clear
+/// chip read, so three places cannot disagree about how many filters are on.
+fn filter_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
+    let active = state.active_filter_count();
+    let colour = if state.filters_open { t.text } else { t.text_muted };
+    let response = ui.add(
+        Button::image(crate::icons::image(crate::icons::Icon::Funnel, 14.0).tint(colour))
+            .fill(if state.filters_open { t.selection } else { Color32::TRANSPARENT })
+            .stroke(Stroke::NONE),
+    );
+    let spoken = if active > 0 {
+        format!("Filters, {active} active")
+    } else {
+        "Filters".to_string()
+    };
+    a11y::label_widget(ui, &response, egui::Role::Button, &spoken, state.filters_open);
+    if active > 0 {
+        paint_badge(ui, &response, active, t.accent, t.font(9.5));
+    }
+    let hint = if state.filters_open {
+        "Hide the filter bar"
+    } else {
+        "Show the filter bar"
+    };
+    if response.on_hover_text(hint).clicked() {
+        state.filters_open = !state.filters_open;
+    }
+}
+
+/// Export the selection, or say why there is nothing to export.
+fn export_button(ui: &mut Ui, state: &mut UiState) {
+    let ids = state.selection.ids();
+    let enabled = !ids.is_empty();
+    let response = ui.add_enabled(
+        enabled,
+        Button::image(crate::icons::image(crate::icons::Icon::Export, 14.0))
+            .image_tint_follows_text_color(true)
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::NONE),
+    );
+    a11y::label_widget(ui, &response, egui::Role::Button, "Export the selection", false);
+    let response = if enabled {
+        response.on_hover_text("Export the selection…")
+    } else {
+        response.on_hover_text("Select a photo to export")
+    };
+    if response.clicked() {
+        state.export_ids = ids;
+        state.export_open = true;
+    }
+}
+
+/// Appearance: one control for theme and motion, as the design asks.
+///
+/// A left click cycles the theme, because that is the one thing people change while working; the right
+/// click lists every preset and the reduced-motion switch, which is where the two chips that used to sit
+/// in this bar ended up.
+fn appearance_button(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+    let response = ui.add(
+        Button::image(crate::icons::image(crate::icons::Icon::Contrast, 14.0).tint(t.text_muted))
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::NONE),
+    );
+    let spoken = format!("Appearance, {}", state.theme.label());
+    a11y::label_widget(ui, &response, egui::Role::Button, &spoken, false);
+    let response = response.on_hover_text(format!(
+        "Appearance: {} — click to cycle, right-click for every theme and reduced motion",
+        state.theme.label()
+    ));
+    if response.clicked() {
+        actions.push(Action::SetTheme(next_theme(state.theme)));
+    }
+    response.context_menu(|ui| {
+        for kind in ThemeKind::ALL {
+            if ui.selectable_label(kind == state.theme, kind.label()).clicked() {
+                actions.push(Action::SetTheme(kind));
+                ui.close();
+            }
+        }
+        ui.separator();
+        let mut reduced = state.motion == Motion::Reduced;
+        if ui.checkbox(&mut reduced, "Reduced motion").changed() {
+            let motion = if reduced { Motion::Reduced } else { Motion::Full };
+            state.motion = motion;
+            actions.push(Action::SetMotion(motion));
+            ui.close();
+        }
+    });
+}
+
+/// A command the ⌘K palette can run.
+///
+/// An enum rather than a list of strings because the palette must not be able to list a command it
+/// cannot run: `run` matches every variant, so a row and its handler arrive together. Every `id` is a
+/// `Ready` command in the engine's registry, and the palette renders the label, the group and the
+/// shortcut from that registry — this type spells no label a second time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PaletteCommand {
+    Detail,
+    Similar,
+    Insights,
+    StartCull,
+    ApplyCull,
+    Reveal,
+    Open,
+    Export,
+    Suggest,
+    AddFolder,
+    Rescan,
+    Health,
+    History,
+    Deleted,
+    Backup,
+    RestoreBackup,
+    ExportHistory,
+    Settings,
+    Quit,
+    Shortcuts,
+    About,
+}
+
+impl PaletteCommand {
+    /// Every palette command, in the registry's group order (Library, Review, Organise, View, App, Help).
+    const ALL: [Self; 21] = [
+        Self::AddFolder,
+        Self::Rescan,
+        Self::Health,
+        Self::History,
+        Self::Deleted,
+        Self::Backup,
+        Self::RestoreBackup,
+        Self::ExportHistory,
+        Self::StartCull,
+        Self::ApplyCull,
+        Self::Reveal,
+        Self::Open,
+        Self::Export,
+        Self::Suggest,
+        Self::Detail,
+        Self::Similar,
+        Self::Insights,
+        Self::Settings,
+        Self::Quit,
+        Self::Shortcuts,
+        Self::About,
+    ];
+
+    /// The registry id. The only string this list carries; everything shown comes from the registry.
+    const fn id(self) -> &'static str {
+        match self {
+            Self::Detail => "view.detail",
+            Self::Similar => "view.similar",
+            Self::Insights => "view.insights",
+            Self::StartCull => "cull.start",
+            Self::ApplyCull => "cull.apply",
+            Self::Reveal => "photo.reveal",
+            Self::Open => "photo.open",
+            Self::Export => "edit.export",
+            Self::Suggest => "suggest.start",
+            Self::AddFolder => "library.addFolder",
+            Self::Rescan => "library.rescan",
+            Self::Health => "library.health",
+            Self::History => "library.history",
+            Self::Deleted => "library.deleted",
+            Self::Backup => "library.backup",
+            Self::RestoreBackup => "library.restoreBackup",
+            Self::ExportHistory => "library.exportHistory",
+            Self::Settings => "app.settings",
+            Self::Quit => "app.quit",
+            Self::Shortcuts => "app.shortcuts",
+            Self::About => "app.about",
+        }
+    }
+
+    /// Run the command. `Err` is a sentence explaining why it cannot run right now: the palette closes
+    /// either way, and a notice is better than a menu row that silently does nothing.
+    fn run(self, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) -> std::result::Result<(), String> {
+        let primary = |state: &UiState| state.selection.primary().ok_or_else(|| "Pick a photo first".to_string());
+        match self {
+            Self::Detail => {
+                primary(state)?;
+                state.detail_open = true;
+                state.right_tab = RightTab::Details;
+                Ok(())
+            }
+            Self::Similar => {
+                activate_view(state, engine, View::Similar);
+                Ok(())
+            }
+            Self::Insights => {
+                activate_view(state, engine, View::Insights);
+                Ok(())
+            }
+            Self::StartCull => {
+                open_cull(state, engine);
+                Ok(())
+            }
+            Self::ApplyCull => {
+                if engine.cull().is_some_and(|session| session.summary().rejects > 0) {
+                    state.apply_open = true;
+                    Ok(())
+                } else {
+                    Err("Nothing staged: reject something in a cull session first".to_string())
+                }
+            }
+            Self::Reveal => {
+                actions.push(Action::Reveal(primary(state)?));
+                Ok(())
+            }
+            Self::Open => {
+                actions.push(Action::OpenExternal(primary(state)?));
+                Ok(())
+            }
+            Self::Export => {
+                let ids = state.selection.ids();
+                if ids.is_empty() {
+                    return Err("Select a photo to export".to_string());
+                }
+                state.export_ids = ids;
+                state.export_open = true;
+                Ok(())
+            }
+            Self::Suggest => {
+                actions.push(Action::StartSuggest);
+                Ok(())
+            }
+            Self::AddFolder => {
+                actions.push(Action::PickFolder);
+                Ok(())
+            }
+            Self::Rescan => match rescan_root(state, engine) {
+                Some(root) => {
+                    actions.push(Action::Rescan(root));
+                    Ok(())
+                }
+                None => Err("Add a folder before rescanning".to_string()),
+            },
+            Self::Health => {
+                state.health_open = true;
+                Ok(())
+            }
+            Self::History => {
+                state.history_open = true;
+                Ok(())
+            }
+            Self::Deleted => {
+                state.deleted_open = true;
+                Ok(())
+            }
+            Self::Backup => {
+                actions.push(Action::Backup);
+                Ok(())
+            }
+            Self::RestoreBackup => {
+                actions.push(Action::RestoreBackup);
+                Ok(())
+            }
+            Self::ExportHistory => {
+                actions.push(Action::ExportHistory);
+                Ok(())
+            }
+            Self::Settings => {
+                state.settings_open = true;
+                Ok(())
+            }
+            Self::Quit => {
+                state.quit_open = true;
+                Ok(())
+            }
+            Self::Shortcuts => {
+                state.shortcuts_open = true;
+                state.shortcut_query.clear();
+                Ok(())
+            }
+            Self::About => {
+                state.about_open = true;
+                Ok(())
+            }
+        }
+    }
+}
+
+/// The palette's rows for a query, resolved from the registry.
+///
+/// Label, group and shortcut are the registry's; this function only decides which of the palette's
+/// commands answer the text, matching the label, the id and the group name.
+fn palette_rows(query: &str) -> Vec<(PaletteCommand, sortlens_engine::command::CommandSpec)> {
+    let registry = sortlens_engine::command::Registry::v0();
+    let needle = query.trim().to_lowercase();
+    PaletteCommand::ALL
+        .iter()
+        .filter_map(|command| registry.get(command.id()).map(|spec| (*command, *spec)))
+        .filter(|(_, spec)| {
+            needle.is_empty()
+                || spec.label.to_lowercase().contains(&needle)
+                || spec.id.to_lowercase().contains(&needle)
+                || spec.group.label().to_lowercase().contains(&needle)
+        })
+        .collect()
+}
+
+/// Open command mode: an empty query so the first keystroke narrows commands, and the photo search
+/// behind it untouched.
+fn open_palette(state: &mut UiState) {
+    state.palette_open = true;
+    state.palette_query.clear();
+    state.palette_index = 0;
+    state.palette_focus = true;
+}
+
+/// Leave command mode without moving the caret: the command that just ran decides where focus goes.
+fn close_palette(state: &mut UiState) {
+    state.palette_open = false;
+    state.palette_query.clear();
+    state.palette_index = 0;
+}
+
+/// Esc: leave command mode and put the caret back at the end of the photo search.
+fn leave_palette_for_search(state: &mut UiState) {
+    close_palette(state);
+    state.focus_search = true;
+}
+
+/// The ⌘K palette: grouped commands with their shortcuts, hung under the search field.
+///
+/// Called before the bar is drawn, because the palette owns Enter and the arrow keys while it is open
+/// and a `TextEdit` would take them for itself.
+fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    if !state.palette_open {
+        return;
+    }
+    let rows = palette_rows(&state.palette_query);
+    if state.palette_index >= rows.len() {
+        state.palette_index = rows.len().saturating_sub(1);
+    }
+    let (escape, up, down, enter) = ui.input_mut(|input| {
+        (
+            input.consume_key(Modifiers::NONE, Key::Escape),
+            input.consume_key(Modifiers::NONE, Key::ArrowUp),
+            input.consume_key(Modifiers::NONE, Key::ArrowDown),
+            input.consume_key(Modifiers::NONE, Key::Enter),
+        )
+    });
+    if escape {
+        leave_palette_for_search(state);
+        return;
+    }
+    if !rows.is_empty() {
+        if up {
+            state.palette_index = (state.palette_index + rows.len() - 1) % rows.len();
+        }
+        if down {
+            state.palette_index = (state.palette_index + 1) % rows.len();
+        }
+    }
+    let Some(anchor) = state.palette_anchor else {
+        // The field has not been drawn yet (the palette opened on this frame), so there is nothing
+        // to hang the rows from; they follow it on the next frame.
+        return;
+    };
+    let mut chosen = if enter {
+        rows.get(state.palette_index).map(|(command, _)| *command)
+    } else {
+        None
+    };
+    let width = anchor.width().max(430.0);
+    let left = (anchor.right() - width).max(8.0);
+    egui::Area::new(egui::Id::unique("sortlens.command_palette"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(pos2(left, anchor.bottom() + 6.0))
+        .show(ui.ctx(), |ui| {
+            Frame::NONE
+                .fill(t.panel)
+                .stroke(Stroke::new(1.0, t.border))
+                .corner_radius(t.corner())
+                .inner_margin(Margin::same(8))
+                .show(ui, |ui| {
+                    ui.set_width(width - 16.0);
+                    if rows.is_empty() {
+                        ui.label(RichText::new("No command matches").size(11.5).color(t.text_muted));
+                    } else {
+                        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                            let mut group = None;
+                            for (index, (command, spec)) in rows.iter().enumerate() {
+                                if group != Some(spec.group) {
+                                    group = Some(spec.group);
+                                    ui.add_space(if index == 0 { 0.0 } else { 6.0 });
+                                    ui.label(RichText::new(spec.group.label()).size(10.0).strong().color(t.text_faint));
+                                }
+                                let selected = index == state.palette_index;
+                                let response = ui
+                                    .horizontal(|ui| {
+                                        let response = ui.selectable_label(selected, RichText::new(spec.label).size(12.0));
+                                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                            if let Some(keys) = spec.shortcut {
+                                                ui.label(RichText::new(keys).size(10.5).color(t.text_faint));
+                                            }
+                                        });
+                                        response
+                                    })
+                                    .inner;
+                                if response.clicked() {
+                                    chosen = Some(*command);
+                                }
+                                if response.hovered() {
+                                    state.palette_index = index;
+                                }
+                            }
+                        });
+                    }
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new("Up/Down choose · Enter run · Esc photo search")
+                            .size(10.0)
+                            .color(t.text_faint),
+                    );
+                });
+        });
+    if let Some(command) = chosen {
+        close_palette(state);
+        if let Err(reason) = command.run(state, engine, actions) {
+            state.notice(reason);
+        }
+    }
 }
 
 fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
@@ -1972,14 +2476,33 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                             },
                         }
                     }
+                    // How many photographs a row holds belongs beside the order they are in: density and
+                    // layout decide what the grid shows as much as the sort does, and none of the three is
+                    // a setting you leave the grid to change.
+                    let density = format!("Grid density: {}", state.density.label());
+                    if glyph_button(ui, t, crate::icons::Icon::Density, &density, false).clicked() {
+                        let next = state.density.next();
+                        state.density = next;
+                        actions.push(Action::SetDensity(next));
+                    }
+                    let layout = format!("Grid layout: {}", state.grid_mode.label());
+                    if glyph_button(ui, t, state.grid_mode.icon(), &layout, false).clicked() {
+                        let next = state.grid_mode.next();
+                        state.grid_mode = next;
+                        actions.push(Action::SetGrid(next));
+                    }
                 });
             });
             if state.root.is_some() {
                 breadcrumbs(ui, t, state);
             }
             ui.add_space(8.0);
-            filter_strip(ui, t, state, engine, total);
-            ui.add_space(10.0);
+            // The strip is a surface, not a fact: the Filter chip in the top bar puts it away, and a
+            // hidden strip must leave no gap behind it.
+            if state.filters_open {
+                filter_strip(ui, t, state, engine, total);
+                ui.add_space(10.0);
+            }
 
             if state.view == View::Library
                 && let Some(message) = state.welcome_ready.clone()
@@ -2631,6 +3154,11 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     if ui.memory(|memory| memory.focused()).is_some() {
         return;
     }
+    // The palette owns the keyboard while its field is open, even after a click moved focus away:
+    // a letter typed at it must filter commands, not rate the photograph behind it.
+    if state.palette_open {
+        return;
+    }
     if command_keyboard(ui, state, engine, actions) {
         return;
     }
@@ -2664,13 +3192,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     // Starting a session works before anything is selected: the queue comes from the filters.
     // A session restored from a previous run is opened rather than replaced.
     if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) && !state.detail_open {
-        state.view = View::Cull;
-        if engine.cull().is_none() {
-            match start_cull(engine, state) {
-                Ok(total) => state.notice(format!("Culling {total} photos")),
-                Err(error) => state.notice(error),
-            }
-        }
+        open_cull(state, engine);
         return;
     }
     // ⌘A selects everything in view and Escape drops the selection. Both work with nothing selected, which
@@ -3248,11 +3770,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         return true;
     }
     if rescan {
-        let root = state
-            .root
-            .clone()
-            .or_else(|| engine.counts_by_root().first().map(|(root, _)| root.clone()));
-        match root {
+        match rescan_root(state, engine) {
             Some(root) => actions.push(Action::Rescan(root)),
             None => state.notice("Add a folder before rescanning"),
         }
@@ -3293,15 +3811,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         return true;
     }
     if let Some(view) = view {
-        state.view = view;
-        // A similar search needs hashes; asking for the view from a key should start the work.
-        if view == View::Similar && engine.similar_groups().is_empty() && engine.hash_progress().is_none() {
-            match engine.begin_similar(state.similar_threshold) {
-                Ok(0) => {}
-                Ok(queued) => state.notice(format!("Hashing {queued} previews")),
-                Err(error) => state.notice_problem(error.to_string()),
-            }
-        }
+        activate_view(state, engine, view);
         return true;
     }
     if collection {
@@ -3316,6 +3826,41 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         return true;
     }
     false
+}
+
+/// Switch to a destination and start whatever that destination needs.
+///
+/// One function rather than a copy per entrance: a key, the palette and the bottom bar all agree about
+/// what opening Similar means, including beginning the hash pass it cannot show without.
+fn activate_view(state: &mut UiState, engine: &mut Engine, view: View) {
+    state.view = view;
+    // A similar search needs hashes; asking for the view should start the work.
+    if view == View::Similar && engine.similar_groups().is_empty() && engine.hash_progress().is_none() {
+        match engine.begin_similar(state.similar_threshold) {
+            Ok(0) => {}
+            Ok(queued) => state.notice(format!("Hashing {queued} previews")),
+            Err(error) => state.notice_problem(error.to_string()),
+        }
+    }
+}
+
+/// Open the cull view, starting a queue from the current filters when no session is restored.
+fn open_cull(state: &mut UiState, engine: &mut Engine) {
+    state.view = View::Cull;
+    if engine.cull().is_none() {
+        match start_cull(engine, state) {
+            Ok(total) => state.notice(format!("Culling {total} photos")),
+            Err(error) => state.notice(error),
+        }
+    }
+}
+
+/// Which folder a Rescan should walk: the scoped one, or the library's first root.
+fn rescan_root(state: &UiState, engine: &Engine) -> Option<String> {
+    state
+        .root
+        .clone()
+        .or_else(|| engine.counts_by_root().first().map(|(root, _)| root.clone()))
 }
 
 /// Open a compare against the next photo in order, or close one that is open.
@@ -7135,8 +7680,8 @@ mod tests {
         // appeared beside them, which is the drift this is meant to catch.
         assert_eq!(
             in_band(0.0, t.top_bar_h, screen.right()),
-            3,
-            "the top bar paints Settings, the panel toggle and Add Folder as pictures"
+            8,
+            "the top bar paints the app mark, Settings, Help, Appearance, Export, Import, Filter and the              panel toggle as pictures"
         );
         assert_eq!(
             in_band(screen.bottom() - t.bottom_bar_h, screen.bottom(), screen.right()),
@@ -9982,6 +10527,338 @@ mod tests {
                 if text.galley.text() == "Install")),
             "the buttons are gone with the consent"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// Phase 3 item 11: the palette is a front door to the command registry, not a second command list.
+    ///
+    /// Every id the palette can show has to be a `Ready` registry command — a row for something the
+    /// engine refuses would be a menu item that answers with an error — and the rows the palette
+    /// paints are the registry's, label and group and shortcut included.
+    #[test]
+    fn every_palette_command_is_a_ready_registry_command() {
+        let registry = sortlens_engine::command::Registry::v0();
+        let mut ids: Vec<&str> = PaletteCommand::ALL.iter().map(|command| command.id()).collect();
+        let count = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), count, "two palette rows name one command");
+        for command in PaletteCommand::ALL {
+            let spec = registry
+                .expect(command.id())
+                .unwrap_or_else(|_| panic!("{} is not a registry command", command.id()));
+            assert!(
+                spec.is_ready(),
+                "{} is {}, but the palette presents it as runnable",
+                command.id(),
+                spec.milestone().unwrap_or("not ready")
+            );
+        }
+        // The rows the empty query shows are the commands, in the same order, with the registry's text.
+        let rows = palette_rows("");
+        assert_eq!(rows.len(), PaletteCommand::ALL.len());
+        for (command, spec) in rows {
+            assert_eq!(spec.id, command.id());
+            assert!(
+                !spec.label.is_empty() && spec.menu.contains(" > "),
+                "{} has no menu identity",
+                spec.id
+            );
+        }
+        // A query narrows by label, id and group, and "settings" answers with one row.
+        assert_eq!(
+            palette_rows("settings").iter().map(|(command, _)| *command).collect::<Vec<_>>(),
+            vec![PaletteCommand::Settings]
+        );
+        assert!(palette_rows("nothing-is-called-this").is_empty());
+        // The group name answers too: every Library command is found by the word "library".
+        let library = palette_rows("library");
+        assert_eq!(
+            library
+                .iter()
+                .filter(|(_, spec)| spec.group == sortlens_engine::command::Group::Library)
+                .count(),
+            8,
+            "{library:?}"
+        );
+    }
+
+    /// A palette row that cannot run says why, and one that can leaves exactly its own trace.
+    #[test]
+    fn the_palette_commands_run_or_explain_why_not() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-palette-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut actions = Vec::new();
+
+        // With nothing selected, the commands that need a photograph say so instead of doing nothing.
+        for command in [PaletteCommand::Reveal, PaletteCommand::Open, PaletteCommand::Export] {
+            let reason = command
+                .run(&mut state, &mut engine, &mut actions)
+                .expect_err("no selection, so it cannot run");
+            assert!(reason.contains("photo") || reason.contains("Select"), "{reason}");
+        }
+        assert!(actions.is_empty(), "a refused command asks the host for nothing");
+
+        // And the commands that are always available do what the menus do.
+        PaletteCommand::Settings
+            .run(&mut state, &mut engine, &mut actions)
+            .expect("settings");
+        assert!(state.settings_open);
+        PaletteCommand::Shortcuts
+            .run(&mut state, &mut engine, &mut actions)
+            .expect("shortcuts");
+        assert!(state.shortcuts_open);
+        PaletteCommand::Insights
+            .run(&mut state, &mut engine, &mut actions)
+            .expect("insights");
+        assert_eq!(state.view, View::Insights);
+        PaletteCommand::AddFolder
+            .run(&mut state, &mut engine, &mut actions)
+            .expect("add folder");
+        assert_eq!(actions, vec![Action::PickFolder], "the folder picker is the host's job");
+        // A cull command with nothing staged refuses rather than opening an empty Apply dialog.
+        let reason = PaletteCommand::ApplyCull
+            .run(&mut state, &mut engine, &mut actions)
+            .expect_err("nothing staged");
+        assert!(reason.contains("Nothing staged"), "{reason}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// ⌘K opens command mode, typing narrows it, Enter runs the highlighted row, and Esc goes back to
+    /// photo search with the photographs' query untouched.
+    ///
+    /// Driven through `show` with real input events: the palette's keys are consumed before the search
+    /// field draws, and only a test that presses them can show that.
+    #[test]
+    fn command_k_opens_the_palette_and_enter_runs_the_highlighted_command() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-palette-keys-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.search = "beach".to_string();
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0));
+        let frame = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                events,
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, engine, thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let key = |key: Key, modifiers: Modifiers, pressed: bool| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers,
+        };
+
+        frame(&mut state, &mut engine, &mut thumbs, Vec::new());
+        assert!(!state.palette_open);
+
+        // ⌘K.
+        frame(
+            &mut state,
+            &mut engine,
+            &mut thumbs,
+            vec![key(Key::K, Modifiers::COMMAND, true), key(Key::K, Modifiers::COMMAND, false)],
+        );
+        assert!(state.palette_open, "⌘K opens command mode");
+        assert!(state.palette_query.is_empty(), "command mode starts with an empty query");
+
+        // Type "about": the field the bar draws in command mode has focus.
+        frame(&mut state, &mut engine, &mut thumbs, vec![egui::Event::Text("about".into())]);
+        assert_eq!(state.palette_query, "about");
+        assert_eq!(
+            palette_rows(&state.palette_query)
+                .iter()
+                .map(|(command, _)| *command)
+                .collect::<Vec<_>>(),
+            vec![PaletteCommand::About],
+            "typing narrows the rows"
+        );
+
+        // Enter runs it and leaves command mode.
+        frame(
+            &mut state,
+            &mut engine,
+            &mut thumbs,
+            vec![key(Key::Enter, Modifiers::NONE, true), key(Key::Enter, Modifiers::NONE, false)],
+        );
+        assert!(state.about_open, "Enter ran the highlighted row");
+        assert!(!state.palette_open, "and the palette closed");
+        assert_eq!(state.search, "beach", "the photo search was never touched");
+
+        // Esc leaves command mode and puts the caret back in the photo search, with its text intact.
+        frame(
+            &mut state,
+            &mut engine,
+            &mut thumbs,
+            vec![key(Key::K, Modifiers::COMMAND, true), key(Key::K, Modifiers::COMMAND, false)],
+        );
+        assert!(state.palette_open, "⌘K opens it again");
+        frame(
+            &mut state,
+            &mut engine,
+            &mut thumbs,
+            vec![key(Key::Escape, Modifiers::NONE, true), key(Key::Escape, Modifiers::NONE, false)],
+        );
+        assert!(!state.palette_open, "Esc goes back to photo search");
+        assert_eq!(state.search, "beach");
+        // "Back to photo search" is more than a mode flag: the next character typed lands in the
+        // photographs' field, not in a command query that is no longer on screen.
+        frame(&mut state, &mut engine, &mut thumbs, vec![egui::Event::Text("x".into())]);
+        assert_eq!(state.search, "beachx", "the caret went back to the photo search");
+        assert!(state.palette_query.is_empty());
+
+        // A row is clickable too, not only reachable with the arrow keys.
+        frame(
+            &mut state,
+            &mut engine,
+            &mut thumbs,
+            vec![key(Key::K, Modifiers::COMMAND, true), key(Key::K, Modifiers::COMMAND, false)],
+        );
+        frame(&mut state, &mut engine, &mut thumbs, vec![egui::Event::Text("quit".into())]);
+        let output = frame(&mut state, &mut engine, &mut thumbs, Vec::new());
+        let row = label_at(&output, "Quit Sortlens").expect("the filtered row is painted");
+        let mut clicks = press_and_release(row.center()).into_iter();
+        frame(&mut state, &mut engine, &mut thumbs, clicks.next().expect("press").events);
+        frame(&mut state, &mut engine, &mut thumbs, clicks.next().expect("release").events);
+        assert!(state.quit_open, "clicking the row ran it");
+        assert!(!state.palette_open, "and the palette closed");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Filter chip is the strip's switch and its badge, and the number is the one the header counts.
+    #[test]
+    fn the_filter_chip_toggles_the_strip_and_wears_the_active_count() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.min_rating = 2;
+        state.flag_filter = Some(Flag::Pick);
+        assert_eq!(state.active_filter_count(), 2);
+        let frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    filter_button(ui, state, &tokens);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        let output = frame(&mut state, egui::RawInput::default());
+        let badge = label_at(&output, "2").expect("the chip paints the count on itself");
+        assert!(state.filters_open, "the strip starts visible");
+
+        for input in press_and_release(badge.center()) {
+            frame(&mut state, input);
+        }
+        assert!(!state.filters_open, "clicking the chip puts the strip away");
+
+        // Nothing filtering means nothing to count: no badge over a chip that changes nothing.
+        state.min_rating = 0;
+        state.flag_filter = None;
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(label_at(&output, "0").is_none(), "no badge when no filter is on");
+
+        // And the strip itself obeys the switch: hidden means the chips are gone from the window.
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-filter-bar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let window = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails| {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))),
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, engine, thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        // "All kinds" is the strip's own kind chip; the Welcome copy mentions "Ratings", so a needle
+        // that could match both would pass for the wrong reason.
+        state.filters_open = true;
+        let output = window(&mut state, &mut engine, &mut thumbs);
+        assert!(label_at(&output, "All kinds").is_some(), "the strip shows its chips");
+        state.filters_open = false;
+        let output = window(&mut state, &mut engine, &mut thumbs);
+        assert!(
+            label_at(&output, "All kinds").is_none(),
+            "and a hidden strip leaves no chips behind"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The top bar and the palette paint only glyphs the bundled faces have.
+    ///
+    /// The same audit the detail view gets, aimed at the strings this slice introduced: the palette's
+    /// "Up/Down choose · Enter run" footer, the ⌘ in the search hint, and every registry label it can
+    /// show. A missing glyph is tofu, which looks like a design decision until you know.
+    #[test]
+    fn the_top_bar_and_palette_paint_only_glyphs_the_bundled_faces_have() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-topbar-glyphs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let t = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        // The bar is drawn by `show`, which installs the glyph loader first; this test draws the bar
+        // directly, so it installs the same loader or every image paints egui's error placeholder.
+        crate::icons::install(&ctx);
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0));
+        let mut actions = Vec::new();
+        let mut missing: Vec<String> = Vec::new();
+        let mut painted = 0;
+        for palette in [false, true] {
+            state.palette_open = palette;
+            state.palette_query.clear();
+            for _ in 0..2 {
+                let input = egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..egui::RawInput::default()
+                };
+                let mut output = ctx.run_ui(input, |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        command_palette(ui, &mut state, &t, &mut engine, &mut actions);
+                        top_bar(ui, &mut state, &t, &mut engine, &mut actions);
+                    });
+                });
+                output.textures_delta.clear();
+                painted = output.shapes.len();
+                for clipped in &output.shapes {
+                    if let egui::Shape::Text(text) = &clipped.shape {
+                        let font = text
+                            .galley
+                            .job
+                            .sections
+                            .first()
+                            .map_or_else(|| egui::FontId::proportional(12.0), |section| section.format.font_id.clone());
+                        let body = text.galley.job.text.clone();
+                        if !ctx.fonts_mut(|fonts| fonts.has_glyphs(&font, &body)) {
+                            missing.push(body);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(painted > 0, "the bar painted something");
+        assert!(missing.is_empty(), "these strings have no glyphs in the bundled faces: {missing:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1,5 +1,60 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-second) — Phase 3 item 11 (3B.2): one field with two modes, and the bar loses its words
+
+- **`⌘K` is the same field, not a second search box.** `UiState` grew `palette_open`, `palette_query`,
+  `palette_index`, `palette_focus`, `focus_search` and `palette_anchor`. The top bar draws the photo field or
+  the command field in the same 240-point slot depending on the mode, so the palette's rows hang under the
+  control the person is typing in. `Esc` leaves command mode and asks the photo field for focus, and the photo
+  query is untouched throughout (the test types "beach", opens ⌘K, runs a command, escapes, and finds "beach"
+  still there).
+- **The palette cannot list a command it cannot run.** `PaletteCommand` is an enum of 21 `Ready` registry
+  ids; `run` matches every variant, and the rows paint the registry's `label`, `Group::label` and `shortcut`
+  rather than strings of their own. `palette_rows` resolves them through `Registry::v0()` and filters on
+  label, id and group name. `↑/↓` wrap, `Enter` runs the highlighted row, a row that cannot run (no selection,
+  nothing staged, no folder to rescan) closes the palette and puts a sentence in the notice line rather than
+  pretending. The keys are consumed at the top of `show`, before the bar lays out: a `TextEdit` takes Enter
+  and the caret keys for itself, and the first ⌘K wiring failed exactly that way until the consumption moved.
+- **The bar is glyphs with names.** App mark (the `sortlens-icon` SVG registered once per context — the same
+  geometry as the window icon), then Settings, Help (`app.shortcuts`), Appearance, Activity, Export, Import,
+  Filter and the right-panel toggle; the search field stays the one piece of chrome that is made for typing.
+  Export is `add_enabled` on the selection and says "Select a photo to export" when it cannot run. Filter is a
+  toggle whose badge is `UiState::active_filter_count`, painted onto the button's own rect by a new
+  `paint_badge` the bell now shares, so a count never reflows the bar.
+- **Appearance is one control for two settings.** Left click cycles the theme; right click lists all four
+  presets and a Reduced-motion checkbox, so the two value chips that were here are gone rather than moved.
+  Density and layout are two glyphs beside the sort in the canvas header — the same question ("what does the
+  grid show") answered in one place.
+- **The filter strip can be put away.** `filters_open` (default true) gates `filter_strip`, and a hidden strip
+  leaves no gap. Hidden-on-empty-library is 3B.6's job and is not claimed here.
+- **Two glyphs joined the set**, both project-owned stroke SVGs in the established conventions: `funnel`
+  (Filter) and `export` (a tray with a rising arrow), 36 total. `Icon::ALL`, `CATALOG` and the folder test stay
+  in step; `docs/ATTRIBUTION.md`'s `assets/icons/*.svg` row already covers them. `Ctrl+K` joined the keymap
+  overlay (`crates/ui/src/keymap.rs`) so the shortcut is discoverable there as well as in the bar.
+- **Tests that fail when the behaviour is absent (5 new, 687 workspace total).** `every_palette_command_is_a_ready_registry_command`
+  walks the enum against `Registry::v0()` in both directions (unknown, planned and duplicated ids all fail)
+  and pins the query rules; `the_palette_commands_run_or_explain_why_not` drives `run` for the refusal and
+  success paths and checks the `Action` a command asks the host for; `command_k_opens_the_palette_and_enter_runs_the_highlighted_command`
+  drives real `RawInput` events through `show` (⌘K, text, Enter, ⌘K, Esc) and asserts the state each step;
+  `the_filter_chip_toggles_the_strip_and_wears_the_active_count` clicks the painted badge in isolation and
+  then shows the whole window with the strip on and off; and `the_top_bar_and_palette_paint_only_glyphs_the_bundled_faces_have`
+  audits every string the bar and the palette paint against the bundled faces — it passes for `⌘K`, the `·`
+  separators and every registry label, and it caught the missing `icons::install` in its own first run as
+  32 egui error placeholders. The chrome icon-count test now asserts 8 pictures in the top-bar band (was 3).
+- **Visual verification: all 20 baselines regenerated with `--update`, then read, then re-run without it
+  (8/8 tests matched).** Two are new: `palette-charcoal` and `palette-paper`, showing the field in command
+  mode with the rows grouped by registry group and the declared shortcuts right-aligned. The library
+  baselines were read in both presets to confirm the mark, the eight glyphs, the `⌘K` hint, the Filter badge
+  and the density/layout pair in the canvas header. `apps/sortlens` was not run by hand; the screenshots come
+  from the same `show` call.
+- **Not verified by hand**: the palette on a narrow window (it is `max(field width, 430)` wide and hangs left
+  of a 240-point field; below roughly 700 px it would reach the sidebar), and the app mark at 16 px on a
+  non-Retina display, where the tile's internal prints are a pixel or two each.
+- **Named, not hidden**: `docs/UX.md` §3 previously gave this bar a `view.appearance`, `view.filterBar`,
+  `library.filter` and `app.libraryMenu` command; none of those ids exist in the registry, and the table now
+  says which controls are shell state and marks the back/forward and library-menu rows as not shipped. The
+  registry gained no new verbs this slice — every palette row already existed and was `Ready`.
+
 ## 2026-11-23 (thirty-first) — Phase 3 item 10 (3B.1): the palette is one mapping, and the chrome has pictures
 
 - **`Tokens::palette()` is the mapping and `apply` is its only consumer.** `craft_ui::theme::WidgetPalette`
@@ -2891,17 +2946,20 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 9. `egui_kittest` screenshot harness, `cargo xtask screenshots`, Charcoal and Paper baselines (do this before 10–15)
    — **done 2026-11-23**, see the thirtieth entry.
 10. `WidgetPalette` mapping + monochrome SVG icon set — **done 2026-11-23**, see the thirty-first entry:
-    34 glyphs in `assets/icons/`, `crates/ui/src/icons.rs`, wired into all five surfaces, and
+    34 glyphs in `assets/icons/` (36 after 3B.2), `crates/ui/src/icons.rs`, wired into all five surfaces, and
     `Tokens::palette()` is the one widget-state mapping. The four value chips in the top bar (theme, density,
     layout, motion) are still words on purpose: they print a value, and 3B.2's Appearance menu is where they move.
-11. **The next slice — top bar declutter and the `⌘K` command palette.** One search field with two modes
-    (`docs/UX.md` §3): filenames live, `⌘K` into grouped commands with their shortcuts, `↑/↓`, `Enter`, `Esc`
-    back to photo search; a Filter chip carrying the active-filter count; the value chips (theme, density,
-    layout, motion) folded into a single Appearance menu; app mark at the left and layout/density in the canvas
-    header. Reuse the icon set rather than adding a second one, and make every palette command a registry
-    command — check `crates/engine/src/command.rs` first and add a missing verb there, not in the shell. The
-    baselines are its proof.
-12. Sidebar: scopes only in `SOURCES`, utility strip for Health/Changes/Shortcuts.
+11. **Top bar declutter and the `⌘K` command palette — done 2026-11-23**, see the thirty-second entry:
+    21 palette rows, every one a `Ready` registry command; the field switches mode in place; the bar's eight
+    glyphs; the Filter badge and toggle; Appearance as one menu; density/layout in the canvas header; 36 glyphs;
+    20 baselines including the two new palette scenes. Named as not shipped there: the app-mark library menu
+    and view history (the UX table used to imply both).
+12. **The next slice — sidebar scopes and the utility strip (3B.3).** `SOURCES` keeps only the six photo
+    scopes with their live counts; Library health, Changes and Shortcuts move to a footer utility strip, which
+    is the same code path as the palette's `library.health`, `library.history` and `app.shortcuts` rows. The
+    sidebar currently draws them as ordinary source rows (`crates/ui/src/shell.rs`, `left_panel`), so the work
+    is a section split plus the baselines. Keep the existing `nav_row` anatomy and do not invent a command: the
+    three verbs already exist and are `Ready`.
 13. Bottom bar: icon tabs, Detail/Compare/Soft Focus peers, annotation pill, right-side controls.
 14. Right panel: Suggestions tab + iconic tool strip.
 15. Visual defects: Welcome bullets, empty-library filter bar, filter glyphs/chevrons, bundled offline basemap.

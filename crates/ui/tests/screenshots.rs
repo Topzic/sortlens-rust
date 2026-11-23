@@ -318,6 +318,20 @@ fn places_paints_in_both_themes() {
     }
 }
 
+/// Command mode: the ⌘K palette hung under the search field, grouped by the registry's own groups
+/// and printing the shortcuts the registry declares. This is the top bar's new shape too — the mark,
+/// the glyph buttons and the one field — so the two baselines are the proof of Phase 3 item 11.
+#[test]
+fn command_palette_paints_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        scene.state.palette_open = true;
+        scene.state.palette_query = "library".to_string();
+        library.keep(shoot(kind, scene, &format!("palette-{}", kind_id(kind))));
+    }
+}
+
 /// Insights: the figures and the distributions, from the same library the grid shows.
 #[test]
 fn insights_paints_in_both_themes() {

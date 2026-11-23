@@ -77,6 +77,14 @@ impl GridMode {
         }
     }
 
+    /// The glyph that shows which layout is in force, so the canvas header needs no word for it.
+    pub const fn icon(self) -> crate::icons::Icon {
+        match self {
+            Self::Square => crate::icons::Icon::Square,
+            Self::Justified => crate::icons::Icon::Rows,
+        }
+    }
+
     /// Parse a persisted id; an unknown value is the default, never an error.
     pub fn from_id(id: &str) -> Self {
         Self::ALL.into_iter().find(|mode| mode.id() == id).unwrap_or_default()

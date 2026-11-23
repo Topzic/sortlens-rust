@@ -15,6 +15,8 @@ sortlens-memories = { workspace = true }
 sortlens-thumbs = { workspace = true }
 sortlens-geo = { workspace = true }
 sortlens-cull = { workspace = true }
+# The app mark: the top bar paints the same generated geometry as the window icon.
+sortlens-icon = { workspace = true }
 egui = { workspace = true }
 # SVG rasterisation for the monochrome icon set: `craft_ui::icons` prepares the bytes, this loads them.
 egui_extras = { workspace = true }
@@ -35,8 +37,6 @@ screenshots = ["dep:egui_kittest", "dep:eframe"]
 sortlens-testkit = { workspace = true }
 # Tests store scores directly to exercise the review; the UI itself only reads them through the engine.
 sortlens-quality = { workspace = true }
-# A real PNG to hand the tile cache, rather than a hand-written header the decoder would reject.
-sortlens-icon = { workspace = true }
 
 [lints]
 workspace = true

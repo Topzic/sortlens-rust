@@ -64,25 +64,34 @@ Reading order matches task order: choose scope (left) → narrow (top/filter bar
 
 ## 3. Top bar
 
-| Element | Behaviour | Command |
-| --- | --- | --- |
-| App mark + library name | Click = library menu (recent, open, new, backup, remap) | `app.libraryMenu` |
-| Back / forward | Navigate view+scope history (not photo history) | `view.back`, `view.forward` |
-| Search field | Typing filters photos by name; `⌘K` opens the palette; `Esc` clears | `library.filter {text}` |
-| Filter button + badge | Toggles the filter bar; badge counts active filters | `view.filterBar` |
-| Import | Add folder or files; keyboard `⌘O` | `file.addFolder`, `file.addFiles` |
-| Export | Export selection | `dialog.export` |
-| Activity bell | Unread count of notices, the recent list with ages, and a clear action; appears only when it has something to say and turns red when a notice is a problem | `panel.activity` |
-| Help | Shortcut overlay, docs, diagnostics | `app.shortcuts` |
-| Appearance | Auto/Light/Dark cycle; right-click = theme list | `view.appearance` |
-| Settings | Sectioned settings dialog | `app.settings` |
-
 The bar doubles as the macOS title bar (`craft-window`): the empty area drags the window, and
 double-click follows the system preference. Controls win over the drag.
 
+Every control is a glyph with a name, tooltip and accessible label; no control in this bar is a word
+that a picture can carry. The value chips that used to sit here (theme, density, layout, motion) are
+gone: density and layout moved to the canvas header beside the sort, and theme and motion are in
+Appearance.
+
+| Element | Behaviour | Command |
+| --- | --- | --- |
+| App mark + name | The mark is `sortlens-icon`'s own geometry, painted at 16 px, then the product name and the library label | — (the mark is not a menu yet) |
+| Search field | Typing filters photos by name; `⌘K` switches the same field to command mode; the hint reads `Search photos or ⌘K` | feeds `library.page` |
+| Command palette | Grouped by the command registry's own groups (Library, Review, Organise, View, App, Help), each row printing the shortcut the registry declares; `↑/↓` moves, `Enter` runs, `Esc` returns to photo search with its text untouched. A row that cannot run right now (nothing selected, nothing staged) says why in a notice | every row is a `Ready` registry command |
+| Filter button + badge | Toggles the filter bar; the badge is the live active-filter count and is painted onto the button, so the bar never reflows | shell state; the count is `UiState::active_filter_count` |
+| Import | Add a folder to index; keyboard `⌘O` | `library.addFolder` |
+| Export | Exports the selection; disabled, with a reason on hover, when nothing is selected | `edit.export` |
+| Activity bell | Unread count of notices, the recent list with ages, and a clear action; appears only when it has something to say and turns red when a notice is a problem | shell state |
+| Help | Shortcut overlay (filterable) | `app.shortcuts` |
+| Appearance | Left click cycles the theme; right click lists every preset and the reduced-motion switch | `SetTheme` / `SetMotion` host actions |
+| Settings | Sectioned settings dialog | `app.settings` |
+| Back / forward | Not shipped: there is no view+scope history yet | — |
+| Library menu | Not shipped: opening, recent libraries, backup and remap live in the sidebar and Settings | — |
+
 Search behaviour: **one field, two modes.** Typing searches filenames (live, debounced 120 ms).
-Pressing `⌘K` in the field switches to command mode with grouped results: Views, Photo actions,
-Library, Settings. `↑/↓` moves, `Enter` runs, `Esc` returns to photo search.
+Pressing `⌘K` in the field, or anywhere else in the window, switches it to command mode with the
+palette hanging under it. `↑/↓` moves, `Enter` runs, `Esc` returns to photo search. The palette's
+rows are the only commands it can show: a shared test resolves every one against the registry and
+fails if a row is missing from it, is not `Ready`, or is listed twice.
 
 ---
 
@@ -511,22 +520,25 @@ baseline is the review of what a change looks like rather than a claim that the 
 
 ## Icons
 
-One set, `crates/ui/src/icons.rs`: 34 monochrome 24-unit SVGs under `assets/icons/`. `craft_ui::icons`
+One set, `crates/ui/src/icons.rs`: 36 monochrome 24-unit SVGs under `assets/icons/`. `craft_ui::icons`
 prepares each glyph once (white `currentColor`, 1.75 stroke) and `egui_extras`' SVG loader rasterises it at
 exactly the size its slot asks for, so an icon paints in the theme's own colour and stays sharp at 2×.
 
 Where they paint today: the sidebar's source rows, folder rows, keyword rows and collection rows; the filter
 strip's chips (rating, flags, colour, kind, source, edited, missing, clear); every bottom-bar destination, as
-a glyph beside its label; the right panel's three tabs; and the top bar's Settings (`sliders`), panel toggle
-(`panel`) and Add Folder buttons. An icon-only button carries its words as the tooltip *and* the accessible
-name: replacing a word with a picture must not remove the word from a screen reader.
+a glyph beside its label; the right panel's three tabs; the canvas header's density and layout controls; and
+the top bar's Settings (`sliders`), Help (`keyboard`), Appearance (`contrast`), Activity (`bell`), Export
+(`export`), Import (`folder-plus`), Filter (`funnel`) and panel toggle (`panel`). An icon-only button carries
+its words as the tooltip *and* the accessible name: replacing a word with a picture must not remove the word
+from a screen reader.
 
 Four tests hold the set together. The enum, the catalog and the folder must name the same icons in both
 directions; a glyph with a hard-coded colour or a missing `currentColor` fails; every glyph must rasterise
 through the real loader to something with both ink and empty space at 14 and 32 px; and the shell test counts
 the textured rectangles painted in the top bar, bottom bar and sidebar, so a surface that loses its icons
 fails rather than quietly shrinking. Still target state: glyphs on the Welcome bullets, chevrons on the filter
-bar, and the `←`/`→` text in the keymap overlay (3B.6), and the `⌘K` palette's own iconography (3B.2).
+bar, and the `←`/`→` text in the keymap overlay (3B.6). The `⌘K` palette's rows are text by design — a
+command is a sentence, and a glyph for every verb would be a second vocabulary to learn.
 
 The widget states themselves come from the same place: `Tokens::palette` is the `craft_ui::theme::WidgetPalette`
 mapping, and `apply` installs it, so a suite widget reading `Visuals` and a Sortlens widget reading `Tokens`

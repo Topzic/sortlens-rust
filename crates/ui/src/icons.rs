@@ -34,10 +34,12 @@ const CATALOG: &[(&str, &[u8])] = &[
     ("contrast", include_bytes!("../../../assets/icons/contrast.svg")),
     ("density", include_bytes!("../../../assets/icons/density.svg")),
     ("droplet", include_bytes!("../../../assets/icons/droplet.svg")),
+    ("export", include_bytes!("../../../assets/icons/export.svg")),
     ("film", include_bytes!("../../../assets/icons/film.svg")),
     ("flag", include_bytes!("../../../assets/icons/flag.svg")),
     ("folder", include_bytes!("../../../assets/icons/folder.svg")),
     ("folder-plus", include_bytes!("../../../assets/icons/folder-plus.svg")),
+    ("funnel", include_bytes!("../../../assets/icons/funnel.svg")),
     ("health", include_bytes!("../../../assets/icons/health.svg")),
     ("history", include_bytes!("../../../assets/icons/history.svg")),
     ("info", include_bytes!("../../../assets/icons/info.svg")),
@@ -125,8 +127,12 @@ pub enum Icon {
     Flag,
     /// A colour-label filter.
     Droplet,
+    /// Export the selection.
+    Export,
     /// The media kind filter.
     Film,
+    /// The filter bar and its active count.
+    Funnel,
     /// Edited photos.
     Pencil,
     /// Something missing or wrong.
@@ -137,7 +143,7 @@ pub enum Icon {
 
 impl Icon {
     /// Every icon, in catalog order.
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 36] = [
         Self::Activity,
         Self::Bell,
         Self::Chart,
@@ -146,10 +152,12 @@ impl Icon {
         Self::Contrast,
         Self::Density,
         Self::Droplet,
+        Self::Export,
         Self::Film,
         Self::Flag,
         Self::Folder,
         Self::FolderPlus,
+        Self::Funnel,
         Self::Health,
         Self::History,
         Self::Info,
@@ -185,7 +193,9 @@ impl Icon {
             Self::Contrast => "contrast",
             Self::Density => "density",
             Self::Droplet => "droplet",
+            Self::Export => "export",
             Self::Film => "film",
+            Self::Funnel => "funnel",
             Self::Flag => "flag",
             Self::Folder => "folder",
             Self::FolderPlus => "folder-plus",

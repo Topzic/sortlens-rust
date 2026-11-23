@@ -1050,9 +1050,18 @@ right panel's three tabs, and the top bar's Settings, panel toggle and Add Folde
 (`Icon::ALL` ↔ catalog ↔ folder, `currentColor` and stroke conventions, every glyph rasterised through the
 real loader at 14 and 32 px, and an icon-only button's accessible name), plus a shell test that counts the
 textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines regenerated and read
-- [ ] 3B.2 Top bar: app mark, `Search photos or ⌘K`, a dual-mode command palette (commands with shortcuts, and
+- [x] 3B.2 Top bar: app mark, `Search photos or ⌘K`, a dual-mode command palette (commands with shortcuts, and
   photos), text buttons replaced by named, tooltipped icon buttons (Filter + badge, Import, Export, Activity, Help,
-  Appearance, Settings); layout and density move to the canvas header; theme and motion behind one Appearance menu (B)
+  Appearance, Settings); layout and density move to the canvas header; theme and motion behind one Appearance menu
+  (B) — shipped 2026-11-23: the mark is `sortlens-icon`'s own geometry, the field switches to command mode on `⌘K`
+  with rows grouped by the registry, `↑/↓`/`Enter`/`Esc` wired, and every row a `Ready` registry command (21 of
+  them; a test resolves each and refuses a row that is planned, doubled or unknown). The Filter chip toggles the
+  strip and paints the active count; Export opens the export dialog for the selection; Appearance cycles the theme
+  and lists every preset plus reduced motion on right click; Help opens the shortcut overlay; density and layout
+  are two glyphs beside the sort in the canvas header. Two glyphs joined the set for it (`funnel`, `export`, 36
+  total), `Ctrl+K` is in the keymap overlay, and the new `palette-charcoal`/`palette-paper` baselines are its
+  visual proof. Still not shipped, and now named in `docs/UX.md` §3 rather than implied: the app-mark library
+  menu and view history.
 - [ ] 3B.3 Sidebar: `SOURCES` holds only photo scopes with icons and live counts; Library health, Changes and
   Shortcuts move to a utility strip (B)
 - [ ] 3B.4 Bottom bar: icons on every view tab; `Detail`, `Compare` and `Soft Focus` as peer views with narrow-window
