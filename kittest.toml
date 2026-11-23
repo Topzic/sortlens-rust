@@ -1,0 +1,16 @@
+# egui_kittest configuration for `cargo xtask screenshots`.
+#
+# The file is found by searching upward from the running test's working directory, which is the
+# crate root (`crates/ui`), so `output_path` resolves to `crates/ui/tests/snapshots/`.
+#
+# `Harness::run` reports how many steps a UI that will not settle would have needed; 100 is the
+# suite's default and is kept so a stuck surface says so instead of failing with a bare timeout.
+
+output_path = "tests/snapshots"
+
+# A per-pixel tolerance, not an error budget for the whole image. The baselines are painted by the
+# same egui fork on the same machine, so the only differences a re-run can produce are sub-pixel
+# antialiasing ones. A moved separator, a changed glyph or a wrong colour costs far more than this
+# at a single pixel, so a real visual change still fails.
+threshold = 0.6
+max_failed_pixels = 0

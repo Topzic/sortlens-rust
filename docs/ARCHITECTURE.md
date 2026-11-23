@@ -630,10 +630,13 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
 
 Fixture strategy: a synthetic library generator (`sortlens-testkit`) writes JPEG/TIFF/PNG
 files with controlled EXIF, GPS, blur, near-duplicate transforms and known capture dates.
-What exists today: `Fixture` writes solid-colour JPEGs through the real encoder (so a fixture
-photo decodes, hashes and has a resolution), sidecars under the `docs/BEHAVIOUR.md` §4 naming
-rule, and removes its folder on drop. The same bytes every run is the property that makes the
-golden job below possible.
+What exists today: `Fixture` writes JPEGs through the real encoder (so a fixture photo decodes,
+hashes and has a resolution) — solid colour, or a deterministically phased gradient carrying XMP
+pixel dimensions and optional EXIF GPS, because the similarity pass reads structure and a library
+of solid colours is one enormous group. It writes sidecars under the `docs/BEHAVIOUR.md` §4 naming
+rule, names its own folder (`Fixture::at`) when a test needs a stable path, and removes the folder
+on drop. The same bytes every run is the property that makes the golden and screenshot jobs below
+possible.
 
 **Golden outputs** (`apps/sortlens-cli/tests/golden`, run by `cargo xtask snapshot`): 30 recorded
 invocations of the real binary against a fixture library — `add`, `stats`, `list`, `keywords`,
@@ -646,6 +649,20 @@ passing forever.
 That covers 95% of behaviour without shipping anyone's photos, and it makes performance
 tests deterministic. Public-domain photographs (NASA, Library of Congress) are used only for
 visual checks, with provenance in `docs/ATTRIBUTION.md`.
+
+**Screenshot baselines** (`crates/ui/tests/screenshots.rs`, run by `cargo xtask screenshots`): the real
+shell — `sortlens_ui::show` inside an `eframe::App`, the same entry the window uses — painted at a fixed
+1440×900 with `pixels_per_point = 1.0` across eight surfaces (Empty Welcome, Library in both layouts,
+Cull, Detail, Compare, Similar, Places, Insights) in the Charcoal and Paper presets. Eighteen PNGs are
+committed under `crates/ui/tests/snapshots/` and diffed by `egui_kittest`, with the per-pixel tolerance
+in `kittest.toml`; a mismatch writes the painted image and a diff beside the baseline and fails the run.
+The library behind them is a real fixture: fixed ratings, flags, keywords, a collection, EXIF
+dimensions, two locations and a duplicate pair, scanned once. The harness is a `sortlens-ui` feature
+(`screenshots`) that no app links, because it needs a GPU adapter and `cargo xtask ci` stays headless;
+tests run one at a time, and each settled surface also passes `egui_kittest`'s accessibility check —
+which is how the unnamed sort dropdown was found. `--update` rewrites the baselines and is a person's
+decision; the image diff is the review. Baselines are verified on macOS (Metal), which is where the
+suite's own project treats them as authoritative.
 
 CI (`xtask`, mirroring LightCraft):
 `cargo xtask ci --quick` (fmt, clippy -D warnings, changed-package tests, layers, roots,

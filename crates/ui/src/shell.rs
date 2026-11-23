@@ -1857,7 +1857,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         state.clear_filters();
                     }
                     let mut chosen = state.sort;
-                    egui::ComboBox::from_id_salt("sort_order")
+                    let combo = egui::ComboBox::from_id_salt("sort_order")
                         .selected_text(RichText::new(state.sort.label()).size(11.5).color(t.text_muted))
                         .width(130.0)
                         .show_ui(ui, |ui| {
@@ -1865,6 +1865,10 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                                 ui.selectable_value(&mut chosen, sort, RichText::new(sort.label()).size(11.5));
                             }
                         });
+                    // The visible text is the *current* choice, not the control's name: read aloud it
+                    // said "Added" and nothing about what it changes. Found by the screenshot
+                    // harness's accessibility check (Phase 3 item 9), which is stricter than a scan.
+                    crate::a11y::label_widget(ui, &combo.response, egui::Role::ComboBox, "Sort order", false);
                     if chosen != state.sort {
                         state.sort = chosen;
                         actions.push(Action::SetSort(chosen));
@@ -3495,12 +3499,12 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
 
     ui.add_space(8.0);
     ui.horizontal(|ui| {
-        if ui.add(Button::new(RichText::new("← Previous").size(11.0))).clicked()
+        if ui.add(Button::new(RichText::new("Previous").size(11.0))).clicked()
             && let Some(previous) = engine.neighbour(&filter, state.sort, id, -1)
         {
             state.selection.replace(previous);
         }
-        if ui.add(Button::new(RichText::new("Next →").size(11.0))).clicked()
+        if ui.add(Button::new(RichText::new("Next").size(11.0))).clicked()
             && let Some(next) = engine.neighbour(&filter, state.sort, id, 1)
         {
             state.selection.replace(next);
@@ -3572,7 +3576,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
     });
 
     ui.label(
-        RichText::new("P/X/U flag · 1–5 rate · ← → walk · Z zoom · Esc close")
+        RichText::new("P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close")
             .size(10.0)
             .color(t.text_faint),
     );
@@ -8519,6 +8523,10 @@ mod tests {
     ///
     /// The interesting part is that it does not panic, does not ask for anything, and does not paint an empty
     /// rectangle where a photo belongs — the tier choice itself is tested in `thumbs`, and this is the call site.
+    ///
+    /// The same frame is also audited for tofu: every character the detail view paints must exist in the bundled
+    /// faces. The screenshot harness caught the footer's `←`/`→` here (no bundled face has U+2190/U+2192, so a
+    /// default install drew boxes), and this is the headless test that keeps the footer honest.
     #[test]
     fn the_detail_view_paints_while_the_big_decode_is_still_running() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-detail-{}", std::process::id()));
@@ -8548,6 +8556,7 @@ mod tests {
         let mut thumbs = Thumbnails::new(dir.join("cache"));
         let actions: Vec<Action> = Vec::new();
         let mut painted = 0;
+        let mut missing: Vec<String> = Vec::new();
         for _ in 0..3 {
             let mut output = ctx.run_ui(input.clone(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
@@ -8556,8 +8565,29 @@ mod tests {
             });
             output.textures_delta.clear();
             painted = output.shapes.len();
+            missing = output
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) => {
+                        let font = text
+                            .galley
+                            .job
+                            .sections
+                            .first()
+                            .map_or_else(|| egui::FontId::proportional(12.0), |section| section.format.font_id.clone());
+                        let body = text.galley.job.text.clone();
+                        (!ctx.fonts_mut(|fonts| fonts.has_glyphs(&font, &body))).then_some(body)
+                    }
+                    _ => None,
+                })
+                .collect();
         }
         assert!(painted > 0, "the detail view painted something");
+        assert!(
+            missing.is_empty(),
+            "the detail view paints only glyphs the bundled faces have; these do not: {missing:?}"
+        );
         assert!(actions.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }

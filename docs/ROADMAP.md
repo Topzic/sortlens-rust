@@ -1029,9 +1029,16 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 
 ### Phase 3 — Adobe/ArtCraft UI/UX overhaul and a visual verification harness (M4–M6 surfaces)
 
-- [ ] 3A. `egui_kittest` screenshot suite behind `cargo xtask screenshots`: Empty Welcome, Library (Justified and
+- [x] 3A. `egui_kittest` screenshot suite behind `cargo xtask screenshots`: Empty Welcome, Library (Justified and
   Square), Cull, Detail, Compare, Similar, Places, Insights, each in Charcoal and Paper, with committed or
-  cleanly emitted baselines (B)
+  cleanly emitted baselines (B) — shipped 2026-11-23: `crates/ui/tests/screenshots.rs` paints the real shell
+  inside an `eframe::App` at 1440×900 (ppp 1.0) through the same egui fork, and 18 baselines live under
+  `crates/ui/tests/snapshots/`, diffed by `egui_kittest` with the tolerance in `kittest.toml`. The harness is
+  a `sortlens-ui` feature no app links (it needs a GPU; `cargo xtask ci` stays headless) and `--update` is the
+  rewrite path. It found and this commit fixed two defects: the sort dropdown had no accessible name (the
+  suite's AccessKit check fails an unnamed control) and the detail footer painted `←`/`→`, which no bundled
+  font has, so a zero-config build showed tofu (the footer now says "left/right"). It also recorded three
+  open visual defects named in 3B.6 below
 - [ ] 3B.1 `Tokens` mapped onto `craft_ui::theme::WidgetPalette`; monochrome SVG icons across top bar, sidebar,
   filter strip, bottom bar and right panel (B)
 - [ ] 3B.2 Top bar: app mark, `Search photos or ⌘K`, a dual-mode command palette (commands with shortcuts, and
@@ -1045,7 +1052,10 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 - [ ] 3B.5 Right panel: a `Suggestions` tab beside Details, Tags and Activity, and the far-edge iconic tool strip (B)
 - [ ] 3B.6 Visual defects: Welcome bullets as proper icons; filter bar hidden on an empty library, with glyphs,
   swatches and chevrons on its controls; Places ships an offline coastline basemap and falls back to the user's
-  `tiles/` and `places.txt` when present (B)
+  `tiles/` and `places.txt` when present (B). The 3A baselines recorded three more: Places opens at zoom 5, so a
+  library spread across continents opens with both clusters off-screen (the baseline zooms to 3 to show the
+  dots); the cull keyword row clips under the bottom bar at 900 px; and `←`/`→` are still used as text in the
+  keymap overlay and the command registry's `shortcut` strings, where the bundled faces have no glyph
 
 ### Phase 4 — Platform, keymap and remote polish (M9–M10)
 

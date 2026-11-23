@@ -292,10 +292,13 @@ Notes and gotchas:
   library open, headless grid frames. It is deliberately not in `ci`: a timing that fails on a loaded box
   gets ignored, and a timing that passes there says nothing about a library on a laptop. Numbers from a
   run, with the machine's name next to them, live in `docs/PERF.md`.
-- **Golden outputs** rather than a snapshot crate: `cargo xtask snapshot` diffs
-  `apps/sortlens-cli/tests/golden/*.txt` (read-only in CI, `--update` for an intended change). No
-  `insta` dependency, because the recorded artifact is the tool's published output, not an internal
-  value, and a plain text file in the tree is reviewable in a diff.
+- **Golden outputs for published text, `egui_kittest` for painted pixels**: `cargo xtask snapshot`
+  diffs `apps/sortlens-cli/tests/golden/*.txt` (read-only in CI, `--update` for an intended change), because
+  the recorded artifact there is the tool's published output, not an internal value, and a plain text file
+  in the tree is reviewable in a diff. The one snapshot crate is `egui_kittest`, behind
+  `cargo xtask screenshots`: a painted frame is not a value a text golden can carry, so 18 PNG baselines of
+  the real shell are committed and the image diff is the review (`docs/ARCHITECTURE.md` §12). `insta` is
+  still not used — there is no internal value snapshot to record.
 - **`cargo-nextest`** for the suite's test profile; `cargo test` remains supported.
 - **`cargo-mutants`** on `sortlens-catalog` and `sortlens-cull` only, nightly job.
 - **No `sccache` in release builds** (LTO + one codegen unit); it helps dev loops only.

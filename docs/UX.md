@@ -503,6 +503,12 @@ re-checks its own contrast pairs after applying.
 Each component gets: a kittest snapshot in light/dark/RTL, an accessibility assertion, and a
 "used in" list. No component may read global state directly; it takes data + a command callback.
 
+The shell-level suite is real today: `cargo xtask screenshots` paints eight surfaces in Charcoal and
+Paper against committed baselines, and fails on a pixel difference beyond the tolerance in
+`kittest.toml` (`docs/ARCHITECTURE.md` §12). Component-level and RTL snapshots land with the component
+work in 3B and the i18n scaffolding in Phase 4; until then the shell suite is the visual gate, and a
+baseline is the review of what a change looks like rather than a claim that the design is finished.
+
 ## Charts
 
 Two shapes, both drawn by `crates/ui/src/charts.rs`: a column chart and a proportional row. No chart

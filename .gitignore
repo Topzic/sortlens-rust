@@ -6,3 +6,6 @@
 *.tmp
 .DS_Store
 /.fonts
+
+# The screenshot harness keeps its fixture library here; it is rebuilt by every run.
+/crates/ui/tests/.screenshots

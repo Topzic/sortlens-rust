@@ -54,6 +54,7 @@ fn main() -> ExitCode {
         "fonts" => fonts(),
         "deny" => deny(),
         "snapshot" => snapshot(),
+        "screenshots" => screenshots(),
         "version" => version(),
         "attribution" => attribution(),
         "a11y" => a11y(),
@@ -88,6 +89,7 @@ fn help() {
   fonts    report the embedded face set and refuse to ship one that covers no Latin text
   deny     check licences, advisories, bans and sources against deny.toml
   snapshot golden CLI output; --update rewrites the goldens, then read the diff
+  screenshots  paint the shell through egui_kittest and diff the baselines; --update rewrites them
   version  one version for the workspace, declared once
   attribution  every dependency attributed, and the document honest about what is linked
   a11y     every custom-painted clickable region registers a name
@@ -290,6 +292,39 @@ fn snapshot() -> Result<(), String> {
         return Ok(());
     }
     run("cargo", &["test", "-p", "sortlens-cli", "--test", "golden"])
+}
+
+/// Paint the shell and compare it with the committed baselines (ROADMAP Phase 3 item 9).
+///
+/// Opt-in on purpose: `cargo xtask ci` is headless, and this needs a GPU adapter. The test file is
+/// gated on `sortlens-ui`'s `screenshots` feature, so it does not even compile into a normal run.
+/// Tests run one at a time: each one creates a wgpu device, and six devices at once is a way to make
+/// a screenshot fail for a reason that has nothing to do with the UI.
+fn screenshots() -> Result<(), String> {
+    let update = std::env::args().any(|arg| arg == "--update");
+    if update {
+        println!("xtask screenshots: rewriting baselines — read `git diff --stat` and open the images");
+    }
+    let mut command = Command::new("cargo");
+    command.args([
+        "test",
+        "-p",
+        "sortlens-ui",
+        "--features",
+        "screenshots",
+        "--test",
+        "screenshots",
+        "--",
+        "--test-threads=1",
+    ]);
+    if update {
+        command.env("UPDATE_SNAPSHOTS", "1");
+    }
+    let status = command.status().map_err(|error| format!("could not run cargo: {error}"))?;
+    if !status.success() {
+        return Err("the screenshot baselines do not match (see crates/ui/tests/snapshots)".to_string());
+    }
+    Ok(())
 }
 
 /// Run cargo-deny against the allow-list in `deny.toml`.

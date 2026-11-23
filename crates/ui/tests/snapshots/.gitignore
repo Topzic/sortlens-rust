@@ -1,0 +1,5 @@
+# Written when a snapshot does not match: the picture that was painted, the difference, and the
+# backup an update leaves behind. The baselines themselves are the only images that belong here.
+*.new.png
+*.diff.png
+*.old.png

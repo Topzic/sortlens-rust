@@ -82,6 +82,9 @@ flate2 = "1"
 # UI: the suite's egui fork, pinned to the same revision as craft-libs.
 egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
+# The screenshot harness (`sortlens-ui` feature `screenshots`): the same fork's testing crate, so a
+# baseline is painted by the code the window uses. Test-only, never linked into the app.
+egui_kittest = { git = "https://github.com/storytold/egui", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,5 +1,70 @@
 # Checkpoint
 
+## 2026-11-23 (thirtieth) — Phase 3 item 9 (3A): the screenshot harness, its baselines, and what they found
+
+- **`cargo xtask screenshots` exists and paints the real shell.** `crates/ui/tests/screenshots.rs` runs
+  `sortlens_ui::show` inside an `eframe::App` — the same entry `apps/sortlens` uses — through
+  `egui_kittest` at the suite's pinned egui revision, at a fixed 1440×900 with `pixels_per_point = 1.0`.
+  Eight surfaces × the Charcoal and Paper presets = **18 committed PNGs** under
+  `crates/ui/tests/snapshots/`: Empty Welcome, Library Justified, Library Square, Detail, Compare, Cull,
+  Similar, Places and Insights (Detail and Compare share one test, as do the two grid layouts). The
+  diffing is `egui_kittest`'s own — per-pixel tolerance in the new root `kittest.toml` (`threshold = 0.6`,
+  `max_failed_pixels = 0`) — so a mismatch writes `<name>.new.png` and `<name>.diff.png` beside the
+  baseline, reports the failing-pixel sweep, and fails. `cargo xtask screenshots --update` sets
+  `UPDATE_SNAPSHOTS=1` and is a person's decision; the images are the review.
+- **The harness is opt-in and the CI gate stays headless.** It lives behind `sortlens-ui`'s `screenshots`
+  feature (`dep:egui_kittest`, `dep:eframe`), so `cargo xtask ci` neither compiles nor needs a GPU; the
+  file is `#![cfg(feature = "screenshots")]`. `cargo xtask screenshots` runs it with `--test-threads=1`
+  because each test creates a wgpu device, and six devices at once is a way to fail for a reason that has
+  nothing to do with the UI. `egui_kittest` is declared once in `[workspace.dependencies]` like every other
+  dependency and attributed in `docs/ATTRIBUTION.md`; `deny` (all-features) passes its licence tree
+  (`kittest`, `dify`, `open`), and `wasm` still compiles the ui crate without any of it.
+- **Every settled surface also passes `egui_kittest`'s accessibility check, and it found a real defect on
+  the first run**: the canvas header's sort `ComboBox` had no accessible name — read aloud it said "Added",
+  the current value, and nothing about what the control changes. Fixed with the crate's own
+  `a11y::label_widget(ui, &combo.response, Role::ComboBox, "Sort order", false)`, so it is labelled the
+  same way the other custom controls are. `cargo xtask a11y` could not see this one: the widget is egui's,
+  not a hand-painted clickable.
+- **The second finding was tofu**: the detail footer painted `← Previous` / `Next →` and `← → walk`, and
+  none of the four bundled faces has U+2190/U+2192, so a zero-config build (the documented default, with
+  no `craft-fonts` checkout) drew boxes. The buttons now read "Previous"/"Next" and the hint reads
+  "left/right walk"; no behaviour changed. The overlay's keycap labels in `crates/ui/src/keymap.rs` and the
+  registry's `shortcut` strings in `crates/engine/src/command.rs` still say `←`/`→` — they are cross-checked
+  against each other and against the CLI goldens, so they are the next slice's work, not a half-fix here.
+- **Three more visual defects are recorded, not hidden** (ROADMAP 3B.6 now names them): Places opens at
+  zoom 5, so a library spread across two continents centres between them and paints no dots at all — the
+  baseline zooms to 3 to show the dots, and choosing an opening zoom that fits is 3B.6's job; the cull
+  view's keyword row clips under the bottom bar at 900 px; and the `1 active` + `Clear` pair still doubles
+  up in the filter strip. A baseline that showed a blank map as "the Places view" would have been a
+  placeholder presented as working, so the scene says what it changed and why.
+- **The fixture library is real and now carries real metadata.** `sortlens-testkit` gained
+  `Fixture::at(path)` (a caller-named, cleared folder — `new` keeps its process id for parallel tests) and
+  `Pattern` (`Solid` or a deterministically phased `Gradient`) with `Fixture::jpeg_with_pattern`, which
+  writes the JPEG's pixel dimensions into an XMP packet (where the suite's EXIF writer does not record
+  them) and GPS into EXIF. Solid colours were not enough: the similarity pass reads structure, so twelve
+  solid frames were one identical group — and the justified grid had uniform cells because a fixture with
+  no dimension tags indexes as 0 × 0. The screenshot library is now twelve gradients with mixed aspect
+  ratios, five EXIF locations, a duplicate pair (IMG_0009/IMG_0010, byte-identical), fixed ratings, two
+  picks, a reject, two keywords and a collection — scanned once, then moved between scenes so every
+  baseline paints the same ids. The folder is a *relative* path (`tests/.screenshots`, gitignored) because
+  the Places status line prints the library's `tiles/` folder: an absolute temporary path with a process id
+  in it made the baseline unreproducible, which is exactly what the second run caught.
+- **Tests that fail when the behaviour is absent**: the seven screenshot tests (a changed token fails with
+  a named diff — verified by temporarily recolouring Charcoal's accent, which failed 891 pixels, then
+  reverted); `sortlens-testkit`'s gradient-stability test (same phase, same bytes; different phase,
+  different file) and its dimension/GPS round-trip through `craft_metadata::extract`; and the existing
+  headless `Context::run_ui` detail-view test was **extended** to audit every string the view paints against
+  the bundled faces' glyph coverage, failing with the offending text — verified by reintroducing
+  `← Previous`, which it named, then reverting. 676 workspace tests (+2 in testkit; the 7 screenshot tests
+  run only with the feature). ci, snapshot, deny, wasm and `cargo xtask screenshots` green; a second
+  screenshot run without `--update` matched all 18 baselines.
+- **Visual verification**: the 18 baselines were opened and read, not just generated. They show the shell
+  at 1440×900 in both presets, the two grid layouts with real aspect ratios, the detail and compare
+  canvases, a settled cull session, two similar groups, the Places dots with no basemap, and the Insights
+  figures. `apps/sortlens` was not run by hand; the screenshots come from the same `show` call, and the
+  harness's only difference from the window is the 0 title-bar inset (documented in the test: a harness has
+  no traffic lights to clear).
+
 ## 2026-11-23 (twenty-eighth) — Phase 2 item 3b: pack keywords matched by meaning (SL-F03, the CLIP side)
 
 - **The gate first, as promised: the real pins were downloaded, digest-verified and run once this
@@ -2761,15 +2826,19 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 **Phase 2 is complete.** Phase 3 starts here, in this order:
 
 9. **`egui_kittest` screenshot harness + `cargo xtask screenshots`**, Charcoal and Paper baselines for Empty
-   Welcome, Library (Justified and Square), Cull, Detail, Compare, Similar, Places and Insights. Every later
-   Phase 3 item needs it as proof, which is why it is first. Note `egui` is pinned to the suite's fork revision
-   (`Cargo.toml`), so check that `egui_kittest` at the matching revision is available before designing around it;
-   if the fork has no kittest, the honest fallback is a small in-crate snapshot rig that renders through
-   `Context::run_ui` and writes PNGs, with the baseline diffing done by `xtask` — not a hand-painted substitute.
+   Welcome, Library (Justified and Square), Cull, Detail, Compare, Similar, Places and Insights — **done
+   2026-11-23**, see the thirtieth entry. 18 baselines; `egui_kittest` does exist at the fork revision, so no
+   fallback rig was needed. It found the unnamed sort combo and the missing arrow glyphs (both fixed) and
+   recorded three visual defects under 3B.6.
 
 **Phase 3 — UI/UX overhaul**
-9. `egui_kittest` screenshot harness, `cargo xtask screenshots`, Charcoal and Paper baselines (do this before 10–15).
-10. `WidgetPalette` mapping + monochrome SVG icon set.
+9. `egui_kittest` screenshot harness, `cargo xtask screenshots`, Charcoal and Paper baselines (do this before 10–15)
+   — **done 2026-11-23**, see the thirtieth entry.
+10. `WidgetPalette` mapping + monochrome SVG icon set — **the next slice**: `Tokens` onto
+   `craft_ui::theme::WidgetPalette`, then `crates/icon`'s SVG set wired into the top bar, sidebar, filter strip,
+   bottom bar and right panel. The 3A baselines are its proof, so run `cargo xtask screenshots` before and after;
+   the arrow-glyph strings in `keymap.rs`/`command.rs` and the Places opening zoom recorded in 3B.6 are visual
+   work for 3B.6, not this one.
 11. Top bar declutter, `⌘K` dual-mode palette, icon buttons, Appearance menu, canvas header layout/density.
 12. Sidebar: scopes only in `SOURCES`, utility strip for Health/Changes/Shortcuts.
 13. Bottom bar: icon tabs, Detail/Compare/Soft Focus peers, annotation pill, right-side controls.

@@ -48,6 +48,7 @@ These are the crates a manifest actually asks for and the build links.
 | `craft-jsonrpc` | MIT OR Apache-2.0 | JSON-RPC framing for the MCP server |
 | `craft-mcp` | MIT OR Apache-2.0 | MCP protocol types for `sortlens-mcp` |
 | `egui` | MIT OR Apache-2.0 | Immediate-mode GUI (storytold fork) |
+| `egui_kittest` | MIT OR Apache-2.0 | The screenshot harness (`cargo xtask screenshots`): the same fork's headless wgpu renderer, AccessKit queries and image snapshot diffing; `sortlens-ui` tests only, never linked into the app |
 | `eframe` | MIT OR Apache-2.0 | The application shell and its renderer |
 | `serde` | MIT OR Apache-2.0 | Op-log, snapshot and settings serialisation |
 | `serde_json` | MIT OR Apache-2.0 | JSON records, the CLI's `--json`, MCP |

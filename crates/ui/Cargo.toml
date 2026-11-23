@@ -18,6 +18,16 @@ sortlens-cull = { workspace = true }
 egui = { workspace = true }
 craft-ui = { workspace = true }
 serde = { workspace = true }
+# The screenshot harness renders through the same egui fork the window uses, so a baseline is the
+# shell's own painting. Opt-in: it needs a GPU, which `cargo xtask ci` must not depend on.
+egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"], optional = true }
+eframe = { workspace = true, optional = true }
+
+[features]
+# `cargo xtask screenshots`: paint the real shell at a fixed size and compare against the committed
+# baselines under `crates/ui/tests/snapshots/`. Not part of `cargo xtask ci`, which must stay
+# headless-only.
+screenshots = ["dep:egui_kittest", "dep:eframe"]
 
 [dev-dependencies]
 sortlens-testkit = { workspace = true }
