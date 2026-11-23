@@ -22,7 +22,7 @@ scripts and AI agents.
 
 > **Status: M0–M10 built, core completion in progress.** The milestones are built, but several core
 > features are still open and tracked as unchecked rows under "Completion phases" in `docs/ROADMAP.md`
-> (video poster frames, PNG export, real local AI tagging, an out-of-the-box map, the Adobe/ArtCraft layout
+> (PNG export, real local AI tagging, an out-of-the-box map, the Adobe/ArtCraft layout
 > pass, the keymap editor, the remote client). A working local photo library: scanning and indexing, a virtualised grid,
 > filters and search, keywords with an alias registry, XMP sidecars, the cull machine with gestures and
 > zoom, collections, duplicate and colour matching, insights, memories, detail and side-by-side compare,
@@ -135,7 +135,7 @@ table is in the app under `?`.
 
 ### What is not built yet
 
-Named so that nothing here reads as finished: video poster frames, blur-up, an out-of-the-box map,
+Named so that nothing here reads as finished: blur-up, an out-of-the-box map,
 blur scoring, local model inference (the owner has approved pinning permissively licensed weights and a
 consent-gated downloader), PNG export, the remote/companion server, localisation and right-to-left layout,
 shortcut rebinding, high contrast and reduced motion, theme import, per-platform installers and signing,

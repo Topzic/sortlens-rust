@@ -42,7 +42,9 @@ These are the crates a manifest actually asks for and the build links.
 | `craft-image-codecs` | MIT OR Apache-2.0 | PNG and other formats for previews |
 | `craft-raw` | MIT OR Apache-2.0 | RAW containers and their embedded previews |
 | `craft-heif` | MIT OR Apache-2.0 | HEIC decoding for thumbnails and container sizes during the scan |
-| `craft-media` | MIT OR Apache-2.0 | The isobmff demuxer behind a video's length, frame rate and codec |
+| `craft-media` | MIT OR Apache-2.0 | The isobmff demuxer behind a video's length, frame rate, codec and poster frames |
+| `craft-video` | MIT OR Apache-2.0 | The H.264/HEVC decoders behind a video's poster frame (first sync sample) |
+| `craft-color` | MIT OR Apache-2.0 | The poster conversion's arithmetic: matrix, range, transfer and gamut |
 | `craft-jsonrpc` | MIT OR Apache-2.0 | JSON-RPC framing for the MCP server |
 | `craft-mcp` | MIT OR Apache-2.0 | MCP protocol types for `sortlens-mcp` |
 | `egui` | MIT OR Apache-2.0 | Immediate-mode GUI (storytold fork) |
@@ -67,7 +69,6 @@ promise nobody intends to keep.
 
 | Crate | Licence | Why it is declared | Linked by |
 |---|---|---|---|
-| `craft-video` | MIT OR Apache-2.0 | Video poster frames: first sync sample through the H.264/HEVC decoders | Phase 1 |
 | `craft-atomic` | MIT OR Apache-2.0 | Atomic file replacement for the resumable model downloader | Phase 2 |
 | `rayon` | MIT OR Apache-2.0 | The low-priority compute pool for local inference | Phase 2 |
 | `craft-keymap` | MIT OR Apache-2.0 | The rebinding editor, conflict detection and import/export | Phase 4 |

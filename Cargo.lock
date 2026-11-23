@@ -631,6 +631,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-color"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "craft-crw"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
@@ -812,6 +820,15 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "craft-video"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3#23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3"
+dependencies = [
+ "craft-media",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3815,10 +3832,13 @@ dependencies = [
 name = "sortlens-thumbs"
 version = "0.1.0"
 dependencies = [
+ "craft-color",
  "craft-heif",
  "craft-image-codecs",
  "craft-jpeg",
+ "craft-media",
  "craft-raw",
+ "craft-video",
  "sortlens-core",
  "sortlens-meta",
 ]

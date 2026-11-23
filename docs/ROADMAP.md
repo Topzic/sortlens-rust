@@ -214,15 +214,23 @@ what they need.
   - Tested with a video **muxed by the suite's own writer** in the test — 24 samples of 25 ticks at 600 Hz is
     one second at 24 fps — plus the same file truncated (refused), a JPEG (not a video) and the clock-format
     table. No video blob is committed.
-- [ ] Video poster frame — **part 2**, open: **Phase 1 item 1** below (C) — SL-B11 part 2
-  - Design notes: a poster needs `craft-video`'s H.264 (or HEVC) decoder **and** a YUV→RGB conversion honouring
-    the frame's `ColorTags` — matrix, range and primaries. `VideoFrame` deliberately carries planes and tags
-    with no conversion, because getting that wrong is a colour bug that looks like a decode bug. The container
-    half is done, so this is now a decoder-side piece of work rather than a research question.
-  - Plan: a poster decoder that reads the first sync sample, decodes it with `h264-decode`/`hevc-decode`
-    and converts with the frame's own colour tags, with a test whose fixture is muxed by the same writer the
-    metadata test uses. Until it lands a video cell shows its type, its length and its filename — never a blank
-    cell pretending to be a photo.
+- [x] Video poster frame — **part 2**, shipped 2026-11-22 (C) — SL-B11 part 2
+  - `sortlens-thumbs::poster` reads the first sync sample of the first video track straight from disk
+    (`craft_media::FileReader`, never a whole-file read) and decodes it with `craft-video`'s H.264
+    (`avcC`) or HEVC (`hvcC`) decoder, feeding at most eight access units before a flush, because the
+    decoder's reorder buffer releases the first picture only when a later one arrives.
+  - The conversion honours the frame's **colour tags**: matrix (BT.709/601/2020, SD fallback for an
+    unlabelled stream), limited/full range, transfer (through `craft-color`, PQ and HLG included), and
+    primaries gamut-mapped into sRGB (BT.2020, P3D65; same D65 white, so one 3×3 each). The `tkhd`
+    quarter-turn is applied, so a portrait phone clip shows portrait, matching the catalog's size.
+  - Routed **by header** in `decode_file` before anything is read whole — a clip renamed `.jpg` still
+    gets its poster and a still named `.mp4` is still a still — so grid cells, the detail view and the
+    cull stage all show posters through the ordinary thumbnail service and cache. Until it lands a video
+    cell showed its type, its length and its filename.
+  - Tested with clips **encoded and muxed by the suite's own crates** — an H.264 clip whose first frame
+    carries a grey ramp and whose later frames are flat grey (so a wrong-frame poster reads flat), an
+    HEVC clip, the rename cases, a truncated container and a non-container — plus rotation unit tests.
+    No video blob is committed.
   - Matroska (MKV/WebM) and AVI are not probed either: `craft-media`'s `matroska` and `avi` features are off, and
     reporting their clips with no length would be worse than reporting nothing.
 - [x] Placeholder cell while decoding, no spinner (B)
@@ -935,9 +943,9 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 
 ### Phase 1 — Core engine and media gaps (M1–M3 / M8)
 
-- [ ] 1. Video poster frames (SL-B11 part 2): first sync sample via `craft-video` (`h264-decode`/`hevc-decode`),
+- [x] 1. Video poster frames (SL-B11 part 2): first sync sample via `craft-video` (`h264-decode`/`hevc-decode`),
   `ColorTags`-aware YUV→RGB, cached through `sortlens-thumbs`, drawn in grid cells, detail and the cull stage;
-  muxed-fixture round-trip test (C)
+  muxed-fixture round-trip test (C) — shipped 2026-11-22, see the M2 row above
 - [ ] 2. Stale-revision rejection (SL-D11): `Error::StaleRevision` on conflicting mutations in
   `sortlens-catalog`/`sortlens-engine`, plus the stale-revision and badge-contrast tests that close M3's test row (A)
 - [ ] 3. `Recently Added` (SL-A14 part 2): an `added` timestamp on `Photo` with a backwards-compatible snapshot

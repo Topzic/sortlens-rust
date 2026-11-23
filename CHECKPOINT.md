@@ -2361,6 +2361,41 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `MIT OR Apache-2.0`.
 - **Not verified by hand**: nothing visual changed.
 
+## 2026-11-22 (twenty-first) — Phase 1 item 1: video poster frames in grid, detail and cull
+
+- **SL-B11 part 2, ROADMAP M2's poster row ticked.** A video cell now shows its first frame, not a "VID"
+  glyph. `sortlens-thumbs::poster::decode_video_poster` demuxes the clip straight from disk
+  (`craft_media::FileReader` — a poster never reads a 4 GB clip whole), picks the first sync sample of the
+  first video track (falling back to sample 0 for a track that marks none), and decodes it with
+  `craft-video`'s H.264 (configured from `avcC`) or HEVC (from `hvcC`). Because a decoder releases the
+  first picture only when a later access unit forces it out of its reorder buffer, the loop feeds at most
+  eight samples before a flush; the bound keeps a broken GOP from decoding half a clip for one cell.
+- **Colour conversion honours the stream's own colour tags** through `craft-color` (new workspace dep, same
+  suite rev): matrix BT.709/601/2020 (SD-sized fallback when the stream is unlabelled), limited/full range,
+  transfer (PQ and HLG decode to linear and re-encode to sRGB), and primaries gamut-mapped into sRGB for
+  BT.2020 and P3D65 — same D65 white throughout, so one 3×3 each and no chromatic adaptation. The `tkhd`
+  quarter-turn is applied after the resize, so a portrait phone clip shows portrait, matching the
+  catalog's width and height, which already describe the displayed frame.
+- **Routing is by header, not by name**, in `decode_file` — sniffed from the first 64 bytes before anything
+  is read whole — so a clip renamed `.jpg` still gets its poster, a still named `.mp4` is still a still, and
+  a raw (CR3 wears an ISO brand too) is still routed by name first. The poster flows through the ordinary
+  `Service` → `Cache` path, so grid, detail view and cull stage all show it with no UI change, and the
+  failure set falls back to the glyph pill for undecodable codecs (ProRes and friends refuse with a reason).
+- Tests are **round-trips through the suite's own encoders and muxer** — no video blob committed: an H.264
+  clip (Baseline, length-prefixed packets) whose first frame is a left-dark/right-light grey ramp and whose
+  later frames are flat mid-grey, so a poster of the wrong frame reads flat and fails; the same through the
+  HEVC encoder with a real `hvcC`; both routed through the ordinary `decode_file`; the rename cases; a
+  truncated container and a non-container refused with reasons; and pure rotation tests (a 2×1 turned
+  clockwise becomes 1×2 with the left pixel on top).
+- `craft-video` moved from `docs/ATTRIBUTION.md`'s "Declared, not linked" table to "Linked today"
+  (Phase 1's only unlinked dependency is now linked); `craft-color` joined it with its own row. ROADMAP's
+  Phase 1 item 1 ticked in the same commit; RELEASE.md and README dropped "video poster frames" from the
+  not-built lists. No UI crate changed, so no screenshot pass was needed.
+- 593 tests; ci, snapshot, deny, wasm green.
+- **Not verified by hand**: a real camera clip (phone HDR and a drone's) in the app; the fixtures are the
+  suite's own encoder, which is honest about decode and colour but not about a manufacturer's bitstream
+  quirks.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test

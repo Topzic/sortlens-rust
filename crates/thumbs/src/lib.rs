@@ -17,6 +17,10 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::sync::{Arc, Condvar, Mutex};
 
+// Poster decoding needs a seekable file reader, which wasm has no filesystem to open.
+#[cfg(not(target_arch = "wasm32"))]
+mod poster;
+
 /// Preview sizes. The grid asks for 128, the filmstrip and large grid for 384, the detail view
 /// for 1024; nothing asks for more until the loupe.
 pub const GRID: u32 = 128;
@@ -179,19 +183,35 @@ pub fn histogram_file(path: &Path, max_edge: u32) -> Result<Histogram> {
 ///
 /// Raw files are read whole so their preview can be located; that is tens of megabytes per file
 /// on a cold scan, which is why the result goes straight into the content-addressed cache.
+/// Videos are routed by *header* before anything is read whole: a clip can be gigabytes, its poster
+/// needs none of the file after the first GOP, and the demuxer wants a seekable source, not a buffer.
+/// A clip renamed `.jpg` still gets its poster and a still named `.mp4` is still a still.
 pub fn decode_file(path: &Path, max_edge: u32) -> Result<Thumbnail> {
-    let bytes = fs::read(path).map_err(|error| Error::io(path.display().to_string(), error))?;
-    if sortlens_core::is_raw_path(path)
-        && let Ok(thumbnail) = decode_raw_preview(&bytes, max_edge)
-    {
-        return Ok(thumbnail);
+    // A raw is routed by name before any byte is read: a CR3 wears an ISO base-media brand like a
+    // video's, and its header must never send a sensor dump to the poster decoder.
+    if sortlens_core::is_raw_path(path) {
+        let bytes = fs::read(path).map_err(|error| Error::io(path.display().to_string(), error))?;
+        if let Ok(thumbnail) = decode_raw_preview(&bytes, max_edge) {
+            return Ok(thumbnail);
+        }
+        return decode_still(&bytes, max_edge);
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    if poster::header_is_video(path) {
+        return poster::decode_video_poster(path, max_edge);
+    }
+    let bytes = fs::read(path).map_err(|error| Error::io(path.display().to_string(), error))?;
+    decode_still(&bytes, max_edge)
+}
+
+/// Decode still bytes: HEIF by header, then the generic image codec, then the JPEG path.
+fn decode_still(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
     // HEIF by header, not by extension: an iPhone photo renamed to `.jpg` is still a HEIC, and the generic
     // image codec has no HEIF decoder to fall back to. HTTP-style: the content decides.
-    if is_heif(&bytes) {
-        return decode_heif(&bytes, max_edge);
+    if is_heif(bytes) {
+        return decode_heif(bytes, max_edge);
     }
-    decode_image(&bytes, max_edge).or_else(|_| decode_jpeg(&bytes, max_edge))
+    decode_image(bytes, max_edge).or_else(|_| decode_jpeg(bytes, max_edge))
 }
 
 /// Box-filter resize of an interleaved image down to `max_edge`.
