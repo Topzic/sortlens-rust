@@ -1,5 +1,59 @@
 # Checkpoint
 
+## 2026-11-23 (twenty-seventh) — Phase 2 item 3a: the tract-onnx inference runtime and the detector path (SL-F03)
+
+- **`crates/ai/src/infer.rs` is the runtime; it stays offline and desktop-only.** tract-onnx 0.23.10 —
+  the exact build every pin was verified against — runs behind a `not(target_arch = "wasm32")` gate in
+  `sortlens-ai` itself; the crate's `no_network` test scans every source file including this one and
+  still passes, because there is nothing to find. Loading is a contract, not an assumption:
+  `Session::load` refuses a file whose input/output shapes do not match what `docs/ATTRIBUTION.md`
+  records (wrong rank, wrong batch, wrong channel count, a symbolic shape where the pinned models are
+  static), so a wrong file fails with words instead of a strange photo.
+- **The detector answers in the shapes the rest of the crate already understands.** `Detector::load`
+  disambiguates the YOLOS outputs by shape (1×Q×4 is boxes, 1×Q×C is logits), builds the COCO-91 label
+  map (`crates/ai/src/coco91.txt`, `include_str!`-ed and attributed in ATTRIBUTION.md), and `run`
+  softmaxes each query, drops the unnamed slots (`N/A` classes and the EOS slot past the map), converts
+  normalised cxcywh to corner boxes and hands everything to the same `detect::suppress` every other
+  detector would face. `Image::from_rgba` stretches a decoded preview to the model's input size
+  (nearest-neighbour, on purpose) and applies the ImageNet/CLIP mean/std normalisation. The CLIP pair
+  loads and answers through the same contract-checked runtime: `ImageEmbedder` (1×3×edge×edge → 1×512,
+  with a cosine that answers 0 rather than a NaN for a zero vector) and `TextEmbedder` (1×77 int64 →
+  1×512) are tested and waiting for the pack-embedding slice.
+- **Tests run on synthetic ONNX models, assembled from the same protobuf types the loader parses.**
+  `sortlens-testkit::onnx` builds tiny valid models with the pinned models' exact I/O signatures whose
+  outputs are constants the test supplies — no 166 MB pin in any test, no network, and the plumbing
+  (loader contract, softmax, EOS drop, box conversion, NMS, cosine) is what is pinned. 10 new tests in
+  `sortlens-ai`, 4 in `sortlens-testkit`.
+- **The engine runs the detector over 384 px previews in the suggestion pass.**
+  `Engine::begin_batch_suggest` loads the pinned detector once per session (`Engine::detector_session`,
+  cached, reset by install/remove and by the test manifest swap), moves it to the existing suggestion
+  worker, and decodes a `PREVIEW_EDGE` (384 px) preview per photo through `sortlens-thumbs`; what the
+  model sees becomes `Candidate`s with `Source::Detector` and the box attached, merged with the EXIF
+  hints and the packs by `suggest::merge`. A photo whose file is missing or undecodable simply has
+  nothing to say — the pass continues. The single-photo panel (`Engine::suggestions`) and the
+  selection panel (`suggestions_for_all`) answer from the same session cache. Without the model
+  installed, the pass proposes exactly what it proposed before — the detector is an addition, not a
+  dependency (a test pins that). Nothing is written by the pass; accepting a proposal remains the only
+  path to a keyword. wasm compiles the engine and UI without any of it (`cargo xtask wasm` green).
+- **Engine tests that fail when the behaviour is absent** (2 new, all offline): a synthetic detector
+  installed in the store, the pass polled to its end, both fixture photos carrying "person" + "bicycle"
+  with the box converted to corners and `Source::Detector`, the single-photo path answering from the
+  same cache — and the no-model pass unchanged.
+- **One standalone fix landed first** (2c0ce95): the reveal test asserted `a.jpg` in the command on
+  every desktop, but Linux's `photo.reveal` deliberately opens the containing folder (`xdg-open` cannot
+  select a file), which ubuntu-latest CI caught on the cross-platform pass of 769c461. Each platform
+  now asserts its own documented contract.
+- ROADMAP's Phase 2 item 3 was split into 3a (runtime + detector path, ticked today) and 3b (per-pack
+  text embeddings cached at install, image embeddings, both feeding `suggest::merge`); RELEASE.md's
+  model bullet now says the detector runs and what is still open; ARCHITECTURE.md §9 says where the
+  inference lives; ATTRIBUTION.md says the label map ships now.
+- 645 tests (16 new: 10 in `sortlens-ai`, 4 in `sortlens-testkit`, 2 in the engine); ci, snapshot, deny, wasm green. No UI change, so no
+  `run_ui` or screenshot work applies; the screenshot harness does not exist yet (Phase 3 item 9).
+- **Not verified against the real weights**: loading and running the pinned 13/89/64 MB files was done
+  once when the pins were recorded, before this runtime existed; the suite covers the plumbing over
+  synthetic models with identical I/O contracts, and the contract check refuses anything shaped
+  differently. A live run against the downloaded pins is the next slice's first gate.
+
 ## 2026-11-21 — M0 complete (6a4983e)
 
 23-crate workspace, shell, themes, settings, command registry, xtask CI, licences, CI on 3 OSes.
@@ -2591,7 +2645,10 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
    **done 2026-11-23**, see the twenty-fifth entry.
 6. `model.install`/`model.remove` consent-gated resumable downloader in `sortlens-engine`; Settings → AI —
    **done 2026-11-23**, see the twenty-sixth entry.
-7. `tract-onnx` inference (per-pack text embeddings, detection, image embeddings) through NMS and `suggest::merge`.
+7. `tract-onnx` inference, part 1 (the runtime, the detector path over 384 px previews, NMS +
+   `suggest::merge`) — **done 2026-11-23**, see the twenty-seventh entry. Part 2 (3b) is next:
+   per-pack text embeddings cached at install (CLIP BPE tokenisation) and image embeddings, matched
+   through `suggest::merge`; first gate of that slice: load and run the real downloaded pins once.
 8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI.
 
 **Phase 3 — UI/UX overhaul**

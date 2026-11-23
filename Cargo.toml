@@ -71,6 +71,11 @@ rayon = "1"
 # The opt-in model downloader (engine, desktop targets only). TLS via rustls; no default features,
 # so it pulls no cookies, no gzip and no system-proxy machinery it does not use.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
+# The pinned 0.23.10 is the exact tract build every model pin was verified to load and run under
+# before its digest was recorded; a different minor may refuse the same files.
+tract-onnx = "=0.23.10"
+# Test fixtures only: ONNX protobuf assembly for the synthetic models the inference tests run.
+prost = "0.14"
 
 # UI: the suite's egui fork, pinned to the same revision as craft-libs.
 egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }

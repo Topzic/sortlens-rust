@@ -57,6 +57,8 @@ These are the crates a manifest actually asks for and the build links.
 | `trash` | MIT | Moving rejects to the operating system's trash |
 | `craft-atomic` | MIT OR Apache-2.0 | Crash-safe writes and Windows-safe renames: the model download lands by verified rename |
 | `ureq` | MIT OR Apache-2.0 | The opt-in model downloader's HTTP(S) client, TLS via rustls; engine only, desktop only |
+| `tract-onnx` | MIT OR Apache-2.0 | Pure-Rust ONNX inference for the pinned models; `sortlens-ai` only, desktop only, offline |
+| `prost` | MIT OR Apache-2.0 | ONNX protobuf assembly for the synthetic models the inference tests run; `sortlens-testkit` and test code only |
 
 `craft-tiff`, `craft-jpeg`, `craft-image-codecs` and `craft-raw` sit below the UI layer on purpose: they
 decode pixels and know nothing about a window, so the CLI and the wasm build can use them too.
@@ -130,8 +132,9 @@ COCO-91 classes plus the EOS slot, so the label map ships with that slice) and `
 (cxcywh, normalised); the vision embedder takes 1×3×224×224 fp32 and answers `image_embeds` 1×512;
 the text embedder takes `input_ids` 1×77 int64 (CLIP BPE tokenisation, padded to 77) and answers
 `text_embeds` 1×512 — the pair shares one embedding space, so pack phrases and photos compare
-directly. The BPE vocabulary the text side needs is small and ships with the inference slice,
-attributed here then.
+directly. The label map does ship: `crates/ai/src/coco91.txt`, compiled into the inference slice by
+`include_str!` and attributed here. The BPE vocabulary the text side needs is small and ships with
+the text-embedding slice, attributed here then.
 
 Keyword packs are files the user writes or installs; each pack carries its own `licence` field, which
 the app shows beside it.

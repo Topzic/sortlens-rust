@@ -1,21 +1,19 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
-//! Local model runtime for tagging and captioning — the store, not the inference.
+//! Local model runtime for tagging and captioning — the store, the manifest and the inference.
 //!
-//! Everything here answers one question: *is this file the model the manifest promised?* A model is
-//! the largest and least inspectable thing this application loads, so the rule is that nothing is
-//! used until its SHA-256 and its size match what shipped in the manifest.
+//! Everything here answers one of two questions. *Is this file the model the manifest promised?* is
+//! [`store`] and [`manifest`]'s job: a model is the largest and least inspectable thing this
+//! application loads, so nothing is used until its SHA-256 and its size match what shipped in the
+//! manifest. *What does the model say about this picture?* is [`infer`]'s job, through
+//! `tract-onnx`, strictly offline, on the CPU, desktop targets only.
 //!
-//! Two deliberate absences, stated so nobody assumes otherwise:
+//! One deliberate absence, stated so nobody assumes otherwise:
 //!
-//! - **No inference yet.** The manifest pins real, permissively licensed ONNX weights (a YOLOS-tiny
-//!   detector and a CLIP ViT-B/32 image + text pair), each verified to load and run under
-//!   `tract-onnx` before it was pinned — but the sessions, the non-maximum-suppression glue and the
-//!   label map that would actually answer questions with them are the next piece of M8.
 //! - **No downloader.** [`store::Store::install_file`] accepts a file the user already has, and the
-//!   pinned URLs plus digests give the future download job something to fetch; fetching itself is a
-//!   separate, consent-gated engine command (`model.install`, Phase 2) that does not exist yet, and
-//!   the engine exposes no command for it — a menu item that fails would be worse than no menu item.
+//!   pinned URLs plus digests give the download job something to fetch; fetching itself is a separate,
+//!   consent-gated engine command (`model.install`, in `sortlens-engine`) that lives outside this
+//!   crate on purpose.
 //!
 //! There is no networking code in this crate, and a test enforces that rather than trusting review.
 
@@ -28,6 +26,11 @@ pub mod packs;
 pub mod sha256;
 pub mod store;
 pub mod suggest;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod infer;
+#[cfg(not(target_arch = "wasm32"))]
+pub use infer::{COCO_LABELS_TEXT, Detector, Embedding, IMAGENET_MEAN, IMAGENET_STD, Image, ImageEmbedder, TextEmbedder};
 
 pub use detect::{Box, Detection, LabelMap, suppress};
 pub use hints::{Hints, focal_band, hints};

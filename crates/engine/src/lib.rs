@@ -225,6 +225,14 @@ pub struct Engine {
     /// loopback one — the manifest is the contract, and the contract is data, not a constant.
     #[cfg(not(target_arch = "wasm32"))]
     model_manifest: sortlens_ai::Manifest,
+    /// The loaded detector, when the pinned detector model is installed and verified. Loaded once
+    /// per session and shared with the suggestion worker; a removed model is picked up on the next
+    /// session, which is exactly how the settings rows behave.
+    #[cfg(not(target_arch = "wasm32"))]
+    detector: Option<std::sync::Arc<sortlens_ai::Detector>>,
+    /// Whether the detector has been looked for. `None` means "not yet", not "there is none".
+    #[cfg(not(target_arch = "wasm32"))]
+    detector_tried: bool,
 }
 
 impl Engine {
@@ -266,6 +274,10 @@ impl Engine {
             model_rows: None,
             #[cfg(not(target_arch = "wasm32"))]
             model_manifest: sortlens_ai::Manifest::shipped(),
+            #[cfg(not(target_arch = "wasm32"))]
+            detector: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            detector_tried: false,
         }
     }
 
@@ -1728,8 +1740,12 @@ impl Engine {
     /// suggestions in the detail view. A batch that wrote keywords by itself would be a bulk edit nobody
     /// asked for, and undo would only take back the last one.
     ///
-    /// Only photos whose metadata arrived take part — a photo with no camera, lens, ISO or focal length,
-    /// in a folder no pack matches, has nothing to suggest and would only slow the pass down.
+    /// When the pinned detector model is installed and verified, the pass also runs it over a
+    /// 384 px preview of every photo on the worker — the metadata hints, the packs and the detector
+    /// are merged into one panel by [`sortlens_ai::suggest::merge`]. Only photos whose metadata
+    /// arrived *or* whose file the detector could look at take part — a photo with no camera, lens,
+    /// ISO or focal length, in a folder no pack matches, can still have something worth suggesting
+    /// if the model saw one.
     pub fn begin_batch_suggest(&mut self) -> Result<usize> {
         if self.catalog.is_none() {
             return Err(Error::Invalid("no library is open".into()));
@@ -1739,6 +1755,7 @@ impl Engine {
         }
         let photos: Vec<Photo> = self.all_photos().to_vec();
         let packs = self.enabled_pack_rules();
+        let detector = self.detector_session();
         let total = photos.len();
         let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1755,7 +1772,7 @@ impl Engine {
                     if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
                         break;
                     }
-                    let suggestions = suggestions_for(photo, &packs, &caps);
+                    let suggestions = suggestions_for(photo, &packs, &caps, detector.as_ref());
                     if !suggestions.is_empty() {
                         out.push((photo.id, suggestions));
                     }
@@ -1830,17 +1847,24 @@ impl Engine {
         &self.similar
     }
 
-    /// Suggested keywords for one photo, from what the file already says about itself.
-    ///
-    /// This is the half of tagging that needs no model: the camera, the lens, the focal length band, a
-    /// high ISO and a slow shutter are all in the EXIF. Every suggestion is a proposal — nothing is
-    /// written until [`Engine::accept_suggestion`] is called.
-    pub fn suggestions(&self, id: PhotoId) -> Vec<Suggestion> {
+    /// Suggested keywords for one photo, from what the file already says about itself and — when
+    /// the pinned detector model is installed — from what the model sees in a preview. Loading the
+    /// model is a once-per-session cost ([`Engine::detector_session`]); each call after that runs
+    /// one small inference. Every suggestion is a proposal — nothing is written until
+    /// [`Engine::accept_suggestion`] is called.
+    pub fn suggestions(&mut self, id: PhotoId) -> Vec<Suggestion> {
         let packs = self.enabled_pack_rules();
+        let detector = self.detector_session();
         match self.photo(id) {
-            Some(photo) => suggestions_for(photo, &packs, &sortlens_ai::Caps::default()),
+            Some(photo) => suggestions_for(photo, &packs, &sortlens_ai::Caps::default(), detector.as_ref()),
             None => Vec::new(),
         }
+    }
+
+    /// No inference on wasm: the stub keeps the suggestion paths one function instead of two.
+    #[cfg(target_arch = "wasm32")]
+    fn detector_session(&mut self) -> Option<SessionDetector> {
+        None
     }
 
     /// The rules of every switched-on pack, parsed and ready. Unreadable packs are simply absent here:
@@ -1873,12 +1897,17 @@ impl Engine {
     }
 
     /// Suggested keywords for several photos at once, for a panel that shows a selection.
-    pub fn suggestions_for_all(&self, ids: &[PhotoId]) -> Vec<(PhotoId, Vec<Suggestion>)> {
+    pub fn suggestions_for_all(&mut self, ids: &[PhotoId]) -> Vec<(PhotoId, Vec<Suggestion>)> {
         let packs = self.enabled_pack_rules();
+        let detector = self.detector_session();
         ids.iter()
             .filter_map(|id| {
-                self.photo(*id)
-                    .map(|photo| (*id, suggestions_for(photo, &packs, &sortlens_ai::Caps::default())))
+                self.photo(*id).map(|photo| {
+                    (
+                        *id,
+                        suggestions_for(photo, &packs, &sortlens_ai::Caps::default(), detector.as_ref()),
+                    )
+                })
             })
             .collect()
     }
@@ -3825,6 +3854,32 @@ impl Engine {
         sortlens_ai::Store::open(dir).map_err(Error::Invalid)
     }
 
+    /// The loaded detector for the suggestion paths, when the pinned detector model is installed
+    /// and verified. It is looked for once per session and cached, because loading a model is a
+    /// one-time cost a per-photo pass must not pay again; installing or removing a model, or a
+    /// test swapping the manifest, resets the cache.
+    pub fn detector_session(&mut self) -> Option<SessionDetector> {
+        if !self.detector_tried {
+            self.detector_tried = true;
+            self.detector = self.load_detector();
+        }
+        self.detector.clone()
+    }
+
+    /// Find and load the pinned detector, or say there is not one: not installed, not verified,
+    /// or not a file the inference contract accepts. A wrong file stays out of the way — the
+    /// suggestion pass answers from the metadata it has, and Settings → AI already shows what is
+    /// wrong with the store.
+    fn load_detector(&self) -> Option<SessionDetector> {
+        let model = self.model_manifest.get(DETECTOR_MODEL_ID)?;
+        let store = self.model_store().ok()?;
+        let path = match store.status(model) {
+            sortlens_ai::Status::Installed { path } => path,
+            _ => return None,
+        };
+        sortlens_ai::Detector::load(&path).ok().map(std::sync::Arc::new)
+    }
+
     /// Whether the one approved network call is allowed this session. The app persists it in its
     /// settings and turns it back on at launch; the engine itself starts every session strict.
     pub fn models_consent(&self) -> bool {
@@ -3987,6 +4042,13 @@ impl Engine {
     pub(crate) fn use_manifest_for_tests(&mut self, manifest: sortlens_ai::Manifest) {
         self.model_manifest = manifest;
         self.model_rows = None;
+        // The detector cache points at the old manifest's store; a swapped manifest is a different
+        // session as far as the suggestion pass is concerned.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.detector = None;
+            self.detector_tried = false;
+        }
     }
 }
 
@@ -4073,7 +4135,12 @@ fn collection_id_from(args: &Value) -> Result<u32> {
 ///
 /// Kept free-standing and pure so it can be tested against a constructed `Photo` — scanning a fixture
 /// JPEG cannot produce EXIF, and a test that needs a camera in the file would be a test of the scanner.
-fn suggestions_for(photo: &Photo, packs: &[sortlens_ai::Pack], caps: &sortlens_ai::Caps) -> Vec<Suggestion> {
+fn suggestions_for(
+    photo: &Photo,
+    packs: &[sortlens_ai::Pack],
+    caps: &sortlens_ai::Caps,
+    detector: Option<&SessionDetector>,
+) -> Vec<Suggestion> {
     let hints = sortlens_ai::Hints::new(&photo.camera, &photo.lens, photo.iso, photo.shutter, photo.focal);
     let mut candidates = sortlens_ai::hints(&hints);
     if !packs.is_empty() {
@@ -4088,11 +4155,74 @@ fn suggestions_for(photo: &Photo, packs: &[sortlens_ai::Pack], caps: &sortlens_a
             candidates.extend(pack.candidates(&context));
         }
     }
+    // The detector's guesses arrive in exactly the same shape: proposals with a score, a box and a
+    // source, merged with everything else and accepted one at a time like any other suggestion.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(detector) = detector {
+        candidates.extend(detector_candidates(photo, detector));
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = detector;
     sortlens_ai::merge(&candidates, &photo.tags, *caps)
+}
+
+/// What the detector says about one photo's preview, as candidates in the shape the hints and the
+/// packs already propose.
+///
+/// A photo whose file is missing, undecodable or unrecognisable to the model simply has nothing to
+/// say — the pass continues. A guess that fails to name its class is dropped here; an unnamed class
+/// is the model speaking for a thing the label map does not know.
+#[cfg(not(target_arch = "wasm32"))]
+fn detector_candidates(photo: &Photo, detector: &sortlens_ai::Detector) -> Vec<sortlens_ai::Candidate> {
+    let path = std::path::Path::new(&photo.root).join(&photo.rel);
+    let Ok(thumbnail) = sortlens_thumbs::decode_file(&path, PREVIEW_EDGE) else {
+        return Vec::new();
+    };
+    let Ok(image) = sortlens_ai::Image::from_rgba(
+        &thumbnail.rgba,
+        thumbnail.width,
+        thumbnail.height,
+        detector.input(),
+        sortlens_ai::IMAGENET_MEAN,
+        sortlens_ai::IMAGENET_STD,
+    ) else {
+        return Vec::new();
+    };
+    let Ok(detections) = detector.run(&image) else {
+        return Vec::new();
+    };
+    detections
+        .iter()
+        .filter_map(|detection| {
+            let tag = detector.label(detection.class)?;
+            Some(sortlens_ai::Candidate::at(
+                tag,
+                detection.score,
+                sortlens_ai::Source::Detector,
+                detection.found,
+            ))
+        })
+        .collect()
 }
 
 /// Where pack files live inside a library.
 pub const PACKS_DIR: &str = "packs";
+
+/// The pinned detector the suggestion pass loads, by manifest id.
+pub const DETECTOR_MODEL_ID: &str = "yolos-tiny";
+
+/// The edge of the preview the detector sees. Small on purpose: inference on the CPU must stay far
+/// behind everything else the app does, and a 384 px preview is plenty for a tagger's guesses.
+pub const PREVIEW_EDGE: u32 = 384;
+
+/// What the suggestion paths share as a loaded detector.
+///
+/// Desktop targets hold the real thing; the wasm build has no inference runtime, and its alias is
+/// a type that is never constructed, so the shared code stays one function instead of two.
+#[cfg(not(target_arch = "wasm32"))]
+type SessionDetector = std::sync::Arc<sortlens_ai::Detector>;
+#[cfg(target_arch = "wasm32")]
+type SessionDetector = std::marker::PhantomData<()>;
 
 /// Every pack file in a library, read or refused.
 ///
@@ -4705,7 +4835,7 @@ mod tests {
     #[test]
     fn a_photos_own_metadata_becomes_suggestions() {
         let photo = photo_with("Nikon Z6", "NIKKOR Z 24-70mm f/4 S", Some(6400), Some(2.0), Some(24.0), &[]);
-        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default());
+        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None);
         let tags: Vec<&str> = suggestions.iter().map(|suggestion| suggestion.tag.as_str()).collect();
         // The merger ranks by score, then alphabetically — not in the order the rules fired.
         assert_eq!(
@@ -4726,7 +4856,7 @@ mod tests {
     #[test]
     fn a_keyword_the_photo_already_has_is_not_suggested_again() {
         let photo = photo_with("Nikon Z6", "", Some(6400), None, None, &["Nikon Z6"]);
-        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default());
+        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None);
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].tag, "low light");
     }
@@ -4734,7 +4864,7 @@ mod tests {
     #[test]
     fn a_photo_with_no_metadata_gets_no_suggestions() {
         let photo = photo_with("", "", None, None, None, &[]);
-        assert!(suggestions_for(&photo, &[], &sortlens_ai::Caps::default()).is_empty());
+        assert!(suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None).is_empty());
     }
 
     #[test]
@@ -4781,8 +4911,8 @@ mod tests {
         .expect("parse");
         let mut in_japan = photo.clone();
         in_japan.rel = "Trips/Japan/DSC1.jpg".to_string();
-        assert!(suggestions_for(&photo, std::slice::from_ref(&pack), &sortlens_ai::Caps::default()).is_empty());
-        let suggested = suggestions_for(&in_japan, std::slice::from_ref(&pack), &sortlens_ai::Caps::default());
+        assert!(suggestions_for(&photo, std::slice::from_ref(&pack), &sortlens_ai::Caps::default(), None).is_empty());
+        let suggested = suggestions_for(&in_japan, std::slice::from_ref(&pack), &sortlens_ai::Caps::default(), None);
         assert_eq!(suggested.len(), 1);
         assert_eq!(suggested[0].tag, "japan");
         assert_eq!(suggested[0].source, sortlens_ai::Source::Pack);
@@ -4920,6 +5050,91 @@ mod tests {
         let first = results[0].0;
         assert!(engine.accept_suggestion(first, "jpeg").expect("accept"));
         assert!(engine.photo(first).is_some_and(|photo| photo.tags == vec!["jpeg".to_string()]));
+    }
+
+    /// A synthetic detector installed in the store: the pass must run it over the previews and
+    /// propose what it saw, through the same merge and the same accept as every other source.
+    #[test]
+    fn a_suggestion_pass_runs_the_installed_detector_over_previews() {
+        let (library_dir, _photos, mut engine) = library_with_images("batchdetector", 2);
+        // Two queries that answer: a stronger "person" and a "bicycle" elsewhere; the rest silent.
+        // The person's logit gap is bigger, so it sorts first and the tie-break never matters.
+        let logits = [0.0, 5.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let boxes = [
+            0.5, 0.5, 0.4, 0.4, // person, centre
+            0.1, 0.1, 0.2, 0.2, // bicycle, corner
+            0.5, 0.5, 0.1, 0.1, 0.5, 0.5, 0.1, 0.1, 0.5, 0.5, 0.1, 0.1,
+        ];
+        let model_bytes = sortlens_testkit::onnx::detector_onnx(5, 3, &logits, &boxes).expect("encode");
+        let mut manifest = sortlens_ai::Manifest {
+            schema: sortlens_ai::manifest::SCHEMA,
+            models: Vec::new(),
+        };
+        manifest.models.push(sortlens_ai::manifest::Model {
+            id: DETECTOR_MODEL_ID.into(),
+            label: "synthetic detector".into(),
+            kind: sortlens_ai::manifest::ModelKind::Detector,
+            licence: "Apache-2.0".into(),
+            sha256: sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&model_bytes)),
+            bytes: model_bytes.len() as u64,
+            url: String::new(),
+            input_edge: None,
+        });
+        engine.use_manifest_for_tests(manifest.clone());
+        let model = manifest.get(DETECTOR_MODEL_ID).expect("model");
+        let store = sortlens_ai::Store::open(library_dir.0.join("models")).expect("store");
+        store.install(model, &model_bytes).expect("install");
+
+        engine.begin_batch_suggest().expect("start");
+        let mut found = None;
+        for _ in 0..400 {
+            if let Some(count) = engine.poll_batch() {
+                found = Some(count);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(found, Some(2), "every fixture photo got detector proposals");
+
+        let results: Vec<(PhotoId, Vec<Suggestion>)> = engine.batch_results().to_vec();
+        assert_eq!(results.len(), 2);
+        for (id, suggestions) in &results {
+            assert_eq!(suggestions.len(), 2, "person and bicycle, per photo: {suggestions:?}");
+            assert_eq!(suggestions[0].tag, "person", "the strongest guess first");
+            assert_eq!(suggestions[0].source, sortlens_ai::Source::Detector);
+            let box_ = suggestions[0].found.expect("the detector knows where");
+            assert!(
+                (box_.x - 0.3).abs() < 1e-4 && (box_.y - 0.3).abs() < 1e-4,
+                "cxcywh became corners: {box_:?}"
+            );
+            assert_eq!(suggestions[1].tag, "bicycle");
+            // The single-photo path answers from the same session cache, the same way.
+            let single = engine.suggestions(*id);
+            assert_eq!(single[0].tag, "person");
+            assert_eq!(single[0].source, sortlens_ai::Source::Detector);
+        }
+        // And still nothing was written by the pass.
+        for photo in engine.all_photos() {
+            assert!(photo.tags.is_empty(), "a proposal is not a tag");
+        }
+    }
+
+    /// Without the model installed, the pass must not change what it proposes — the detector is
+    /// an addition, not a dependency.
+    #[test]
+    fn a_suggestion_pass_without_a_detector_is_unchanged() {
+        let (_library_dir, _photos, mut engine) = library_with_images("batchnodetector", 2);
+        engine.begin_batch_suggest().expect("start");
+        let mut found = None;
+        for _ in 0..400 {
+            if let Some(count) = engine.poll_batch() {
+                found = Some(count);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(found, Some(0), "no model, no metadata, no proposals");
+        assert!(engine.detector_session().is_none());
     }
 
     #[test]
@@ -5761,7 +5976,8 @@ mod tests {
         // assertion checks its own platform's contract, so CI on every OS asserts the real thing.
         if cfg!(target_os = "linux") || cfg!(target_os = "freebsd") {
             assert!(
-                args.iter().any(|arg| arg.as_str().unwrap_or_default() == folder.0.to_string_lossy()),
+                args.iter()
+                    .any(|arg| arg.as_str().unwrap_or_default() == folder.0.to_string_lossy()),
                 "Linux opens the containing folder: {args:?}"
             );
         } else {

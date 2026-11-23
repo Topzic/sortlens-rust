@@ -13,5 +13,15 @@ sortlens-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+# The inference runtime (SL-F03/F04) is desktop-only: the wasm build compiles this crate without it.
+# It stays offline — the bytes come from the verified store, and tract runs them on the CPU.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tract-onnx = { workspace = true }
+
+[dev-dependencies]
+# ONNX protobuf assembly for the synthetic models the tests run instead of the 166 MB pins.
+prost = { workspace = true }
+sortlens-testkit = { workspace = true }
+
 [lints]
 workspace = true

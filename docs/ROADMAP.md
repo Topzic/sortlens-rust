@@ -990,9 +990,17 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   the module). Consent is an engine state the app persists in Settings → AI (`ai.download_consent`), and the
   `model.install` command refuses without it from every face: UI, CLI (`models`, `model-consent`,
   `model-install`, `model-remove`) and MCP. Progress and cancel sit in the Activity stack as a `Model` job.
-- [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04): text embeddings cached per enabled keyword pack at
-  install, detection and image embeddings on the low-priority pool over 384 px previews, through `detect::suppress`
-  and `suggest::merge` (D)
+- [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04):
+  - [x] 3a. The runtime and the detector path: `crates/ai/src/infer.rs` (desktop-only, offline;
+    contract-checked loading, softmax over the YOLOS logits, the COCO-91 label map shipped with the
+    slice, NMS through `detect::suppress`), wired into the engine's suggestion pass and the
+    single-photo panel over 384 px previews, merged with hints and packs by `suggest::merge` (D)
+    — shipped 2026-11-23, see the twenty-seventh entry; the CLIP image + text pair is loaded and
+    contract-tested in the same runtime, and the synthetic-model test fixtures live in
+    `sortlens-testkit::onnx`
+  - [ ] 3b. Per-pack text embeddings cached at install (CLIP BPE tokenisation of each pack's
+    keywords) and image embeddings on the low-priority pool, matched against the packs and fed
+    through `suggest::merge` (D)
 - [ ] 4. Tag provenance (SL-D12): per-tag source `Manual`/`Ai`/`Xmp` in the catalog with a backwards-compatible
   snapshot migration, filterable in the UI and CLI (A,B)
 

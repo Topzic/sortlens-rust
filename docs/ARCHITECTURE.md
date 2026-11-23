@@ -509,7 +509,9 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   trusting review: a source scan for socket APIs and a dependency scan for HTTP clients, both proved
   to fail on a planted hit. The plan is that downloads live in `sortlens-engine`'s `model.install`
   job — the single audited place that fetches bytes — and verify the digest before the file becomes
-  visible to the inference path. Neither the job nor the downloader exists yet.
+  visible to the inference path. The downloader exists (`crates/engine/src/models.rs`); the inference
+  runtime lives in `crates/ai/src/infer.rs` — tract-onnx, desktop-only, the same pure-Rust store of
+  guesses the arithmetic below describes.
 - As built, the arithmetic: `detect::Box` in **normalised** coordinates (so a 320 px and a 640 px copy
   of the same photo produce the same boxes), `Box::iou`, and `suppress` — non-maximum suppression
   **per class**, because a person standing in front of a car overlaps it almost completely and
