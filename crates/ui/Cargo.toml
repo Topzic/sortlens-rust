@@ -16,6 +16,8 @@ sortlens-thumbs = { workspace = true }
 sortlens-geo = { workspace = true }
 sortlens-cull = { workspace = true }
 egui = { workspace = true }
+# SVG rasterisation for the monochrome icon set: `craft_ui::icons` prepares the bytes, this loads them.
+egui_extras = { workspace = true }
 craft-ui = { workspace = true }
 serde = { workspace = true }
 # The screenshot harness renders through the same egui fork the window uses, so a baseline is the

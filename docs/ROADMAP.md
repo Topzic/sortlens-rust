@@ -40,7 +40,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [x] App shell: top bar, bottom bar, left/right panels, canvas (B)
 - [x] `craft-window` title-bar policy; macOS traffic-light inset (B)
 - [x] Fonts: `crates/ui/build.rs` embeds craft-fonts when `CRAFT_FONTS_DIR` is set (optional by design), `fonts::install` appends them as fallbacks after egui's own faces, `fonts::coverage` checks `Latn`/`Zsym`, and `cargo xtask fonts` reports the set (B) — egui's own faces remain the zero-config default
-- [x] Four theme presets + contrast tests (B) — widget states set on `Visuals`; `WidgetPalette` mapping still open
+- [x] Four theme presets + contrast tests (B) — widget states set on `Visuals` through the `WidgetPalette` mapping in `Tokens::palette`
 - [x] `craft-settings` v1 type, damaged-file notice, unknown-key preservation (A)
 - [x] Command registry skeleton; `Engine::run` returns typed errors (A)
 - [x] Commands: `app.about`, `app.settings`, `app.quit`, `app.supportReport`; 17 planned commands carry their milestone (A,B)
@@ -1039,8 +1039,17 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   suite's AccessKit check fails an unnamed control) and the detail footer painted `←`/`→`, which no bundled
   font has, so a zero-config build showed tofu (the footer now says "left/right"). It also recorded three
   open visual defects named in 3B.6 below
-- [ ] 3B.1 `Tokens` mapped onto `craft_ui::theme::WidgetPalette`; monochrome SVG icons across top bar, sidebar,
-  filter strip, bottom bar and right panel (B)
+- [x] 3B.1 `Tokens` mapped onto `craft_ui::theme::WidgetPalette`; monochrome SVG icons across top bar, sidebar,
+  filter strip, bottom bar and right panel (B) — shipped 2026-11-23: `Tokens::palette` is the one mapping and
+  `apply` installs it through `WidgetPalette::apply_to` (the accent ring on the pressed state is the one
+documented exception), tested per preset against what `apply` actually put in `Visuals`. The icon set is 34
+project-owned SVGs in `assets/icons/`, embedded and tinted through `craft_ui::icons` + `egui_extras`' SVG
+loader (a new workspace pin; `deny`, `wasm` and `attribution` all green). Wired into all five surfaces: the
+sidebar's source/folder/keyword/collection rows, the filter strip's chips, every bottom-bar view tab, the
+right panel's three tabs, and the top bar's Settings, panel toggle and Add Folder buttons. Four tests hold it
+(`Icon::ALL` ↔ catalog ↔ folder, `currentColor` and stroke conventions, every glyph rasterised through the
+real loader at 14 and 32 px, and an icon-only button's accessible name), plus a shell test that counts the
+textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines regenerated and read
 - [ ] 3B.2 Top bar: app mark, `Search photos or ⌘K`, a dual-mode command palette (commands with shortcuts, and
   photos), text buttons replaced by named, tooltipped icon buttons (Filter + badge, Import, Export, Activity, Help,
   Appearance, Settings); layout and density move to the canvas header; theme and motion behind one Appearance menu (B)

@@ -225,6 +225,11 @@ impl ThemeKind {
         matches!(self, Self::Silver | Self::Paper)
     }
 
+    /// The egui theme this preset paints under: the half of `Style` egui keeps two copies of.
+    pub const fn egui_theme(self) -> egui::Theme {
+        if self.is_light() { egui::Theme::Light } else { egui::Theme::Dark }
+    }
+
     /// The token set for this preset.
     pub const fn tokens(self) -> Tokens {
         match self {
@@ -384,6 +389,22 @@ impl Tokens {
         ..Self::CHARCOAL
     };
 
+    /// The five widget states as the suite's own palette type.
+    ///
+    /// `craft_ui::theme::WidgetPalette` is what suite widgets read, and the mapping lives here rather
+    /// than in `apply` so there is exactly one answer to "what colour is a hovered button": the token
+    /// set. `open` is a card because an open menu is a surface, not a pressed button — the accent ring
+    /// on `active` is the only state that has to shout.
+    pub const fn palette(&self) -> craft_ui::theme::WidgetPalette {
+        craft_ui::theme::WidgetPalette {
+            noninteractive: self.panel,
+            inactive: self.card,
+            hovered: self.hover,
+            active: self.active,
+            open: self.card,
+        }
+    }
+
     /// A font at a given size in the interface family.
     pub fn font(&self, size: f32) -> FontId {
         FontId::new(size, FontFamily::Proportional)
@@ -428,7 +449,7 @@ impl Tokens {
 pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     let t = kind.tokens();
     let dark = !kind.is_light();
-    ctx.set_theme(if dark { egui::Theme::Dark } else { egui::Theme::Light });
+    ctx.set_theme(kind.egui_theme());
 
     ctx.all_styles_mut(|style| {
         style.visuals = if dark { Visuals::dark() } else { Visuals::light() };
@@ -450,21 +471,14 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
             &mut style.visuals.widgets.active,
             &mut style.visuals.widgets.open,
         ] {
-            widget.corner_radius = t.corner();
-            widget.fg_stroke = Stroke::new(1.0, t.text);
             widget.bg_stroke = Stroke::new(1.0, t.border);
         }
-        style.visuals.widgets.noninteractive.bg_fill = t.panel;
-        style.visuals.widgets.noninteractive.weak_bg_fill = t.panel;
-        style.visuals.widgets.inactive.bg_fill = t.card;
-        style.visuals.widgets.inactive.weak_bg_fill = t.hover;
-        style.visuals.widgets.hovered.bg_fill = t.hover;
-        style.visuals.widgets.hovered.weak_bg_fill = t.hover;
-        style.visuals.widgets.active.bg_fill = t.active;
-        style.visuals.widgets.active.weak_bg_fill = t.active;
+        // The five state fills come from the palette, not from five lines that could disagree with
+        // `Tokens::palette`. `apply_to` keeps the borders and expansion set above; the accent ring on
+        // the pressed state is the one exception, because a press is the only state that must shout.
+        t.palette()
+            .apply_to(&mut style.visuals.widgets, t.corner(), Stroke::new(1.0, t.text));
         style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, t.accent);
-        style.visuals.widgets.open.bg_fill = t.card;
-        style.visuals.widgets.open.weak_bg_fill = t.card;
 
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
         style.spacing.button_padding = egui::vec2(8.0, 4.0);
@@ -499,6 +513,47 @@ mod tests {
             let t = kind.tokens();
             let text_is_dark = t.text.r() < 0x80;
             assert_eq!(text_is_dark, kind.is_light(), "{} text/value mismatch", kind.id());
+        }
+    }
+
+    /// The palette is the token set, and `apply` really installs it: a suite widget reading `Visuals`
+    /// gets the same five fills a Sortlens widget draws by hand. The hover and press states must differ
+    /// from the resting one in every preset — a palette whose states collapse is a palette that hides
+    /// every interaction.
+    #[test]
+    fn the_widget_palette_is_the_token_set_and_apply_installs_it() {
+        for kind in ThemeKind::ALL {
+            let t = kind.tokens();
+            let palette = t.palette();
+            assert_eq!(palette.noninteractive, t.panel, "{}", kind.id());
+            assert_eq!(palette.inactive, t.card, "{}", kind.id());
+            assert_eq!(palette.hovered, t.hover, "{}", kind.id());
+            assert_eq!(palette.active, t.active, "{}", kind.id());
+            assert_eq!(palette.open, t.card, "{}", kind.id());
+            assert_ne!(palette.hovered, palette.inactive, "{} hover is invisible", kind.id());
+            assert_ne!(palette.active, palette.hovered, "{} press is invisible", kind.id());
+
+            let ctx = egui::Context::default();
+            apply(&ctx, kind);
+            let widgets = ctx.style_of(kind.egui_theme()).visuals.widgets.clone();
+            for (state, expected) in [
+                (widgets.noninteractive, palette.noninteractive),
+                (widgets.inactive, palette.inactive),
+                (widgets.hovered, palette.hovered),
+                (widgets.active, palette.active),
+                (widgets.open, palette.open),
+            ] {
+                assert_eq!(state.bg_fill, expected, "{} strong fill", kind.id());
+                assert_eq!(state.weak_bg_fill, expected, "{} weak fill", kind.id());
+                assert_eq!(state.fg_stroke.color, t.text, "{} foreground", kind.id());
+                assert_eq!(state.corner_radius, t.corner(), "{} radius", kind.id());
+            }
+            // The one documented exception: the pressed state wears the accent ring, which is what
+            // makes a press visible without a shadow.
+            assert_eq!(widgets.active.bg_stroke.color, t.accent, "{} press ring", kind.id());
+            for state in [widgets.noninteractive, widgets.inactive, widgets.hovered, widgets.open] {
+                assert_eq!(state.bg_stroke.color, t.border, "{} border", kind.id());
+            }
         }
     }
 

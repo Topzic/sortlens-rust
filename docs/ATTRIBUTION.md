@@ -48,6 +48,7 @@ These are the crates a manifest actually asks for and the build links.
 | `craft-jsonrpc` | MIT OR Apache-2.0 | JSON-RPC framing for the MCP server |
 | `craft-mcp` | MIT OR Apache-2.0 | MCP protocol types for `sortlens-mcp` |
 | `egui` | MIT OR Apache-2.0 | Immediate-mode GUI (storytold fork) |
+| `egui_extras` | MIT OR Apache-2.0 | The SVG image loader behind the shell's icon set; `svg` feature only, no HTTP or file loader is linked |
 | `egui_kittest` | MIT OR Apache-2.0 | The screenshot harness (`cargo xtask screenshots`): the same fork's headless wgpu renderer, AccessKit queries and image snapshot diffing; `sortlens-ui` tests only, never linked into the app |
 | `eframe` | MIT OR Apache-2.0 | The application shell and its renderer |
 | `serde` | MIT OR Apache-2.0 | Op-log, snapshot and settings serialisation |
@@ -153,6 +154,7 @@ encoder: no photographs are stored, so no photograph's licence needs recording.
 | File | Origin | Licence |
 |---|---|---|
 | `assets/icon.svg` | Drawn for this project in `crates/icon/src/lib.rs`; the file is a rendering of that geometry, and a test fails when the two disagree | MIT OR Apache-2.0 |
+| `assets/icons/*.svg` | Drawn for this project as the shell's monochrome icon set: 24-unit stroke drawings (`currentColor`, 2-unit stroke) that `craft_ui::icons` tints with the active theme; a test fails when a glyph has a hard-coded colour, and another when the set and `crate::icons::Icon` disagree | MIT OR Apache-2.0 |
 
 The window icon is not committed: `apps/sortlens/build.rs` renders the same drawing to RGBA in `OUT_DIR`,
 so there is no binary blob in the repository and no second copy that could disagree with the first.

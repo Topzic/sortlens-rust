@@ -509,6 +509,29 @@ Paper against committed baselines, and fails on a pixel difference beyond the to
 work in 3B and the i18n scaffolding in Phase 4; until then the shell suite is the visual gate, and a
 baseline is the review of what a change looks like rather than a claim that the design is finished.
 
+## Icons
+
+One set, `crates/ui/src/icons.rs`: 34 monochrome 24-unit SVGs under `assets/icons/`. `craft_ui::icons`
+prepares each glyph once (white `currentColor`, 1.75 stroke) and `egui_extras`' SVG loader rasterises it at
+exactly the size its slot asks for, so an icon paints in the theme's own colour and stays sharp at 2×.
+
+Where they paint today: the sidebar's source rows, folder rows, keyword rows and collection rows; the filter
+strip's chips (rating, flags, colour, kind, source, edited, missing, clear); every bottom-bar destination, as
+a glyph beside its label; the right panel's three tabs; and the top bar's Settings (`sliders`), panel toggle
+(`panel`) and Add Folder buttons. An icon-only button carries its words as the tooltip *and* the accessible
+name: replacing a word with a picture must not remove the word from a screen reader.
+
+Four tests hold the set together. The enum, the catalog and the folder must name the same icons in both
+directions; a glyph with a hard-coded colour or a missing `currentColor` fails; every glyph must rasterise
+through the real loader to something with both ink and empty space at 14 and 32 px; and the shell test counts
+the textured rectangles painted in the top bar, bottom bar and sidebar, so a surface that loses its icons
+fails rather than quietly shrinking. Still target state: glyphs on the Welcome bullets, chevrons on the filter
+bar, and the `←`/`→` text in the keymap overlay (3B.6), and the `⌘K` palette's own iconography (3B.2).
+
+The widget states themselves come from the same place: `Tokens::palette` is the `craft_ui::theme::WidgetPalette`
+mapping, and `apply` installs it, so a suite widget reading `Visuals` and a Sortlens widget reading `Tokens`
+agree about what a hovered or pressed control looks like by construction rather than by two lists kept in step.
+
 ## Charts
 
 Two shapes, both drawn by `crates/ui/src/charts.rs`: a column chart and a proportional row. No chart

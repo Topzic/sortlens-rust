@@ -58,6 +58,18 @@ impl View {
         }
     }
 
+    /// The glyph for the bottom bar. A destination is a place, and a place gets a picture.
+    pub const fn icon(self) -> crate::icons::Icon {
+        match self {
+            Self::Library => crate::icons::Icon::Library,
+            Self::ForYou => crate::icons::Icon::Sparkle,
+            Self::Cull => crate::icons::Icon::Judge,
+            Self::Places => crate::icons::Icon::Pin,
+            Self::Insights => crate::icons::Icon::Chart,
+            Self::Similar => crate::icons::Icon::Similar,
+        }
+    }
+
     /// The milestone that still has to arrive before this view can open, or `None` when it opens today.
     ///
     /// Every destination opens today. `Cull` and `Places` used to be gated here with labels that had gone stale — a
@@ -90,6 +102,15 @@ impl RightTab {
             Self::Details => "Details",
             Self::Tags => "Tags",
             Self::Activity => "Activity",
+        }
+    }
+
+    /// Tab glyph.
+    pub const fn icon(self) -> crate::icons::Icon {
+        match self {
+            Self::Details => crate::icons::Icon::Info,
+            Self::Tags => crate::icons::Icon::Tag,
+            Self::Activity => crate::icons::Icon::Activity,
         }
     }
 }
@@ -453,6 +474,18 @@ impl Source {
             Source::Picks => "Picks",
             Source::Rated => "Rated",
             Source::Rejects => "Rejects",
+        }
+    }
+
+    /// The row's glyph: a source is what it holds, not only what it is called.
+    #[must_use]
+    pub const fn icon(self) -> crate::icons::Icon {
+        match self {
+            Self::All => crate::icons::Icon::Library,
+            Self::Added => crate::icons::Icon::Clock,
+            Self::Picks => crate::icons::Icon::Pick,
+            Self::Rated => crate::icons::Icon::Star,
+            Self::Rejects => crate::icons::Icon::Reject,
         }
     }
 
@@ -985,6 +1018,9 @@ impl UiState {
 pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) -> Vec<Action> {
     let mut actions = Vec::new();
     let t = state.theme.tokens();
+    // The icon set's SVG loader, installed before anything paints: the first frame a glyph appears on
+    // is the frame it must be there, or the chrome flashes a row of empty boxes on every launch.
+    crate::icons::install(ui.ctx());
 
     // A photo can vanish under the selection — a delete, an emptied bin, a rescan that found the file gone.
     // Dropping it here, once, keeps the inspector from showing a photo that is no longer in the library.
@@ -1063,18 +1099,31 @@ fn bell_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
     if unread == 0 && !state.bell_open {
         return;
     }
-    let label = if unread > 0 {
-        format!("Alerts {unread}")
-    } else {
-        "Alerts".to_string()
-    };
+    // The bell, and a count of what is unread. The word "Alerts" used to be the whole button; a bell
+    // is what people look for, and the number beside it is the fact the word never carried.
     let colour = if state.unread_problem() { t.reject } else { t.accent };
     let response = ui.add(
-        Button::new(RichText::new(label).size(11.5).color(colour))
+        Button::image(crate::icons::image(crate::icons::Icon::Bell, 14.0).tint(colour))
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::NONE),
     );
-    crate::a11y::label_widget(ui, &response, egui::Role::Button, "Alerts", state.bell_open);
+    let spoken = if unread > 0 {
+        format!("Alerts, {unread} unread")
+    } else {
+        "Alerts".to_string()
+    };
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, &spoken, state.bell_open);
+    // The count is painted onto the button's own rectangle rather than laid out beside it: a count
+    // inside the bar would shift everything to its right each time a notice arrived.
+    if unread > 0 {
+        ui.painter().text(
+            response.rect.right_center() + vec2(-2.0, -7.0),
+            Align2::RIGHT_CENTER,
+            unread.to_string(),
+            t.font(9.5),
+            colour,
+        );
+    }
     if response.on_hover_text("What has happened recently").clicked() {
         state.bell_open = !state.bell_open;
         if state.bell_open {
@@ -1203,11 +1252,13 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if icon_button(ui, "Settings", t).clicked() {
+                    if glyph_button(ui, t, crate::icons::Icon::Sliders, "Settings", false).clicked() {
                         state.settings_open = true;
                     }
                     bell_button(ui, state, t);
-                    if icon_button(ui, "Details", t).clicked() {
+                    // Selected, not merely clickable: the button says whether the panel it toggles is
+                    // open, which is the only thing an unlabelled glyph can be asked to show.
+                    if glyph_button(ui, t, crate::icons::Icon::Panel, "Details panel", state.right_open).clicked() {
                         state.right_open = !state.right_open;
                     }
                     if icon_button(ui, state.theme.label(), t).clicked() {
@@ -1243,7 +1294,14 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                         state.motion = next;
                         actions.push(Action::SetMotion(next));
                     }
-                    if icon_button(ui, "Add Folder…", t).clicked() {
+                    if ui
+                        .add(
+                            Button::image_and_text(crate::icons::image(crate::icons::Icon::FolderPlus, 14.0), "Add Folder…")
+                                .image_tint_follows_text_color(true),
+                        )
+                        .on_hover_text("Index a folder of photographs")
+                        .clicked()
+                    {
                         actions.push(Action::PickFolder);
                     }
 
@@ -1286,10 +1344,12 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                     let selected = state.view == view;
                     let response = ui.add_enabled(
                         view.milestone().is_none() || selected,
-                        Button::new(RichText::new(view.label()).size(12.0))
+                        Button::image_and_text(crate::icons::image(view.icon(), 14.0), RichText::new(view.label()).size(12.0))
+                            .image_tint_follows_text_color(true)
                             .fill(if selected { t.selection } else { Color32::TRANSPARENT })
                             .stroke(Stroke::NONE),
                     );
+                    crate::a11y::label_widget(ui, &response, egui::Role::Button, view.label(), selected);
                     if response.clicked() {
                         match view.milestone() {
                             Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
@@ -1378,7 +1438,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         let key = sortlens_engine::folder_key(&root);
         let mark = marks.get(&key).cloned().unwrap_or_default();
         let name = format!("{}{}", if mark.favourite { "★ " } else { "" }, folder_name(&root));
-        let response = nav_row(ui, t, &name, &count_text, selected);
+        let response = nav_row(ui, t, crate::icons::Icon::Folder, &name, &count_text, selected);
         if let Some(colour) = mark.colour {
             // The same dot a collection uses, in the same place: a colour means one thing in this
             // sidebar, whichever kind of row carries it.
@@ -1467,7 +1527,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Library").size(12.0).strong());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.add(Button::new("+").small()).on_hover_text("Add a folder to index").clicked() {
+                    if glyph_button(ui, t, crate::icons::Icon::FolderPlus, "Add a folder to index", false).clicked() {
                         actions.push(Action::PickFolder);
                     }
                 });
@@ -1489,7 +1549,16 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 filter.min_rating = source.min_rating();
                 filter.added_after = source.added_after(now);
                 let count = engine.count(&filter);
-                if nav_row(ui, t, source.label(), &format_count(count as u64), state.source_selected(source)).clicked() {
+                if nav_row(
+                    ui,
+                    t,
+                    source.icon(),
+                    source.label(),
+                    &format_count(count as u64),
+                    state.source_selected(source),
+                )
+                .clicked()
+                {
                     if source == Source::All {
                         state.root = None;
                     }
@@ -1506,7 +1575,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 );
             }
 
-            if nav_row(ui, t, "Library health", "", false).clicked() {
+            if nav_row(ui, t, crate::icons::Icon::Health, "Library health", "", false).clicked() {
                 state.health_open = true;
             }
             if let Some(root) = state.root.clone() {
@@ -1517,20 +1586,29 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 for (name, count) in folders {
                     let prefix = format!("{}{name}/", state.folder);
                     let selected = state.folder == prefix;
-                    if nav_row(ui, t, &name, &format_count(count as u64), selected).clicked() {
+                    if nav_row(ui, t, crate::icons::Icon::Folder, &name, &format_count(count as u64), selected).clicked() {
                         state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
                     }
                 }
             }
 
             let deleted = engine.deleted_batches().len();
-            if nav_row(ui, t, "Recently Deleted", &format_count(deleted as u64), false).clicked() {
+            if nav_row(
+                ui,
+                t,
+                crate::icons::Icon::Trash,
+                "Recently Deleted",
+                &format_count(deleted as u64),
+                false,
+            )
+            .clicked()
+            {
                 state.deleted_open = true;
             }
-            if nav_row(ui, t, "Changes", "", false).clicked() {
+            if nav_row(ui, t, crate::icons::Icon::History, "Changes", "", false).clicked() {
                 state.history_open = true;
             }
-            if nav_row(ui, t, "Shortcuts", "?", false)
+            if nav_row(ui, t, crate::icons::Icon::Keyboard, "Shortcuts", "?", false)
                 .on_hover_text("Every binding, searchable")
                 .clicked()
             {
@@ -1561,10 +1639,10 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 let selected = state.tag_filters.iter().any(|active| active == tag);
                 let aliases = engine.registry_aliases_of(tag);
                 let row = if aliases.is_empty() {
-                    nav_row(ui, t, tag, &format_count(*count as u64), selected)
+                    nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
                 } else {
                     // Say where a keyword came from: a rename leaves a trail behind it.
-                    nav_row(ui, t, tag, &format_count(*count as u64), selected)
+                    nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
                         .on_hover_text(format!("also written as {}", aliases.join(", ")))
                 };
                 if row.clicked() {
@@ -1620,18 +1698,19 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
             ui.horizontal(|ui| {
                 for tab in RightTab::ALL {
                     let active = state.right_tab == tab;
-                    if ui
-                        .add(
-                            Button::new(
-                                RichText::new(tab.label())
-                                    .size(11.5)
-                                    .color(if active { t.text } else { t.text_muted }),
-                            )
-                            .fill(if active { t.selection } else { Color32::TRANSPARENT })
-                            .stroke(Stroke::NONE),
+                    let response = ui.add(
+                        Button::image_and_text(
+                            crate::icons::image(tab.icon(), 13.0),
+                            RichText::new(tab.label())
+                                .size(11.5)
+                                .color(if active { t.text } else { t.text_muted }),
                         )
-                        .clicked()
-                    {
+                        .image_tint_follows_text_color(true)
+                        .fill(if active { t.selection } else { Color32::TRANSPARENT })
+                        .stroke(Stroke::NONE),
+                    );
+                    crate::a11y::label_widget(ui, &response, egui::Role::Tab, tab.label(), active);
+                    if response.clicked() {
                         state.right_tab = tab;
                     }
                 }
@@ -1849,7 +1928,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     }
                     let active = state.active_filter_count();
                     if active > 0
-                        && chip(ui, t, &format!("{active} active"), true)
+                        && chip(ui, t, Some(crate::icons::Icon::Tag), &format!("{active} active"), true)
                             .on_hover_text("Clear every filter")
                             .clicked()
                     {
@@ -2753,13 +2832,13 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 };
                 if let Some(id) = state.collection_filter
                     && let Some(collection) = engine.collections().into_iter().find(|entry| entry.id == id)
-                    && chip(ui, t, &collection.name, true).clicked()
+                    && chip(ui, t, Some(crate::icons::Icon::Layers), &collection.name, true).clicked()
                 {
                     state.collection_filter = None;
                 }
                 let mut drop_tag = None;
                 for tag in state.tag_filters.clone() {
-                    if chip(ui, t, &format!("#{tag}"), true).clicked() {
+                    if chip(ui, t, Some(crate::icons::Icon::Tag), &format!("#{tag}"), true).clicked() {
                         drop_tag = Some(tag);
                     }
                 }
@@ -2796,11 +2875,19 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 });
                 if state.tag_filters.len() > 1 {
                     let label = format!("match {}", state.tag_mode.label());
-                    if chip(ui, t, &label, state.tag_mode == sortlens_engine::TagMode::All).clicked() {
+                    if chip(
+                        ui,
+                        t,
+                        Some(crate::icons::Icon::Tag),
+                        &label,
+                        state.tag_mode == sortlens_engine::TagMode::All,
+                    )
+                    .clicked()
+                    {
                         state.tag_mode = state.tag_mode.flipped();
                     }
                 }
-                if chip(ui, t, &rating, state.min_rating > 0).clicked() {
+                if chip(ui, t, Some(crate::icons::Icon::Star), &rating, state.min_rating > 0).clicked() {
                     state.min_rating = (state.min_rating + 1) % 6;
                 }
 
@@ -2810,7 +2897,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     Some(Flag::Reject) => "Rejects".to_string(),
                     Some(Flag::None) => "Unflagged".to_string(),
                 };
-                if chip(ui, t, &flag_label, state.flag_filter.is_some()).clicked() {
+                if chip(ui, t, Some(crate::icons::Icon::Flag), &flag_label, state.flag_filter.is_some()).clicked() {
                     state.flag_filter = match state.flag_filter {
                         None => Some(Flag::Pick),
                         Some(Flag::Pick) => Some(Flag::Reject),
@@ -2823,7 +2910,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     None => "Colour".to_string(),
                     Some(label) => label.label().to_string(),
                 };
-                if chip(ui, t, &label_text, state.label_filter.is_some()).clicked() {
+                if chip(ui, t, Some(crate::icons::Icon::Droplet), &label_text, state.label_filter.is_some()).clicked() {
                     state.label_filter = match state.label_filter {
                         None => Some(sortlens_core::ColorLabel::ALL[0]),
                         Some(current) => {
@@ -2842,7 +2929,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     Some(MediaKind::Raw) => "RAW".to_string(),
                     Some(MediaKind::Video) => "Videos".to_string(),
                 };
-                if chip(ui, t, &kind_label, state.kind_filter.is_some()).clicked() {
+                if chip(ui, t, Some(crate::icons::Icon::Film), &kind_label, state.kind_filter.is_some()).clicked() {
                     state.kind_filter = match state.kind_filter {
                         None => Some(MediaKind::Image),
                         Some(MediaKind::Image) => Some(MediaKind::Raw),
@@ -2858,7 +2945,13 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     None => "Source".to_string(),
                     Some(source) => format!("{} keywords", source.label()),
                 };
-                let source_chip = chip(ui, t, &source_label, state.source_filter.is_some());
+                let source_chip = chip(
+                    ui,
+                    t,
+                    Some(crate::icons::Icon::Sparkle),
+                    &source_label,
+                    state.source_filter.is_some(),
+                );
                 let source_chip = match state.source_filter {
                     Some(source) => source_chip.on_hover_text(source.explanation()),
                     None => source_chip.on_hover_text("Only photos where some keyword came from here"),
@@ -2882,7 +2975,15 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     Some(true) => "Edited only".to_string(),
                     Some(false) => "Unedited".to_string(),
                 };
-                if chip(ui, t, &edited_label, state.edited_filter.is_some()).clicked() {
+                if chip(
+                    ui,
+                    t,
+                    Some(crate::icons::Icon::Pencil),
+                    &edited_label,
+                    state.edited_filter.is_some(),
+                )
+                .clicked()
+                {
                     state.edited_filter = match state.edited_filter {
                         None => Some(true),
                         Some(true) => Some(false),
@@ -2890,11 +2991,11 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     };
                 }
 
-                if chip(ui, t, "Missing", state.show_missing).clicked() {
+                if chip(ui, t, Some(crate::icons::Icon::Warning), "Missing", state.show_missing).clicked() {
                     state.show_missing = !state.show_missing;
                 }
 
-                if state.has_filters() && chip(ui, t, "Clear", true).clicked() {
+                if state.has_filters() && chip(ui, t, Some(crate::icons::Icon::Close), "Clear", true).clicked() {
                     state.search.clear();
                     state.clear_filters();
                 }
@@ -2910,9 +3011,15 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
         });
 }
 
-fn chip(ui: &mut Ui, t: &Tokens, label: &str, active: bool) -> egui::Response {
+fn chip(ui: &mut Ui, t: &Tokens, icon: Option<crate::icons::Icon>, label: &str, active: bool) -> egui::Response {
+    let colour = if active { t.text } else { t.text_muted };
+    let text = RichText::new(label).size(11.0).color(colour);
+    let button = match icon {
+        Some(icon) => Button::image_and_text(crate::icons::image(icon, 12.0).tint(colour), text),
+        None => Button::new(text),
+    };
     ui.add(
-        Button::new(RichText::new(label).size(11.0).color(if active { t.text } else { t.text_muted }))
+        button
             .fill(if active { t.selection } else { Color32::TRANSPARENT })
             .stroke(if active { Stroke::new(1.0, t.accent) } else { Stroke::NONE }),
     )
@@ -5074,7 +5181,14 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
         let filtered = state.collection_filter == Some(collection.id);
         let ticked = state.collection_selection.contains(collection.id);
         let name = format!("{}{}", if collection.favourite { "★ " } else { "" }, collection.name);
-        let row = nav_row(ui, t, &name, &format_count(collection.len() as u64), filtered || ticked);
+        let row = nav_row(
+            ui,
+            t,
+            crate::icons::Icon::Layers,
+            &name,
+            &format_count(collection.len() as u64),
+            filtered || ticked,
+        );
         if let Some(colour) = collection.colour {
             // A dot before the name, so a colour is scannable without opening anything.
             let dot = pos2(row.rect.left() + 3.0, row.rect.center().y);
@@ -5534,7 +5648,7 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Format").size(11.0).color(t.text_muted));
                 for format in sortlens_engine::ExportFormat::ALL {
-                    if chip(ui, t, format.label(), state.export_spec.format == format).clicked() {
+                    if chip(ui, t, None, format.label(), state.export_spec.format == format).clicked() {
                         state.export_spec.format = format;
                     }
                 }
@@ -5572,7 +5686,7 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             ui.horizontal(|ui| {
                 ui.label(RichText::new("If the name is taken").size(11.0).color(t.text_muted));
                 for policy in sortlens_engine::Collision::ALL {
-                    if chip(ui, t, policy.label(), state.export_spec.collision == policy).clicked() {
+                    if chip(ui, t, None, policy.label(), state.export_spec.collision == policy).clicked() {
                         state.export_spec.collision = policy;
                     }
                 }
@@ -6786,7 +6900,7 @@ fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
     ui.add_space(2.0);
 }
 
-fn nav_row(ui: &mut Ui, t: &Tokens, label: &str, count: &str, selected: bool) -> egui::Response {
+fn nav_row(ui: &mut Ui, t: &Tokens, icon: crate::icons::Icon, label: &str, count: &str, selected: bool) -> egui::Response {
     let height = 24.0;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     let spoken = if count.is_empty() {
@@ -6799,9 +6913,14 @@ fn nav_row(ui: &mut Ui, t: &Tokens, label: &str, count: &str, selected: bool) ->
         ui.painter()
             .rect_filled(rect, t.corner(), if selected { t.selection } else { t.hover });
     }
-    let width = rect.width() - 12.0;
+    // The glyph sits in its own 16-point column so every row's text starts at the same x whether or
+    // not the row has a picture — a list that goes ragged around the icons is harder to scan than one
+    // with no icons at all.
+    let glyph = Rect::from_center_size(pos2(rect.left() + 14.0, rect.center().y), Vec2::splat(14.0));
+    crate::icons::paint(ui, icon, glyph, if selected { t.text } else { t.text_muted });
+    let width = rect.width() - 34.0;
     ui.painter().text(
-        rect.left_center() + vec2(6.0, 0.0),
+        rect.left_center() + vec2(26.0, 0.0),
         Align2::LEFT_CENTER,
         truncate(label, (width / 6.4) as usize),
         t.font(12.0),
@@ -6836,6 +6955,12 @@ fn icon_button(ui: &mut Ui, label: &str, t: &Tokens) -> egui::Response {
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::NONE),
     )
+}
+
+/// An icon-only button that keeps its words: the tooltip and the accessible name are the label, so the
+/// top bar loses a word-wide button and a screen reader loses nothing.
+fn glyph_button(ui: &mut Ui, t: &Tokens, icon: crate::icons::Icon, label: &str, selected: bool) -> egui::Response {
+    crate::icons::button(ui, t, icon, label, selected)
 }
 
 fn next_theme(kind: ThemeKind) -> ThemeKind {
@@ -6919,6 +7044,110 @@ mod tests {
         let wide = fit_rect(bounds, 2.0);
         assert!(wide.width() <= bounds.width() + 0.001);
         assert!(bounds.contains_rect(wide));
+    }
+
+    /// Phase 3B item 10: the chrome's buttons are pictures, and the pictures are the shipped set.
+    ///
+    /// Two failure modes, asserted separately because they look the same on screen. The first is a glyph
+    /// nobody installed or a name that does not resolve — every one of them is asked for through the same
+    /// context the shell drew on, and must come back ready. The second is a surface that quietly lost its
+    /// icons: the top bar, the bottom bar and the sidebar are counted by the image meshes painted inside
+    /// their bands, so removing an icon from a row is a failing test rather than a smaller screenshot.
+    #[test]
+    fn the_chrome_paints_the_shipped_icon_set() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-icons-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-icons");
+        for index in 0..3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 + index * 40, 90, 170], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let t = ThemeKind::Charcoal.tokens();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0));
+        let input = egui::RawInput {
+            screen_rect: Some(screen),
+            ..egui::RawInput::default()
+        };
+        let mut output = ctx.run_ui(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                show(ui, &mut state, &mut engine, &mut thumbs);
+            });
+        });
+        output.textures_delta.clear();
+
+        // Every glyph resolves on the context the shell painted on: a missing `install`, a renamed file
+        // or a catalogued name with no bytes all end here, as a blank button nobody notices.
+        for icon in crate::icons::Icon::ALL {
+            let uri = format!("bytes://sortlens/icons/{}.svg", icon.name());
+            let poll = ctx
+                .try_load_image(
+                    &uri,
+                    egui::load::SizeHint::Size {
+                        width: 14,
+                        height: 14,
+                        maintain_aspect_ratio: true,
+                    },
+                )
+                .expect("the shell installed the SVG loader");
+            assert!(
+                matches!(poll, egui::load::ImagePoll::Ready { .. }),
+                "{} was not ready on the frame it was asked for",
+                icon.name()
+            );
+        }
+
+        // An image in this egui paints as a textured rectangle (the fork moved images from meshes to
+        // `RectShape` brushes), so "a picture was painted here" is a rect carrying a texture that is
+        // not the font atlas.
+        let painted: Vec<Rect> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                egui::Shape::Rect(shape) => shape
+                    .brush
+                    .as_ref()
+                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                    .map(|_| shape.rect),
+                _ => None,
+            })
+            .collect();
+        let in_band = |top: f32, bottom: f32, x_max: f32| {
+            painted
+                .iter()
+                .filter(|rect| rect.center().y >= top && rect.center().y <= bottom && rect.center().x <= x_max)
+                .count()
+        };
+        // Exact, not a floor: a floor of three would still pass while a fourth word-only button
+        // appeared beside them, which is the drift this is meant to catch.
+        assert_eq!(
+            in_band(0.0, t.top_bar_h, screen.right()),
+            3,
+            "the top bar paints Settings, the panel toggle and Add Folder as pictures"
+        );
+        assert_eq!(
+            in_band(screen.bottom() - t.bottom_bar_h, screen.bottom(), screen.right()),
+            View::ALL.len(),
+            "every destination in the bottom bar carries its glyph"
+        );
+        assert!(
+            in_band(t.top_bar_h, screen.bottom() - t.bottom_bar_h, t.left_w) >= Source::ALL.len() + 5,
+            "the five sources, the four utilities and the folder row each start with a picture"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

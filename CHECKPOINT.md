@@ -1,5 +1,61 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-first) — Phase 3 item 10 (3B.1): the palette is one mapping, and the chrome has pictures
+
+- **`Tokens::palette()` is the mapping and `apply` is its only consumer.** `craft_ui::theme::WidgetPalette`
+  (`noninteractive: panel`, `inactive: card`, `hovered: hover`, `active: active`, `open: card`) is now what
+  `apply` installs through `WidgetPalette::apply_to`, so a suite widget reading `Visuals` and a Sortlens widget
+  reading `Tokens` agree about a hover by construction instead of by two lists kept in step. Two documented
+  exceptions survive: the pressed state wears the accent ring, and the borders stay `t.border` on every state.
+  One visible consequence is *intended*: `weak_bg_fill` now equals the strong fill per state, so a resting
+  button is a card rather than something between card and hover. `ThemeKind::egui_theme()` names which half of
+  `Style` a preset paints under, instead of `apply` and its test spelling it twice.
+- **The icon set exists as files, not as a font.** 34 project-owned 24-unit stroke SVGs under `assets/icons/`,
+  embedded with `include_bytes!` and named by `Icon::ALL`. `crate::icons::install` puts `egui_extras`' SVG
+  loader on the context once and registers every glyph's bytes up front, so the first frame a glyph appears on
+  is the frame it is painted — not one frame later, which is what an unregistered `bytes://` URI looks like.
+  `craft_ui::icons::SvgIconSet` prepares each drawing (white `currentColor`, 1.75 stroke) so the tint is the
+  theme colour and not a second palette; the loader rasterises at exactly the slot size, which is what keeps a
+  14-point glyph sharp at 2× rather than a blurred bitmap.
+- **New workspace pin: `egui_extras`** (the same egui fork rev, `default-features = false`, `features = ["svg"]`
+  — no HTTP, no file loader, no mime sniffing). `deny` passes its licence tree unchanged (`resvg`/`usvg` are
+  MPL-2.0, already allowed for `option-ext`), `wasm` still compiles `sortlens-ui` for `wasm32-unknown-unknown`,
+  and `attribution` gained its row plus a provenance row for `assets/icons/*.svg`.
+- **Wired into all five surfaces, additively where the word carries a value.** Sidebar: every source row, the
+  four utility rows, folder rows, keyword rows and collection rows now start with a glyph, in a fixed 16-point
+  column so the text edges stay aligned; the `+` add-folder button became `folder-plus`. Filter strip: rating,
+  flags, colour, kind, source, edited, missing and clear chips each carry their glyph, painted in the chip's own
+  colour so an active chip does not have a light icon on a light pill. Bottom bar: every destination is a glyph
+  beside its label. Right panel: the three tabs. Top bar: Settings became `sliders` (a gear at 13 px reads as a
+  sun), the right-panel toggle became `panel` and now *selects* when the panel is open, the bell became a bell
+  with an unread count painted into its own rect, and Add Folder is `folder-plus` plus its words. The value
+  labels — theme, density, layout, motion — deliberately stayed words: they print a current value, and a glyph
+  cannot say "Comfortable". Replacing those is 3B.2's Appearance menu, not this slice.
+- **An icon-only button keeps its words.** `icons::button` labels the response through
+  `a11y::label_widget` with the same string it uses as the tooltip: a screen reader must not be handed a file
+  stem, and two different answers to "what is this button" is worse than one.
+- **Tests that fail when the behaviour is absent** (6 new, 682 total): the enum ↔ catalog ↔ folder name check in
+  both directions (so a glyph added to one list only is caught); a conventions test (`currentColor` present,
+  `stroke-width="2"` present, 24-unit viewBox, no `rgb(...)`, so every glyph is tintable); a rasterisation test
+  that asks the real loader — through the same `install` the shell calls — for all 34 glyphs at 14 and 32 px and
+  requires both ink and empty pixels (verified by removing the `install` call from `show`, which failed it); an
+  accessible-name test on an icon-only button through AccessKit; the palette test that compares what `apply`
+  actually stored in `Visuals` against `Tokens::palette()` for all four presets; and a shell test that counts the
+  textured rectangles painted inside the top bar, bottom bar and sidebar bands (3, 6 and 11 — exactly the
+  designed counts, asserted with `assert_eq!` rather than a floor, and it failed when `install` was removed).
+- **Visual verification: all 18 baselines regenerated with `--update`, then read, then re-run without it (7/7
+  matched).** The top-right of the library baseline was magnified to check the new Settings glyph (the first
+  gear drew a sun, the second a mush of three sliders — the shipped one is two rows with visible knobs), the
+  sidebar and filter strip were magnified in Charcoal and Paper to confirm the glyphs read at 14 px and that the
+  light presets get dark icons (`text_muted` tint, not white), and the detail baseline was read whole in Paper.
+- **Not verified by hand**: `apps/sortlens` in a real window (no change in this commit's rendering path, but the
+  glyphs are only seen through the harness), and how the sidebar's fixed 16-point icon column behaves at the
+  narrow end of its 210–380 px resize range with a long folder name — `truncate` still measures from the reduced
+  width, but only the picture would settle it.
+- **Still open in 3B**: the `⌘K` palette and Appearance menu, the sidebar's utility strip, the bottom bar's
+  annotation pill and peer views, the right panel's Suggestions tab and tool strip, the Welcome bullets and
+  filter chevrons, and the three visual defects 3A recorded. Item 10 closed only what it named.
+
 ## 2026-11-23 (thirtieth) — Phase 3 item 9 (3A): the screenshot harness, its baselines, and what they found
 
 - **`cargo xtask screenshots` exists and paints the real shell.** `crates/ui/tests/screenshots.rs` runs
@@ -2834,12 +2890,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 **Phase 3 — UI/UX overhaul**
 9. `egui_kittest` screenshot harness, `cargo xtask screenshots`, Charcoal and Paper baselines (do this before 10–15)
    — **done 2026-11-23**, see the thirtieth entry.
-10. `WidgetPalette` mapping + monochrome SVG icon set — **the next slice**: `Tokens` onto
-   `craft_ui::theme::WidgetPalette`, then `crates/icon`'s SVG set wired into the top bar, sidebar, filter strip,
-   bottom bar and right panel. The 3A baselines are its proof, so run `cargo xtask screenshots` before and after;
-   the arrow-glyph strings in `keymap.rs`/`command.rs` and the Places opening zoom recorded in 3B.6 are visual
-   work for 3B.6, not this one.
-11. Top bar declutter, `⌘K` dual-mode palette, icon buttons, Appearance menu, canvas header layout/density.
+10. `WidgetPalette` mapping + monochrome SVG icon set — **done 2026-11-23**, see the thirty-first entry:
+    34 glyphs in `assets/icons/`, `crates/ui/src/icons.rs`, wired into all five surfaces, and
+    `Tokens::palette()` is the one widget-state mapping. The four value chips in the top bar (theme, density,
+    layout, motion) are still words on purpose: they print a value, and 3B.2's Appearance menu is where they move.
+11. **The next slice — top bar declutter and the `⌘K` command palette.** One search field with two modes
+    (`docs/UX.md` §3): filenames live, `⌘K` into grouped commands with their shortcuts, `↑/↓`, `Enter`, `Esc`
+    back to photo search; a Filter chip carrying the active-filter count; the value chips (theme, density,
+    layout, motion) folded into a single Appearance menu; app mark at the left and layout/density in the canvas
+    header. Reuse the icon set rather than adding a second one, and make every palette command a registry
+    command — check `crates/engine/src/command.rs` first and add a missing verb there, not in the shell. The
+    baselines are its proof.
 12. Sidebar: scopes only in `SOURCES`, utility strip for Health/Changes/Shortcuts.
 13. Bottom bar: icon tabs, Detail/Compare/Soft Focus peers, annotation pill, right-side controls.
 14. Right panel: Suggestions tab + iconic tool strip.
