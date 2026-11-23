@@ -103,17 +103,29 @@ search icon, sort icon, add icon.
 
 ### 4.1 Sources (fixed, cannot be deleted)
 
+Six rows, because six questions: a photograph can be *in* a scope, and a scope is one question with one
+answer. Picking a row replaces whatever narrowed the view before, so "Picks" always means the same thing
+rather than "picks, among the ones you starred, inside that folder". The folder you are standing in is the
+one exception — that is where you are, not what you asked for.
+
 | Row | Predicate | Why it exists |
 | --- | --- | --- |
-| All Photos | everything not binned | the default |
-| Recently Added | indexed in the last 30 days | "what did I just import" |
+| All Photos | everything whose file is still there | the default |
+| Recently Added | recorded into the library in the last 30 days | "what did I just import" |
 | Picks | flag = Pick | the cull output |
 | Rated | rating ≥ 1 | the curated subset |
-| Missing | file not found | trust: never lose track |
-| Rejects (bin) | binned, restorable | undo at library scale |
+| Missing | the file is gone | trust: never lose track |
+| Rejects | flag = Reject, still in the grid | the cull's leftovers |
 
-Counts are always visible; a filter in effect adds a subtle "filtered" marker on the row so the
-number is not mistaken for the total.
+Each count is the count that row would show, not the library total, and every one is computed by the same
+predicate the row opens — a row and its grid cannot disagree. `Missing` is the only row that asks about the
+filesystem instead of an annotation; the filter bar's `Missing` chip is the same answer approached from the
+other side (it widens the current view to include missing files, the row narrows to only those, and either
+one lights the chip).
+
+The bin is *not* a scope: it is `Recently Deleted` in the panel's foot (§4.4), because it opens a restore
+dialog rather than filling the grid. Not shipped: the per-row "filtered" marker that would say a row's number
+is not the whole story.
 
 ### 4.2 Folders
 
@@ -147,8 +159,18 @@ rather than being filtered quietly.
 
 ### 4.4 Left panel footer
 
-Storage summary for the selected scope (photo count, on-disk size, cache size), app version,
-and a link to About/credits. This is the only permanent branding area.
+A hairline separates the sections from a strip pinned to the panel's foot: `Recently Deleted` (with the
+bin's count), `Check Library`, `Recent Changes` and `Keyboard Shortcuts`. These are the rows that open a
+dialog instead of choosing what the grid holds, so they are not sources and they do not move when the
+sections above them grow.
+
+Each row *is* a command palette row: its label and its shortcut are the command registry's (`library.deleted`,
+`library.health`, `library.history`, `app.shortcuts`) and clicking it runs the same handler `⌘K` does. That is
+deliberate — a hand-written copy of four dialog flags beside the palette's copy is drift waiting to happen.
+
+Not shipped: the footer's storage summary (photo count, on-disk size, cache size for the selected scope) and
+the version/credits block; and the sections are not yet collapsible, reorderable or scrollable as §4 opens by
+describing.
 
 ---
 

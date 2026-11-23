@@ -257,6 +257,38 @@ fn library_grid_paints_both_layouts_in_both_themes() {
     }
 }
 
+/// The Missing scope: the one source that asks the filesystem rather than an annotation.
+///
+/// One frame's file is removed from disk and the health check marks the record, so the sidebar's Missing
+/// row counts a file that really went away and the grid holds that record as it is painted for a file
+/// nobody can open. This is Phase 3B.3's visual proof: the six scopes on top, the utility strip at the
+/// foot, and a scope whose count is not the library total.
+#[test]
+fn missing_scope_paints_in_both_themes() {
+    let mut library = library();
+    // The file leaves the library; the record stays, marked missing. A path rather than an index,
+    // because the fixture's scan order is the filesystem's, not this file's.
+    std::fs::remove_file(Path::new(&library.root).join("Studio/IMG_0006.jpg")).expect("remove a frame");
+    let mut engine = library.take();
+    engine.check_health().expect("health check");
+    assert_eq!(engine.stats().missing, 1, "one frame's file is gone");
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, engine, &library.cache()), &library.root);
+        scene.state.apply_source(sortlens_ui::Source::Missing);
+        // The scope's own question, asked of the same engine the baseline is painted from.
+        assert_eq!(
+            scene.engine.count(&sortlens_engine::Filter {
+                missing: Some(true),
+                ..sortlens_engine::Filter::default()
+            }),
+            1,
+            "the scope holds the one file that is gone"
+        );
+        engine = shoot(kind, scene, &format!("missing-{}", kind_id(kind)));
+    }
+    library.keep(engine);
+}
+
 /// The detail view, alone and beside a second frame: the canvas, the facts, the histogram and the
 /// compare header are all visible in the two baselines.
 #[test]

@@ -1062,8 +1062,26 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   total), `Ctrl+K` is in the keymap overlay, and the new `palette-charcoal`/`palette-paper` baselines are its
   visual proof. Still not shipped, and now named in `docs/UX.md` §3 rather than implied: the app-mark library
   menu and view history.
-- [ ] 3B.3 Sidebar: `SOURCES` holds only photo scopes with icons and live counts; Library health, Changes and
-  Shortcuts move to a utility strip (B)
+- [x] 3B.3 Sidebar: `SOURCES` holds only photo scopes with icons and live counts; Library health, Changes and
+  Shortcuts move to a utility strip (B) — shipped 2026-11-23: `SOURCES` is the six scopes a photograph can be
+  *in* (`All Photos`, `Recently Added`, `Picks`, `Rated`, `Missing`, `Rejects`), each with a glyph and a live
+  count computed by the question its own row would ask (`source_filter`/`source_count`, shared with the tests,
+  so a row's number and the grid it opens cannot disagree). `Missing` is new and needed one real filter: the
+  catalog gained `Filter::missing: Option<bool>` — a *narrowing* that outranks `include_missing`, because
+  "everything, missing included" and "only what is missing" are different questions and the narrower one was
+  asked deliberately. The four dialog rows (`Recently Deleted`, `Check Library`, `Recent Changes`, `Keyboard
+  Shortcuts`) left the middle of the sidebar for a hairline-separated strip pinned to its foot, and each one
+  *is* a `PaletteCommand`: the words and the shortcut come from the command registry and the click goes through
+  the same `run` the `⌘K` palette uses, so a fifth row can only be added by naming a command that exists. The
+  strip is given an exact height (`sidebar_foot_height`) rather than measured from its content, because a panel
+  learns its content's height only after laying it out — the auto-sized version hung below its own clip rect on
+  the first frame. The filter bar's `Missing` chip now reads active when either the chip or the scope is on, and
+  clearing it leaves both. Tests: the scope's count over a library with a removed file, the catalog's
+  narrowing-vs-widening precedence, and a geometric check that the foot's four glyphs are the last four in the
+  column, nothing else is down there, and every sidebar glyph is inside the clip rect it was painted into. Two
+  new baselines (`missing-charcoal`/`missing-paper`) show the scope on; all 20 existing ones were regenerated
+  and read. Not shipped here, and named in `docs/UX.md` §4.1/§4.4: the per-row "filtered" marker, and the
+  footer's storage summary and branding.
 - [ ] 3B.4 Bottom bar: icons on every view tab; `Detail`, `Compare` and `Soft Focus` as peer views with narrow-window
   collapse; centre annotation pill (5-star rating, Pick/Unflag/Reject, selection count); right-side density/size,
   zoom and `?` controls (B)

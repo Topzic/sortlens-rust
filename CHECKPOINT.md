@@ -1,5 +1,59 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-third) — Phase 3 item 12 (3B.3): the sidebar asks six questions, and the utilities move to its foot
+
+- **`SOURCES` is six rows, one question each.** `Source::ALL` gained `Missing`, so the panel now lists
+  All Photos, Recently Added, Picks, Rated, Missing and Rejects — the six scopes `docs/UX.md` §4.1 has asked
+  for since the wireframe, of which five existed. Each row's count is computed by `source_count`, which builds
+  the filter through `source_filter`: the same function the tests call, so a row's number and the grid that row
+  opens are one question asked twice rather than two questions that look alike. `UiState` gained `missing_only`
+  (the question, like `recently_added`), `apply_source` sets it, `source_selected` compares it, and
+  `active_filter_count`/`has_filters`/`clear_filters` know about it.
+- **Missing needed a real filter, and it is a narrowing.** `sortlens_catalog::Filter` gained
+  `missing: Option<bool>`: `Some(true)` is only files that are gone, `Some(false)` only files that are there,
+  `None` leaves the old behaviour. It outranks `include_missing`, which only widens the view — "everything,
+  missing included" and "only what is missing" cannot both be satisfied, and the narrower question is the one
+  asked deliberately. `missing` is part of the filter's JSON surface too, so `library.page` accepts
+  `{"filter": {"missing": true}}` and the MCP example now says so.
+- **The four dialog rows left the middle of the sidebar.** `SIDEBAR_FOOT` is
+  `[Deleted, Health, History, Shortcuts]` as `PaletteCommand`s, and `sidebar_foot` paints them in an
+  `egui::Panel::bottom` laid out *before* the sections so it claims the bottom edge and nothing can push it
+  off. Every row's label and right-hand column come from the command registry (`Recently Deleted` + the bin
+  count, `Check Library`, `Recent Changes`, `Keyboard Shortcuts` + `?`), and a click goes through the same
+  `PaletteCommand::run` the `⌘K` palette uses — so the row that opens the bin and the palette row that opens
+  the bin are one handler, and a fifth row can only be added by naming a command that already exists. The
+  words therefore changed with the registry: "Library health" is now "Check Library", "Changes" is "Recent
+  Changes" and "Shortcuts" is "Keyboard Shortcuts", which is the point rather than a regression.
+- **The strip is sized exactly, and that was a real defect.** The first version let the panel measure its own
+  content, which a panel only learns *after* laying it out: on the first frame the four rows hung below the
+  panel's own clip rect and the strip flickered into place a frame late. `sidebar_foot_height` now states the
+  height from `NAV_ROW_H` (hoisted out of `nav_row`), the item spacing, a 9-point hairline band and the frame's
+  margins, and the panel is given it with `exact_size`. The hairline is painted rather than `ui.separator()`:
+  that widget's height is a style lookup, and a point nobody counted is a point that clips a row.
+- **Not verified by hand**: how the strip behaves at the narrow end of the panel's 210–380 px range with
+  "Keyboard Shortcuts" as its longest row (it truncates from the measured width, so it should), and the foot
+  over a keyword list long enough to reach it — the sections do not scroll yet, and clipping is unchanged in
+  kind, only raised by the strip's height.
+- **Named, not hidden**: `docs/UX.md` §4.1 used to imply a per-row "filtered" marker and a `Rejects (bin)`
+  predicate that does not exist (the bin is a dialog, and the Rejects row is the *flag*); §4.1 now says what
+  ships and names the marker as not shipped, and §4.4 describes the foot and names the storage summary,
+  branding block and collapsible/reorderable sections as not shipped. No new verbs: every foot row was
+  already a `Ready` registry command.
+- **Tests that fail when the behaviour is absent (3 new, 690 workspace total).**
+  `only_missing_narrows_while_include_missing_widens` (catalog) pins both directions and the precedence over
+  the widening flag; `the_missing_scope_counts_the_files_that_are_gone_and_only_those` removes a real file,
+  runs `check_health`, and asserts the Missing row's count, the grid it opens, the badge and that `Clear` leaves
+  the scope — removing `missing: source.missing()` from `source_filter` fails it; and
+  `the_sidebar_foot_pins_the_utilities_to_the_bottom` paints the whole window at 1280×800 and requires the
+  foot's four glyphs to be the last four in the column, nothing else in the band, the sections to end at least
+  60 points above it, and *every* sidebar glyph to be inside the clip rect it was painted into — which is what
+  the auto-sized version failed. The chrome icon-count test's sidebar floor is now six sources + utilities.
+- **Visual verification: all 20 existing baselines regenerated with `--update`, then read, then re-run without
+  it (9/9 tests matched).** Two are new: `missing-charcoal` and `missing-paper` — one frame's file removed and
+  the health check run, `apply_source(Missing)`, so the sidebar's Missing row counts 1, the filter bar's chip is
+  lit, and the grid holds the record of a file nobody can open. The library baselines were read in both presets
+  to confirm the six rows, the hairline and the four foot rows with the registry's words.
+
 ## 2026-11-23 (thirty-second) — Phase 3 item 11 (3B.2): one field with two modes, and the bar loses its words
 
 - **`⌘K` is the same field, not a second search box.** `UiState` grew `palette_open`, `palette_query`,
@@ -2954,13 +3008,15 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     glyphs; the Filter badge and toggle; Appearance as one menu; density/layout in the canvas header; 36 glyphs;
     20 baselines including the two new palette scenes. Named as not shipped there: the app-mark library menu
     and view history (the UX table used to imply both).
-12. **The next slice — sidebar scopes and the utility strip (3B.3).** `SOURCES` keeps only the six photo
-    scopes with their live counts; Library health, Changes and Shortcuts move to a footer utility strip, which
-    is the same code path as the palette's `library.health`, `library.history` and `app.shortcuts` rows. The
-    sidebar currently draws them as ordinary source rows (`crates/ui/src/shell.rs`, `left_panel`), so the work
-    is a section split plus the baselines. Keep the existing `nav_row` anatomy and do not invent a command: the
-    three verbs already exist and are `Ready`.
-13. Bottom bar: icon tabs, Detail/Compare/Soft Focus peers, annotation pill, right-side controls.
+12. **Sidebar scopes and the utility strip (3B.3) — done 2026-11-23**, see the thirty-third entry: six
+    scopes with live counts (Missing is new, backed by `Filter::missing`), and the four dialog rows moved to an
+    exactly-sized foot whose words and handlers are the palette's. Named as not shipped there: the per-row
+    "filtered" marker and the footer's storage summary.
+13. **The next slice — the bottom bar (3B.4).** `crates/ui/src/shell.rs`, `bottom_bar`: every view tab already
+    carries a glyph, so what is left is `Detail`, `Compare` and `Soft Focus` as peer views with a narrow-window
+    collapse, the centre annotation pill (5-star rating, Pick/Unflag/Reject, selection count), and the
+    right-side density/size, zoom and `?` controls. Read `docs/UX.md` §6 before starting and keep
+    `View::ALL`'s order as the tab order; the screenshots harness and its `library`/`cull` scenes are the proof.
 14. Right panel: Suggestions tab + iconic tool strip.
 15. Visual defects: Welcome bullets, empty-library filter bar, filter glyphs/chevrons, bundled offline basemap.
 

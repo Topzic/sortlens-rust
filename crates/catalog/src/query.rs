@@ -48,6 +48,13 @@ pub struct Filter {
     pub added_after: Option<i64>,
     /// `Some(true)` for edited photos only, `Some(false)` for unedited only.
     pub edited: Option<bool>,
+    /// Restrict to files that have gone away (`Some(true)`) or to the ones that are still there
+    /// (`Some(false)`).
+    ///
+    /// This is the sidebar's Missing scope. It is a *narrowing*, so it outranks
+    /// [`Self::include_missing`], which only widens the view: "everything, missing included" and "only
+    /// what is missing" cannot both be satisfied, and the narrower question is the deliberately asked one.
+    pub missing: Option<bool>,
     /// Include entries whose file is missing.
     pub include_missing: bool,
     /// Restricted id set, used by selection and by collection views.
@@ -57,7 +64,13 @@ pub struct Filter {
 impl Filter {
     /// Whether a photo passes.
     pub fn matches(&self, photo: &Photo) -> bool {
-        if !self.include_missing && photo.missing {
+        if let Some(missing) = self.missing {
+            // Only-missing is not the same question as "also missing": a restriction wins, and a photo
+            // that fails it does not come back by asking to include missing ones.
+            if photo.missing != missing {
+                return false;
+            }
+        } else if !self.include_missing && photo.missing {
             return false;
         }
         if let Some(root) = &self.root
@@ -383,6 +396,48 @@ mod tests {
             }
             .matches(&missing)
         );
+    }
+
+    /// The Missing scope asks for what is gone and for nothing else, and the restriction outranks the
+    /// widening flag — otherwise "Missing" would mean "Missing and everything else".
+    #[test]
+    fn only_missing_narrows_while_include_missing_widens() {
+        let present = photo(1, "here.jpg", 0, Flag::None, None);
+        let mut gone = photo(2, "gone.jpg", 0, Flag::None, None);
+        gone.missing = true;
+
+        let only = Filter {
+            missing: Some(true),
+            ..Filter::default()
+        };
+        assert!(only.matches(&gone));
+        assert!(!only.matches(&present));
+
+        let only_present = Filter {
+            missing: Some(false),
+            ..Filter::default()
+        };
+        assert!(only_present.matches(&present));
+        assert!(!only_present.matches(&gone));
+
+        // Asked for only-missing *and* include-missing: the narrower question is the one that answers.
+        let contradictory = Filter {
+            missing: Some(true),
+            include_missing: true,
+            ..Filter::default()
+        };
+        assert!(contradictory.matches(&gone));
+        assert!(!contradictory.matches(&present));
+        let contradictory = Filter {
+            missing: Some(false),
+            include_missing: true,
+            ..Filter::default()
+        };
+        assert!(
+            !contradictory.matches(&gone),
+            "a present-only filter does not get the missing ones back"
+        );
+        assert!(contradictory.matches(&present));
     }
 
     #[test]

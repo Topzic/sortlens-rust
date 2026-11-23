@@ -456,14 +456,26 @@ pub enum Source {
     Rated,
     /// Rejected frames, still in the grid and not yet deleted.
     Rejects,
+    /// Photos whose file is gone — an unmounted drive, a folder moved outside the library.
+    ///
+    /// The one source that asks about the *filesystem* rather than about an annotation: it exists so that a
+    /// file vanishing is something a person can see and settle, instead of a quiet hole in the count.
+    Missing,
 }
 
 /// The Recently Added window: 30 days, in seconds.
 const RECENT_WINDOW: i64 = 30 * 24 * 60 * 60;
 
 impl Source {
-    /// Every source, in sidebar order.
-    pub const ALL: [Source; 5] = [Source::All, Source::Added, Source::Picks, Source::Rated, Source::Rejects];
+    /// Every source, in sidebar order: the six scopes a photograph can be *in*, one question each.
+    pub const ALL: [Source; 6] = [
+        Source::All,
+        Source::Added,
+        Source::Picks,
+        Source::Rated,
+        Source::Missing,
+        Source::Rejects,
+    ];
 
     /// The row's label.
     #[must_use]
@@ -473,6 +485,7 @@ impl Source {
             Source::Added => "Recently Added",
             Source::Picks => "Picks",
             Source::Rated => "Rated",
+            Source::Missing => "Missing",
             Source::Rejects => "Rejects",
         }
     }
@@ -485,6 +498,7 @@ impl Source {
             Self::Added => crate::icons::Icon::Clock,
             Self::Picks => crate::icons::Icon::Pick,
             Self::Rated => crate::icons::Icon::Star,
+            Self::Missing => crate::icons::Icon::Warning,
             Self::Rejects => crate::icons::Icon::Reject,
         }
     }
@@ -495,7 +509,7 @@ impl Source {
         match self {
             Source::Picks => Some(Flag::Pick),
             Source::Rejects => Some(Flag::Reject),
-            Source::All | Source::Added | Source::Rated => None,
+            Source::All | Source::Added | Source::Rated | Source::Missing => None,
         }
     }
 
@@ -505,7 +519,7 @@ impl Source {
     pub fn min_rating(self) -> u8 {
         match self {
             Source::Rated => 1,
-            Source::All | Source::Added | Source::Picks | Source::Rejects => 0,
+            Source::All | Source::Added | Source::Picks | Source::Missing | Source::Rejects => 0,
         }
     }
 
@@ -514,6 +528,13 @@ impl Source {
     #[must_use]
     pub fn added_after(self, now: i64) -> Option<i64> {
         (self == Source::Added).then_some(now - RECENT_WINDOW)
+    }
+
+    /// Whether this source asks about files that are gone. Missing is the only one that does, and it asks for
+    /// them *alone*, so the row's count is exactly what the grid will hold once the row is picked.
+    #[must_use]
+    pub fn missing(self) -> Option<bool> {
+        (self == Self::Missing).then_some(true)
     }
 }
 
@@ -640,6 +661,12 @@ pub struct UiState {
     /// and the filter turns it into an instant at read time, so a library left open past midnight
     /// still answers "the last 30 days" rather than the 30 days before the window was opened.
     pub recently_added: bool,
+    /// Whether the Missing source is asking the question: only files that are gone, and nothing else.
+    ///
+    /// Distinct from [`Self::show_missing`], which is the filter bar's "also show the ones that went away"
+    /// chip. One widens the view and the other narrows it, so they are one `Filter` field with two
+    /// questions rather than one flag that has to mean both.
+    pub missing_only: bool,
     /// Whether missing files are shown.
     pub show_missing: bool,
     /// Keywords the view is narrowed to, chosen in the sidebar or the filter strip.
@@ -792,6 +819,7 @@ impl UiState {
             min_rating: 0,
             flag_filter: None,
             label_filter: None,
+            missing_only: false,
             show_missing: false,
             tag_filters: Vec::new(),
             source_filter: None,
@@ -932,6 +960,7 @@ impl UiState {
             kind: self.kind_filter,
             edited: self.edited_filter,
             added_after: self.recently_added.then(|| sortlens_engine::now_epoch() - RECENT_WINDOW),
+            missing: self.missing_only.then_some(true),
             include_missing: self.show_missing,
             ..Filter::default()
         }
@@ -954,6 +983,7 @@ impl UiState {
         self.search.clear();
         self.all_photos_selected = source == Source::All;
         self.recently_added = source == Source::Added;
+        self.missing_only = source.missing().is_some();
         // A source is a question, and "what did I just import" is asked newest-record-first. Every
         // other source goes back to the sort the user chose, the way closing a collection does.
         self.sort = if source == Source::Added {
@@ -978,6 +1008,7 @@ impl UiState {
             && self.kind_filter.is_none()
             && self.edited_filter.is_none()
             && self.recently_added == (source == Source::Added)
+            && self.missing_only == source.missing().is_some()
     }
 
     /// How many filter dimensions are narrowing the view, for the header badge.
@@ -992,6 +1023,7 @@ impl UiState {
         count += usize::from(self.kind_filter.is_some());
         count += usize::from(self.edited_filter.is_some());
         count += usize::from(self.recently_added);
+        count += usize::from(self.missing_only);
         count += usize::from(self.show_missing);
         count += usize::from(self.root.is_some());
         count += usize::from(!self.folder.is_empty());
@@ -1011,6 +1043,7 @@ impl UiState {
             || self.kind_filter.is_some()
             || self.edited_filter.is_some()
             || self.recently_added
+            || self.missing_only
             || self.show_missing
             || self.root.is_some()
             || !self.search.is_empty()
@@ -1031,6 +1064,7 @@ impl UiState {
         self.kind_filter = None;
         self.edited_filter = None;
         self.recently_added = false;
+        self.missing_only = false;
         self.show_missing = false;
         self.root = None;
     }
@@ -2028,6 +2062,10 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::same(10)))
         .show(ui, |ui| {
             state.left_w = ui.available_width();
+            // The foot is laid out first so it can claim the bottom edge before the sections fill what is
+            // left: a strip added last would be pushed off the panel by a long folder or keyword list, and
+            // "always there" is the whole reason it left the middle of the sidebar.
+            sidebar_foot(ui, state, t, engine, actions);
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Library").size(12.0).strong());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -2044,15 +2082,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             for source in Source::ALL {
                 // Each row's count is what that row would show, not the library total: a Picks row reading
                 // "0" while the grid holds thousands is the row doing its job.
-                let mut filter = Filter {
-                    root: state.root.clone(),
-                    folder: (state.root.is_some() && !state.folder.is_empty()).then(|| state.folder.clone()),
-                    ..Filter::default()
-                };
-                filter.flag = source.flag();
-                filter.min_rating = source.min_rating();
-                filter.added_after = source.added_after(now);
-                let count = engine.count(&filter);
+                let count = source_count(engine, state, source, now);
                 if nav_row(
                     ui,
                     t,
@@ -2079,9 +2109,6 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 );
             }
 
-            if nav_row(ui, t, crate::icons::Icon::Health, "Library health", "", false).clicked() {
-                state.health_open = true;
-            }
             if let Some(root) = state.root.clone() {
                 let folders = engine.subfolders(&root, &state.folder);
                 if !folders.is_empty() {
@@ -2094,30 +2121,6 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
                     }
                 }
-            }
-
-            let deleted = engine.deleted_batches().len();
-            if nav_row(
-                ui,
-                t,
-                crate::icons::Icon::Trash,
-                "Recently Deleted",
-                &format_count(deleted as u64),
-                false,
-            )
-            .clicked()
-            {
-                state.deleted_open = true;
-            }
-            if nav_row(ui, t, crate::icons::Icon::History, "Changes", "", false).clicked() {
-                state.history_open = true;
-            }
-            if nav_row(ui, t, crate::icons::Icon::Keyboard, "Shortcuts", "?", false)
-                .on_hover_text("Every binding, searchable")
-                .clicked()
-            {
-                state.shortcuts_open = true;
-                state.shortcut_query.clear();
             }
 
             folders_section(ui, t, state, engine, actions);
@@ -2176,6 +2179,109 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             }
 
             collections_section(ui, t, state, engine);
+        });
+}
+
+/// The question a source asks, scoped to the folder the person is standing in.
+///
+/// The folder is where you are rather than what you asked for, so it survives picking a source; every
+/// other dimension is the source's own. Shared with the tests so a row's count and the grid it opens are
+/// the same question asked twice, not two questions that look alike.
+fn source_filter(state: &UiState, source: Source, now: i64) -> Filter {
+    Filter {
+        root: state.root.clone(),
+        folder: (state.root.is_some() && !state.folder.is_empty()).then(|| state.folder.clone()),
+        flag: source.flag(),
+        min_rating: source.min_rating(),
+        added_after: source.added_after(now),
+        missing: source.missing(),
+        ..Filter::default()
+    }
+}
+
+/// How many photos a source holds right now, for its row.
+fn source_count(engine: &Engine, state: &UiState, source: Source, now: i64) -> usize {
+    engine.count(&source_filter(state, source, now))
+}
+
+/// The sidebar's foot: the four rows that open a dialog instead of choosing what the grid holds.
+///
+/// Each row *is* a palette command — `library.deleted`, `library.health`, `library.history` and
+/// `app.shortcuts` — so the words and the shortcut come from the command registry and the click goes
+/// through the same [`PaletteCommand::run`] the `⌘K` palette uses. That is the whole point of the move: a
+/// second hand-wired copy of the four dialog flags is drift waiting to happen, and a fifth row can only be
+/// added by naming a command that already exists. The right column is the row's own answer — how many
+/// photos the bin holds, or the key that does the same thing without a mouse.
+const SIDEBAR_FOOT: [(PaletteCommand, crate::icons::Icon); 4] = [
+    (PaletteCommand::Deleted, crate::icons::Icon::Trash),
+    (PaletteCommand::Health, crate::icons::Icon::Health),
+    (PaletteCommand::History, crate::icons::Icon::History),
+    (PaletteCommand::Shortcuts, crate::icons::Icon::Keyboard),
+];
+
+/// A sidebar row's height, in points. Shared with the foot's own sizing: the strip asks the panel for an
+/// exact height built from this number, so a row cannot grow without the panel that pins it.
+const NAV_ROW_H: f32 = 24.0;
+
+/// The hairline above the foot and the space it needs, painted as one band so every point of the
+/// foot's height is accounted for below.
+const FOOT_HAIRLINE: f32 = 9.0;
+
+/// The foot's height: the hairline, the rows and the spacing between them, and the frame's margins.
+///
+/// The panel is given this as an *exact* size instead of being measured from its content, because a panel
+/// only learns how tall its content is after laying it out — on the first frame an auto-sized foot hangs
+/// below its own clip rect and the strip flickers into place a frame late. The arithmetic is checked by
+/// `the_sidebar_foot_pins_the_utilities_to_the_bottom`, which fails if a row no longer fits.
+fn sidebar_foot_height(spacing: &egui::style::Spacing) -> f32 {
+    let pitch = NAV_ROW_H + spacing.item_spacing.y;
+    let content = FOOT_HAIRLINE + spacing.item_spacing.y + SIDEBAR_FOOT.len() as f32 * pitch - spacing.item_spacing.y;
+    content + FOOT_INSET.top as f32 + FOOT_INSET.bottom as f32
+}
+
+/// The foot frame's inner margins. A tighter top than the sections' 10 points, because the hairline is
+/// what separates them.
+const FOOT_INSET: Margin = Margin {
+    left: 10,
+    right: 10,
+    top: 4,
+    bottom: 8,
+};
+
+fn sidebar_foot(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    egui::Panel::bottom("sidebar_foot")
+        .resizable(false)
+        .exact_size(sidebar_foot_height(ui.spacing()))
+        .frame(Frame::NONE.fill(t.panel).inner_margin(FOOT_INSET))
+        .show(ui, |ui| {
+            // A hairline of a known height rather than `ui.separator()`, whose height is read from the
+            // style: the panel's height is decided before its content is laid out, and a widget whose
+            // size is a style lookup is a point in that height nobody counted.
+            let (line, _) = ui.allocate_exact_size(vec2(ui.available_width(), FOOT_HAIRLINE), Sense::hover());
+            ui.painter().hline(line.x_range(), line.center().y, Stroke::new(1.0, t.border));
+            let registry = sortlens_engine::command::Registry::v0();
+            for (command, icon) in SIDEBAR_FOOT {
+                let Some(spec) = registry.get(command.id()) else {
+                    continue;
+                };
+                let trailing = match command {
+                    PaletteCommand::Deleted => format_count(engine.deleted_batches().len() as u64),
+                    _ => spec.shortcut.unwrap_or_default().to_string(),
+                };
+                let row = nav_row(ui, t, icon, spec.label, &trailing, false);
+                let row = if command == PaletteCommand::Shortcuts {
+                    row.on_hover_text("Every binding, searchable")
+                } else {
+                    row
+                };
+                // None of the four can refuse today; the branch is here because the strip borrows `run`'s
+                // contract, and a row that silently did nothing would be worse than one that says why.
+                if row.clicked()
+                    && let Err(reason) = command.run(state, engine, actions)
+                {
+                    state.notice(reason);
+                }
+            }
         });
 }
 
@@ -3513,8 +3619,14 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     };
                 }
 
-                if chip(ui, t, Some(crate::icons::Icon::Warning), "Missing", state.show_missing).clicked() {
-                    state.show_missing = !state.show_missing;
+                // The chip and the sidebar's Missing row are two doors to one answer, so the chip reads
+                // active when either is on: the row narrows to what is gone, the chip widens the current
+                // view to include it. Turning it off clears both, because a chip that says "on" while the
+                // grid shows only missing files is the kind of disagreement a filter bar cannot have.
+                let missing_shown = state.show_missing || state.missing_only;
+                if chip(ui, t, Some(crate::icons::Icon::Warning), "Missing", missing_shown).clicked() {
+                    state.show_missing = !missing_shown;
+                    state.missing_only = false;
                 }
 
                 if state.has_filters() && chip(ui, t, Some(crate::icons::Icon::Close), "Clear", true).clicked() {
@@ -7446,7 +7558,7 @@ fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
 }
 
 fn nav_row(ui: &mut Ui, t: &Tokens, icon: crate::icons::Icon, label: &str, count: &str, selected: bool) -> egui::Response {
-    let height = 24.0;
+    let height = NAV_ROW_H;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     let spoken = if count.is_empty() {
         label.to_string()
@@ -7690,7 +7802,7 @@ mod tests {
         );
         assert!(
             in_band(t.top_bar_h, screen.bottom() - t.bottom_bar_h, t.left_w) >= Source::ALL.len() + 5,
-            "the five sources, the four utilities and the folder row each start with a picture"
+            "the six sources, the four utilities in the foot and the folder row each start with a picture"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -9912,7 +10024,7 @@ mod tests {
         assert!(state.all_photos_selected, "All Photos is also what the cull queue starts from");
     }
 
-    /// The sidebar paints its five sources over a real library, with counts that differ.
+    /// The sidebar paints its six sources over a real library, with counts that differ.
     #[test]
     fn the_sidebar_lists_every_source_with_its_own_count() {
         let ctx = egui::Context::default();
@@ -9996,6 +10108,178 @@ mod tests {
         state.apply_source(Source::All);
         assert_eq!(state.filter().added_after, None, "leaving the row leaves the window");
         assert_eq!(state.sort, state.library_sort, "the user's sort comes back");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Phase 3B.3: the Missing row asks about the filesystem and counts what is gone, and nothing else.
+    ///
+    /// A file is removed and the health check marks it — the same path a person's unmounted drive takes —
+    /// so the count under the row is the count the grid holds once the row is picked. Removing the scope's
+    /// `Filter` dimension (`Source::missing`) fails it, and so does widening it to `include_missing`.
+    #[test]
+    fn the_missing_scope_counts_the_files_that_are_gone_and_only_those() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-missing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-missing");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [200, 40, 40], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 3, "three photos indexed");
+        std::fs::remove_file(root.join("b.jpg")).expect("remove");
+        engine.check_health().expect("health");
+        assert_eq!(engine.stats().missing, 1, "one file is gone");
+
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let now = sortlens_engine::now_epoch();
+        assert_eq!(Source::Missing.missing(), Some(true));
+        assert_eq!(
+            source_count(&engine, &state, Source::Missing, now),
+            1,
+            "the Missing row counts the file that is gone"
+        );
+        assert_eq!(
+            source_count(&engine, &state, Source::All, now),
+            2,
+            "All Photos still hides it, so the two rows answer different questions"
+        );
+        assert_eq!(engine.count(&Filter::default()), 2, "the grid still hides it by default");
+
+        state.apply_source(Source::Missing);
+        assert!(state.source_selected(Source::Missing));
+        assert!(!state.source_selected(Source::All), "one row is lit, not two");
+        assert_eq!(state.filter().missing, Some(true), "the scope narrows the grid to what is gone");
+        assert_eq!(engine.count(&state.filter()), 1);
+        assert_eq!(state.active_filter_count(), 1, "the header badge says the grid is narrowed");
+
+        // Every other source still asks its own question, so picking one leaves the scope behind.
+        state.apply_source(Source::Picks);
+        assert_eq!(state.filter().missing, None);
+        assert!(!state.source_selected(Source::Missing));
+        state.apply_source(Source::Missing);
+        state.clear_filters();
+        assert!(!state.missing_only, "Clear is how you get out of the scope");
+        assert_eq!(state.filter().missing, None);
+        assert_eq!(state.active_filter_count(), 0);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Phase 3B.3: the four utility rows live at the foot of the sidebar, not between sections.
+    ///
+    /// The claim is geometric because that is the claim: the six scopes, the folders and the collections
+    /// own the top of the panel and the utilities own its bottom edge, whatever the panel holds. The four
+    /// lowest painted glyphs must be the foot's, they must all sit inside the bottom band, and nothing else
+    /// may be down there — an inline `Shortcuts` row puts a fifth glyph in the band and a foot that drifted
+    /// up leaves the band empty.
+    #[test]
+    fn the_sidebar_foot_pins_the_utilities_to_the_bottom() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-foot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-foot");
+        for name in ["a.jpg", "b.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+
+        let t = ThemeKind::Charcoal.tokens();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0));
+        let input = egui::RawInput {
+            screen_rect: Some(screen),
+            ..egui::RawInput::default()
+        };
+        // The whole window, not the panel alone: the foot's column is what the top and bottom bars leave
+        // between them, and a panel painted on its own would be free to hang past the bottom bar.
+        let mut output = ctx.run_ui(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                show(ui, &mut state, &mut engine, &mut thumbs);
+            });
+        });
+        output.textures_delta.clear();
+
+        // An image paints as a textured rectangle in this egui: that is "a picture was painted here". Each
+        // one is kept with the rect it was clipped to, because a glyph painted outside its clip rect is a
+        // glyph nobody sees — which is exactly how the first version of this panel failed.
+        let painted: Vec<(Rect, Rect)> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| {
+                let rect = match &clipped.shape {
+                    egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                    egui::Shape::Rect(shape) => shape
+                        .brush
+                        .as_ref()
+                        .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                        .map(|_| shape.rect),
+                    _ => None,
+                };
+                rect.map(|rect| (rect, clipped.clip_rect))
+            })
+            .collect();
+        let column_bottom = screen.bottom() - t.bottom_bar_h;
+        // The sidebar's own glyphs: left of the canvas and above the bottom bar, whose first view tab
+        // starts at the same x the sidebar's icons do.
+        let sidebar: Vec<(Rect, Rect)> = painted
+            .into_iter()
+            .filter(|(rect, _)| rect.center().x <= t.left_w && rect.center().y <= column_bottom)
+            .collect();
+
+        // The panel's own rect, from the number the shell gives the panel rather than a copy of it: the
+        // foot is the last `sidebar_foot_height` points of the column above the bottom bar.
+        let column = Rect::from_min_max(
+            pos2(0.0, column_bottom - sidebar_foot_height(&ctx.global_style().spacing)),
+            pos2(t.left_w, column_bottom),
+        );
+        let in_foot: Vec<Rect> = sidebar
+            .iter()
+            .filter(|(rect, _)| column.contains_rect(*rect))
+            .map(|(rect, _)| *rect)
+            .collect();
+        assert_eq!(
+            in_foot.len(),
+            SIDEBAR_FOOT.len(),
+            "the foot's four glyphs are the bottom of the panel and nothing else is down there"
+        );
+        // Inside the panel is not enough: a row that overflows the panel's height is clipped away, which is
+        // how an auto-sized foot looked on its first frame.
+        for (rect, clip) in &sidebar {
+            assert!(
+                clip.contains_rect(*rect),
+                "{rect:?} was painted outside the {clip:?} it was clipped to — the foot does not fit"
+            );
+        }
+        let lowest_section = sidebar
+            .iter()
+            .filter(|(rect, _)| !column.contains_rect(*rect))
+            .map(|(rect, _)| rect.center().y)
+            .fold(f32::MIN, f32::max);
+        assert!(
+            lowest_section < column.min.y - 60.0,
+            "the sections end well above the foot (lowest {lowest_section} vs foot top {})",
+            column.min.y
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
