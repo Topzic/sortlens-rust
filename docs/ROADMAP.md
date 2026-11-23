@@ -1115,7 +1115,10 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   dismissed anything writes no such field. Two new baselines (`suggestions-charcoal`/`-paper`) and all 25 existing
   ones regenerated and read; the fixture gained a keyword pack and two frames with real camera EXIF, because a
   fixture JPEG is silent and one family would not test a grouping
-- [ ] 3B.6 Visual defects: Welcome bullets as proper icons; filter bar hidden on an empty library, with glyphs,
+- [ ] 3B.6 Visual defects: Welcome bullets as proper icons — **part 1 shipped 2026-11-23**: the three promises
+  start with `folder`, `history` and `reject` in one 16-point column (the typed `·` was a per-face speck), a shell
+  test asserts exactly three 14-point textured glyphs in that column with each title beside its own glyph, and
+  `welcome-charcoal`/`welcome-paper` were regenerated and read; filter bar hidden on an empty library, with glyphs,
   swatches and chevrons on its controls; Places ships an offline coastline basemap and falls back to the user's
   `tiles/` and `places.txt` when present (B). The 3A baselines recorded three more: Places opens at zoom 5, so a
   library spread across continents opens with both clusters off-screen (the baseline zooms to 3 to show the

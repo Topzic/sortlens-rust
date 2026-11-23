@@ -4205,6 +4205,9 @@ fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
     });
 }
 
+/// The width of the Welcome rows' glyph column: one 14-point glyph plus its gap.
+const WELCOME_GLYPH_COLUMN: f32 = 16.0;
+
 /// Step one: what Sortlens does, and the one button worth pressing.
 fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<Action>) {
     ui.label(RichText::new("Welcome to Sortlens").size(22.0).strong());
@@ -4216,19 +4219,32 @@ fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<A
     );
     ui.add_space(16.0);
     ui.allocate_ui(vec2(420.0, 0.0), |ui| {
-        for (title, detail) in [
-            ("Your files stay put", "No upload, no rename, no moving. Sortlens only reads."),
+        // The three promises carry the icon set's own glyphs, not a typed bullet: a `·` at 12 points
+        // is a speck the bundled faces render a pixel wide and a different height per face, and each
+        // row here is one promise that a picture states faster than its title. The glyph column is a
+        // fixed 16 points so the three titles share a left edge, exactly as the sidebar's rows do.
+        for (icon, title, detail) in [
             (
+                crate::icons::Icon::Folder,
+                "Your files stay put",
+                "No upload, no rename, no moving. Sortlens only reads.",
+            ),
+            (
+                crate::icons::Icon::History,
                 "Everything is undoable",
                 "Ratings, flags and keywords live in one log you can step back.",
             ),
             (
+                crate::icons::Icon::Reject,
                 "Rejects wait for you",
                 "Culling stages decisions; nothing is trashed until you apply.",
             ),
         ] {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("·").size(12.0).color(t.accent));
+            ui.horizontal_top(|ui| {
+                let (column, _) = ui.allocate_exact_size(vec2(WELCOME_GLYPH_COLUMN, 16.0), Sense::hover());
+                let glyph = Rect::from_center_size(pos2(column.left() + 8.0, column.top() + 8.0), Vec2::splat(14.0));
+                crate::icons::paint(ui, icon, glyph, t.accent);
+                ui.add_space(4.0);
                 ui.vertical(|ui| {
                     ui.label(RichText::new(title).size(12.0).strong());
                     ui.label(RichText::new(detail).size(10.5).color(t.text_faint));
@@ -8402,6 +8418,85 @@ mod tests {
         // Dismissed stays dismissed whatever else happens.
         assert_eq!(welcome_stage(0, false, 0, true), None);
         assert_eq!(welcome_stage(1, true, 0, true), None);
+    }
+
+    /// The three Welcome promises start with the icon set's own glyphs, aligned in one column.
+    ///
+    /// Painted directly, without the rest of the shell, so every textured rectangle in the output is one of
+    /// these three: that is what makes an exact count meaningful rather than a count of the sidebar's rows
+    /// as well. The `·` this replaced was typed text — a speck at 12 points whose height differed per face.
+    #[test]
+    fn the_welcome_rows_start_with_the_icon_sets_glyphs() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-welcome-glyphs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let t = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        // `show` installs the glyph loader; painting one section on its own must install it too.
+        crate::icons::install(&ctx);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                welcome_add(ui, &t, &mut state, &mut actions);
+            });
+        });
+        output.textures_delta.clear();
+        assert!(actions.is_empty(), "painting the Welcome step presses nothing");
+        assert!(
+            label_at(&output, "·").is_none(),
+            "the bullets are pictures now, so no typed bullet is left on the panel"
+        );
+
+        // An image paints as a textured rectangle in this egui; the font atlas is the default texture.
+        let mut glyphs: Vec<Rect> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                egui::Shape::Rect(shape) => shape
+                    .brush
+                    .as_ref()
+                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                    .map(|_| shape.rect),
+                _ => None,
+            })
+            .collect();
+        glyphs.sort_by(|a, b| a.center().y.total_cmp(&b.center().y));
+        assert_eq!(
+            glyphs.len(),
+            3,
+            "one glyph per promise, and nothing else in this panel is a picture"
+        );
+
+        for glyph in &glyphs {
+            assert!(
+                (glyph.width() - 14.0).abs() < 0.01 && (glyph.height() - 14.0).abs() < 0.01,
+                "every glyph is the 14-point size the icon set rasterises at, got {glyph:?}"
+            );
+        }
+        // One column: the three titles share a left edge, which is the reason for the fixed width.
+        let column = glyphs[0].center().x;
+        for glyph in &glyphs {
+            assert!(
+                (glyph.center().x - column).abs() < 0.01,
+                "the glyphs are one column, so the three detail lines start at the same x"
+            );
+        }
+        assert!(glyphs.windows(2).all(|pair| pair[0].center().y < pair[1].center().y));
+
+        // Each glyph is on its own title's line and left of its words, not above or after them.
+        for (glyph, title) in glyphs
+            .iter()
+            .zip(["Your files stay put", "Everything is undoable", "Rejects wait for you"])
+        {
+            let label = label_at(&output, title).unwrap_or_else(|| panic!("{title} was not painted"));
+            assert!(label.left() >= glyph.right(), "{title} sits beside its glyph, not under it");
+            assert!(
+                (label.center().y - glyph.center().y).abs() <= 8.0,
+                "{title} and its glyph share a line, got {label:?} beside {glyph:?}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

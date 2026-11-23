@@ -1,5 +1,32 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-sixth) — Phase 3B.6 part 1: the Welcome promises start with pictures
+
+- **The three first-run promises carry the icon set's glyphs, not a typed bullet.** `folder` (nothing is uploaded,
+  renamed or moved), `history` (one log you can step back) and `reject` (culling stages the decision — the same
+  glyph the sidebar's Rejects row wears, so the vocabulary is the app's and not a new one). The `·` it replaced was
+  typed text at 12 points: one speck whose height and weight differ per bundled face, which is exactly the kind of
+  mark that reads as a typo rather than as a list.
+- **A fixed 16-point glyph column**, `WELCOME_GLYPH_COLUMN`, holding a 14-point glyph centred at `left + 8`. The
+  three rows use `ui.horizontal_top`, so the glyph sits on its title's line rather than floating between the title
+  and the detail line, and every detail line starts at the same x — the same rule `nav_row`'s glyph column follows
+  in the sidebar. The glyph is tinted `t.accent`, the colour the typed bullet had, so the rows still read as one
+  accent-marked list in both presets.
+- **One test, exact rather than a floor.** `the_welcome_rows_start_with_the_icon_sets_glyphs` paints `welcome_add`
+  alone in a `Context::run_ui` (installing the SVG loader itself, because it does not go through `show`), then
+  counts the textured rectangles: exactly three, each 14×14, all at one x, increasing down the page, and each one
+  left of and on the same line as its own title (`label_at`). It also asserts no item containing `·` is painted —
+  the regression the slice exists to prevent. Verified failing with the paint removed: `left: 0, right: 3`.
+- Files: `crates/ui/src/shell.rs` (the rows, the constant, the test), the regenerated
+  `crates/ui/tests/snapshots/{welcome-charcoal,welcome-paper}.png`, and the reconciled `docs/{ROADMAP,UX}.md`.
+- **Visual verification**: `cargo xtask screenshots --update`; only the two Welcome baselines changed (every other
+  baseline byte-identical, so the slice touched nothing else), and both were read. The charcoal and paper frames
+  show the three accent glyphs in one column, each beside its title, with the `·` gone and the copy unmoved.
+- 702 tests; ci, snapshot, deny, wasm, screenshots, a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: the glyph column at `pixels_per_point` 2 and the rows with a detail line that wraps
+  (both details are one line at 420 points today, and a wrapped one would leave the glyph beside the title only).
+  Both are named here rather than claimed fixed.
+
 ## 2026-11-23 (thirty-fifth) — Phase 3B.5: the fourth question, and a rail that never goes away
 
 - **`RightTab::ALL` is four.** Details, Tags, Suggestions, Activity — Suggestions between Tags and Activity, which is
@@ -3138,10 +3165,11 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     example and a CLI verb. Two new baselines plus all 25 regenerated and read. Named as not shipped there: the
     rail's 14-point glyphs in 24-point rows are a mouse target, not a touch one, and `Accept all` beside a long
     family name is unverified at the panel's 250-point minimum.
-15. **The next slice — the visual defects (3B.6).** In this order, because the first is what every other one is
-    measured against: (a) the Welcome bullets are `•` text where they should be the icon set's own glyphs;
-    (b) the filter strip paints on an empty library and should be hidden there, its controls want star/flag glyphs,
-    colour swatches and dropdown chevrons rather than flat text; (c) Places ships the offline coastline basemap and
+15. **The visual defects (3B.6), in this order.** (a) the Welcome bullets are `•` text where they should be the
+    icon set's own glyphs — **done 2026-11-23**, see the thirty-sixth entry: `folder`/`history`/`reject` in one
+    16-point column, an exact-count `run_ui` test, two baselines regenerated and read.
+    **Next: (b)** — the filter strip paints on an empty library and should be hidden there, its controls want
+    star/flag glyphs, colour swatches and dropdown chevrons rather than flat text; (c) Places ships the offline coastline basemap and
     falls back to the user's `tiles/` and `places.txt`, which also fixes Places opening at zoom 5 with both
     clusters off-screen (the baseline zooms to 3 to show the dots); (d) at ~620 px of height the sidebar's pinned
     foot (Recently Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps the keyword and

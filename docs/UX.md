@@ -563,7 +563,8 @@ One set, `crates/ui/src/icons.rs`: 40 monochrome 24-unit SVGs under `assets/icon
 prepares each glyph once (white `currentColor`, 1.75 stroke) and `egui_extras`' SVG loader rasterises it at
 exactly the size its slot asks for, so an icon paints in the theme's own colour and stays sharp at 2×.
 
-Where they paint today: the sidebar's source rows, folder rows, keyword rows and collection rows; the filter
+Where they paint today: the Welcome promises' three rows; the sidebar's source rows, folder rows, keyword rows and
+collection rows; the filter
 strip's chips (rating, flags, colour, kind, source, edited, missing, clear); every bottom-bar destination, as
 a glyph beside its label; the right panel's four-tab far-edge rail; the canvas header's density and layout controls; and
 the top bar's Settings (`sliders`), Help (`keyboard`), Appearance (`contrast`), Activity (`bell`), Export
@@ -575,8 +576,9 @@ Four tests hold the set together. The enum, the catalog and the folder must name
 directions; a glyph with a hard-coded colour or a missing `currentColor` fails; every glyph must rasterise
 through the real loader to something with both ink and empty space at 14 and 32 px; and the shell test counts
 the textured rectangles painted in the top bar, bottom bar and sidebar, so a surface that loses its icons
-fails rather than quietly shrinking. Still target state: glyphs on the Welcome bullets, chevrons on the filter
-bar, and the `←`/`→` text in the keymap overlay (3B.6). The `⌘K` palette's rows are text by design — a
+fails rather than quietly shrinking, and a second counts the three Welcome glyphs in their own column. Still target
+state: swatches and chevrons on the filter bar, the filter bar itself on an empty library, and the `←`/`→` text in
+the keymap overlay (3B.6). The `⌘K` palette's rows are text by design — a
 command is a sentence, and a glyph for every verb would be a second vocabulary to learn.
 
 The widget states themselves come from the same place: `Tokens::palette` is the `craft_ui::theme::WidgetPalette`
