@@ -1,5 +1,68 @@
 # Checkpoint
 
+## 2026-11-23 (twenty-eighth) — Phase 2 item 3b: pack keywords matched by meaning (SL-F03, the CLIP side)
+
+- **The gate first, as promised: the real pins were downloaded, digest-verified and run once this
+  run.** All three `models-v1` files land under their digest names and pass `Model::verify_file`; the
+  real detector loads (800×512, 100 queries) and runs; the real CLIP ViT-B/32 image + text pair loads
+  and answers 512-d embeddings. The shipped tokenizer was validated against the real text model: the
+  cosine ordering of five prompts came out exactly right (dog↔cat 0.946 > dog↔harbour 0.934 >
+  dog↔financial report 0.893 > dog↔circuit diagram 0.850, and the two unrelated prompts are each
+  other's furthest pair). A real cat photo (scikit-image's public-domain chelsea.png) through the real
+  image embedder ranks “a photo of a cat” **first** (0.281) among the prompts, with unrelated
+  photographic prompts at 0.19–0.24, and the real detector answers `cat · 1.00` on the same photo. The
+  live check was a temporary example, deleted before commit; the tree's own tests run synthetic models
+  only.
+- **That live gate caught a real bug the square test models had hidden**: `Detector::input()` answered
+  (height, width) while `Image::from_rgba` takes (width, height) — every synthetic detector is square,
+  so the tests passed while the real 512×800 detector would have been silently transposed at every
+  call. `input()` now answers (width, height) and the docstring says the order matches `from_rgba` on
+  purpose.
+- **`crates/ai/src/tokenize.rs` is the CLIP BPE tokenizer.** The vocabulary is the upstream
+  `bpe_simple_vocab_16e6.txt.gz`, shipped byte-for-byte (`crates/ai/src/bpe_simple_vocab_16e6.txt.gz`,
+  1,356,917 bytes, SHA-256 recorded in ATTRIBUTION.md) and decompressed here by `flate2` — desktop
+  only, like the inference runtime, and still no network anywhere (`no_network` still passes, source
+  scan included). The tokeniser reproduces the published table exactly: byte tokens in vocabulary
+  order (the printable runs first, not byte order — the order bug the known-ids test caught), `</w>`
+  attached to the last byte, 48,894 merges, BOS/EOS 49406/49407, zero-padded to the model's token
+  count. The ids the tests pin (`a photo of a dog` → 49406·320·1125·539·320·1929·49407…) were derived
+  from the published vocabulary, not from this implementation's output.
+- **`crates/ai/src/text_cache.rs` caches each pack's keyword embeddings.** A pack file's SHA-256 and
+  the text model's digest name the cache file
+  (`<library>/models/text-cache/<digest>/<pack hash>.json`): a changed pack or a different installed
+  embedder is a different file by construction, nothing is ever invalidated. The file is written
+  atomically (temp + rename), read back only when its recorded model digest and pack hash match and
+  every keyword's embedding is finite and the same length, and completed keyword-by-keyword — a pack
+  that gained a keyword embeds only the new one. `load_only` serves a pack whose embeddings are fully
+  cached without any model: the pack side is a derived index, not a second model.
+- **The engine proposes pack keywords by meaning.** `Engine::embedder_session` (the text embedder +
+  tokenizer) and `Engine::image_embedder_session` (the vision side) load once per session with the
+  detector's rules; installing, removing or swapping the manifest resets all three session caches —
+  including the detector, which never actually reset on install/remove before (the twenty-sixth
+  entry's claim is now true). `pack_keyword_embeddings` fills the cache once per pass; per photo, the
+  224 px preview is embedded once and every cached keyword is a cosine away. A keyword is proposed
+  when its cosine clears `EMBED_MIN_COSINE` (0.25, set from the live numbers above: the correct match
+  scored 0.281, unrelated photographic prompts 0.19–0.24), the cosine is the score, and the proposals
+  go through the same `suggest::merge` as the matcher's hits — deduped against existing tags, capped
+  at eight, ordered by confidence. The pack matcher's own rules still run beside it; a keyword both
+  sources propose is one suggestion at the better score.
+- **Tests that fail when the behaviour is absent** (20 new): the tokenizer's known ids, exact
+  sequence shape for any token count, truncation that keeps EOS, case/whitespace insensitivity, byte
+  fallback for untrained words, the published byte-encoder table at its edges; the text cache's
+  build-and-write, serve-without-embedding, per-pack and per-model keying, completion, tamper refusal,
+  refusal-propagation and per-model clearing; a lookup text embedder in `sortlens-testkit::onnx`
+  (Gather + ReduceSum over real token ids) answered and pinned in `sortlens-ai`; and two engine
+  tests — a synthetic pair installed under a swapped manifest, a pack whose matcher never fires, both
+  fixture photos proposing “dog” (never “cat”) with the cosine as the score and the cache file on
+  disk, the single-photo path answering from the same cache — and, after removing the text model, the
+  fully cached pack still matching while a never-cached pack stays silent.
+- ROADMAP's Phase 2 item 3 (both halves) ticked in the same commit; ATTRIBUTION.md attributes the
+  vocabulary file and `flate2`; RELEASE.md's model bullet now says packs are matched by meaning;
+  ARCHITECTURE.md §9 says where the cache lives and how the gate was chosen. UX.md needed no change —
+  the panel's sources are unchanged.
+- 665 tests (20 new); ci, snapshot, deny, wasm green. No UI change, so no `run_ui` or screenshot work
+  applies; the screenshot harness does not exist yet (Phase 3 item 9).
+
 ## 2026-11-23 (twenty-seventh) — Phase 2 item 3a: the tract-onnx inference runtime and the detector path (SL-F03)
 
 - **`crates/ai/src/infer.rs` is the runtime; it stays offline and desktop-only.** tract-onnx 0.23.10 —
@@ -2645,10 +2708,11 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
    **done 2026-11-23**, see the twenty-fifth entry.
 6. `model.install`/`model.remove` consent-gated resumable downloader in `sortlens-engine`; Settings → AI —
    **done 2026-11-23**, see the twenty-sixth entry.
-7. `tract-onnx` inference, part 1 (the runtime, the detector path over 384 px previews, NMS +
-   `suggest::merge`) — **done 2026-11-23**, see the twenty-seventh entry. Part 2 (3b) is next:
-   per-pack text embeddings cached at install (CLIP BPE tokenisation) and image embeddings, matched
-   through `suggest::merge`; first gate of that slice: load and run the real downloaded pins once.
+7. `tract-onnx` inference (SL-F03): the runtime, the detector path over 384 px previews, NMS +
+   `suggest::merge` — **done 2026-11-23**, see the twenty-seventh entry. Part 2 (3b) — per-pack text
+   embeddings cached at install (CLIP BPE tokenisation) and image embeddings, matched through
+   `suggest::merge` — **done 2026-11-23**, see the twenty-eighth entry; the real downloaded pins were
+   loaded and run once as that slice's first gate.
 8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI.
 
 **Phase 3 — UI/UX overhaul**

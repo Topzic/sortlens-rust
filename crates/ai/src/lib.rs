@@ -31,6 +31,12 @@ pub mod suggest;
 pub mod infer;
 #[cfg(not(target_arch = "wasm32"))]
 pub use infer::{COCO_LABELS_TEXT, Detector, Embedding, IMAGENET_MEAN, IMAGENET_STD, Image, ImageEmbedder, TextEmbedder};
+#[cfg(not(target_arch = "wasm32"))]
+pub mod text_cache;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod tokenize;
+#[cfg(not(target_arch = "wasm32"))]
+pub use tokenize::{BOS as TEXT_BOS, CONTEXT as TEXT_CONTEXT, EOS as TEXT_EOS, PAD as TEXT_PAD, Tokenizer, pack_prompt};
 
 pub use detect::{Box, Detection, LabelMap, suppress};
 pub use hints::{Hints, focal_band, hints};

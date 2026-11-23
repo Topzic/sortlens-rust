@@ -998,9 +998,19 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
     — shipped 2026-11-23, see the twenty-seventh entry; the CLIP image + text pair is loaded and
     contract-tested in the same runtime, and the synthetic-model test fixtures live in
     `sortlens-testkit::onnx`
-  - [ ] 3b. Per-pack text embeddings cached at install (CLIP BPE tokenisation of each pack's
+  - [x] 3b. Per-pack text embeddings cached at install (CLIP BPE tokenisation of each pack's
     keywords) and image embeddings on the low-priority pool, matched against the packs and fed
     through `suggest::merge` (D)
+    — shipped 2026-11-23, see the twenty-eighth entry: `crates/ai/src/tokenize.rs` runs the shipped
+    upstream CLIP BPE vocabulary (`crates/ai/src/bpe_simple_vocab_16e6.txt.gz`, attributed in
+    ATTRIBUTION.md); `crates/ai/src/text_cache.rs` keys each pack's keyword embeddings by the text
+    model's digest and the pack file's content hash, and serves a fully cached pack without its
+    text model; the engine's suggestion pass embeds a 224 px preview and proposes the pack
+    keywords whose cached embedding clears `EMBED_MIN_COSINE` (0.25, set from the real pins' live
+    numbers), through the same merge as every other source; the whole path was run once against
+    the real downloaded pins (digests verified, tokeniser validated by the real text model's
+    cosine ordering, a real cat photo ranking “a photo of a cat” first and the real detector
+    answering `cat · 1.00` on it)
 - [ ] 4. Tag provenance (SL-D12): per-tag source `Manual`/`Ai`/`Xmp` in the catalog with a backwards-compatible
   snapshot migration, filterable in the UI and CLI (A,B)
 

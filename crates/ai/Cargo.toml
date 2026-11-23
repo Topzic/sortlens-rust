@@ -17,6 +17,8 @@ serde_json = { workspace = true }
 # It stays offline — the bytes come from the verified store, and tract runs them on the CPU.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tract-onnx = { workspace = true }
+# The CLIP tokenizer's vocabulary ships gzip-compressed, exactly as upstream publishes it.
+flate2 = { workspace = true }
 
 [dev-dependencies]
 # ONNX protobuf assembly for the synthetic models the tests run instead of the 166 MB pins.

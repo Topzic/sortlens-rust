@@ -536,6 +536,18 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   because one typo would otherwise tag the whole library; an unknown `when` field is refused rather than
   ignored. `Engine::packs` lists every file in `<library>/packs/` including the broken ones, and
   `Catalog::set_pack` records the switch as an op, so it persists and undoes like anything else.
+- The packs also speak to the CLIP pair once both embedders are installed: `crates/ai/src/tokenize.rs`
+  turns each pack keyword into a 77-token CLIP BPE sequence (the vocabulary is the upstream merges file,
+  shipped byte-for-byte and decompressed here), the text embedder turns it into a 512-d vector, and
+  `crates/ai/src/text_cache.rs` keeps those vectors in `<library>/models/text-cache/<text model digest>/
+<pack content hash>.json` — keyed by the model's digest and the pack file's hash, so a changed pack or a
+  different installed model is a different cache file by construction, nothing is ever invalidated. The
+  engine embeds a 224 px preview per photo with the image embedder and proposes every cached keyword
+  whose cosine clears `EMBED_MIN_COSINE` (0.25, set from the real pins' live numbers: the correct match
+  scored 0.281, unrelated photographic prompts 0.19–0.24), through the same merge as the matcher's hits;
+  the cosine *is* the score, so the panel stays honest about how much the model agreed. A fully cached
+  pack is still served while its text model is away; a pack that was never embedded is not, and the pass
+  goes on without it.
 - `Engine::suggestions` maps a `Photo` to `ai::Hints`, adds the enabled packs' candidates for that photo,
   merges, and returns proposals; `suggest.list` and
   `suggest.accept` expose it, and the CLI has `suggest <id>` / `accept <id> <tag>`. Accepting goes

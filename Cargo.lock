@@ -4020,6 +4020,7 @@ dependencies = [
 name = "sortlens-ai"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "prost",
  "serde",
  "serde_json",

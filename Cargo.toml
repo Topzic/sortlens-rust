@@ -76,6 +76,8 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 tract-onnx = "=0.23.10"
 # Test fixtures only: ONNX protobuf assembly for the synthetic models the inference tests run.
 prost = "0.14"
+# The CLIP tokenizer (desktop, with the inference runtime) decompresses the shipped vocabulary.
+flate2 = "1"
 
 # UI: the suite's egui fork, pinned to the same revision as craft-libs.
 egui = { version = "0.37", default-features = false, features = ["default_fonts", "monochrome_emoji_fonts"] }

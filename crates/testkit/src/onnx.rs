@@ -148,3 +148,86 @@ pub fn text_embedder_onnx(dim: usize, values: &[f32]) -> Result<Vec<u8>, String>
         &[tensor],
     )
 }
+
+/// A CLIP-shaped text embedder that answers from its input: a lookup table keyed by token id.
+///
+/// `table` maps vocabulary ids to embeddings (all other ids answer zeros; ids must be 0..=49407);
+/// the model gathers one row per input token and sums them, so padded sequences contribute their
+/// pad rows[*id as usize * dim as usize..(*id as usize + 1) * dim as usize]— put the zeros there, and give the special ids whatever the test wants them to be.
+/// This is what lets a test say “the ids for *dog* embed as this vector, the ids for *cat* as
+/// that one” and watch the engine answer from real tokenised text.
+pub fn text_embedder_lookup_onnx(table: &[(i64, &[f32])]) -> Result<Vec<u8>, String> {
+    let Some((_, first)) = table.first() else {
+        return Err("a lookup table needs at least one entry".to_string());
+    };
+    let dim = first.len() as i64;
+    if dim == 0 || table.iter().any(|(_, values)| values.len() as i64 != dim) {
+        return Err("every table entry must carry the same non-zero dimension".to_string());
+    }
+    let vocab: usize = table.iter().map(|(id, _)| *id).max().unwrap_or(0).max(0) as usize + 1;
+    if vocab > 49_408 {
+        return Err(format!("the table reaches id {vocab}, past the vocabulary"));
+    }
+    let mut rows = vec![0.0f32; vocab * dim as usize];
+    for (id, values) in table {
+        rows[*id as usize * dim as usize..(*id as usize + 1) * dim as usize].copy_from_slice(values);
+    }
+    let table_tensor = float_tensor("text_lookup", &[vocab as i64, dim], &rows);
+    // ReduceSum-13 takes its axes as an input, not an attribute; keepdims=0 folds the token axis.
+    let axes = TensorProto {
+        dims: vec![1],
+        data_type: OnnxDatatype::Int64 as i32,
+        name: "token_axis".to_string(),
+        int64_data: vec![1],
+        ..TensorProto::default()
+    };
+    let model = ModelProto {
+        ir_version: 8,
+        opset_import: vec![OperatorSetIdProto {
+            domain: String::new(),
+            version: 17,
+        }],
+        producer_name: "sortlens-testkit".to_string(),
+        graph: Some(GraphProto {
+            node: vec![
+                NodeProto {
+                    input: vec!["text_lookup".to_string(), "input_ids".to_string()],
+                    output: vec!["gathered".to_string()],
+                    op_type: "Gather".to_string(),
+                    attribute: vec![tract_onnx::pb::AttributeProto {
+                        name: "axis".to_string(),
+                        r#type: tract_onnx::pb::attribute_proto::AttributeType::Int as i32,
+                        i: 0,
+                        ..tract_onnx::pb::AttributeProto::default()
+                    }],
+                    name: "lookup".to_string(),
+                    ..NodeProto::default()
+                },
+                NodeProto {
+                    input: vec!["gathered".to_string(), "token_axis".to_string()],
+                    output: vec!["text_embeds".to_string()],
+                    op_type: "ReduceSum".to_string(),
+                    attribute: vec![tract_onnx::pb::AttributeProto {
+                        name: "keepdims".to_string(),
+                        r#type: tract_onnx::pb::attribute_proto::AttributeType::Int as i32,
+                        i: 0,
+                        ..tract_onnx::pb::AttributeProto::default()
+                    }],
+                    name: "sum".to_string(),
+                    ..NodeProto::default()
+                },
+            ],
+            name: "synthetic_text_embedder_lookup".to_string(),
+            initializer: vec![table_tensor, axes],
+            input: vec![value_info("input_ids", DataType::Int64, &[1, 7])],
+            output: vec![value_info("text_embeds", DataType::Float, &[1, dim])],
+            ..GraphProto::default()
+        }),
+        ..ModelProto::default()
+    };
+    let mut bytes = Vec::new();
+    model
+        .encode(&mut bytes)
+        .map_err(|error| format!("a synthetic model must encode: {error}"))?;
+    Ok(bytes)
+}

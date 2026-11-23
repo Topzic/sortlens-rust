@@ -233,6 +233,19 @@ pub struct Engine {
     /// Whether the detector has been looked for. `None` means "not yet", not "there is none".
     #[cfg(not(target_arch = "wasm32"))]
     detector_tried: bool,
+    /// The loaded CLIP pair (text embedder, tokenizer), when the pinned text embedder is
+    /// installed and verified — the pair that builds the pack-embedding cache.
+    #[cfg(not(target_arch = "wasm32"))]
+    embedders: Option<SessionEmbedders>,
+    /// Whether the embedder pair has been looked for.
+    #[cfg(not(target_arch = "wasm32"))]
+    embedder_tried: bool,
+    /// The loaded image embedder, when the pinned vision model is installed and verified.
+    #[cfg(not(target_arch = "wasm32"))]
+    image_embedder: Option<SessionImage>,
+    /// Whether the image embedder has been looked for.
+    #[cfg(not(target_arch = "wasm32"))]
+    image_embedder_tried: bool,
 }
 
 impl Engine {
@@ -278,6 +291,14 @@ impl Engine {
             detector: None,
             #[cfg(not(target_arch = "wasm32"))]
             detector_tried: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            embedders: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            embedder_tried: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            image_embedder: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            image_embedder_tried: false,
         }
     }
 
@@ -1741,11 +1762,12 @@ impl Engine {
     /// asked for, and undo would only take back the last one.
     ///
     /// When the pinned detector model is installed and verified, the pass also runs it over a
-    /// 384 px preview of every photo on the worker — the metadata hints, the packs and the detector
-    /// are merged into one panel by [`sortlens_ai::suggest::merge`]. Only photos whose metadata
-    /// arrived *or* whose file the detector could look at take part — a photo with no camera, lens,
-    /// ISO or focal length, in a folder no pack matches, can still have something worth suggesting
-    /// if the model saw one.
+    /// 384 px preview of every photo on the worker — the metadata hints, the packs, the detector
+    /// and, when the pinned embedder pair is installed, the packs matched by meaning are merged
+    /// into one panel by [`sortlens_ai::suggest::merge`]. Only photos whose metadata arrived *or*
+    /// whose file the detector could look at take part — a photo with no camera, lens, ISO or focal
+    /// length, in a folder no pack matches, can still have something worth suggesting if the model
+    /// saw one.
     pub fn begin_batch_suggest(&mut self) -> Result<usize> {
         if self.catalog.is_none() {
             return Err(Error::Invalid("no library is open".into()));
@@ -1756,6 +1778,8 @@ impl Engine {
         let photos: Vec<Photo> = self.all_photos().to_vec();
         let packs = self.enabled_pack_rules();
         let detector = self.detector_session();
+        let image_embedder = self.image_embedder_session();
+        let keyword_embeddings = self.pack_keyword_embeddings();
         let total = photos.len();
         let done = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1772,7 +1796,14 @@ impl Engine {
                     if worker_cancel.load(std::sync::atomic::Ordering::Relaxed) {
                         break;
                     }
-                    let suggestions = suggestions_for(photo, &packs, &caps, detector.as_ref());
+                    let suggestions = suggestions_for(
+                        photo,
+                        &packs,
+                        &caps,
+                        detector.as_ref(),
+                        image_embedder.as_ref(),
+                        &keyword_embeddings,
+                    );
                     if !suggestions.is_empty() {
                         out.push((photo.id, suggestions));
                     }
@@ -1847,16 +1878,26 @@ impl Engine {
         &self.similar
     }
 
-    /// Suggested keywords for one photo, from what the file already says about itself and — when
-    /// the pinned detector model is installed — from what the model sees in a preview. Loading the
-    /// model is a once-per-session cost ([`Engine::detector_session`]); each call after that runs
-    /// one small inference. Every suggestion is a proposal — nothing is written until
-    /// [`Engine::accept_suggestion`] is called.
+    /// Suggested keywords for one photo, from what the file already says about itself, what the
+    /// packs match, and — when the pinned detector model is installed — what the model sees in a
+    /// preview, plus, when the pinned embedder pair is installed, which pack keywords the photo
+    /// resembles. Loading the models is a once-per-session cost ([`Engine::detector_session`],
+    /// [`Engine::embedder_session`]); each call after that runs one small inference. Every
+    /// suggestion is a proposal — nothing is written until [`Engine::accept_suggestion`] is called.
     pub fn suggestions(&mut self, id: PhotoId) -> Vec<Suggestion> {
         let packs = self.enabled_pack_rules();
         let detector = self.detector_session();
+        let image_embedder = self.image_embedder_session();
+        let keyword_embeddings = self.pack_keyword_embeddings();
         match self.photo(id) {
-            Some(photo) => suggestions_for(photo, &packs, &sortlens_ai::Caps::default(), detector.as_ref()),
+            Some(photo) => suggestions_for(
+                photo,
+                &packs,
+                &sortlens_ai::Caps::default(),
+                detector.as_ref(),
+                image_embedder.as_ref(),
+                &keyword_embeddings,
+            ),
             None => Vec::new(),
         }
     }
@@ -1865,6 +1906,25 @@ impl Engine {
     #[cfg(target_arch = "wasm32")]
     fn detector_session(&mut self) -> Option<SessionDetector> {
         None
+    }
+
+    /// No inference on wasm: the stub keeps the suggestion paths one function instead of two.
+    #[cfg(target_arch = "wasm32")]
+    #[allow(dead_code)]
+    fn embedder_session(&mut self) -> Option<SessionEmbedders> {
+        None
+    }
+
+    /// No inference on wasm: the stub keeps the suggestion paths one function instead of two.
+    #[cfg(target_arch = "wasm32")]
+    fn image_embedder_session(&mut self) -> Option<SessionImage> {
+        None
+    }
+
+    /// No pack-embedding cache on wasm: there is no model to embed anything with.
+    #[cfg(target_arch = "wasm32")]
+    fn pack_keyword_embeddings(&mut self) -> std::collections::BTreeMap<String, Vec<f32>> {
+        std::collections::BTreeMap::new()
     }
 
     /// The rules of every switched-on pack, parsed and ready. Unreadable packs are simply absent here:
@@ -1900,12 +1960,21 @@ impl Engine {
     pub fn suggestions_for_all(&mut self, ids: &[PhotoId]) -> Vec<(PhotoId, Vec<Suggestion>)> {
         let packs = self.enabled_pack_rules();
         let detector = self.detector_session();
+        let image_embedder = self.image_embedder_session();
+        let keyword_embeddings = self.pack_keyword_embeddings();
         ids.iter()
             .filter_map(|id| {
                 self.photo(*id).map(|photo| {
                     (
                         *id,
-                        suggestions_for(photo, &packs, &sortlens_ai::Caps::default(), detector.as_ref()),
+                        suggestions_for(
+                            photo,
+                            &packs,
+                            &sortlens_ai::Caps::default(),
+                            detector.as_ref(),
+                            image_embedder.as_ref(),
+                            &keyword_embeddings,
+                        ),
                     )
                 })
             })
@@ -3880,6 +3949,143 @@ impl Engine {
         sortlens_ai::Detector::load(&path).ok().map(std::sync::Arc::new)
     }
 
+    /// The loaded CLIP text side for the suggestion paths, when the pinned text embedder is
+    /// installed and verified. One session cache like [`Engine::detector_session`]: looked for
+    /// once, then shared, reset by installs, removals and the test manifest swap.
+    pub(crate) fn embedder_session(&mut self) -> Option<SessionEmbedders> {
+        if !self.embedder_tried {
+            self.embedder_tried = true;
+            self.embedders = self.load_embedders();
+        }
+        self.embedders.clone()
+    }
+
+    /// The loaded image embedder for the suggestion paths, the same session cache rules. It is
+    /// loaded on its own because the two sides of CLIP do different jobs: the text side (with the
+    /// tokenizer) builds and serves the pack-embedding cache; the image side embeds the photo and
+    /// must work even when only the cache knows the pack side.
+    pub(crate) fn image_embedder_session(&mut self) -> Option<SessionImage> {
+        if !self.image_embedder_tried {
+            self.image_embedder_tried = true;
+            self.image_embedder = self.load_image_embedder();
+        }
+        self.image_embedder.clone()
+    }
+
+    /// Find and load the text embedder, or say there is none: not installed, not verified, or not
+    /// a file the loader's contract accepts.
+    fn load_embedders(&self) -> Option<SessionEmbedders> {
+        let text = self.model_manifest.get(TEXT_EMBEDDER_MODEL_ID)?;
+        let store = self.model_store().ok()?;
+        let text_path = match store.status(text) {
+            sortlens_ai::Status::Installed { path } => path,
+            _ => return None,
+        };
+        let text_embedder = sortlens_ai::TextEmbedder::load(&text_path).ok()?;
+        let tokenizer = sortlens_ai::Tokenizer::load().ok()?;
+        Some(std::sync::Arc::new(EmbedderPair {
+            text: text_embedder,
+            tokenizer,
+        }))
+    }
+
+    /// Find and load the image embedder, or say there is none, the same rules.
+    fn load_image_embedder(&self) -> Option<SessionImage> {
+        let vision = self.model_manifest.get(VISION_EMBEDDER_MODEL_ID)?;
+        let store = self.model_store().ok()?;
+        let vision_path = match store.status(vision) {
+            sortlens_ai::Status::Installed { path } => path,
+            _ => return None,
+        };
+        sortlens_ai::ImageEmbedder::load(&vision_path, vision.input_edge)
+            .ok()
+            .map(std::sync::Arc::new)
+    }
+
+    /// The pack keywords' text embeddings, from the cache or freshly embedded, keyed by the
+    /// normalised keyword the suggestion merge compares. One per pass, not per photo: the pack
+    /// side of the match is a fixed vocabulary, and the cache makes it free after the first time.
+    /// With no embedder pair installed, a pack whose embeddings are fully cached is still served
+    /// from the cache — the pack side does not change while the model is away — and a pack that
+    /// was never embedded has nothing to say.
+    fn pack_keyword_embeddings(&mut self) -> std::collections::BTreeMap<String, Vec<f32>> {
+        let packs = self.packs().into_iter().filter(|summary| summary.enabled).collect::<Vec<_>>();
+        if packs.is_empty() {
+            return std::collections::BTreeMap::new();
+        }
+        let cache_root = self.model_store().ok().map(|store| store.root().join("text-cache"));
+        let Some(cache_root) = cache_root else {
+            return std::collections::BTreeMap::new();
+        };
+        let digest = self.model_manifest.get(TEXT_EMBEDDER_MODEL_ID).map(|model| model.sha256.clone());
+        let Some(digest) = digest else {
+            return std::collections::BTreeMap::new();
+        };
+        let dir = self.dir.clone();
+        let mut embeddings = std::collections::BTreeMap::new();
+        for summary in packs {
+            let Some(pack) = summary.pack else { continue };
+            let Some(dir) = &dir else { continue };
+            let Ok(bytes) = std::fs::read(dir.join(PACKS_DIR).join(&summary.file)) else {
+                continue;
+            };
+            // The cache is keyed by the keyword as the pack spells it; the suggestion map is keyed
+            // by the normalised tag the merge compares, lowercased like every other candidate.
+            // Tokenisation is case-insensitive, so both spellings embed identically.
+            let entries: Vec<(String, String)> = pack
+                .keywords
+                .iter()
+                .map(|rule| {
+                    let keyword = rule.keyword.trim();
+                    (keyword.to_string(), keyword.to_lowercase())
+                })
+                .filter(|(keyword, _)| !keyword.is_empty())
+                .collect();
+            if entries.is_empty() {
+                continue;
+            }
+            let cache_keys: Vec<String> = entries.iter().map(|(keyword, _)| keyword.clone()).collect();
+            let pair = self.embedder_session();
+            let embedded = if pair.is_some() {
+                sortlens_ai::text_cache::load_or_build(&cache_root, &digest, &bytes, &cache_keys, |keyword| {
+                    let Some(pair) = pair.as_ref() else {
+                        return Err("the embedder pair is gone".into());
+                    };
+                    let ids = pair
+                        .tokenizer
+                        .padded_to(&sortlens_ai::pack_prompt(keyword), pair.text.token_count());
+                    pair.text.run(&ids).map(|embedding| embedding.values)
+                })
+            } else {
+                sortlens_ai::text_cache::load_only(&cache_root, &digest, &bytes, &cache_keys)
+            };
+            if let Ok(embedded) = embedded
+                && embedded.len() == entries.len()
+            {
+                for ((_, tag), entry) in entries.iter().zip(embedded) {
+                    embeddings.insert(tag.clone(), entry.values);
+                }
+            }
+        }
+        embeddings
+    }
+
+    /// Drop the session caches for every model: what install, removal and the test manifest swap
+    /// all call, so the next suggestion pass answers from what the store holds now.
+    fn reset_model_sessions(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.detector = None;
+            self.detector_tried = false;
+            self.embedders = None;
+            self.embedder_tried = false;
+            self.image_embedder = None;
+            self.image_embedder_tried = false;
+        }
+        #[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
+        let _ = self;
+    }
+
     /// Whether the one approved network call is allowed this session. The app persists it in its
     /// settings and turns it back on at launch; the engine itself starts every session strict.
     pub fn models_consent(&self) -> bool {
@@ -4015,6 +4221,11 @@ impl Engine {
             job.error = error.clone();
             job.finish(status);
         }
+        // An installed model is not picked up by a session that already loaded the old state; the
+        // caches reset so the next suggestion pass answers from the store as it now is.
+        if matches!(outcome, crate::models::Outcome::Installed(_)) {
+            self.reset_model_sessions();
+        }
         self.refresh_model_rows();
         let _ = id;
         Some(finished)
@@ -4032,6 +4243,8 @@ impl Engine {
         }
         let store = self.model_store()?;
         let reclaimed = store.remove(model).map_err(Error::Invalid)?;
+        // The removed model may be the one a session cache is holding; the next pass re-derives.
+        self.reset_model_sessions();
         self.refresh_model_rows();
         Ok(reclaimed)
     }
@@ -4042,13 +4255,9 @@ impl Engine {
     pub(crate) fn use_manifest_for_tests(&mut self, manifest: sortlens_ai::Manifest) {
         self.model_manifest = manifest;
         self.model_rows = None;
-        // The detector cache points at the old manifest's store; a swapped manifest is a different
-        // session as far as the suggestion pass is concerned.
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.detector = None;
-            self.detector_tried = false;
-        }
+        // The model session caches point at the old manifest's store; a swapped manifest is a
+        // different session as far as the suggestion pass is concerned.
+        self.reset_model_sessions();
     }
 }
 
@@ -4140,6 +4349,8 @@ fn suggestions_for(
     packs: &[sortlens_ai::Pack],
     caps: &sortlens_ai::Caps,
     detector: Option<&SessionDetector>,
+    image_embedder: Option<&SessionImage>,
+    #[cfg_attr(target_arch = "wasm32", allow(unused_variables))] keyword_embeddings: &std::collections::BTreeMap<String, Vec<f32>>,
 ) -> Vec<Suggestion> {
     let hints = sortlens_ai::Hints::new(&photo.camera, &photo.lens, photo.iso, photo.shutter, photo.focal);
     let mut candidates = sortlens_ai::hints(&hints);
@@ -4161,8 +4372,17 @@ fn suggestions_for(
     if let Some(detector) = detector {
         candidates.extend(detector_candidates(photo, detector));
     }
+    // The pack keywords the photo resembles by meaning, from the image embedder and the cached
+    // pack embeddings, proposed in exactly the same shape as the matcher's hits.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(image_embedder) = image_embedder {
+        candidates.extend(embedder_candidates(photo, image_embedder, keyword_embeddings));
+    }
     #[cfg(target_arch = "wasm32")]
-    let _ = detector;
+    {
+        let _ = detector;
+        let _ = image_embedder;
+    }
     sortlens_ai::merge(&candidates, &photo.tags, *caps)
 }
 
@@ -4205,11 +4425,96 @@ fn detector_candidates(photo: &Photo, detector: &sortlens_ai::Detector) -> Vec<s
         .collect()
 }
 
+/// Which pack keywords the photo resembles, as candidates in the same shape as everything else.
+///
+/// The photo is embedded once (a 224 px preview through the image embedder); every cached keyword
+/// embedding is a cosine away. A keyword earns its proposal only above [`EMBED_MIN_COSINE`], and
+/// the cosine *is* the score, so the panel's ordering and the merge's floor stay honest about how
+/// much the model actually agreed. A photo whose file is missing or undecodable simply has nothing
+/// to say — the pass continues.
+#[cfg(not(target_arch = "wasm32"))]
+fn embedder_candidates(
+    photo: &Photo,
+    image_embedder: &sortlens_ai::ImageEmbedder,
+    keyword_embeddings: &std::collections::BTreeMap<String, Vec<f32>>,
+) -> Vec<sortlens_ai::Candidate> {
+    if keyword_embeddings.is_empty() {
+        return Vec::new();
+    }
+    let path = std::path::Path::new(&photo.root).join(&photo.rel);
+    let thumbnail = match sortlens_thumbs::decode_file(&path, EMBED_PREVIEW_EDGE) {
+        Ok(thumbnail) => thumbnail,
+        Err(_) => return Vec::new(),
+    };
+    let edge = image_embedder.edge();
+    let Ok(image) = sortlens_ai::Image::from_rgba(
+        &thumbnail.rgba,
+        thumbnail.width,
+        thumbnail.height,
+        (edge, edge),
+        sortlens_ai::IMAGENET_MEAN,
+        sortlens_ai::IMAGENET_STD,
+    ) else {
+        eprintln!("DEBUG candidates {}: image build failed", photo.rel);
+        return Vec::new();
+    };
+    let Ok(embedding) = image_embedder.run(&image) else {
+        return Vec::new();
+    };
+    keyword_embeddings
+        .iter()
+        .filter_map(|(tag, values)| {
+            let similarity = embedding.cosine(&sortlens_ai::Embedding { values: values.clone() });
+            (similarity >= EMBED_MIN_COSINE).then(|| sortlens_ai::Candidate::new(tag, similarity, sortlens_ai::Source::Pack))
+        })
+        .collect()
+}
+
 /// Where pack files live inside a library.
 pub const PACKS_DIR: &str = "packs";
 
 /// The pinned detector the suggestion pass loads, by manifest id.
 pub const DETECTOR_MODEL_ID: &str = "yolos-tiny";
+
+/// The pinned image embedder the suggestion pass loads, by manifest id.
+pub const VISION_EMBEDDER_MODEL_ID: &str = "clip-vit-b32-vision";
+
+/// The pinned text embedder the suggestion pass loads, by manifest id.
+pub const TEXT_EMBEDDER_MODEL_ID: &str = "clip-vit-b32-text";
+
+/// The edge of the preview the image embedder sees. The pinned CLIP ViT-B/32 takes 224 px; a
+/// square, because the embedder's contract is square.
+pub const EMBED_PREVIEW_EDGE: u32 = 224;
+
+/// The smallest cosine a pack keyword must earn before the embedder proposes it. Chosen from the
+/// real pins, checked once against a real photo: the correct match (“a photo of a cat” over a
+/// cat photo, int8 CLIP) scored 0.281, while unrelated photographic prompts sat between 0.19 and
+/// 0.24 — so anything under a quarter is not a match, and anything over it competes on its
+/// cosine through the panel's own floor and cap.
+pub const EMBED_MIN_COSINE: f32 = 0.25;
+
+/// What the suggestion paths share as a loaded embedder: the text side and the tokenizer that
+/// turns pack keywords into the text side's input. The image side has its own session — they do
+/// different jobs, and the cache serves the text side while the image side must run per photo.
+#[cfg(not(target_arch = "wasm32"))]
+struct EmbedderPair {
+    text: sortlens_ai::TextEmbedder,
+    tokenizer: sortlens_ai::Tokenizer,
+}
+
+/// Desktop targets hold the real thing; the wasm build has no inference runtime, and its alias is
+/// a type that is never constructed, so the shared code stays one function instead of two.
+#[cfg(not(target_arch = "wasm32"))]
+type SessionEmbedders = std::sync::Arc<EmbedderPair>;
+#[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
+type SessionEmbedders = std::marker::PhantomData<()>;
+
+/// What the suggestion paths share as a loaded image embedder.
+#[cfg(not(target_arch = "wasm32"))]
+type SessionImage = std::sync::Arc<sortlens_ai::ImageEmbedder>;
+#[cfg(target_arch = "wasm32")]
+type SessionImage = std::marker::PhantomData<()>;
 
 /// The edge of the preview the detector sees. Small on purpose: inference on the CPU must stay far
 /// behind everything else the app does, and a 384 px preview is plenty for a tagger's guesses.
@@ -4835,7 +5140,7 @@ mod tests {
     #[test]
     fn a_photos_own_metadata_becomes_suggestions() {
         let photo = photo_with("Nikon Z6", "NIKKOR Z 24-70mm f/4 S", Some(6400), Some(2.0), Some(24.0), &[]);
-        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None);
+        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None, None, &Default::default());
         let tags: Vec<&str> = suggestions.iter().map(|suggestion| suggestion.tag.as_str()).collect();
         // The merger ranks by score, then alphabetically — not in the order the rules fired.
         assert_eq!(
@@ -4856,7 +5161,7 @@ mod tests {
     #[test]
     fn a_keyword_the_photo_already_has_is_not_suggested_again() {
         let photo = photo_with("Nikon Z6", "", Some(6400), None, None, &["Nikon Z6"]);
-        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None);
+        let suggestions = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None, None, &Default::default());
         assert_eq!(suggestions.len(), 1);
         assert_eq!(suggestions[0].tag, "low light");
     }
@@ -4864,7 +5169,7 @@ mod tests {
     #[test]
     fn a_photo_with_no_metadata_gets_no_suggestions() {
         let photo = photo_with("", "", None, None, None, &[]);
-        assert!(suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None).is_empty());
+        assert!(suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None, None, &Default::default()).is_empty());
     }
 
     #[test]
@@ -4911,8 +5216,25 @@ mod tests {
         .expect("parse");
         let mut in_japan = photo.clone();
         in_japan.rel = "Trips/Japan/DSC1.jpg".to_string();
-        assert!(suggestions_for(&photo, std::slice::from_ref(&pack), &sortlens_ai::Caps::default(), None).is_empty());
-        let suggested = suggestions_for(&in_japan, std::slice::from_ref(&pack), &sortlens_ai::Caps::default(), None);
+        assert!(
+            suggestions_for(
+                &photo,
+                std::slice::from_ref(&pack),
+                &sortlens_ai::Caps::default(),
+                None,
+                None,
+                &Default::default()
+            )
+            .is_empty()
+        );
+        let suggested = suggestions_for(
+            &in_japan,
+            std::slice::from_ref(&pack),
+            &sortlens_ai::Caps::default(),
+            None,
+            None,
+            &Default::default(),
+        );
         assert_eq!(suggested.len(), 1);
         assert_eq!(suggested[0].tag, "japan");
         assert_eq!(suggested[0].source, sortlens_ai::Source::Pack);
@@ -5117,6 +5439,158 @@ mod tests {
         for photo in engine.all_photos() {
             assert!(photo.tags.is_empty(), "a proposal is not a tag");
         }
+    }
+
+    /// A synthetic embedder pair installed in the store: the pass must propose the pack keyword
+    /// the photo resembles by meaning — through the cached pack embeddings, the image embedding
+    /// of the preview, and the same merge as every other source — and not the keyword it does
+    /// not resemble. The pack's matcher conditions never hold, so the only path a keyword has
+    /// into the panel is the meaning match.
+    #[test]
+    fn a_suggestion_pass_matches_a_pack_by_meaning_when_the_embedders_are_installed() {
+        let (library_dir, _photos, mut engine, text_digest) = embedded_pack_library("batchembed");
+        engine.begin_batch_suggest().expect("start");
+        let mut found = None;
+        for _ in 0..400 {
+            if let Some(count) = engine.poll_batch() {
+                found = Some(count);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(found, Some(2), "every fixture photo got a meaning match");
+
+        let results: Vec<(PhotoId, Vec<Suggestion>)> = engine.batch_results().to_vec();
+        assert_eq!(results.len(), 2);
+        for (id, suggestions) in &results {
+            assert_eq!(suggestions.len(), 1, "dog matches, cat does not: {suggestions:?}");
+            assert_eq!(suggestions[0].tag, "dog");
+            assert_eq!(suggestions[0].source, sortlens_ai::Source::Pack, "the panel says the pack said it");
+            assert!(
+                (suggestions[0].score - 1.0).abs() < 1e-5,
+                "the cosine is the score: {}",
+                suggestions[0].score
+            );
+            // The single-photo path answers from the same cache, the same way.
+            let single = engine.suggestions(*id);
+            assert_eq!(single[0].tag, "dog");
+        }
+        // The cache file exists, keyed by the text embedder's digest and the pack's content.
+        let cache_root = library_dir.0.join("models").join("text-cache");
+        assert!(cache_root.join(&text_digest).is_dir(), "the cache is per model: {cache_root:?}");
+        assert_eq!(std::fs::read_dir(cache_root.join(&text_digest)).expect("list").count(), 1);
+        for photo in engine.all_photos() {
+            assert!(photo.tags.is_empty(), "a proposal is not a tag");
+        }
+    }
+
+    /// A pack whose embeddings are fully cached keeps matching while its text model is away; a
+    /// pack that was never embedded has nothing to say without the model. The cache is a derived
+    /// index, not a second model.
+    #[test]
+    fn a_fully_cached_pack_still_matches_without_its_text_model() {
+        let (library_dir, _photos, mut engine, _text_digest) = embedded_pack_library("batchembedcache");
+        let run = |engine: &mut Engine| {
+            engine.begin_batch_suggest().expect("start");
+            for _ in 0..400 {
+                if engine.poll_batch().is_some() {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            panic!("the pass never finished");
+        };
+        run(&mut engine);
+        assert!(engine.batch_results().iter().all(|(_, suggestions)| suggestions[0].tag == "dog"));
+
+        // Remove the text model: the session caches reset, the vision side stays.
+        engine.remove_model(TEXT_EMBEDDER_MODEL_ID).expect("remove");
+        run(&mut engine);
+        assert_eq!(engine.batch_results().len(), 2, "both photos still match");
+        for (_, suggestions) in engine.batch_results() {
+            assert_eq!(suggestions[0].tag, "dog", "served from the cache, not re-embedded");
+        }
+
+        // A pack that was never embedded has nothing to say without the model.
+        std::fs::write(
+            library_dir.0.join(PACKS_DIR).join("colours.json"),
+            r#"{"name":"Colours","licence":"CC0-1.0","keywords":[{"keyword":"crimson","when":{"min_iso":999999}}]}"#,
+        )
+        .expect("write second pack");
+        engine.set_pack("Colours", true).expect("enable");
+        run(&mut engine);
+        for (_, suggestions) in engine.batch_results() {
+            assert!(suggestions.iter().all(|suggestion| suggestion.tag != "crimson"), "{suggestions:?}");
+        }
+    }
+
+    /// The shared setup for the meaning-match tests: two fixture photos, an enabled pack whose
+    /// matcher never fires (keywords "dog" and "cat"), and a synthetic vision + text embedder
+    /// installed under a swapped manifest. The text embedder answers from real tokenised ids:
+    /// “a photo of dog” lands on [1, 0], “a photo of cat” on [0, 1], every shared prefix token on
+    /// zeros — so the image side's constant [1, 0] matches exactly one of them.
+    fn embedded_pack_library(name: &str) -> (Temp, Temp, Engine, String) {
+        let (library_dir, _photos, mut engine) = library_with_images(name, 2);
+        std::fs::create_dir_all(library_dir.0.join(PACKS_DIR)).expect("packs dir");
+        std::fs::write(
+            library_dir.0.join(PACKS_DIR).join("animals.json"),
+            r#"{"name":"Animals","licence":"CC0-1.0","keywords":[{"keyword":"dog","when":{"min_iso":999999}},{"keyword":"cat","when":{"min_iso":999999}}]}"#,
+        )
+        .expect("write pack");
+        engine.set_pack("Animals", true).expect("enable");
+
+        let image_bytes = sortlens_testkit::onnx::embedder_onnx(2, &[1.0, 0.0]).expect("encode");
+        let tokenizer = sortlens_ai::Tokenizer::load().expect("the shipped tokenizer loads");
+        let dog_ids = tokenizer.encode("a photo of dog");
+        let cat_ids = tokenizer.encode("a photo of cat");
+        assert_eq!(&dog_ids[..3], &cat_ids[..3], "both prompts share a prefix");
+        let (dog_id, cat_id) = (dog_ids[3], cat_ids[3]);
+        assert_ne!(dog_id, cat_id, "the two keywords are different words");
+        let table = [(49_406i64, vec![0.0f32, 0.0]), (49_407, vec![0.0, 0.0]), (0, vec![0.0, 0.0])]
+            .into_iter()
+            .chain(dog_ids.iter().take(3).chain(cat_ids.iter().take(3)).map(|&id| (id, vec![0.0, 0.0])))
+            .chain([(dog_id, vec![1.0, 0.0]), (cat_id, vec![0.0, 1.0])])
+            .collect::<Vec<(i64, Vec<f32>)>>();
+        let table: Vec<(i64, &[f32])> = table.iter().map(|(id, values)| (*id, values.as_slice())).collect();
+        let text_bytes = sortlens_testkit::onnx::text_embedder_lookup_onnx(&table).expect("encode");
+
+        let mut manifest = sortlens_ai::Manifest {
+            schema: sortlens_ai::manifest::SCHEMA,
+            models: Vec::new(),
+        };
+        manifest.models.push(sortlens_ai::manifest::Model {
+            id: VISION_EMBEDDER_MODEL_ID.into(),
+            label: "synthetic image embedder".into(),
+            kind: sortlens_ai::manifest::ModelKind::Embedder,
+            licence: "Apache-2.0".into(),
+            sha256: sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&image_bytes)),
+            bytes: image_bytes.len() as u64,
+            url: String::new(),
+            // The synthetic embedder takes 8 px, and the session loads the edge from the manifest.
+            input_edge: Some(8),
+        });
+        manifest.models.push(sortlens_ai::manifest::Model {
+            id: TEXT_EMBEDDER_MODEL_ID.into(),
+            label: "synthetic text embedder".into(),
+            kind: sortlens_ai::manifest::ModelKind::Embedder,
+            licence: "Apache-2.0".into(),
+            sha256: sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&text_bytes)),
+            bytes: text_bytes.len() as u64,
+            url: String::new(),
+            input_edge: None,
+        });
+        engine.use_manifest_for_tests(manifest.clone());
+        let store = sortlens_ai::Store::open(library_dir.0.join("models")).expect("store");
+        for model in [&manifest.models[0], &manifest.models[1]] {
+            let bytes = if model.id == VISION_EMBEDDER_MODEL_ID {
+                &image_bytes
+            } else {
+                &text_bytes
+            };
+            store.install(model, bytes).expect("install");
+        }
+        let text_digest = manifest.get(TEXT_EMBEDDER_MODEL_ID).expect("text model").sha256.clone();
+        (library_dir, _photos, engine, text_digest)
     }
 
     /// Without the model installed, the pass must not change what it proposes — the detector is

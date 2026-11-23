@@ -281,9 +281,11 @@ impl Detector {
         })
     }
 
-    /// The detector's input size, as (height, width) — 512×800 for the pinned model.
+    /// The detector's input size, as (width, height) — 800×512 for the pinned model. The order
+    /// matches what [`Image::from_rgba`] takes, so a caller cannot transpose it by accident; the
+    /// session's shape is height-first, but that is this type's private business.
     pub fn input(&self) -> (u32, u32) {
-        (self.session.input[2] as u32, self.session.input[3] as u32)
+        (self.session.input[3] as u32, self.session.input[2] as u32)
     }
 
     /// Run the detector over one image and answer with the guesses that survived suppression.
@@ -686,6 +688,25 @@ mod tests {
         assert_eq!(embedding.values, vec![0.0, 1.0, 0.0]);
         let short = embedder.run(&[0; 3]).expect_err("wrong length");
         assert!(short.contains("tokens"), "{short}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_lookup_text_embedder_answers_from_the_ids_it_was_given() {
+        let dir = temp("text-lookup");
+        let path = dir.join("text-lookup.onnx");
+        // The ids of a real tokenised prompt, mapped by the test: BOS, "dog", EOS, pads.
+        write(
+            &path,
+            &onnx::text_embedder_lookup_onnx(&[(49_406, &[1.0, 0.0]), (1_929, &[0.0, 1.0]), (49_407, &[0.5, 0.5])]).expect("encode"),
+        );
+        let embedder = TextEmbedder::load(&path).expect("load");
+        let sequence = [49_406, 1_929, 49_407, 0, 0, 0, 0];
+        let embedding = embedder.run(&sequence).expect("run");
+        assert_eq!(embedding.values, vec![1.5, 1.5], "each row is gathered and summed");
+        // The padding ids answer zeros, so only the words the test table names move the sum.
+        let pads = embedder.run(&[0; 7]).expect("pads");
+        assert_eq!(pads.values, vec![0.0, 0.0]);
         let _ = fs::remove_dir_all(&dir);
     }
 

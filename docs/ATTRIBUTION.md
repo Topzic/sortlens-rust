@@ -58,6 +58,7 @@ These are the crates a manifest actually asks for and the build links.
 | `craft-atomic` | MIT OR Apache-2.0 | Crash-safe writes and Windows-safe renames: the model download lands by verified rename |
 | `ureq` | MIT OR Apache-2.0 | The opt-in model downloader's HTTP(S) client, TLS via rustls; engine only, desktop only |
 | `tract-onnx` | MIT OR Apache-2.0 | Pure-Rust ONNX inference for the pinned models; `sortlens-ai` only, desktop only, offline |
+| `flate2` | MIT OR Apache-2.0 | Decompressing the shipped CLIP BPE vocabulary in `crates/ai/src/tokenize.rs`; desktop only, offline |
 | `prost` | MIT OR Apache-2.0 | ONNX protobuf assembly for the synthetic models the inference tests run; `sortlens-testkit` and test code only |
 
 `craft-tiff`, `craft-jpeg`, `craft-image-codecs` and `craft-raw` sit below the UI layer on purpose: they
@@ -133,8 +134,12 @@ COCO-91 classes plus the EOS slot, so the label map ships with that slice) and `
 the text embedder takes `input_ids` 1×77 int64 (CLIP BPE tokenisation, padded to 77) and answers
 `text_embeds` 1×512 — the pair shares one embedding space, so pack phrases and photos compare
 directly. The label map does ship: `crates/ai/src/coco91.txt`, compiled into the inference slice by
-`include_str!` and attributed here. The BPE vocabulary the text side needs is small and ships with
-the text-embedding slice, attributed here then.
+`include_str!` and attributed here. The BPE vocabulary the text side needs ships with the
+pack-embedding slice, exactly as upstream publishes it:
+
+| File | Origin | Licence | Bytes | SHA-256 |
+|---|---|---|---|---|
+| `crates/ai/src/bpe_simple_vocab_16e6.txt.gz` | [openai/CLIP](https://github.com/openai/CLIP/blob/main/clip/bpe_simple_vocab_16e6.txt.gz) (file [bpe_simple_vocab_16e6.txt.gz](https://github.com/openai/CLIP/raw/main/clip/bpe_simple_vocab_16e6.txt.gz)), byte-for-byte; `crates/ai/src/tokenize.rs` reads the first 48,894 merges, the slice CLIP itself trains on | MIT | 1,356,917 | `924691ac288e54409236115652ad4aa250f48203de50a9e4722a6ecd48d6804a` |
 
 Keyword packs are files the user writes or installs; each pack carries its own `licence` field, which
 the app shows beside it.
