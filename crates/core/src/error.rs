@@ -23,6 +23,14 @@ pub enum Error {
     #[error("the operation is not available yet: {0}")]
     NotYetAvailable(&'static str),
 
+    #[error("the change was written against revision {expected}, but the catalog is at {current}; re-read and try again")]
+    StaleRevision {
+        /// The revision the caller saw when it read the library.
+        expected: u64,
+        /// The revision the catalog is at now.
+        current: u64,
+    },
+
     #[error("{0}")]
     Invalid(String),
 

@@ -15,6 +15,7 @@ exit 0
       "photos": 1,
       "tag": "low light"
     }
-  ]
+  ],
+  "rev": 25
 }
 --- stderr

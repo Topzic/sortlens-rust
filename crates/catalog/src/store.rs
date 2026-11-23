@@ -952,9 +952,19 @@ impl Catalog {
             if photo.captured != *captured {
                 previous.push((*id, photo.captured));
                 photo.captured = *captured;
+                self.touch(*id);
             }
         }
         Ok(Op::Captured { changes: previous })
+    }
+
+    /// Bump a photo's annotation revision. Called only where a value actually changed, because a
+    /// revision that moves without a change gives a stale reader nothing to catch and a fresh one
+    /// nothing to keep.
+    fn touch(&mut self, id: PhotoId) {
+        if let Some(photo) = self.photos.get_mut(&id) {
+            photo.rev += 1;
+        }
     }
 
     pub fn apply(&mut self, op: &Op) -> Result<Op> {
@@ -1001,6 +1011,7 @@ impl Catalog {
                     if photo.rating != stars {
                         previous.push((*id, photo.rating));
                         photo.rating = stars;
+                        self.touch(*id);
                     }
                 }
                 Ok(Op::Rate { changes: previous })
@@ -1012,6 +1023,7 @@ impl Catalog {
                     if photo.flag != *flag {
                         previous.push((*id, photo.flag));
                         photo.flag = *flag;
+                        self.touch(*id);
                     }
                 }
                 Ok(Op::Flag { changes: previous })
@@ -1207,6 +1219,7 @@ impl Catalog {
                     if photo.tags != tags {
                         previous.push((*id, photo.tags.clone()));
                         photo.tags = tags;
+                        self.touch(*id);
                     }
                 }
                 Ok(Op::Tagged { changes: previous })
@@ -1218,6 +1231,7 @@ impl Catalog {
                     if photo.label != *label {
                         previous.push((*id, photo.label));
                         photo.label = *label;
+                        self.touch(*id);
                     }
                 }
                 Ok(Op::Label { changes: previous })
@@ -1254,6 +1268,21 @@ impl Catalog {
             self.snapshot()?;
         }
         Ok(())
+    }
+
+    /// Commit an op only if the catalog is still at the revision the caller read.
+    ///
+    /// The optimistic-concurrency guard behind SL-D11: a writer that read the library at revision
+    /// `expected` says so, and if the catalog has moved on — another window committed, a scan
+    /// finished, an undo landed — the write is refused with [`Error::StaleRevision`] instead of
+    /// silently overwriting the newer annotations. The caller re-reads and retries, which is what
+    /// a stale render can do, but a wrong write cannot be undone by the person it lost data for.
+    pub fn commit_expect(&mut self, op: Op, expected: u64) -> Result<()> {
+        let current = self.seq;
+        if current != expected {
+            return Err(Error::StaleRevision { expected, current });
+        }
+        self.commit(op)
     }
 
     /// Undo the last committed operation. One step per call, up to [`UNDO_DEPTH`] steps kept.
@@ -3021,5 +3050,111 @@ mod tests {
         let (reopened, _) = temp.open();
         assert_eq!(reopened.sharpness(id).map(|s| s.value), Some(4.5));
         assert_eq!(reopened.sharpness(id).map(|s| s.version), Some(sortlens_quality::SCORE_VERSION));
+    }
+
+    /// SL-D11: a writer that read the library at an older revision is refused, not allowed to
+    /// overwrite the annotations that arrived in between. The refusal names both revisions so the
+    /// caller can re-read and retry instead of guessing.
+    #[test]
+    fn a_stale_revision_is_refused_and_a_current_one_commits() {
+        let temp = TempCatalog::new("stale-revision");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/p", vec![seed("a.jpg")]).expect("sync");
+        let before = catalog.seq();
+
+        catalog
+            .commit_expect(
+                Op::Rate {
+                    changes: vec![(PhotoId(1), 5)],
+                },
+                before,
+            )
+            .expect("the writer's own revision is still current");
+
+        // The catalog has moved on (seq advanced), so a second writer holding the pre-write
+        // revision is refused, with the two revisions named.
+        let error = catalog
+            .commit_expect(
+                Op::Flag {
+                    changes: vec![(PhotoId(1), Flag::Pick)],
+                },
+                before,
+            )
+            .expect_err("stale");
+        assert!(
+            matches!(error, Error::StaleRevision { expected, current } if expected == before && current == before + 1),
+            "the refusal names both revisions: {error:?}"
+        );
+        assert!(catalog.photo(PhotoId(1)).expect("photo").flag == Flag::None, "nothing was written");
+
+        // Re-reading and retrying at the current revision succeeds.
+        catalog
+            .commit_expect(
+                Op::Flag {
+                    changes: vec![(PhotoId(1), Flag::Pick)],
+                },
+                catalog.seq(),
+            )
+            .expect("retry at the current revision");
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").flag, Flag::Pick);
+    }
+
+    /// The per-photo revision rises once per real change to the annotations, and not at all when a
+    /// change is a no-op, so a stale reader has something to catch and a fresh one nothing to lose.
+    #[test]
+    fn per_photo_revision_tracks_real_annotation_changes() {
+        let temp = TempCatalog::new("photo-revision");
+        let (mut catalog, _) = temp.open();
+        catalog.sync_root("/p", vec![seed("a.jpg")]).expect("sync");
+        let id = PhotoId(1);
+        assert_eq!(catalog.photo(id).expect("photo").rev, 0);
+
+        catalog.commit(Op::Rate { changes: vec![(id, 4)] }).expect("rate");
+        assert_eq!(catalog.photo(id).expect("photo").rev, 1);
+
+        // Setting the same stars is a no-op: the record did not change.
+        catalog.commit(Op::Rate { changes: vec![(id, 4)] }).expect("same rating");
+        assert_eq!(catalog.photo(id).expect("photo").rev, 1, "no change, no revision");
+
+        catalog
+            .commit(Op::Tagged {
+                changes: vec![(id, vec!["shore".into()])],
+            })
+            .expect("tag");
+        catalog
+            .commit(Op::Label {
+                changes: vec![(id, Some(ColorLabel::Blue))],
+            })
+            .expect("label");
+        assert_eq!(catalog.photo(id).expect("photo").rev, 3);
+
+        // Undo also changes the record, so the revision rises, monotonic in either direction.
+        catalog.undo().expect("undo");
+        assert_eq!(catalog.photo(id).expect("photo").rev, 4);
+        assert_eq!(catalog.photo(id).expect("photo").label, None);
+    }
+
+    /// The revision is derived from the log, so a reopen reproduces the same numbers — a sidecar
+    /// writer's rev is valid across a restart, not just inside one session.
+    #[test]
+    fn per_photo_revision_survives_a_restart() {
+        let temp = TempCatalog::new("photo-revision-restart");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/p", vec![seed("a.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), 3)],
+                })
+                .expect("rate");
+            catalog
+                .commit(Op::Tagged {
+                    changes: vec![(PhotoId(1), vec!["sand".into()])],
+                })
+                .expect("tag");
+            catalog.close().expect("close");
+        }
+        let (reopened, _) = temp.open();
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").rev, 2);
     }
 }

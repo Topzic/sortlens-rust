@@ -1,6 +1,7 @@
 exit 0
 --- stdout
 {
-  "changed": 2
+  "changed": 2,
+  "rev": 17
 }
 --- stderr

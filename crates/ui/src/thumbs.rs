@@ -280,6 +280,7 @@ mod tests {
             retry: false,
             sharpness: None,
             location: None,
+            rev: 0,
         }
     }
 }

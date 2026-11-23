@@ -363,6 +363,7 @@ fn photo_with_exif(id: sortlens_core::PhotoId, index: usize) -> sortlens_engine:
         retry: false,
         sharpness: None,
         location: None,
+        rev: 0,
     }
 }
 

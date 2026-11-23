@@ -9,6 +9,11 @@
 //! therefore a name the engine really accepts. Commands that need a dialog or a path the caller must
 //! choose carry a note instead of an example, and the coverage test insists that every ready command
 //! is in one of the two lists — no ready tool is left undocumented.
+//!
+//! Optimistic concurrency (SL-D11): every response carries `rev`, the catalog revision it
+//! describes. A caller that read the library at revision N passes `"expect": N` on any command and
+//! is refused with a stale-revision error the moment the catalog has moved on, instead of
+//! overwriting annotations that arrived in between; re-read, then retry with the new `rev`.
 
 use serde_json::{Value, json};
 

@@ -355,7 +355,12 @@ scans headlessly and prints a JSON report.
 - [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
 - [x] Sidecar review imported when a photo is first indexed (A) — SL-D09
 - [x] External-change detection for already-known photos + retry for unreadable metadata (A) — SL-D11
-- [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11 — **Phase 1 item 2**
+- [x] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11 — shipped 2026-11-23: every photo
+  carries a `rev` that rises once per real annotation change (and not on a no-op), and travels in the
+  log and snapshot; `Catalog::commit_expect` refuses a write made against an older revision, and every
+  engine command response now carries `rev` with any command able to pass `expect` — a stale caller is
+  refused before anything is touched. ARCHITECTURE.md's `rev` envelope paragraph was the spec; the code
+  now keeps it
 - [x] Rating/flag/label controls in the detail header, the inspector panel and the grid context menu (B) — SL-D01..D03
 - [x] Filter bar: rating, flags, labels, keyword, collection, kind, edited, missing, clear (B) — SL-B07..B13
 - [x] Keyword ANY/ALL, multi-keyword filtering, active-filter badge (B)
@@ -376,7 +381,12 @@ scans headlessly and prints a JSON report.
     headless test drives both through real key events and catches the undo branch firing for redo's press when the
     order is wrong. An older snapshot (single `undo` field) still opens with its one step.
 - [x] `photo.reveal` / `photo.open`: argv built in `sortlens-core::reveal` (pure, per-desktop, tested), executed by the app and the CLI (A) — SL-B22
-- [ ] XMP round-trip and filter-algebra tests are in; stale-revision and badge-contrast tests are not (**Phase 1 item 2**)
+- [x] XMP round-trip and filter-algebra tests are in; stale-revision and badge-contrast tests are in too
+  (closed by Phase 1 item 2): the stale-revision tests cover the catalog guard, the per-photo `rev`, its
+  survival of a reopen, and the engine's `expect`/`rev` round trip; the badge-contrast test judges every
+  preset's cell badges and flag dots at 3:1 (WCAG graphics) against `thumb_bg` — which is what found the
+  real defect: Silver and Paper's faint grey sat at 2.25 and 2.67 to 1 against their own thumb wells, and
+  both are darker now
 
 **Demo:** rate/tag 100 photos → quit → reopen: identical state; `xmllint`-clean sidecars contain
 the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
@@ -946,8 +956,9 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 - [x] 1. Video poster frames (SL-B11 part 2): first sync sample via `craft-video` (`h264-decode`/`hevc-decode`),
   `ColorTags`-aware YUV→RGB, cached through `sortlens-thumbs`, drawn in grid cells, detail and the cull stage;
   muxed-fixture round-trip test (C) — shipped 2026-11-22, see the M2 row above
-- [ ] 2. Stale-revision rejection (SL-D11): `Error::StaleRevision` on conflicting mutations in
+- [x] 2. Stale-revision rejection (SL-D11): `Error::StaleRevision` on conflicting mutations in
   `sortlens-catalog`/`sortlens-engine`, plus the stale-revision and badge-contrast tests that close M3's test row (A)
+  — shipped 2026-11-23, see the M3 rows above
 - [ ] 3. `Recently Added` (SL-A14 part 2): an `added` timestamp on `Photo` with a backwards-compatible snapshot
   migration (never approximated from `mtime`), last 30 days, in catalog, engine and sidebar (A,B)
 - [ ] 4. PNG export (SL-B24): a licence-approved encoder (`cargo xtask deny`) in `sortlens-export`, offered in the

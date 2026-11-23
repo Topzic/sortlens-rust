@@ -25,6 +25,7 @@ exit 0
       "rating": 5,
       "rel": "Studio/d.jpg",
       "retry": false,
+      "rev": 5,
       "root": "Photos",
       "shutter": null,
       "size": 322,
@@ -57,6 +58,7 @@ exit 0
       "rating": 3,
       "rel": "Trip/a.jpg",
       "retry": false,
+      "rev": 2,
       "root": "Photos",
       "shutter": null,
       "size": 328,
@@ -96,6 +98,7 @@ exit 0
       "width": 0
     }
   ],
+  "rev": 16,
   "sort": "added",
   "total": 6
 }

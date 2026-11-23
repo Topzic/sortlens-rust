@@ -6843,6 +6843,7 @@ mod tests {
             retry: false,
             sharpness: None,
             location: None,
+            rev: 0,
         };
         assert_eq!(cell_badge(&photo, None), None, "a decoded cell needs no badge");
         assert_eq!(cell_badge(&photo, Some("bad jpeg")), Some(CellBadge::Unreadable));
@@ -6895,6 +6896,7 @@ mod tests {
             retry: false,
             sharpness: None,
             location: None,
+            rev: 0,
         };
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -7880,6 +7882,7 @@ mod tests {
             retry: false,
             sharpness: None,
             location: None,
+            rev: 0,
         };
         let present = photo(false);
         let gone = photo(true);

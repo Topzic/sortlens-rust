@@ -2,6 +2,7 @@ exit 0
 --- stdout
 {
   "applied": 1,
-  "failed": 0
+  "failed": 0,
+  "rev": 25
 }
 --- stderr

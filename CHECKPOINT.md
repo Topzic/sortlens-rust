@@ -2396,6 +2396,38 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   suite's own encoder, which is honest about decode and colour but not about a manufacturer's bitstream
   quirks.
 
+## 2026-11-23 (twenty-second) — Phase 1 item 2: stale-revision rejection, and the M3 test row closed
+
+- **SL-D11, the optimistic-concurrency half.** Every `Photo` now carries `rev: u64` — the number of real
+  annotation changes it has taken (rating, flag, label, keywords, capture time), bumped only when a value
+  actually changes, so re-setting the same stars is not a revision. It travels in the log, the snapshot
+  and every `AddPhoto`/`RemovePhoto` op, so a reopen reproduces the same numbers and undo raises it
+  honestly (an undo also changes the record).
+- **`Catalog::commit_expect(op, expected)`** refuses a write made against an older revision with
+  `sortlens-core::Error::StaleRevision { expected, current }`, naming both numbers so a caller can
+  re-read and retry. `Catalog::commit` stays the ordinary single-writer path; the guard is opt-in per
+  write.
+- **Every engine command response now carries `rev`** — the catalog sequence number the response
+  describes — and **any command can pass `"expect": n`**, which is checked after the registry lookup
+  and before anything runs: a stale caller is refused before it touches a single photo. This is the
+  contract `docs/ARCHITECTURE.md` §4 already promised (`"rev": n` in every envelope); the code now
+  keeps it, and the MCP examples file documents the `expect`/`rev` round trip for agents.
+- **The M3 test row is closed.** Stale-revision tests: the catalog guard (stale refused with both
+  revisions, current commits, nothing written on refusal), the per-photo `rev` (rises on real changes,
+  not on no-ops, rises on undo, survives a reopen), and the engine round trip (`rev` on reads, `expect`
+  accepted at the current revision and refused at a stale one, the newer stars not overwritten).
+  Badge-contrast test: WCAG 2 relative-luminance contrast in `sortlens-ui::theme`, judging every
+  preset's cell badges (offline dot, unreadable dot, white glyph on each) and flag dots at 3:1 against
+  `thumb_bg` — the worst background a badge is ever painted over, because a badge exists exactly when
+  there are no pixels. **It found a real defect**: Silver and Paper's `text_faint` (the offline badge
+  dot) sat at 2.25 and 2.67 to 1 against their own thumb wells; both presets are darker now
+  (Silver `0x969189` → `0x6f6a63`, Paper `0x8e8e88` → `0x6b655e`), which also lifts the faint text they
+  carry elsewhere.
+- ROADMAP's Phase 1 item 2 and both M3 rows ticked in the same commit; FEATURES.md's SL-D11 design note
+  now says shipped. No layout or drawing logic changed, only two token values, so the headless run_ui
+  suite and the pure token test cover it; the screenshot harness does not exist yet (Phase 3 item 9).
+- 599 tests (6 new); ci, snapshot, deny, wasm green.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -2404,10 +2436,9 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or wasm-facing crates change. The full text is in `docs/ROADMAP.md` "Completion phases".
 
 **Phase 1 — core engine and media gaps**
-1. **Video poster frames** (SL-B11 part 2) — **start here.** `craft-video` first sync sample, `ColorTags`-aware
-   YUV→RGB, cached via `sortlens-thumbs`, shown in grid, detail and cull; muxed-fixture round-trip test. Wire
-   `craft-video` into the right crate manifest (it is the only Phase 1 dependency still unlinked).
-2. Stale-revision rejection (SL-D11) + the stale-revision and badge-contrast tests that close M3.
+1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
+2. Stale-revision rejection (SL-D11) + the stale-revision and badge-contrast tests that close M3 —
+   **done 2026-11-23**, see the twenty-second entry.
 3. `Recently Added` (SL-A14 part 2): `added` timestamp, snapshot migration, catalog/engine/sidebar.
 4. PNG export (SL-B24): licence-approved encoder, export dialog and CLI.
 

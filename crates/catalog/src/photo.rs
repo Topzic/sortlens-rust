@@ -98,6 +98,20 @@ pub struct Photo {
     /// not the same as "blurry" and must never be shown as if it were.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sharpness: Option<sortlens_quality::Score>,
+    /// How many times this photo's annotations have changed: rating, flag, label, keywords or capture
+    /// time. A sidecar writer or another window can carry the revision it read and the next writer can
+    /// refuse a record that has moved on since, rather than overwriting a newer annotation with an
+    /// older one (SL-D11). Bumped only when a value actually changes, so a re-set of the same stars
+    /// keeps the revision — the record did not change, so there is nothing a stale reader could
+    /// clobber. Travels in the log and the snapshot, so a reopen reproduces the same numbers.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub rev: u64,
+}
+
+/// Serde's `skip_serializing_if` for a plain `u64`, so a photo nobody has annotated writes nothing
+/// for the revision and an older reader (which defaults it to 0) sees the same record.
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 /// A duration in milliseconds as `0:12` or `1:02:03`.
@@ -148,6 +162,7 @@ impl Photo {
             edited: false,
             sharpness: None,
             location: None,
+            rev: 0,
         }
     }
 

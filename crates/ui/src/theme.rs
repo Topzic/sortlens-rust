@@ -349,7 +349,7 @@ impl Tokens {
         border: Color32::from_rgb(0xd3, 0xd0, 0xca),
         text: Color32::from_rgb(0x24, 0x22, 0x1f),
         text_muted: Color32::from_rgb(0x6c, 0x67, 0x60),
-        text_faint: Color32::from_rgb(0x96, 0x91, 0x89),
+        text_faint: Color32::from_rgb(0x6f, 0x6a, 0x63),
         accent: Color32::from_rgb(0xa8, 0x62, 0x00),
         accent_fg: Color32::from_rgb(0xff, 0xff, 0xff),
         selection: Color32::from_rgb(0xf2, 0xe4, 0xc8),
@@ -371,7 +371,7 @@ impl Tokens {
         border: Color32::from_rgb(0xdd, 0xdd, 0xd9),
         text: Color32::from_rgb(0x1a, 0x1a, 0x18),
         text_muted: Color32::from_rgb(0x63, 0x63, 0x5e),
-        text_faint: Color32::from_rgb(0x8e, 0x8e, 0x88),
+        text_faint: Color32::from_rgb(0x6b, 0x65, 0x5e),
         accent: Color32::from_rgb(0x96, 0x54, 0x00),
         accent_fg: Color32::from_rgb(0xff, 0xff, 0xff),
         selection: Color32::from_rgb(0xf7, 0xe9, 0xcd),
@@ -510,6 +510,79 @@ mod tests {
                 + (i32::from(t.accent.g()) - i32::from(t.bg.g())).abs()
                 + (i32::from(t.accent.b()) - i32::from(t.bg.b())).abs();
             assert!(delta > 90, "{} accent too close to background", kind.id());
+        }
+    }
+
+    /// WCAG 2 relative luminance and contrast ratio, so the badges are judged by the same measure
+    /// a contrast checker would use rather than by eye in a code review.
+    fn channel(value: u8) -> f64 {
+        let c = f64::from(value) / 255.0;
+        if c <= 0.039_28 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    fn luminance(colour: Color32) -> f64 {
+        0.2126 * channel(colour.r()) + 0.7152 * channel(colour.g()) + 0.0722 * channel(colour.b())
+    }
+
+    fn contrast(a: Color32, b: Color32) -> f64 {
+        let (light, dark) = ((luminance(a) + 0.05), (luminance(b) + 0.05));
+        (light / dark).max(dark / light)
+    }
+
+    /// The marks a grid cell paints against its own theme-controlled background hold 3:1 (WCAG
+    /// graphics): the cell badge's dot against `thumb_bg` — the worst background a badge is ever
+    /// drawn over, because a badge exists exactly when there is no photograph — and the white
+    /// glyph against the dot. The flag dots are painted straight onto the cell, so they are judged
+    /// the same way. Silver and Paper's faint grey used to fail the dot test (2.2 and 2.7 to 1);
+    /// this test is why they are darker now, and it fails again if a preset regresses.
+    #[test]
+    fn badge_and_flag_marks_hold_three_to_one_against_a_bad_cell() {
+        let white = Color32::WHITE;
+        for kind in ThemeKind::ALL {
+            let t = kind.tokens();
+            // The Offline badge dot (`text_faint`) on a cell with no pixels, and its `?` glyph.
+            assert!(
+                contrast(t.text_faint, t.thumb_bg) >= 3.0,
+                "{} offline badge dot is invisible on a dead cell: {:.2}",
+                kind.id(),
+                contrast(t.text_faint, t.thumb_bg)
+            );
+            assert!(
+                contrast(white, t.text_faint) >= 3.0,
+                "{} badge glyph unreadable on the offline dot: {:.2}",
+                kind.id(),
+                contrast(white, t.text_faint)
+            );
+            // The Unreadable badge dot (`reject`) and its glyph.
+            assert!(
+                contrast(t.reject, t.thumb_bg) >= 3.0,
+                "{} unreadable badge dot is invisible on a dead cell: {:.2}",
+                kind.id(),
+                contrast(t.reject, t.thumb_bg)
+            );
+            assert!(
+                contrast(white, t.reject) >= 3.0,
+                "{} badge glyph unreadable on the unreadable dot: {:.2}",
+                kind.id(),
+                contrast(white, t.reject)
+            );
+            // The flag dots, painted straight onto the cell.
+            assert!(
+                contrast(t.pick, t.thumb_bg) >= 3.0,
+                "{} pick dot is invisible on a dead cell: {:.2}",
+                kind.id(),
+                contrast(t.pick, t.thumb_bg)
+            );
+            assert!(
+                contrast(t.reject, t.thumb_bg) >= 3.0,
+                "{} reject dot is invisible on a dead cell: {:.2}",
+                kind.id(),
+                contrast(t.reject, t.thumb_bg)
+            );
         }
     }
 }

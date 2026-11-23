@@ -219,7 +219,10 @@ race conditions while adding or removing tags" and "stale tag fetches overwritin
 changes". A UI that PATCHes per-tag over HTTP has no ordering guarantee. Our fix is structural:
 the UI sends one command with a full intent, the engine applies it on a single writer thread,
 and every response carries the catalog revision so a stale render can be dropped rather than
-written back. Tags are never patched field-by-field from the view.
+written back. Tags are never patched field-by-field from the view. This is shipped, not just
+designed: `Photo.rev` rises once per real annotation change, `Catalog::commit_expect` refuses a
+write made against an older revision, every command response carries `rev`, and any command can
+pass `expect` to be refused instead of overwriting newer work (SL-D11).
 
 **Sidecar policy.** Write only when the user has opted in (default on for tags/rating/label,
 off for cull decisions), write only changed fields, keep unknown fields verbatim, use a

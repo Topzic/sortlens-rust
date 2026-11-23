@@ -797,6 +797,13 @@ impl Engine {
         self.catalog.as_ref().is_some_and(sortlens_catalog::Catalog::read_only)
     }
 
+    /// The catalog's revision: the sequence number of the last change, carried in every command
+    /// response as `rev` so a caller can pass it back as `expect` and refuse to write over
+    /// annotations that arrived since it looked (SL-D11).
+    pub fn revision(&self) -> u64 {
+        self.catalog.as_ref().map(sortlens_catalog::Catalog::seq).unwrap_or(0)
+    }
+
     /// Recent changes, newest first, read from the log.
     pub fn history(&mut self, limit: usize) -> Result<Vec<HistoryEntry>> {
         let dir = self.dir.clone().ok_or_else(|| Error::Invalid("no library is open".into()))?;
@@ -2836,7 +2843,17 @@ impl Engine {
                 _ => "this command is planned",
             }));
         }
-        match command {
+        // Optimistic concurrency (SL-D11): a caller that read the library at revision `expected`
+        // passes it as `expect` and is refused the moment the catalog has moved on, instead of
+        // silently overwriting newer annotations. A stale render can re-read and retry; a wrong
+        // write cannot be undone by the person whose tags it lost.
+        if let Some(expected) = args.get("expect").and_then(Value::as_u64) {
+            let current = self.revision();
+            if current != expected {
+                return Err(Error::StaleRevision { expected, current });
+            }
+        }
+        let response = match command {
             "library.addFolder" => {
                 let path = args
                     .get("path")
@@ -3704,7 +3721,18 @@ impl Engine {
                 Ok(json!({ "quitting": true }))
             }
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
-        }
+        };
+        // Every response carries the catalog revision, per the SL-D11 design note: a stale render
+        // can be dropped rather than written back. Reading it once, after the command, is the
+        // revision the response describes.
+        let rev = self.revision();
+        response.map(|value| match value {
+            Value::Object(mut map) => {
+                map.insert("rev".into(), json!(rev));
+                Value::Object(map)
+            }
+            other => other,
+        })
     }
 }
 
@@ -4413,6 +4441,7 @@ mod tests {
             retry: false,
             sharpness: None,
             location: None,
+            rev: 0,
         };
         photo.tags.sort_unstable();
         photo
@@ -6561,5 +6590,61 @@ mod tests {
 
         let nothing = engine.run("edit.redo", &json!({})).expect("redo again");
         assert_eq!(nothing["redone"], false);
+    }
+
+    /// SL-D11, engine level: a command carrying a stale `expect` is refused before it touches
+    /// anything, and every response names the revision the caller can pass back next time.
+    #[test]
+    fn a_command_with_a_stale_expect_is_refused_and_responses_carry_the_revision() {
+        let (_lib, _photos, mut engine) = library_with_images("stale-expect", 2);
+        let ids: Vec<u64> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id.0)
+            .collect();
+
+        // A read is also stamped: the revision a caller saw comes from the response itself.
+        let seen = engine.run("library.page", &json!({ "limit": 10 })).expect("page");
+        let rev = seen["rev"].as_u64().expect("rev");
+        assert!(rev > 0, "a scan has committed by now");
+
+        // A command that carries the revision it read goes through.
+        let rated = engine
+            .run("photo.rate", &json!({ "ids": [ids[0]], "stars": 5, "expect": rev }))
+            .expect("current revision");
+        assert_eq!(rated["changed"], 1);
+        assert!(rated["rev"].as_u64().expect("rev") > rev, "the response names the new revision");
+
+        // The same command holding the revision from before that write is refused, before anything
+        // is touched — the newer stars are not overwritten by the stale intent.
+        let stale = engine
+            .run("photo.rate", &json!({ "ids": [ids[0]], "stars": 0, "expect": rev }))
+            .expect_err("stale");
+        assert!(
+            matches!(stale, Error::StaleRevision { expected, current } if expected == rev && current > rev),
+            "both revisions are named: {stale:?}"
+        );
+        assert_eq!(engine.photo(sortlens_core::PhotoId(ids[0])).expect("photo").rating, 5);
+
+        // A read-only command also accepts `expect`, so a caller can assert it is looking at what
+        // it read before rendering from it.
+        assert!(engine.run("library.page", &json!({ "expect": engine.revision() })).is_ok());
+        assert!(engine.run("library.page", &json!({ "expect": rev })).is_err());
+    }
+
+    /// The revision is the catalog's sequence number, so it is stable across a reopen: a remote
+    /// caller's revision from yesterday is still the same number the engine answers with today.
+    #[test]
+    fn the_revision_is_the_catalog_sequence_and_survives_a_reopen() {
+        let temp = Temp::new("revision-reopen");
+        {
+            let mut engine = Engine::open(&temp.0).expect("open");
+            assert_eq!(engine.revision(), 0, "nothing has happened yet");
+            let about = engine.run("app.about", &json!({})).expect("about");
+            assert_eq!(about["rev"], 0, "a read carries the revision it looked at");
+        }
+        let engine = Engine::open(&temp.0).expect("reopen");
+        assert_eq!(engine.revision(), 0, "no writes, no revision");
     }
 }

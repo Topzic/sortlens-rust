@@ -1,6 +1,7 @@
 exit 0
 --- stdout
 {
+  "rev": 22,
   "undone": true
 }
 --- stderr
