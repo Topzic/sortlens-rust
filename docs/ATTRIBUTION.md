@@ -41,6 +41,10 @@ These are the crates a manifest actually asks for and the build links.
 | `craft-jpeg` | MIT OR Apache-2.0 | JPEG decode and baseline encode |
 | `craft-image-codecs` | MIT OR Apache-2.0 | PNG and other formats for previews |
 | `craft-raw` | MIT OR Apache-2.0 | RAW containers and their embedded previews |
+| `craft-heif` | MIT OR Apache-2.0 | HEIC decoding for thumbnails and container sizes during the scan |
+| `craft-media` | MIT OR Apache-2.0 | The isobmff demuxer behind a video's length, frame rate and codec |
+| `craft-jsonrpc` | MIT OR Apache-2.0 | JSON-RPC framing for the MCP server |
+| `craft-mcp` | MIT OR Apache-2.0 | MCP protocol types for `sortlens-mcp` |
 | `egui` | MIT OR Apache-2.0 | Immediate-mode GUI (storytold fork) |
 | `eframe` | MIT OR Apache-2.0 | The application shell and its renderer |
 | `serde` | MIT OR Apache-2.0 | Op-log, snapshot and settings serialisation |
@@ -57,35 +61,20 @@ decode pixels and know nothing about a window, so the CLI and the wasm build can
 
 `[workspace.dependencies]` pins these so that every crate that eventually needs one uses the same version
 and the same git revision. No manifest links them today, so **nothing here is compiled into the app** —
-this table is a promise about versions, not a claim about features.
+this table is a promise about versions, not a claim about features. Each row names the roadmap phase that
+links it; a pin with no phase was pruned in Phase 0 (the reconciliation audit) rather than kept as a
+promise nobody intends to keep.
 
-| Crate | Licence | Why it is declared |
-|---|---|---|
-| `craft-atomic` | MIT OR Apache-2.0 | Atomic file replacement for the snapshot rollover |
-| `craft-flags` | MIT OR Apache-2.0 | Reserved; keyword-pack switches went into the op log instead |
-| `craft-i18n` | MIT OR Apache-2.0 | Translations, which are not started |
-| `craft-fonts-build` | MIT OR Apache-2.0 | Reserved; `crates/ui/build.rs` reads `craft-fonts` directly and dependency-free |
-| `craft-dialogs` | MIT OR Apache-2.0 | Reserved; the app uses `rfd` for folder pickers today |
-| `craft-menu` | MIT OR Apache-2.0 | Reserved; menus are drawn by `craft-ui` |
-| `craft-keymap` | MIT OR Apache-2.0 | Reserved for the rebinding editor |
-| `craft-quit` | MIT OR Apache-2.0 | Reserved; the quit guard is written by hand |
-| `craft-update` | MIT OR Apache-2.0 | In-app updates, which need a release feed |
-| `craft-heif` | MIT OR Apache-2.0 | HEIC decoding, including container sizes during the scan |
-| `craft-webp` | MIT OR Apache-2.0 | WebP decoding and export, neither built |
-| `craft-gainmap` | MIT OR Apache-2.0 | HDR gain maps, not built |
-| `craft-video` | MIT OR Apache-2.0 | Video posters, not built (the container half of video metadata is `craft-media`) |
-| `craft-media` | MIT OR Apache-2.0 | The isobmff demuxer behind a video's length, frame rate and codec; `sortlens-core::media` still covers the extension table |
-| `craft-crs` | MIT OR Apache-2.0 | Develop-setting detection for "edited" state |
-| `craft-sniff` | MIT OR Apache-2.0 | Magic-byte sniffing, which is not built |
-| `craft-zip` | MIT OR Apache-2.0 | A zip-based diagnostics bundle; the bundle is plain text |
-| `craft-ipc` | MIT OR Apache-2.0 | Reserved; agent access is MCP over stdio instead |
-| `craft-jsonrpc` | MIT OR Apache-2.0 | Reserved; `sortlens-mcp` speaks the protocol itself |
-| `craft-mcp` | MIT OR Apache-2.0 | Reserved; `sortlens-mcp` is hand-written against the command registry |
-| `craft-web-api` | MIT OR Apache-2.0 | The remote client, which is absent by design |
-| `craft-web-host` | MIT OR Apache-2.0 | The remote host, which is absent by design |
-| `log` | MIT OR Apache-2.0 | Declared for a log sink; the app reports through jobs and the change log |
-| `chrono` | MIT OR Apache-2.0 | Declared for date formatting; capture dates are Unix seconds today |
-| `rayon` | MIT OR Apache-2.0 | Declared for parallel scans; the scanner uses its own worker pool |
+| Crate | Licence | Why it is declared | Linked by |
+|---|---|---|---|
+| `craft-video` | MIT OR Apache-2.0 | Video poster frames: first sync sample through the H.264/HEVC decoders | Phase 1 |
+| `craft-atomic` | MIT OR Apache-2.0 | Atomic file replacement for the resumable model downloader | Phase 2 |
+| `rayon` | MIT OR Apache-2.0 | The low-priority compute pool for local inference | Phase 2 |
+| `craft-keymap` | MIT OR Apache-2.0 | The rebinding editor, conflict detection and import/export | Phase 4 |
+| `craft-update` | MIT OR Apache-2.0 | Opt-in update checks (a user-approved network call) | Phase 4 |
+| `craft-i18n` | MIT OR Apache-2.0 | Localisation scaffolding | Phase 4 |
+| `craft-web-api` | MIT OR Apache-2.0 | The remote client | Phase 4 |
+| `craft-web-host` | MIT OR Apache-2.0 | The remote host | Phase 4 |
 
 ## Fonts
 

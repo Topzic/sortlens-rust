@@ -26,8 +26,8 @@ have — see the roadmap rather than assuming they exist.
 2. Bump the version in the root `Cargo.toml` only, then `cargo xtask version` to prove nothing else
    carries a number.
 3. Update `CHANGELOG`-style prose in `CHECKPOINT.md` if the release covers more than one commit, and check
-   `docs/ROADMAP.md` — its "Deliberately absent" tables are what the release notes repeat, because a user
-   deciding whether to install this needs the absences as much as the features.
+   `docs/ROADMAP.md` — its unchecked rows and the section above are what the release notes repeat, because
+   a user deciding whether to install this needs the absences as much as the features.
 4. `git tag vX.Y.Z && git push --tags`. The release workflow runs the same checks, builds the two
    binaries on macOS, Linux and Windows, and attaches them with checksums.
 5. Read the generated release page before announcing it: a workflow that attached a stale binary would
@@ -35,15 +35,29 @@ have — see the roadmap rather than assuming they exist.
 
 ## What this version does not have
 
-Named here because a release is where "later" turns into "not in it":
+Named here because a release is where "later" turns into "not in it". These are **tracked work, not
+decisions**: each line points at the roadmap phase that closes it (`docs/ROADMAP.md`, "Completion
+phases"), and the list shrinks as those rows are ticked.
 
-- **No bundled models.** Tagging suggestions come from the photo's own EXIF and from keyword packs you
-  write or install. The model store, the manifest and the refusal to run without a digest are built and
-  tested; no weights are pinned, so there is no "download model" button and no menu item for one.
-- **No remote.** There is no server and no phone client; the design is in `docs/ARCHITECTURE.md` §11.
-- **No localisation.** The interface is English; the font stack and the keymap already handle the symbols
-  it draws.
-- **No video or HEIC thumbnails**, no PNG/TIFF/WebP export, no map.
+- **No bundled or downloadable models yet.** Tagging suggestions come from the photo's own EXIF and from
+  keyword packs you write or install. The model store, the manifest and the refusal to run without a digest
+  are built and tested; no weights are pinned and there is no `model.install`. Phase 2 pins real,
+  permissively licensed weights, adds a consent-gated downloader (an explicit, user-initiated network
+  call — `crates/ai` itself stays offline) and runs detection and embeddings with `tract-onnx`.
+- **No video poster frames.** Videos are indexed and their length, frame rate and codec are read, but a
+  grid cell shows a glyph rather than a frame (Phase 1).
+- **Export is Original and JPEG only.** PNG export is Phase 1; TIFF and WebP are not planned.
+- **The map needs your tiles.** Places draws a tile folder (`tiles/`) and a gazetteer (`places.txt`) you
+  supply; the bundled offline basemap is Phase 3.
+- **No remote.** There is no server and no phone client (Phase 4); the design is in
+  `docs/ARCHITECTURE.md` §11.
+- **No localisation and no keymap editor.** The interface is English and shortcuts cannot be rebound yet
+  (Phase 4); the font stack and the keymap already handle the symbols the interface draws.
+- **No installer, no signed builds, no update check.** See M10 in the roadmap.
+- **A prototype-grade layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` is Phase 3.
+
+What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF
+thumbnails, RAW previews, and the tile-folder map.
 
 ## Checksums
 

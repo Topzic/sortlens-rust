@@ -6,7 +6,7 @@
     <img alt="Rust" src="https://img.shields.io/badge/pure-Rust-f2a516?style=flat-square">
     <img alt="ArtCraft" src="https://img.shields.io/badge/ArtCraft-Craft%20App-8a5800?style=flat-square">
     <img alt="License" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-8a5800?style=flat-square">
-    <img alt="Status" src="https://img.shields.io/badge/status-M0%E2%80%93M10%20shipped-8a5800?style=flat-square">
+    <img alt="Status" src="https://img.shields.io/badge/status-M0%E2%80%93M10%20built%2C%20phases%201%E2%80%935%20open-8a5800?style=flat-square">
   </p>
 </div>
 
@@ -20,7 +20,10 @@ ArtCraft Craft Apps: native on macOS, Windows and Linux, in the same visual and 
 language as LightCraft, PhotoCraft and the rest of the suite, and drivable end to end by
 scripts and AI agents.
 
-> **Status: M0–M10 shipped.** A working local photo library: scanning and indexing, a virtualised grid,
+> **Status: M0–M10 built, core completion in progress.** The milestones are built, but several core
+> features are still open and tracked as unchecked rows under "Completion phases" in `docs/ROADMAP.md`
+> (video poster frames, PNG export, real local AI tagging, an out-of-the-box map, the Adobe/ArtCraft layout
+> pass, the keymap editor, the remote client). A working local photo library: scanning and indexing, a virtualised grid,
 > filters and search, keywords with an alias registry, XMP sidecars, the cull machine with gestures and
 > zoom, collections, duplicate and colour matching, insights, memories, detail and side-by-side compare,
 > backup/restore, audit and compaction, one-writer locking, move with undo, a change viewer, export to
@@ -28,10 +31,10 @@ scripts and AI agents.
 > suggestion pass that writes nothing, `--json` on every read verb, a diagnostics bundle that redacts your
 > paths, and an MCP server — all driven by one command registry that the window, the CLI and an agent share.
 >
-> What is **not** here is named rather than hidden, in three places: `docs/ROADMAP.md` has a "Deliberately
-> absent" table per milestone (per-platform installers and signing, a camera-inference session because no
-> model is pinned, the remote/companion server and localisation, the emitted accessibility tree, high
-> contrast and reduced motion), `docs/PERF.md` lists the budgets this machine cannot measure, and every
+> What is **not** here is named rather than hidden, in three places: `docs/ROADMAP.md` tracks every open
+> core feature as an unchecked row in "Completion phases" and keeps a "Deliberately absent" table only for
+> work that needs something outside the repository (signing identities, a screen reader, a release feed),
+> `docs/PERF.md` lists the budgets this machine cannot measure, and every
 > disabled control in the app says which milestone would bring it.
 
 ## Read the plan
@@ -49,6 +52,7 @@ scripts and AI agents.
 | [`docs/PACKS.md`](docs/PACKS.md) | The keyword pack format: what a rule may match, what is refused, and why |
 | [`docs/RELEASE.md`](docs/RELEASE.md) | How a release is cut, what the artefacts are, and what this version deliberately lacks |
 | [`docs/CLI.md`](docs/CLI.md) | The `--json` contract: what a script may rely on, what may change, and every verb that has a schema |
+| [`docs/sortlens_agent_completion_directive.md`](docs/sortlens_agent_completion_directive.md) | The owner's course-correction: sign-offs, and the five completion phases the roadmap now tracks |
 | [`docs/PERF.md`](docs/PERF.md) | Measured numbers with the machine and command that produced them, the defect they exposed, and the budgets that cannot be measured here |
 
 ## What it will do
@@ -131,13 +135,13 @@ table is in the app under `?`.
 
 ### What is not built yet
 
-Named so that nothing here reads as finished: HEIC and video thumbnails, blur-up, the map and place
-memories, blur scoring, a camera-inference session (no model is pinned, and pinning one means shipping a
-file whose digest and licence must be real), PNG/TIFF/WebP export, the remote/companion server,
-localisation and right-to-left layout, shortcut rebinding, high contrast and reduced motion, theme import,
-per-platform installers and signing, and a wired update checker. Each is either an unchecked row or a row
-in a "Deliberately absent" table in `docs/ROADMAP.md`, with what would unblock it, and is disabled in the
-UI rather than faked.
+Named so that nothing here reads as finished: video poster frames, blur-up, an out-of-the-box map,
+blur scoring, local model inference (the owner has approved pinning permissively licensed weights and a
+consent-gated downloader), PNG export, the remote/companion server, localisation and right-to-left layout,
+shortcut rebinding, high contrast and reduced motion, theme import, per-platform installers and signing,
+and a wired update checker. Each is an unchecked row under "Completion phases" in `docs/ROADMAP.md` (or, when
+it needs something this repository lacks, a row in a "Deliberately absent" table there), and is disabled in
+the UI rather than faked. (HEIC thumbnails and the tile-folder map have shipped.)
 
 `docs/TOOLING.md` §5 lists the platform prerequisites and the optional cargo tools.
 

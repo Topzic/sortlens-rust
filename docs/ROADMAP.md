@@ -145,7 +145,7 @@ volume probe and `PathKey`.
   same row — a stored flag would let the two disagree. Both behaviours tested (B) — SL-A14 part 1
 - [ ] Sources, part 2 — **Recently Added**: needs an `added` timestamp per photo, which is a snapshot schema
   change with a migration for every existing library; inventing one from the file's mtime would be "recently
-  modified", a different and more confusing question. Listed with its unblocker in the M1 table below
+  modified", a different and more confusing question. **Re-opened as Phase 1 item 3** below
 - [x] Folder tree with recursive counts + drill-down (`library.subfolders`, breadcrumbs) (B) — SL-A03/A04
 - [x] Placeholder cell while decoding (kind glyph on the tile) and a **badge** for the two ways a cell can
   have no pixels: `?` for a file that is not on disk, `!` for a file that could not be decoded, each with a
@@ -214,14 +214,14 @@ what they need.
   - Tested with a video **muxed by the suite's own writer** in the test — 24 samples of 25 ticks at 600 Hz is
     one second at 24 fps — plus the same file truncated (refused), a JPEG (not a video) and the clock-format
     table. No video blob is committed.
-- [ ] Video poster frame — **part 2**, absent by design with a named blocker (C) — SL-B11 part 2
-  - Why not now: a poster needs `craft-video`'s H.264 (or HEVC) decoder **and** a YUV→RGB conversion honouring
+- [ ] Video poster frame — **part 2**, open: **Phase 1 item 1** below (C) — SL-B11 part 2
+  - Design notes: a poster needs `craft-video`'s H.264 (or HEVC) decoder **and** a YUV→RGB conversion honouring
     the frame's `ColorTags` — matrix, range and primaries. `VideoFrame` deliberately carries planes and tags
     with no conversion, because getting that wrong is a colour bug that looks like a decode bug. The container
     half is done, so this is now a decoder-side piece of work rather than a research question.
-  - Unblocker: a poster decoder that reads the first sync sample, decodes it with `h264-decode`/`hevc-decode`
+  - Plan: a poster decoder that reads the first sync sample, decodes it with `h264-decode`/`hevc-decode`
     and converts with the frame's own colour tags, with a test whose fixture is muxed by the same writer the
-    metadata test uses. Until then a video cell shows its type, its length and its filename — never a blank
+    metadata test uses. Until it lands a video cell shows its type, its length and its filename — never a blank
     cell pretending to be a photo.
   - Matroska (MKV/WebM) and AVI are not probed either: `craft-media`'s `matroska` and `avi` features are off, and
     reporting their clips with no length would be worse than reporting nothing.
@@ -347,7 +347,7 @@ scans headlessly and prints a JSON report.
 - [x] `sortlens-sidecar`: XMP read/merge/write, unknown fields preserved, atomic (A) — SL-D08/D09
 - [x] Sidecar review imported when a photo is first indexed (A) — SL-D09
 - [x] External-change detection for already-known photos + retry for unreadable metadata (A) — SL-D11
-- [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11
+- [ ] Stale-revision rejection (`Error::StaleRevision`) (A) — SL-D11 — **Phase 1 item 2**
 - [x] Rating/flag/label controls in the detail header, the inspector panel and the grid context menu (B) — SL-D01..D03
 - [x] Filter bar: rating, flags, labels, keyword, collection, kind, edited, missing, clear (B) — SL-B07..B13
 - [x] Keyword ANY/ALL, multi-keyword filtering, active-filter badge (B)
@@ -368,7 +368,7 @@ scans headlessly and prints a JSON report.
     headless test drives both through real key events and catches the undo branch firing for redo's press when the
     order is wrong. An older snapshot (single `undo` field) still opens with its one step.
 - [x] `photo.reveal` / `photo.open`: argv built in `sortlens-core::reveal` (pure, per-desktop, tested), executed by the app and the CLI (A) — SL-B22
-- [ ] XMP round-trip and filter-algebra tests are in; stale-revision and badge-contrast tests are not
+- [ ] XMP round-trip and filter-algebra tests are in; stale-revision and badge-contrast tests are not (**Phase 1 item 2**)
 
 **Demo:** rate/tag 100 photos → quit → reopen: identical state; `xmllint`-clean sidecars contain
 the tags; filter "≥4★ + Pick + #wildlife" in one keystroke; undo 20 steps.
@@ -749,10 +749,11 @@ and recover; export/import a library onto a second machine and remap the volume.
 
 ## M8 — AI + export · 2.5 w · tracks D,A
 
-**State:** done for everything that needs no weights — export, manifest, store, NMS, label map, EXIF
-hints, packs, the suggestion panel, accept-and-undo and the batch pass. The rows under "Deliberately
-absent" are not part of "done": each needs something this repository does not ship, and pretending
-otherwise is how a plan starts lying.
+**State:** the no-weights half is built — export (Original and JPEG), manifest, store, NMS, label map, EXIF
+hints, packs, the suggestion panel, accept-and-undo and the batch pass. **M8 is not closed**: real local
+inference (detector, embeddings, downloader, tag provenance) and PNG export are open rows in Phase 1 and
+Phase 2 below. The owner has signed off on pinning permissively licensed weights and on a user-initiated
+download, so the earlier "needs weights we cannot ship" blocker no longer applies.
 
 - [x] Model manifest (id, kind, licence, digest, size) + content-addressed store that verifies size
   and SHA-256 before use, installs atomically and refuses to delete a file it cannot identify (D)
@@ -785,17 +786,11 @@ otherwise is how a plan starts lying.
 - [x] Export: original copies and JPEG re-encodes, longest-edge resize, quality, EXIF/IPTC carried
   forward, four collision policies, worker progress and cancel, a dialog and a receipt (A) — SL-B24
 
-### Deliberately absent from M8
+### Re-opened from M8
 
-Not rows with an empty box — rows that would need something this repository does not ship, kept here so
-the absence is a decision rather than a gap:
-
-| Not built | Because | What would unblock it |
-| --- | --- | --- |
-| `tract` detector session (SL-F03 part 2) | a session needs weights; pinning a model means shipping or fetching a file whose digest and licence must be real, and inventing one would be a lie | a chosen ONNX detector with a known licence and digest, added to `Manifest::shipped()`; the NMS and label map it would use are already tested |
-| Image/text embedding sessions and prompt packs (SL-F04) | same: embeddings are weights | the same, plus a text encoder |
-| `source = Ai` in the keyword filter | the panel shows provenance per suggestion, but filtering by it needs a per-tag source in the catalog — a schema change with a migration, for a filter whose values would be guesses | a decision to store tag provenance |
-| PNG/TIFF/WebP export | the workspace has one encoder (JPEG); a format chip that cannot write its format is a lie | an encoder crate, reviewed for licence and size |
+The four rows this section used to hide — the `tract` detector session (SL-F03 part 2), the image/text
+embedding sessions and prompt packs (SL-F04), `source = Ai` filtering via per-tag provenance (SL-D12) and
+PNG export (SL-B24) — are now unchecked rows in **Phase 1** (PNG) and **Phase 2** (the rest).
 
 **Demo:** on a clean machine, index 50 photos, run `batchsuggest`, accept ten proposals from the panel,
 undo one, switch on a keyword pack and watch its keywords appear for the matching folders; export a
@@ -806,8 +801,8 @@ selection as originals and as JPEG and diff the metadata.
 ## M9 — Remote + automation · 2.5 w · tracks E,B
 
 **State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
-bundle. The remote half (a server, a wasm client, remote album edits) is absent by design and listed
-below with what would unblock it; i18n and the keymap editor remain.
+bundle. The remote half (a server, a wasm client, remote album edits) is **open work in Phase 4**, as are
+i18n and the keymap editor; none of M9 is closed until those rows are ticked.
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
 - [x] CLI parity and stable JSON schemas: `--json` on the read verbs (roots, keywords, stats, list,
@@ -844,16 +839,12 @@ below with what would unblock it; i18n and the keymap editor remain.
   end-to-end test that reads the output *before* normalisation and fails if either path leaks (E)
   — SL-I14
 
-### Deliberately absent from M9
+### Re-opened from M9
 
-| Not built | Because | What would unblock it |
-| --- | --- | --- |
-| `sortlens-server`: token auth, pairing, permissions, upload resume (SL-J01/J03/J04) | a server cannot be tested here without a second device and a network peer; shipping an untested auth path is the worst kind of untested code | a test harness with two processes and a loopback socket, plus a decision on pairing (QR, code, or both) |
-| `sortlens-web` wasm client reusing the UI (SL-J02) | the same: it exists to be opened on another device | the server above, and a browser to check it in |
-| Remote album/collection create and rescan (SL-J06/J08) | commands over the wire need the server | the server above |
-
-`docs/ARCHITECTURE.md` §11 keeps the design for all three. The command registry is already the API they
-would expose, which is why the absence is a missing transport rather than a missing design.
+`sortlens-server` (token auth, pairing, upload resume — SL-J01/J03/J04), the `sortlens-web` wasm client
+(SL-J02) and remote album/collection create and rescan (SL-J06/J08) are **Phase 4 item 3**. The blocker the
+old table named — nothing to test an auth path against — is answered by a two-process loopback integration
+harness in CI. `docs/ARCHITECTURE.md` §11 keeps the design; the command registry is already the API.
 
 **Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
 `--json`; `sortlens-cli diagnostics` produces a bundle a maintainer can read without knowing where the
@@ -865,8 +856,9 @@ photos live; the UI renders correctly in Arabic and Japanese.
 
 **State:** the version contract, `--version`, the release workflow, the packaging notes, the measurements,
 the icon, the attribution gate and the first half of the accessibility audit are in. Signing, installers,
-the emitted accessibility tree, high contrast, the operating system's own reduced-motion preference, theme
-import, `craft-update` and the tag are not — each named with its unblocker in the table at the end of this milestone.
+the emitted accessibility tree, the operating system's own reduced-motion preference, theme import and the tag
+are not — each named with its unblocker in the table at the end of this milestone; the `.icns`/`.ico` files,
+the high-contrast preset and the opt-in `craft-update` toggle are re-opened as Phase 4 item 2.
 
 - [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
   cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
@@ -898,22 +890,113 @@ import, `craft-update` and the tag are not — each named with its unblocker in 
 
 ### Deliberately absent from M10
 
-Not rows with an empty box — rows that would need something this repository does not have, kept here so the
-absence is a decision rather than a gap:
+Rows that need something this repository genuinely does not have (an identity, a toolchain, a screen reader, a
+person's decision). Anything buildable lives in "Completion phases" below instead. The packaging icons
+(`.icns`/`.ico`), the high-contrast preset and the opt-in update check moved there.
 
 | Not built | Because | What would unblock it |
 | --- | --- | --- |
 | Signed and notarised macOS builds (SL-I12) | notarisation needs an Apple Developer identity and a CI secret; a workflow that pretends to sign would produce a bundle Gatekeeper rejects | an identity, `APPLE_ID`/`TEAM_ID`/app-specific password in CI secrets, and a release run to test against |
 | Windows MSI and Linux AppImage/Flatpak | each needs its own toolchain (`cargo-wix`, `linuxdeploy`, Flatpak manifests and a runtime) and, for MSI, a code-signing certificate | those toolchains in the release workflow and a signing certificate |
-| `.icns`/`.ico` generation and a brand pass | the icon is drawn and wired (`crates/icon`, `with_icon`), but the per-platform icon containers and any marketing artwork are packaging work that the absent installer work would consume | the packaging step above; the drawing itself already exists |
 | Theme import via `craft-ext-core` palettes (SL-I06) | importing someone else's palette means committing its colours and its licence; no palette has been chosen, and inventing one is not an import | a chosen palette with a licence that permits redistribution |
 | The emitted accessibility tree (SL-L01..L05 part 2) | the names and roles are set and checked (`cargo xtask a11y`), but this egui version has no public way to read the tree back and `Context::has_accesskit_node` answers `true` even for an unnamed area, so a headless test would assert nothing; focus order and traps need a real client | a screen reader — VoiceOver, Orca or NVDA — on a machine with a desktop session, and a person to listen |
-| High-contrast preset, and the operating system's reduced-motion preference (SL-L09/L06 part 2) | the reduced-motion *toggle* exists (`appearance.motion`) and the animation honours it, but the OS preference itself is a platform signal egui does not expose across platforms, and a high-contrast preset is a design decision — which contrast pair — that the headless harness cannot show is readable | a design pass and a person looking at it; a per-platform "reduce motion" query (or a future egui accessor) for the OS half |
-| `craft-update` wired to the launcher | the crate is declared but unlinked, and an update checker is a network call this project deliberately does not make (`crates/ai` has a `no_network` source scan guarding exactly that promise) | a decision that the app may reach the network, plus a release feed to check |
+| The operating system's reduced-motion preference (SL-L06 part 2) | the reduced-motion *toggle* exists (`appearance.motion`) and the animation honours it, but the OS preference itself is a platform signal egui does not expose across platforms | a per-platform "reduce motion" query, or a future egui accessor |
 | Release notes and a 1.0 tag | a tag is the repository owner's act, and notes for a version that no one has installed yet would describe intentions rather than a release | the owner tagging, and feedback from a run of the artefacts |
 
 **Demo:** install from each artifact on a clean machine; first-run wizard; a11y tree has zero
 unnamed controls; every budget in `FEATURES.md` §M passes.
+
+---
+
+## Completion phases
+
+Re-opened by the owner's course correction (`docs/sortlens_agent_completion_directive.md`). **M0–M10 are not
+"done" while any row below is open.** One vertical slice per commit; every slice lands with a test that fails
+when the behaviour is absent, ticks its row here, and updates `CHECKPOINT.md` in the same commit. Gates per
+commit: `cargo xtask ci`, `snapshot`, `deny`, and `wasm` when `crates/core`, `crates/ui` or wasm-facing
+crates change.
+
+Owner sign-offs (Phase 0): user-initiated, opt-in network calls for `model.install` and `craft-update` only —
+`crates/ai` stays offline with its `no_network` test; real permissively licensed (MIT / Apache-2.0 / public
+domain) model weights and offline map data, or an opt-in downloader for them, attributed in
+`docs/ATTRIBUTION.md`; licence `MIT OR Apache-2.0`.
+
+### Phase 0 — Re-scope blockers and fix stale docs
+
+- [x] Re-open the deferred core features as tracked rows (this section) and stop the M8/M9/M10 "Deliberately
+  absent" tables hiding buildable work
+- [x] `docs/RELEASE.md` no longer claims there are no HEIC thumbnails or no map; it lists the real gaps with their phase
+- [x] Workspace dependency audit: 13 unlinked pins with no planned consumer pruned from `Cargo.toml`
+  (`craft-flags`, `craft-fonts-build`, `craft-menu`, `craft-quit`, `craft-dialogs`, `craft-gainmap`,
+  `craft-sniff`, `craft-zip`, `craft-crs`, `craft-webp`, `craft-ipc`, `chrono`, `log`); eight kept with a named
+  phase (`craft-video` P1, `craft-atomic` and `rayon` P2, `craft-keymap`, `craft-update`, `craft-i18n`,
+  `craft-web-api`, `craft-web-host` P4); four linked crates (`craft-heif`, `craft-media`, `craft-jsonrpc`,
+  `craft-mcp`) moved to the "Linked today" table, where they belonged
+
+### Phase 1 — Core engine and media gaps (M1–M3 / M8)
+
+- [ ] 1. Video poster frames (SL-B11 part 2): first sync sample via `craft-video` (`h264-decode`/`hevc-decode`),
+  `ColorTags`-aware YUV→RGB, cached through `sortlens-thumbs`, drawn in grid cells, detail and the cull stage;
+  muxed-fixture round-trip test (C)
+- [ ] 2. Stale-revision rejection (SL-D11): `Error::StaleRevision` on conflicting mutations in
+  `sortlens-catalog`/`sortlens-engine`, plus the stale-revision and badge-contrast tests that close M3's test row (A)
+- [ ] 3. `Recently Added` (SL-A14 part 2): an `added` timestamp on `Photo` with a backwards-compatible snapshot
+  migration (never approximated from `mtime`), last 30 days, in catalog, engine and sidebar (A,B)
+- [ ] 4. PNG export (SL-B24): a licence-approved encoder (`cargo xtask deny`) in `sortlens-export`, offered in the
+  export dialog and the CLI (A)
+
+### Phase 2 — Real local AI tagging (M8)
+
+- [ ] 1. Pin real models: a CPU-friendly ONNX object detector (YOLO-family or RT-DETR) and a CLIP/MobileCLIP
+  image + text pair, with real URLs, byte sizes, SHA-256 digests and licences in `Manifest::shipped()` and
+  `docs/ATTRIBUTION.md` (D)
+- [ ] 2. Consent-gated downloader (SL-F02): `model.install`/`model.remove` in `sortlens-engine` (never in
+  `sortlens-ai`), resumable, progress and cancel in Activity, SHA-256 via `sortlens-ai::store`, status in Settings → AI (D,A)
+- [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04): text embeddings cached per enabled keyword pack at
+  install, detection and image embeddings on the low-priority pool over 384 px previews, through `detect::suppress`
+  and `suggest::merge` (D)
+- [ ] 4. Tag provenance (SL-D12): per-tag source `Manual`/`Ai`/`Xmp` in the catalog with a backwards-compatible
+  snapshot migration, filterable in the UI and CLI (A,B)
+
+### Phase 3 — Adobe/ArtCraft UI/UX overhaul and a visual verification harness (M4–M6 surfaces)
+
+- [ ] 3A. `egui_kittest` screenshot suite behind `cargo xtask screenshots`: Empty Welcome, Library (Justified and
+  Square), Cull, Detail, Compare, Similar, Places, Insights, each in Charcoal and Paper, with committed or
+  cleanly emitted baselines (B)
+- [ ] 3B.1 `Tokens` mapped onto `craft_ui::theme::WidgetPalette`; monochrome SVG icons across top bar, sidebar,
+  filter strip, bottom bar and right panel (B)
+- [ ] 3B.2 Top bar: app mark, `Search photos or ⌘K`, a dual-mode command palette (commands with shortcuts, and
+  photos), text buttons replaced by named, tooltipped icon buttons (Filter + badge, Import, Export, Activity, Help,
+  Appearance, Settings); layout and density move to the canvas header; theme and motion behind one Appearance menu (B)
+- [ ] 3B.3 Sidebar: `SOURCES` holds only photo scopes with icons and live counts; Library health, Changes and
+  Shortcuts move to a utility strip (B)
+- [ ] 3B.4 Bottom bar: icons on every view tab; `Detail`, `Compare` and `Soft Focus` as peer views with narrow-window
+  collapse; centre annotation pill (5-star rating, Pick/Unflag/Reject, selection count); right-side density/size,
+  zoom and `?` controls (B)
+- [ ] 3B.5 Right panel: a `Suggestions` tab beside Details, Tags and Activity, and the far-edge iconic tool strip (B)
+- [ ] 3B.6 Visual defects: Welcome bullets as proper icons; filter bar hidden on an empty library, with glyphs,
+  swatches and chevrons on its controls; Places ships an offline coastline basemap and falls back to the user's
+  `tiles/` and `places.txt` when present (B)
+
+### Phase 4 — Platform, keymap and remote polish (M9–M10)
+
+- [ ] 1. `craft-keymap` editor (SL-I09): rebinding, conflict detection, import/export in Settings → Shortcuts (B)
+- [ ] 2. Packaging and accessibility: `.icns`/`.ico` from `crates/icon` in `xtask`, a High-Contrast preset
+  (SL-L09), `craft-update` behind an explicit opt-in (SL-I10), `craft-i18n` scaffolding (SL-L07) (B,E)
+- [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
+  resumable uploads) and `sortlens-web` reusing `sortlens-ui` (SL-J01..J09), proved by a two-process loopback
+  integration harness in CI (E)
+
+### Phase 5 — Autonomous GitHub maintenance setup
+
+- [ ] 1. `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version, repro, expected vs actual, `sortlens-cli diagnostics`),
+  `feature_request.yml`, and a PR template requiring the linked issue, the failing-then-passing test, the gate
+  confirmations, a `perf` delta for scan/catalog/thumbs and before/after screenshots for `crates/ui` (E)
+- [ ] 2. `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only `agent-ready`/`triaged` issues; never push to
+  `main`, auto-merge, bypass `deny` or touch signing secrets; the repro-first loop ending in a Draft PR; the bounded
+  improvement queue (perf regressions, `enhancement-approved`, unchecked roadmap rows) (E)
+- [ ] 3. `.github/workflows/agent-intake.yml` and a `ci.yml` that runs `ci`, `snapshot`, `deny`, `wasm` and
+  `screenshots` on every PR (E)
 
 ---
 
@@ -923,7 +1006,7 @@ unnamed controls; every budget in `FEATURES.md` §M passes.
 | --- | --- |
 | Native video playback | Poster frames cover culling; decoding + audio is a large surface |
 | Face detection/grouping (SL-F11) | Second model, privacy-sensitive, not core to culling |
-| Compare/Survey (SL-C13/C14) | Cull covers the fast path; compare is precision work |
+| Survey (SL-C14) | Cull and Compare cover the fast path; Compare/Detail/Soft Focus become peer views in Phase 3 |
 | Smart collections (SL-G05) | Filter presets + saved views cover most of it |
 | Keyword hierarchy (SL-D13) | Flat tags match the vendor and XMP interop |
 | Portable mode (SL-I15) | `--data-dir` exists; UI packaging later |
@@ -934,6 +1017,7 @@ unnamed controls; every budget in `FEATURES.md` §M passes.
 
 | Date | Change |
 | --- | --- |
-| 2026-11-21 | **M0–M10 shipped, and the documents reconciled with the tracker.** Everything that needs no weights, no signing identity, no second device and no translation pass is built and tested: 432 tests, one command registry behind the window, the CLI, the MCP server and `--json`; measured numbers in `docs/PERF.md` (which found and fixed a quadratic import); an icon the window actually loads; gates for layer rules, lint headers, asset provenance, fonts, one version, attribution, accessibility names and the documents themselves (`cargo xtask docs`). What remains is itemised in each milestone's "Deliberately absent" table with its unblocker. |
+| 2026-11-22 | **Phase 0 of the completion directive.** "M0–M10 shipped" withdrawn: the buildable features that had been moved into "Deliberately absent" tables are re-opened as Phases 1–5 above. `docs/RELEASE.md` and `docs/ATTRIBUTION.md` corrected, 13 unused dependency pins pruned. Owner sign-offs recorded: opt-in network for model download and update checks, real permissively licensed weights and map data, `MIT OR Apache-2.0`. |
+| 2026-11-21 | **M0–M10 built, and the documents reconciled with the tracker** (the word "shipped" was withdrawn in Phase 0). Everything that needs no weights, no signing identity, no second device and no translation pass is built and tested: 432 tests, one command registry behind the window, the CLI, the MCP server and `--json`; measured numbers in `docs/PERF.md` (which found and fixed a quadratic import); an icon the window actually loads; gates for layer rules, lint headers, asset provenance, fonts, one version, attribution, accessibility names and the documents themselves (`cargo xtask docs`). What remains is itemised in each milestone's "Deliberately absent" table with its unblocker. |
 | 2026-11-21 | Plan written: feature inventory (176), architecture, tooling audit, UX spec, roadmap. Implementation not started; Rust toolchain not yet installed on this machine. |
 | 2026-11-21 | M0 skeleton built on macOS. Toolchain 1.95.0 installed project-locally (`scripts/bootstrap.sh`, `.toolchain/` gitignored). 23 crates scaffolded; `sortlens-core` (ids, labels, units, errors), `sortlens-engine` (registry + `run`), `sortlens-ui` (4 presets, five surfaces, settings/about dialogs), the `sortlens` app (title-bar policy, `craft-settings` store, `fn ui` shell) all compile. `cargo xtask ci` green: fmt, clippy `-D warnings`, 20 tests, layer rules, lint headers, asset provenance. `cargo xtask wasm` green for `sortlens-core` + `sortlens-ui`. `docs/BEHAVIOUR.md` written. Not done: fonts, `cargo deny`, snapshot CI, shortcuts dialog. |

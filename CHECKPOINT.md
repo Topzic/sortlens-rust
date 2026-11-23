@@ -2332,14 +2332,77 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Not verified by hand**: typing a long keyword over several photos on a real keyboard, and how the strip
   wraps when a photo carries many keywords (horizontal_wrapped lays it out; nobody has looked at it).
 
+## 2026-11-22 (twentieth) — Phase 0: re-scope blockers, reconcile the docs (no feature code)
+
+- **Course correction from the owner** (`docs/sortlens_agent_completion_directive.md`): "M0–M10 shipped" was
+  wrong while core features sat in "Deliberately absent" tables. This entry is Phase 0 only; no Phase 1–5 code.
+- `docs/ROADMAP.md`: new **Completion phases** section with Phases 0–5 as checkbox rows (Phase 0 ticked, the
+  rest open). The M8 and M9 "Deliberately absent" tables became "Re-opened" pointers; M10's table lost the
+  `.icns`/`.ico`, `craft-update` and high-contrast rows (now Phase 4) and keeps only what needs an identity, a
+  toolchain, a screen reader or a decision. The two stale M1/M2/M3 rows point at their Phase 1 items. Status log
+  gained a Phase 0 row and the old "shipped" row no longer says shipped.
+- README badge/status and PLAN §12 reworded ("M0–M10 built, core completion in progress"); `cargo xtask docs`
+  still computes `M0–M10` from the tracker, so the range string stays, the claim around it changed. The directive
+  is linked from the README document table.
+- `docs/RELEASE.md`: the "does not have" list rewritten from the facts — HEIC thumbnails and the tile-folder map
+  exist, and PNG/TIFF/WebP *thumbnails* exist; what is missing is video posters, PNG export, models and the
+  downloader, a bundled basemap, the remote, i18n and the keymap editor, installers, and the UI pass — each with
+  its phase.
+- **Dependency audit** (21 declared-but-unlinked pins, not 25: `craft-heif`, `craft-media`, `craft-jsonrpc` and
+  `craft-mcp` had been linked since, and their attribution rows were still in the "not linked" table — moved to
+  "Linked today"; the `craft-mcp`/`craft-jsonrpc` "hand-written" reasons were stale). Pruned from
+  `[workspace.dependencies]` as having no consumer in Phases 1–5: `craft-flags`, `craft-fonts-build`,
+  `craft-menu`, `craft-quit`, `craft-dialogs`, `craft-gainmap`, `craft-sniff`, `craft-zip`, `craft-crs`,
+  `craft-webp`, `craft-ipc`, `chrono`, `log`. Kept, each tied to a phase in `docs/ATTRIBUTION.md`'s new
+  "Linked by" column: `craft-video` (P1), `craft-atomic` and `rayon` (P2), `craft-keymap`, `craft-update`,
+  `craft-i18n`, `craft-web-api`, `craft-web-host` (P4). `Cargo.lock` is unchanged (unlinked pins are not locked).
+- Owner sign-offs recorded in ROADMAP: opt-in network only for `model.install` and `craft-update` (`crates/ai`
+  stays offline), real permissively licensed weights and map data attributed in `docs/ATTRIBUTION.md`, licence
+  `MIT OR Apache-2.0`.
+- **Not verified by hand**: nothing visual changed.
+
 ## Next
 
-M4 is fully checked. Next in the named-absent tail, one row per run: **video posters part 2** —
-poster file written beside the video first (scan/media + catalog), then the UI (grid cells and
-detail), same shape as GPS: ROADMAP M2 row, absent by design with a named blocker. Then the M3
-rows still open: stale-revision rejection (SL-D11) and the XMP round-trip / filter-algebra test
-row. Keep the discipline: a test that would fail if the behaviour were absent, and the ROADMAP row
-ticked in the same commit.
+Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
+that fails when the behaviour is absent, its ROADMAP row ticked and a CHECKPOINT entry in the same commit.
+Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, and `wasm` when `crates/core`,
+`crates/ui` or wasm-facing crates change. The full text is in `docs/ROADMAP.md` "Completion phases".
 
-Note for the next run: this Windows checkout now has its own toolchain (`.toolchain`) —
+**Phase 1 — core engine and media gaps**
+1. **Video poster frames** (SL-B11 part 2) — **start here.** `craft-video` first sync sample, `ColorTags`-aware
+   YUV→RGB, cached via `sortlens-thumbs`, shown in grid, detail and cull; muxed-fixture round-trip test. Wire
+   `craft-video` into the right crate manifest (it is the only Phase 1 dependency still unlinked).
+2. Stale-revision rejection (SL-D11) + the stale-revision and badge-contrast tests that close M3.
+3. `Recently Added` (SL-A14 part 2): `added` timestamp, snapshot migration, catalog/engine/sidebar.
+4. PNG export (SL-B24): licence-approved encoder, export dialog and CLI.
+
+**Phase 2 — real local AI tagging**
+5. Pin real ONNX models (detector + CLIP/MobileCLIP) in `Manifest::shipped()` and `ATTRIBUTION.md`.
+6. `model.install`/`model.remove` consent-gated resumable downloader in `sortlens-engine`; Settings → AI.
+7. `tract-onnx` inference (per-pack text embeddings, detection, image embeddings) through NMS and `suggest::merge`.
+8. Tag provenance (SL-D12) with snapshot migration; filter by source in UI and CLI.
+
+**Phase 3 — UI/UX overhaul**
+9. `egui_kittest` screenshot harness, `cargo xtask screenshots`, Charcoal and Paper baselines (do this before 10–15).
+10. `WidgetPalette` mapping + monochrome SVG icon set.
+11. Top bar declutter, `⌘K` dual-mode palette, icon buttons, Appearance menu, canvas header layout/density.
+12. Sidebar: scopes only in `SOURCES`, utility strip for Health/Changes/Shortcuts.
+13. Bottom bar: icon tabs, Detail/Compare/Soft Focus peers, annotation pill, right-side controls.
+14. Right panel: Suggestions tab + iconic tool strip.
+15. Visual defects: Welcome bullets, empty-library filter bar, filter glyphs/chevrons, bundled offline basemap.
+
+**Phase 4 — platform, keymap, remote**
+16. `craft-keymap` editor in Settings → Shortcuts.
+17. `.icns`/`.ico` in `xtask`, High-Contrast preset, opt-in `craft-update`, `craft-i18n` scaffolding.
+18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI.
+
+**Phase 5 — autonomous GitHub maintenance**
+19. Issue/PR templates.
+20. `docs/AUTONOMOUS_AGENT.md`.
+21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`).
+
+Stop condition: every row under "Completion phases" ticked. Never move a buildable feature into a
+"Deliberately absent" table to close a milestone.
+
+Note for the next run: this Windows checkout has its own toolchain (`.toolchain`) —
 `. scripts/env.sh && cargo xtask ci` works as documented.
