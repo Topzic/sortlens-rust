@@ -165,15 +165,32 @@ impl Fixture {
             payload.extend_from_slice(&craft_metadata::write_exif(&metadata));
             segments.push((0xE1, payload));
         }
-        let packet = format!(
-            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF \
-             xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" \
-             xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\" tiff:ImageWidth=\"{width}\" \
-             tiff:ImageLength=\"{height}\"/></rdf:RDF></x:xmpmeta>"
-        );
-        let mut xmp = b"http://ns.adobe.com/xap/1.0/\0".to_vec();
-        xmp.extend_from_slice(packet.as_bytes());
-        segments.push((0xE1, xmp));
+        segments.push((0xE1, xmp_dimensions(width, height)));
+        self.encode(rel, pattern.pixels(width, height), width, height, &segments)
+    }
+
+    /// Write a JPEG the way a camera would: a make and model, an ISO and a focal length, dimensions in XMP, and a
+    /// location in EXIF when one is given.
+    ///
+    /// [`Self::jpeg_with_pattern`] writes no camera at all, so every suggestion a fixture can produce comes from a
+    /// keyword pack. A photograph whose *file* proposes keywords needs a file that says who took it and how, which is
+    /// what this writes — the same EXIF path the application reads, so a test cannot pass on invented bytes.
+    pub fn jpeg_with_camera(&self, rel: &str, width: usize, height: usize, pattern: Pattern, camera: Camera<'_>) -> PathBuf {
+        let metadata = craft_metadata::Metadata {
+            make: Some(camera.make.to_string()),
+            model: Some(camera.model.to_string()),
+            iso: camera.iso,
+            focal_length: camera.focal,
+            gps: camera.place.map(|(latitude, longitude)| craft_metadata::Gps {
+                latitude,
+                longitude,
+                altitude: Some(0.0),
+            }),
+            ..Default::default()
+        };
+        let mut payload = b"Exif\0\0".to_vec();
+        payload.extend_from_slice(&craft_metadata::write_exif(&metadata));
+        let segments: Vec<(u8, Vec<u8>)> = vec![(0xE1, payload), (0xE1, xmp_dimensions(width, height))];
         self.encode(rel, pattern.pixels(width, height), width, height, &segments)
     }
 
@@ -220,6 +237,40 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.dir);
     }
+}
+
+/// What a fixture file claims to have been taken with.
+///
+/// A struct rather than six parameters, because the two camera fields, the two exposure fields and the place are one
+/// idea: a file that says what took it.
+#[derive(Debug, Clone, Copy)]
+pub struct Camera<'a> {
+    /// Manufacturer, as EXIF `Make`.
+    pub make: &'a str,
+    /// Model, as EXIF `Model`.
+    pub model: &'a str,
+    /// ISO speed.
+    pub iso: Option<u32>,
+    /// Focal length in millimetres.
+    pub focal: Option<f64>,
+    /// GPS fix, when the body had one.
+    pub place: Option<(f64, f64)>,
+}
+
+/// The XMP packet that records a JPEG's pixel dimensions, as an APP1 segment.
+///
+/// A camera writes these in EXIF and an editor writes them in XMP; the suite's EXIF writer does not, so both fixture
+/// helpers put them here. One function so the two cannot disagree about where a reader should look.
+fn xmp_dimensions(width: usize, height: usize) -> Vec<u8> {
+    let packet = format!(
+        "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF \
+         xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" \
+         xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\" tiff:ImageWidth=\"{width}\" \
+         tiff:ImageLength=\"{height}\"/></rdf:RDF></x:xmpmeta>"
+    );
+    let mut xmp = b"http://ns.adobe.com/xap/1.0/\0".to_vec();
+    xmp.extend_from_slice(packet.as_bytes());
+    xmp
 }
 
 #[cfg(test)]

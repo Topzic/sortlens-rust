@@ -112,6 +112,12 @@ Sidecars are on by default (`Settings > Library > Write sidecars`).
   it is not an edit to the file.
 - A library written before sources were recorded has `Unrecorded` for those keywords. Sortlens does
   not guess `Manual`: "nobody wrote it down" and "a person typed it" are different facts.
+- **A dismissed suggestion is catalogue-only too.** Dismissing a proposal records the keyword in the
+  photo's `dismissed_suggestions` (`Op::SuggestionDismissed`, one op for the whole selection, undone by
+  one ⌘Z) and nothing in the sidecar: it is a decision about what Sortlens should offer, not a fact about
+  the photograph, so another application must not inherit it and it does not touch `rev`. It is stored
+  rather than derived because the proposals are derived — a refusal kept only on screen would last until
+  the panel was reopened.
 
 ## 5. Scan and identity
 

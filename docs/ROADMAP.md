@@ -1100,7 +1100,21 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   control's snapping. Three new baselines (`soft-focus-charcoal`/`-paper`, and `narrow-charcoal` at 900 px for
   the collapsed row) and all 20 existing ones regenerated and read; the screenshot accessibility pass found the
   sharpness slider unnamed, which is fixed
-- [ ] 3B.5 Right panel: a `Suggestions` tab beside Details, Tags and Activity, and the far-edge iconic tool strip (B)
+- [x] 3B.5 Right panel: a `Suggestions` tab beside Details, Tags and Activity, and the far-edge iconic tool strip (B)
+  — shipped 2026-11-23, see the thirty-fifth entry: `RightTab::ALL` is four (Details, Tags, Suggestions, Activity)
+  and `right_tools` is a 30-point rail on the far right, painted whether the body is open or not, so switching
+  tools never hides the panel and clicking the active tool is the one way to close it. The panel's own tab row is
+  gone; a header names the active tool in words. The Suggestions tab groups proposals into three families
+  (Objects / Scene / EXIF), prints each one's confidence, source and — when it does not cover the whole selection
+  — how many photographs it applies to, and offers `+ keyword` per row plus `Accept all` per family. Accepting and
+  dismissing are one undo for the whole selection: `Engine::accept_suggestions` writes every keyword and its `Ai`
+  provenance in one `Op::Group`, and dismissal is a new `Op::SuggestionDismissed` on `Photo::dismissed_suggestions`,
+  a real record with `suggest.dismiss` in the registry, an MCP example and a `dismiss` CLI verb, because a
+  dismissal kept only on screen would last until the panel was reopened. The specimen that proves a dismissal
+  outlives the panel: the catalog test reopens the library, undoes, redoes, and asserts a library that never
+  dismissed anything writes no such field. Two new baselines (`suggestions-charcoal`/`-paper`) and all 25 existing
+  ones regenerated and read; the fixture gained a keyword pack and two frames with real camera EXIF, because a
+  fixture JPEG is silent and one family would not test a grouping
 - [ ] 3B.6 Visual defects: Welcome bullets as proper icons; filter bar hidden on an empty library, with glyphs,
   swatches and chevrons on its controls; Places ships an offline coastline basemap and falls back to the user's
   `tiles/` and `places.txt` when present (B). The 3A baselines recorded three more: Places opens at zoom 5, so a

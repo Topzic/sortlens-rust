@@ -107,6 +107,36 @@ fn library() -> Library {
         fixture.jpeg_with_pattern(&rel, width, height, pattern, place);
     }
 
+    // Two of the twelve say who took them and how. A fixture JPEG normally carries no camera at all, and without one
+    // the Suggestions tab could only ever show the pack's family — the grouping would be untested by the one artefact
+    // that is supposed to prove it. Rewritten before the scan, so the catalog sees one version of each file.
+    fixture.jpeg_with_camera(
+        "Photos/Trip/IMG_0001.jpg",
+        96,
+        64,
+        Pattern::Gradient(1),
+        sortlens_testkit::Camera {
+            make: "Nikon",
+            model: "Z6",
+            iso: Some(6400),
+            focal: Some(24.0),
+            place: Some((50.82, -0.13)),
+        },
+    );
+    fixture.jpeg_with_camera(
+        "Photos/Studio/IMG_0002.jpg",
+        64,
+        96,
+        Pattern::Gradient(2),
+        sortlens_testkit::Camera {
+            make: "Fujifilm",
+            model: "X-T5",
+            iso: None,
+            focal: Some(56.0),
+            place: None,
+        },
+    );
+
     let library_dir = fixture.root().join("Library");
     let mut engine = Engine::open(&library_dir).expect("library opens");
     engine.begin_scan(root.to_string_lossy().to_string()).expect("scan starts");
@@ -139,6 +169,22 @@ fn library() -> Library {
     engine.set_tag(&photos[7..8], "portrait", true).expect("keyword");
     let keepers = engine.create_collection("Keepers").expect("collection");
     engine.add_to_collection(&photos[0..4], keepers).expect("collection members");
+
+    // A keyword pack, switched on, because a fixture JPEG carries no EXIF: without it the Suggestions tab and the
+    // detail view's suggestion row would be empty in every baseline, and an empty panel is not evidence that the
+    // panel works. Two rules, one per fixture folder, so a selection spanning both folders shows two families at
+    // once and a keyword that applies to only part of the selection prints its count.
+    std::fs::create_dir_all(library_dir.join(sortlens_engine::PACKS_DIR)).expect("packs dir");
+    std::fs::write(
+        library_dir.join(sortlens_engine::PACKS_DIR).join("coast.json"),
+        r#"{"name":"Coast","licence":"CC0-1.0","keywords":[{"keyword":"shoreline","when":{"folder_contains":"Trip"}},{"keyword":"golden hour","when":{"folder_contains":"Trip"}},{"keyword":"studio light","when":{"folder_contains":"Studio"}}]}"#,
+    )
+    .expect("write pack");
+    engine.set_pack("Coast", true).expect("enable the pack");
+    assert!(
+        !engine.suggestions(photos[0]).is_empty(),
+        "the Suggestions baselines paint real proposals, not an empty state"
+    );
 
     // The hash pass runs once, before anything is painted, so the Similar baseline is a settled
     // result rather than a progress bar.
@@ -232,6 +278,39 @@ fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engi
         .try_snapshot(name)
         .expect("the baseline matches, or its .new/.diff companions say exactly where it does not");
     harness.into_state().engine
+}
+
+/// The Suggestions tab, with real proposals from the switched-on pack for a selection spanning both folders.
+///
+/// This is Phase 3B.5's visual proof: the fourth tab on the far-edge rail, the panel's header naming it, one family
+/// per source with its confidence, and the `2×` that says a keyword applies to part of the selection.
+#[test]
+fn suggestions_paints_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        // Picked by what each record says, not by id: the scan enumerates the filesystem and the ids do not follow the
+        // order this file writes the frames in. The two camera frames plus one that has only the pack, so the baseline
+        // shows both families, a count that is not the selection size, and the difference between them at a glance.
+        let engine = library.take();
+        let mut chosen: Vec<PhotoId> = engine
+            .all_photos()
+            .iter()
+            .filter(|photo| !photo.camera.is_empty())
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(chosen.len(), 2, "two frames carry a camera");
+        let silent = engine
+            .all_photos()
+            .iter()
+            .find(|photo| photo.camera.is_empty())
+            .map(|photo| photo.id)
+            .expect("a frame with no camera exists");
+        chosen.push(silent);
+        let mut scene = scoped(new_scene(kind, engine, &library.cache()), &library.root);
+        scene.state.right_tab = sortlens_ui::RightTab::Suggestions;
+        scene.state.selection.select_many(&chosen);
+        library.keep(shoot(kind, scene, &format!("suggestions-{}", kind_id(kind))));
+    }
 }
 
 /// The empty state a first launch shows: no folder, no photographs, the welcome copy.

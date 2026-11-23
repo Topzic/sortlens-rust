@@ -418,6 +418,11 @@ pub const EXAMPLES: &[Example] = &[
         note: "id: one photo; tag: a suggestion to write as an ordinary keyword",
     },
     Example {
+        command: "suggest.dismiss",
+        args: r#"{"ids": [1], "tag": "low light"}"#,
+        note: "ids: photos; tag: a suggestion to stop proposing for them; one undo brings it back",
+    },
+    Example {
         command: "edit.cancelExport",
         args: "{}",
         note: "Stops a running export; files already written stay written.",

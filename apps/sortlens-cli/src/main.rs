@@ -30,6 +30,8 @@ Commands:
   untag <id> <keyword>      remove a keyword
   suggest <id>              what the file's own EXIF suggests
   accept <id> <keyword>     accept one of those suggestions
+  dismiss <id[,id...]> <keyword>
+                            stop proposing a keyword for these photos; one undo brings it back
   packs                     keyword packs found in the library
   pack <name> on|off        switch a pack on or off
   batchsuggest             propose keywords for the whole library (writes nothing)
@@ -313,6 +315,16 @@ fn suggestions(engine: &mut Engine, command: &str, rest: &[String]) -> Result<()
         return Ok(());
     }
     let keyword = rest.get(1).ok_or("a keyword is required")?;
+    if command == "dismiss" {
+        // `dismiss <id[,id...]> <keyword>`: every id on one line, so a batch is one line and one undo step.
+        let ids = parse_ids(&rest[0])?;
+        let recorded = engine
+            .dismiss_suggestions(&ids, std::slice::from_ref(keyword))
+            .map_err(|error| error.to_string())?;
+        let verb = if recorded > 0 { "stops suggesting" } else { "already dismissed" };
+        println!("{verb} {keyword} on {recorded} photo(s)");
+        return Ok(());
+    }
     let changed = engine.accept_suggestion(id, keyword).map_err(|error| error.to_string())?;
     let verb = if changed { "tagged" } else { "already tagged" };
     println!("{id}: {verb} {keyword}");
@@ -679,6 +691,12 @@ const SCHEMAS: &[Schema] = &[
         note: "`tagged` is 1 when the keyword was added, 0 when the photo already had it",
     },
     Schema {
+        verb: "dismiss",
+        command: "suggest.dismiss",
+        kind: Kind::Write,
+        note: "`dismissed` is how many photos newly stopped being offered that keyword; 0 when it already had",
+    },
+    Schema {
         verb: "pack",
         command: "packs.set",
         kind: Kind::Write,
@@ -872,6 +890,10 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
             let tag = rest.get(1).ok_or("a keyword is required")?;
             serde_json::json!({ "id": id.0, "tag": tag })
         }
+        "dismiss" => {
+            let tag = rest.get(1).ok_or("a keyword is required")?;
+            serde_json::json!({ "ids": ids()?, "tag": tag })
+        }
         "pack" => {
             let name = rest.first().ok_or("a pack name is required")?;
             let on = match rest.get(1).map(String::as_str).unwrap_or("on") {
@@ -1054,7 +1076,7 @@ fn run() -> Result<(), String> {
         // The photo-field verbs are all "read the id, read the value, write it" — one helper, so the
         // command table stays a table.
         "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
-        "suggest" | "accept" => suggestions(&mut engine, &command, rest),
+        "suggest" | "accept" | "dismiss" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
         "models" | "model-consent" | "model-install" | "model-remove" => models(&mut engine, &command, rest),
         "batchsuggest" => batch_suggest(&mut engine),

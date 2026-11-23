@@ -170,6 +170,12 @@ exit 0
     "verb": "accept"
   },
   {
+    "command": "suggest.dismiss",
+    "kind": "write",
+    "note": "`dismissed` is how many photos newly stopped being offered that keyword; 0 when it already had",
+    "verb": "dismiss"
+  },
+  {
     "command": "packs.set",
     "kind": "write",
     "note": "`changed` is 1 when the switch moved, 0 when the pack was already in that state",

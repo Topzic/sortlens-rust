@@ -242,6 +242,7 @@ mod tests {
             focal: None,
             tags: Vec::new(),
             tag_sources: std::collections::BTreeMap::new(),
+            dismissed_suggestions: std::collections::BTreeSet::new(),
             edited: false,
             retry: false,
             sharpness: None,

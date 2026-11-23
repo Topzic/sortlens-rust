@@ -1,5 +1,68 @@
 # Checkpoint
 
+## 2026-11-23 (thirty-fifth) — Phase 3B.5: the fourth question, and a rail that never goes away
+
+- **`RightTab::ALL` is four.** Details, Tags, Suggestions, Activity — Suggestions between Tags and Activity, which is
+  the order `docs/UX.md` §6 has claimed since the panel was designed and which the enum now enforces because the rail
+  paints in `RightTab::ALL` order. The panel's own tab row is gone: it was four labelled buttons that ate the top of a
+  250–420 px column to say what a glyph now says.
+- **The far-edge rail.** `right_tools` is a 30-point `Panel::right` called *before* `right_panel`, so it owns the
+  window's edge and the body sits inside it. It paints whether `state.right_open` is true or not — that is what makes
+  it a rail and not a tab bar — every entry is `Button::image` with `Role::Tab` and the tab's name as its accessible
+  name and tooltip, and the active one carries the selection fill. Switching tools keeps the body open; clicking the
+  *active* tool closes it. That second behaviour is the one design decision here: the pattern's whole promise is "the
+  panel never disappears when you switch tools", and a rail with no way to close the body would hold 340 points of a
+  900-point window forever. The panel header now prints the active tool's name in words, because the rail is glyphs.
+- **The Suggestions tab** answers for the whole selection, not one photo: `suggestions_for_all` is merged into one row
+  per keyword with the best confidence any selected photo offered and the number of photographs it applies to. Rows are
+  grouped into three families — Objects (`Detector`), Scene (`Pack`/`Caption`), EXIF (`ExifHint`) — because "the camera
+  said so" and "a model guessed" are different kinds of claim, and one family list would ask a person to trust them
+  equally. Each row carries `+ keyword`, its confidence, its source, and `×`; each family carries `Accept all`. The
+  count prints only when the proposal is *partial* (`1×` of a three-photo selection) — `3×` on every row is noise.
+- **Accepting a kind is one ⌘Z.** `write_tags` replaced the body of `set_tag_from` and now takes a list of keywords, so
+  `accept_suggestions(ids, tags)` is the same write as typing one keyword, N times in one `Op::Group` — the words first,
+  then their `Ai` provenance. `set_tag_from` keeps its exact behaviour (`last_tag` set whenever `add`, even when nothing
+  changed; sidecars synced unconditionally) by delegating and doing those two things itself; the positive path returns
+  `(photos changed, keywords added)` so the notice can say how many keywords, not how many rows.
+- **Dismissal is stored, because a proposal is derived.** `Photo.dismissed_suggestions: BTreeSet<String>` with
+  `#[serde(default, skip_serializing_if)]`, and `Op::SuggestionDismissed { changes: Vec<(PhotoId, Vec<String>)> }`
+  carrying each photo's complete new set — the same read-then-replace shape as `Op::Tagged`, so the inverse is the
+  previous set and one undo returns the proposal. `catalog::dismiss_suggestions` records only where something is
+  actually new (dismissing twice is `Ok(0)` and spends no undo level); `suggestions_for` filters dismissed candidates
+  *before* `merge` applies the eight-slot cap, so a refused proposal cannot occupy a live one's place. The revision is
+  deliberately not bumped and nothing reaches a sidecar — `docs/BEHAVIOUR.md` §4 says both, next to provenance, for the
+  same reason: another application must not inherit our opinion about what to offer.
+- **Two doors onto it, not one.** `suggest.dismiss` is a `Ready` registry command (`{ids, tag}` → `dismissed`), with an
+  MCP example and a `sortlens-cli dismiss <ids> <tag>` verb (`--json` schema included), because a decision that lives
+  in the catalog and is undoable is a library change and the registry is where library changes are described. The CLI's
+  non-JSON form prints how many photographs newly stopped being offered it.
+- **A new glyph: `wand`.** Suggestions are a proposal, and reusing `sparkle` (memories) or `tag` (keywords) would have
+  made the rail say something it does not mean. 40 glyphs now; the enum, the catalog, the folder and the rasterise
+  tests all walk the new one.
+- Files: `crates/catalog/src/{photo,op,store}.rs`, `crates/engine/src/{lib,command}.rs`, `crates/mcp/src/examples.rs`,
+  `apps/sortlens-cli/src/main.rs` (+ two regenerated goldens), `crates/ui/src/{shell,icons}.rs`,
+  `assets/icons/wand.svg`, `crates/ui/tests/screenshots.rs`, `crates/testkit/src/lib.rs` (`Camera` +
+  `jpeg_with_camera`), and the reconciled `docs/{ROADMAP,UX,ARCHITECTURE,BEHAVIOUR,PACKS,CLI}.md`.
+- Tests: catalog (dismiss → reopen → dismissed, one undo for the batch, redo, `Ok(0)` on a repeat, refusals for an
+  empty keyword and an unknown photo, and a snapshot that never mentions the field when nothing was dismissed); engine
+  (a dismissed proposal is not offered while the rest are, the cap counts live proposals only, accept-two-kinds on
+  three photos is six keywords in one ⌘Z that undo removes wholesale, dismissal is one op and undo returns it); UI
+  (`Context::run_ui`: the rail holds four glyphs, clicking the third opens Suggestions *with the panel still open*,
+  switching to Tags keeps it open, clicking the active tool closes the body while the rail stays, and nothing asks the
+  host for anything; the Suggestions tab paints `Scene` for a pack, `+ jpeg` on click tags all three selected photos
+  with `TagSource::Ai`, one undo empties them, `×` dismisses for all three and the engine stops proposing it).
+- **Visual verification**: `cargo xtask screenshots` — two new baselines (`suggestions-charcoal`/`-paper`) and all 25
+  existing ones regenerated and read. The lab book was checked against the fixture: the fixture gained a keyword pack
+  (`Coast`: `shoreline`/`golden hour` for `Trip`, `studio light` for `Studio`) and two frames with real camera EXIF
+  (`Nikon Z6` at ISO 6400/24 mm, `Fujifilm X-T5` at 56 mm), because a fixture JPEG carries no EXIF and one family would
+  not have tested a grouping. The baseline now shows Scene 3 + EXIF 5, `1×` on the two Trip-only keywords, `2×` on
+  `studio light`, and the detail view's "Suggested" row carrying `+ fujifilm x-t5 + studio light + normal`.
+- 701 tests; ci, wasm, deny, snapshot, screenshots, a11y, docs, layers, roots, attribution green.
+- **Not verified by hand**: the rail at a touch target's real size on a 2× display (14-point glyphs in 24-point rows is
+  a mouse target, and a 30-point rail is thinner than the 44-point rule would like), and whether `Accept all` beside a
+  long family name crowds the `×` column at the panel's 250-point minimum. Both are named here rather than claimed
+  fixed.
+
 ## 2026-11-23 (thirty-fourth) — Phase 3B.4: nine destinations, and a bar that says what you are looking at
 
 - **Detail, Compare and Soft Focus are destinations now, not a mode flag and a section.** `View::ALL` is nine:
@@ -3066,18 +3129,27 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 13. **The bottom bar (3B.4) — done 2026-11-23**, see the thirty-fourth entry: nine destinations with a measured
     narrow-window collapse, the annotation pill, the size slider and zoom/`?` controls, and three new `Ready`
     view commands.
-14. **The next slice — the right panel (3B.5).** `crates/ui/src/shell.rs`, `RightTab` and `right_panel`: add a
-    fourth `Suggestions` tab beside Details, Tags and Activity (grouped by source — objects / scene / EXIF,
-    with confidence, accept-all-of-kind and dismiss; the engine's `suggestions(id)` and `accept_suggestion`
-    already exist, and the Suggestions *dialog* is the library-wide pass, not this tab), and put the far-edge
-    iconic tool strip down the panel's right edge so the panel never disappears when you switch tools. Read
-    `docs/UX.md` §6 and keep `RightTab::ALL` as the tab order; add a Suggestions row to the screenshots scenes
-    that show a selected photo and regenerate those baselines.
-15. Visual defects: Welcome bullets, empty-library filter bar, filter glyphs/chevrons, bundled offline basemap.
-    Two more were observed while painting 3B.4's 900×620 baseline and are *not* fixed there: at ~620 px of height
-    the sidebar's pinned foot (Recently Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps
-    the keyword and collection rows above it, and at 900 px with both docks open the canvas header's title runs
-    under the right-aligned sort combo.
+14. **The right panel (3B.5) — done 2026-11-23**, see the thirty-fifth entry: `RightTab::ALL` is four with
+    Suggestions between Tags and Activity, `right_tools` is the 30-point far-edge rail that is painted whether the
+    body is open or not, the tab row is gone and a header names the active tool. Proposals are grouped into
+    Objects / Scene / EXIF for the whole selection, with confidence, partial-selection counts, `Accept all` per
+    family and `×` per row; accepting a family is one ⌘Z (`Engine::accept_suggestions` over one `Op::Group`) and
+    dismissal is a stored, undoable `Op::SuggestionDismissed` with `suggest.dismiss` in the registry, an MCP
+    example and a CLI verb. Two new baselines plus all 25 regenerated and read. Named as not shipped there: the
+    rail's 14-point glyphs in 24-point rows are a mouse target, not a touch one, and `Accept all` beside a long
+    family name is unverified at the panel's 250-point minimum.
+15. **The next slice — the visual defects (3B.6).** In this order, because the first is what every other one is
+    measured against: (a) the Welcome bullets are `•` text where they should be the icon set's own glyphs;
+    (b) the filter strip paints on an empty library and should be hidden there, its controls want star/flag glyphs,
+    colour swatches and dropdown chevrons rather than flat text; (c) Places ships the offline coastline basemap and
+    falls back to the user's `tiles/` and `places.txt`, which also fixes Places opening at zoom 5 with both
+    clusters off-screen (the baseline zooms to 3 to show the dots); (d) at ~620 px of height the sidebar's pinned
+    foot (Recently Deleted / Check Library / Recent Changes / Keyboard Shortcuts) overlaps the keyword and
+    collection rows above it; (e) at 900 px with both docks open the canvas header's title runs under the
+    right-aligned sort combo; (f) the cull keyword row clips under the bottom bar at 900 px; (g) `←`/`→` are still
+    text in the keymap overlay and the registry's `shortcut` strings, where the bundled faces have no glyph. A
+    fix here is a regenerated baseline that is read, not a claim; (d)–(g) were each *observed*, so each one is
+    "the baseline is clean and the geometry test says so" or it is not done.
 
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts.

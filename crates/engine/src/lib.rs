@@ -1523,44 +1523,103 @@ impl Engine {
     /// itself wrongly. Removing a keyword drops its source with it, so a word typed again later is not credited with
     /// the origin of the word it replaced.
     pub fn set_tag_from(&mut self, ids: &[PhotoId], tag: &str, add: bool, source: TagSource) -> Result<usize> {
+        let tag = self.canonical_tag(tag)?;
+        let (count, _) = self.write_tags(ids, std::slice::from_ref(&tag), add, source)?;
+        if add {
+            self.last_tag = Some(tag);
+        }
+        self.sync_sidecars(ids);
+        Ok(count)
+    }
+
+    /// Accept several suggestions at once for a whole selection, as one undoable change.
+    ///
+    /// "Accept all of this kind" is one decision, so it must be one ⌘Z: every keyword and its provenance go into a
+    /// single group, exactly as a hand-typed keyword does. Returns how many keywords were added — a proposal the photo
+    /// already carries is not counted, and a list where nothing changed is not a change at all.
+    pub fn accept_suggestions(&mut self, ids: &[PhotoId], tags: &[String]) -> Result<usize> {
+        if tags.is_empty() {
+            return Err(Error::Invalid("a suggestion needs a keyword".into()));
+        }
+        let mut canonical = Vec::with_capacity(tags.len());
+        for tag in tags {
+            let tag = self.canonical_tag(tag)?;
+            if !canonical.contains(&tag) {
+                canonical.push(tag);
+            }
+        }
+        // Accepted by a machine's proposal and then written by the person who agreed: `Ai` is the record of that
+        // agreement, and it is why the library can later be filtered down to the words a model contributed.
+        let (_, added) = self.write_tags(ids, &canonical, true, TagSource::Ai)?;
+        self.sync_sidecars(ids);
+        Ok(added)
+    }
+
+    /// Stop proposing these keywords for these photos.
+    ///
+    /// Recorded in the catalog rather than in the panel, because the panel asks the same question every time it is
+    /// opened: a dismissal kept only on screen would last until the next reopen, which is a button that does nothing.
+    /// One op, so one ⌘Z brings the proposals back.
+    pub fn dismiss_suggestions(&mut self, ids: &[PhotoId], tags: &[String]) -> Result<usize> {
+        let catalog = self.catalog.as_mut().ok_or_else(|| Error::Invalid("no library is open".into()))?;
+        catalog.dismiss_suggestions(ids, tags)
+    }
+
+    /// A keyword's real name: normalised, with a rename alias followed.
+    fn canonical_tag(&self, tag: &str) -> Result<String> {
         let tag = normalize_tag(tag)?;
         // A keyword renamed earlier still means its current name.
-        let tag = match self.catalog.as_ref() {
+        Ok(match self.catalog.as_ref() {
             Some(catalog) => catalog.resolve_tag(&tag),
             None => tag,
-        };
+        })
+    }
+
+    /// Write these keywords onto these photos as one group: the words first, then their provenance.
+    ///
+    /// Returns how many photos changed and how many keywords were added. Split out of [`Self::set_tag_from`] so that
+    /// "accept every suggestion of this kind" is the same write as typing one keyword, N times in one step, rather
+    /// than a second implementation that could disagree about provenance or about what counts as a change.
+    fn write_tags(&mut self, ids: &[PhotoId], tags: &[String], add: bool, source: TagSource) -> Result<(usize, usize)> {
         let mut changes = Vec::new();
         let mut sources = Vec::new();
+        let mut added = 0;
         for id in ids {
             let photo = self.photo(*id).ok_or(Error::NoSuchPhoto(*id))?;
-            let mut tags = photo.tags.clone();
-            if add {
-                if !tags.iter().any(|existing| existing == &tag) {
-                    tags.push(tag.clone());
+            let mut next = photo.tags.clone();
+            for tag in tags {
+                let carried = next.iter().any(|existing| existing == tag);
+                if add {
+                    if !carried {
+                        next.push(tag.clone());
+                        added += 1;
+                    }
+                } else {
+                    next.retain(|existing| existing != tag);
                 }
-            } else {
-                tags.retain(|existing| existing != &tag);
             }
-            tags.sort_unstable();
-            tags.dedup();
-            if tags != photo.tags {
-                changes.push((*id, tags));
+            next.sort_unstable();
+            next.dedup();
+            if next != photo.tags {
+                changes.push((*id, next));
             }
             let mut map = photo.tag_sources.clone();
-            if add {
-                // First writer wins: a word already on the photo is not written twice, and re-typing it by hand does
-                // not quietly relabel where it came from.
-                map.entry(tag.clone()).or_insert(source);
-            } else {
-                map.remove(&tag);
+            for tag in tags {
+                if add {
+                    // First writer wins: a word already on the photo is not written twice, and re-typing it by hand
+                    // does not quietly relabel where it came from.
+                    map.entry(tag.clone()).or_insert(source);
+                } else {
+                    map.remove(tag);
+                }
             }
-            map.retain(|name, _| name == &tag || photo.has_tag(name));
+            map.retain(|name, _| tags.iter().any(|tag| tag == name) || photo.has_tag(name));
             if map != photo.tag_sources {
                 sources.push((*id, map));
             }
         }
         if changes.is_empty() && sources.is_empty() {
-            return Ok(0);
+            return Ok((0, 0));
         }
         let count = changes.len();
         // The tags first, then the provenance: the second op is pruned against the tags the first one set, so the map
@@ -1582,11 +1641,7 @@ impl Engine {
                 self.mutate(Op::Group { ops })?;
             }
         }
-        if add {
-            self.last_tag = Some(tag);
-        }
-        self.sync_sidecars(ids);
-        Ok(count)
+        Ok((count, added))
     }
 
     /// Where a keyword on a photo came from, for a tooltip or a CLI report.
@@ -3571,6 +3626,14 @@ impl Engine {
                     .ok_or_else(|| Error::Invalid("a keyword is required".into()))?;
                 Ok(json!({ "tagged": self.accept_suggestion(id, tag)? }))
             }
+            "suggest.dismiss" => {
+                let ids = ids_from(args)?;
+                let tag = args
+                    .get("tag")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::Invalid("a keyword is required".into()))?;
+                Ok(json!({ "dismissed": self.dismiss_suggestions(&ids, &[tag.to_string()])? }))
+            }
             "edit.export" => {
                 let dest = args
                     .get("dest")
@@ -4452,6 +4515,9 @@ fn suggestions_for(
         let _ = detector;
         let _ = image_embedder;
     }
+    // A keyword this photo's owner dismissed is not proposed again. Filtered here, before the merge applies the cap,
+    // so a dismissed proposal cannot occupy one of the eight slots a live one would otherwise have.
+    candidates.retain(|candidate| !photo.dismissed(&candidate.tag));
     sortlens_ai::merge(&candidates, &photo.tags, *caps)
 }
 
@@ -5196,6 +5262,7 @@ mod tests {
             focal,
             tags: tags.iter().map(|tag| tag.to_string()).collect(),
             tag_sources: std::collections::BTreeMap::new(),
+            dismissed_suggestions: std::collections::BTreeSet::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -5721,6 +5788,107 @@ mod tests {
 
         assert!(engine.run("packs.set", &json!({ "name": "Travel" })).is_err(), "on is required");
         assert!(engine.run("packs.set", &json!({ "on": true })).is_err(), "a name is required");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A dismissed proposal is not offered again, from the record rather than from the panel's memory, and it does not
+    /// eat one of the eight slots a live proposal would otherwise have.
+    #[test]
+    fn a_dismissed_suggestion_is_not_offered_again_and_the_rest_still_are() {
+        let mut photo = photo_with("Nikon Z6", "NIKKOR Z 24-70mm f/4 S", Some(6400), Some(2.0), Some(24.0), &[]);
+        assert_eq!(
+            suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None, None, &Default::default()).len(),
+            5
+        );
+        photo.dismissed_suggestions.insert("low light".to_string());
+        let offered: Vec<String> = suggestions_for(&photo, &[], &sortlens_ai::Caps::default(), None, None, &Default::default())
+            .into_iter()
+            .map(|suggestion| suggestion.tag)
+            .collect();
+        assert!(
+            !offered.contains(&"low light".to_string()),
+            "the dismissal is answered from the photo: {offered:?}"
+        );
+        assert_eq!(offered.len(), 4, "everything else is still proposed");
+
+        // And the cap applies to the live ones: eight slots means eight proposals, not seven plus a hiding one.
+        let caps = sortlens_ai::Caps {
+            per_photo: 5,
+            ..sortlens_ai::Caps::default()
+        };
+        photo.dismissed_suggestions.clear();
+        assert_eq!(suggestions_for(&photo, &[], &caps, None, None, &Default::default()).len(), 5);
+        photo.dismissed_suggestions.insert("low light".to_string());
+        assert_eq!(
+            suggestions_for(&photo, &[], &caps, None, None, &Default::default()).len(),
+            4,
+            "a dismissed proposal is not among the five"
+        );
+    }
+
+    /// The commit is one ⌘Z: accepting a kind, or dismissing it, must not cost one undo per photograph.
+    #[test]
+    fn accepting_a_kind_of_suggestion_writes_every_keyword_and_undoes_as_one_step() {
+        let dir = std::env::temp_dir().join(format!("sortlens-engine-accept-kind-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("engine-accept-kind");
+        for index in 1..=3 {
+            std::fs::copy(
+                fixture.jpeg(&format!("IMG_000{index}.jpg"), [60, 90, 140], 48, 32),
+                root.join(format!("IMG_000{index}.jpg")),
+            )
+            .expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        assert_eq!(ids.len(), 3);
+
+        let added = engine
+            .accept_suggestions(&ids, &["low light".into(), "wide".into(), "low light".into()])
+            .expect("accept a kind");
+        assert_eq!(
+            added, 6,
+            "two distinct keywords on three photos, and the duplicate is not written twice"
+        );
+        for id in &ids {
+            let photo = engine.photo(*id).expect("photo");
+            assert!(photo.has_tag("low light") && photo.has_tag("wide"));
+            assert_eq!(
+                photo.tag_source("low light"),
+                TagSource::Ai,
+                "an accepted proposal is recorded as one"
+            );
+        }
+        assert_eq!(
+            engine.accept_suggestions(&ids, &["wide".into()]).expect("again"),
+            0,
+            "a keyword the photos already carry is not added again"
+        );
+        assert!(engine.undo().expect("undo"), "one undo took the whole kind back");
+        for id in &ids {
+            assert!(engine.photo(*id).expect("photo").tags.is_empty(), "every photo lost both keywords");
+        }
+        assert!(engine.accept_suggestions(&ids, &[]).is_err(), "no keywords is a refusal");
+
+        // Dismissal is the same shape: one op for the whole batch, and the proposals really stop.
+        assert_eq!(engine.dismiss_suggestions(&ids, &["wide".into()]).expect("dismiss"), 3);
+        assert!(engine.photo(ids[0]).expect("photo").dismissed("wide"));
+        assert_eq!(
+            engine.dismiss_suggestions(&ids, &["wide".into()]).expect("again"),
+            0,
+            "dismissing what is already dismissed is not a change"
+        );
+        assert!(engine.undo().expect("undo"));
+        assert!(!engine.photo(ids[0]).expect("photo").dismissed("wide"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

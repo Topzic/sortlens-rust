@@ -396,11 +396,17 @@ Four tabs (dockable, reorderable, hideable) plus a header that names the current
 | --- | --- | --- |
 | **Details** | file, dimensions, size, dates, camera, lens, exposure, GPS/place, video info | one photo |
 | **Tags** | tag chips with remove, add field with autocomplete, "re-apply previous", suggestion count; a chip that was not typed by hand says so (`cat · AI`), because a claim whose origin you have to hover to see is one you will not check | one or many |
-| **Suggestions** | grouped by source (objects / scene / EXIF), confidence, accept-all-of-kind, dismiss | one or many |
+| **Suggestions** | grouped by family (objects / scene / EXIF), each row with its source and confidence, `accept all` per family, `×` to dismiss. A proposal that covers only part of the selection prints how many photographs it applies to; one that covers all of them does not, because `3×` on every row of a three-photo selection is noise | one or many |
 | **Activity** | job list (also in the bell), history of the last operations, audit entries for destructive ops | library |
 
 A thin iconic strip at the far right switches tabs and shows which is active (ArtCraft pattern),
-so the panel never disappears when you switch tools.
+so the panel never disappears when you switch tools: the strip is painted whether the body is open or not,
+clicking a tool opens its tab beside the strip, and clicking the active tool is the one gesture that closes
+the body — a rail you cannot close from the rail keeps 340 points of a 900-point window forever. The panel's
+header names the active tool in words, because the strip is glyphs and a glyph alone is a guess for anyone
+who has not learned it. Accepting and dismissing are one ⌘Z for the whole selection: a kind accepted is one
+change, and a dismissal is recorded in the library, so a proposal you refused does not come back the next
+time the panel asks.
 
 ---
 
@@ -553,13 +559,13 @@ baseline is the review of what a change looks like rather than a claim that the 
 
 ## Icons
 
-One set, `crates/ui/src/icons.rs`: 36 monochrome 24-unit SVGs under `assets/icons/`. `craft_ui::icons`
+One set, `crates/ui/src/icons.rs`: 40 monochrome 24-unit SVGs under `assets/icons/`. `craft_ui::icons`
 prepares each glyph once (white `currentColor`, 1.75 stroke) and `egui_extras`' SVG loader rasterises it at
 exactly the size its slot asks for, so an icon paints in the theme's own colour and stays sharp at 2×.
 
 Where they paint today: the sidebar's source rows, folder rows, keyword rows and collection rows; the filter
 strip's chips (rating, flags, colour, kind, source, edited, missing, clear); every bottom-bar destination, as
-a glyph beside its label; the right panel's three tabs; the canvas header's density and layout controls; and
+a glyph beside its label; the right panel's four-tab far-edge rail; the canvas header's density and layout controls; and
 the top bar's Settings (`sliders`), Help (`keyboard`), Appearance (`contrast`), Activity (`bell`), Export
 (`export`), Import (`folder-plus`), Filter (`funnel`) and panel toggle (`panel`). An icon-only button carries
 its words as the tooltip *and* the accessible name: replacing a word with a picture must not remove the word

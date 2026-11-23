@@ -68,7 +68,8 @@ list.
 Each verb's note lives in the schema table (`--json schemas`) because that is what a script reads. The notes
 say which key is the answer, whether the request key differs from the CLI word, and what a count means — for
 example `label` takes `label` (not `colour`) and `null` clears it, `suggest.accept` answers `tagged` rather than
-`changed`, and `retry` answers `updated` and `remaining`.
+`changed`, `suggest.dismiss` answers `dismissed` — how many photographs newly stopped being offered that keyword,
+so a repeat reports `0` — and `retry` answers `updated` and `remaining`.
 
 ## Where this is tested
 

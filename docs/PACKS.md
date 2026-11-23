@@ -70,8 +70,11 @@ stopped.
 ## What a pack does not do
 
 A pack produces **proposals**. They appear in the detail view's "Suggested" row beside the camera and
-lens hints, with their score and the word `pack`. Nothing is written until you accept one, and accepting
-writes an ordinary keyword — in the log, in the history, undone by the same `undo`.
+lens hints, with their score and the word `pack`, and in the right panel's Suggestions tab for the whole
+selection, under the `Scene` family. Nothing is written until you accept one, and accepting writes an
+ordinary keyword — in the log, in the history, undone by the same `undo`. Accepting every proposal of a
+family is one change and one undo. A proposal you refused with `×` is recorded in the library and is not
+offered again for that photograph; one undo returns it.
 
 Packs are not a substitute for a model. They cannot tell you what is *in* a photo; they can only apply
 words you already decided on, to photos that match conditions you can read in the file.

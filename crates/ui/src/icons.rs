@@ -63,6 +63,7 @@ const CATALOG: &[(&str, &[u8])] = &[
     ("star", include_bytes!("../../../assets/icons/star.svg")),
     ("tag", include_bytes!("../../../assets/icons/tag.svg")),
     ("trash", include_bytes!("../../../assets/icons/trash.svg")),
+    ("wand", include_bytes!("../../../assets/icons/wand.svg")),
     ("warning", include_bytes!("../../../assets/icons/warning.svg")),
     ("wave", include_bytes!("../../../assets/icons/wave.svg")),
 ];
@@ -144,6 +145,8 @@ pub enum Icon {
     Funnel,
     /// Edited photos.
     Pencil,
+    /// Suggested keywords: a proposal, not a fact.
+    Wand,
     /// Something missing or wrong.
     Warning,
     /// Clear this filter.
@@ -152,7 +155,7 @@ pub enum Icon {
 
 impl Icon {
     /// Every icon, in catalog order.
-    pub const ALL: [Self; 39] = [
+    pub const ALL: [Self; 40] = [
         Self::Activity,
         Self::Bell,
         Self::Chart,
@@ -190,6 +193,7 @@ impl Icon {
         Self::Star,
         Self::Tag,
         Self::Trash,
+        Self::Wand,
         Self::Warning,
         Self::Wave,
     ];
@@ -234,6 +238,7 @@ impl Icon {
             Self::Star => "star",
             Self::Tag => "tag",
             Self::Trash => "trash",
+            Self::Wand => "wand",
             Self::Warning => "warning",
             Self::Wave => "wave",
         }

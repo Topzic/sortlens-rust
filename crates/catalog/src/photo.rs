@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId, Review, TagSource};
 use sortlens_meta::PhotoMeta;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Everything Sortlens knows about one file.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -87,6 +87,14 @@ pub struct Photo {
     /// travels in the log and the snapshot, so a reopen reproduces exactly what was written.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tag_sources: BTreeMap<String, TagSource>,
+    /// Keywords this photo's owner has said not to propose again.
+    ///
+    /// A suggestion is *derived* — nothing about it is stored — so "don't offer me that again" has to be stored, or
+    /// it would come back the next time the panel asked. Stored on the photo, travels in the log and the snapshot, and
+    /// empty for every photo nobody has dismissed anything on, so a snapshot written before the field replays
+    /// byte-identically.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub dismissed_suggestions: BTreeSet<String>,
     /// Whether another application has edit settings for this photo.
     #[serde(default)]
     pub edited: bool,
@@ -177,6 +185,7 @@ impl Photo {
             retry: false,
             tags: Vec::new(),
             tag_sources: BTreeMap::new(),
+            dismissed_suggestions: BTreeSet::new(),
             edited: false,
             sharpness: None,
             location: None,
@@ -283,6 +292,11 @@ impl Photo {
     /// vacuously, which is why callers ask [`Self::has_tag`]-shaped questions instead of relying on this alone.
     pub fn all_tags_from(&self, source: TagSource) -> bool {
         !self.tags.is_empty() && self.tags.iter().all(|tag| self.tag_source(tag) == source)
+    }
+
+    /// Whether this photo's owner said not to propose this keyword again.
+    pub fn dismissed(&self, tag: &str) -> bool {
+        self.dismissed_suggestions.contains(tag)
     }
 
     /// Forget keywords that are no longer on the photo, so the provenance map cannot outlive the tag it describes.

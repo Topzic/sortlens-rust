@@ -122,19 +122,22 @@ pub enum RightTab {
     Details,
     /// Keywords and collections.
     Tags,
+    /// What the file and the packs propose, grouped by where the proposal came from.
+    Suggestions,
     /// Background jobs.
     Activity,
 }
 
 impl RightTab {
-    /// Tabs in order.
-    pub const ALL: [Self; 3] = [Self::Details, Self::Tags, Self::Activity];
+    /// Tabs in order, which is also the order the far-edge tool strip paints them.
+    pub const ALL: [Self; 4] = [Self::Details, Self::Tags, Self::Suggestions, Self::Activity];
 
     /// Tab label.
     pub const fn label(self) -> &'static str {
         match self {
             Self::Details => "Details",
             Self::Tags => "Tags",
+            Self::Suggestions => "Suggestions",
             Self::Activity => "Activity",
         }
     }
@@ -144,7 +147,47 @@ impl RightTab {
         match self {
             Self::Details => crate::icons::Icon::Info,
             Self::Tags => crate::icons::Icon::Tag,
+            Self::Suggestions => crate::icons::Icon::Wand,
             Self::Activity => crate::icons::Icon::Activity,
+        }
+    }
+}
+
+/// What a proposal is about, which is how the Suggestions tab groups them.
+///
+/// Three families rather than four sources, because a person deciding about a keyword asks a coarser question than
+/// the pipeline records: "something in the picture", "this kind of scene", or "the camera said so". The last one is
+/// not a guess at all, which is why it is named after the file rather than after a model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SuggestKind {
+    /// Found in the pixels by a detector.
+    Objects,
+    /// Proposed by a keyword pack, or said in words by a captioner.
+    Scene,
+    /// Read out of the file's own EXIF.
+    Exif,
+}
+
+impl SuggestKind {
+    /// Families in the order the panel lists them: what a model saw, what the scene resembles, what the file says.
+    const ALL: [Self; 3] = [Self::Objects, Self::Scene, Self::Exif];
+
+    /// Heading.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Objects => "Objects",
+            Self::Scene => "Scene",
+            Self::Exif => "EXIF",
+        }
+    }
+
+    /// Which family a source belongs to.
+    const fn of(source: sortlens_engine::SuggestionSource) -> Self {
+        use sortlens_engine::SuggestionSource;
+        match source {
+            SuggestionSource::Detector => Self::Objects,
+            SuggestionSource::Pack | SuggestionSource::Caption => Self::Scene,
+            SuggestionSource::ExifHint => Self::Exif,
         }
     }
 }
@@ -607,6 +650,10 @@ pub struct Notice {
 /// How many notices are kept. Long enough to answer "what just happened", short enough that the popover stays a
 /// list rather than an archive — the activity stack is the archive.
 pub const NOTICE_HISTORY: usize = 50;
+
+/// The far-edge tool strip's width, in points. Wide enough for a 22-point button between its margins, narrow enough
+/// that a rail which never closes still leaves a 900-point window's canvas usable.
+const TAB_STRIP_W: f32 = 30.0;
 
 /// "just now", "4m", "2h", "3d" — the age of a notice, at the precision someone would say it out loud.
 pub fn notice_age(seconds: u64) -> String {
@@ -1173,6 +1220,8 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if state.left_open {
         left_panel(ui, state, &t, engine, &mut actions);
     }
+    // The strip is the far-right edge and always there; the panel body sits inside it.
+    right_tools(ui, state, &t);
     if state.right_open {
         right_panel(ui, state, &t, engine);
     }
@@ -2587,6 +2636,41 @@ fn delete_keyword_everywhere(state: &mut UiState, engine: &mut Engine, tag: &str
     }
 }
 
+/// The far-edge tool strip: one glyph per question the panel can answer.
+///
+/// It is painted whether the panel body is open or not, because it is how the panel is opened and the only way to ask
+/// the other three questions while the canvas has the width. Selecting the active tool collapses the body rather than
+/// doing nothing: a rail you cannot close from the rail is a rail that keeps 340 px of a 900 px window forever.
+///
+/// “Switching tools” here never hides the panel — that is the whole point of the ArtCraft pattern — so the only thing
+/// a click can do besides switching is close the body deliberately.
+fn right_tools(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
+    egui::Panel::right("right_tools")
+        .exact_size(TAB_STRIP_W)
+        .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::symmetric(3, 8)))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            for tab in RightTab::ALL {
+                let active = state.right_open && state.right_tab == tab;
+                let response = ui.add(
+                    Button::image(crate::icons::image(tab.icon(), 14.0).tint(if active { t.text } else { t.text_muted }))
+                        .fill(if active { t.selection } else { Color32::TRANSPARENT })
+                        .stroke(Stroke::NONE)
+                        .min_size(vec2(22.0, 24.0)),
+                );
+                crate::a11y::label_widget(ui, &response, egui::Role::Tab, tab.label(), active);
+                if response.on_hover_text(tab.label()).clicked() {
+                    if active {
+                        state.right_open = false;
+                    } else {
+                        state.right_tab = tab;
+                        state.right_open = true;
+                    }
+                }
+            }
+        });
+}
+
 fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     egui::Panel::right("right_panel")
         .resizable(true)
@@ -2594,26 +2678,9 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
         .size_range(250.0..=420.0)
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::same(10)))
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for tab in RightTab::ALL {
-                    let active = state.right_tab == tab;
-                    let response = ui.add(
-                        Button::image_and_text(
-                            crate::icons::image(tab.icon(), 13.0),
-                            RichText::new(tab.label())
-                                .size(11.5)
-                                .color(if active { t.text } else { t.text_muted }),
-                        )
-                        .image_tint_follows_text_color(true)
-                        .fill(if active { t.selection } else { Color32::TRANSPARENT })
-                        .stroke(Stroke::NONE),
-                    );
-                    crate::a11y::label_widget(ui, &response, egui::Role::Tab, tab.label(), active);
-                    if response.clicked() {
-                        state.right_tab = tab;
-                    }
-                }
-            });
+            // The tabs live in the far-edge strip now, so the panel's own header is the one place that names the
+            // tool in words: the strip is glyphs, and a glyph alone is a guess for anyone who has not learned it.
+            ui.label(RichText::new(state.right_tab.label()).size(12.0).strong().color(t.text));
             ui.separator();
             ui.add_space(4.0);
 
@@ -2626,6 +2693,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                     Some(photo) => tags(ui, t, state, engine, &photo),
                     None => hint(ui, t, "Keywords and collections for the selection appear here."),
                 },
+                RightTab::Suggestions => suggestions_tab(ui, t, state, engine),
                 RightTab::Activity => {
                     let jobs = engine.jobs();
                     if jobs.is_empty() {
@@ -2806,6 +2874,162 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
             && let Err(error) = engine.set_tag(&[photo.id], &tag, true)
         {
             state.notice_problem(error.to_string());
+        }
+    }
+}
+
+/// One proposal, merged across the selection: the keyword, the best confidence any selected photo offered, and how
+/// many of them it applies to.
+struct Proposal {
+    tag: String,
+    score: f32,
+    photos: usize,
+    source: sortlens_engine::SuggestionSource,
+    kind: SuggestKind,
+}
+
+/// The Suggestions tab: what the file and the packs propose for the selection, grouped by where it came from.
+///
+/// This is the panel, not the library-wide pass in the Suggestions dialog: it answers "what could be said about these
+/// photographs" for the photos in front of you, and every row is a proposal until a click makes it a keyword. Grouped
+/// because "the camera said so" and "a model guessed" are different kinds of claim, and a list that mixes them asks a
+/// person to trust them equally.
+///
+/// Accepting writes through [`Engine::accept_suggestions`], so one ⌘Z takes back a whole kind, and dismissing records the
+/// decision in the catalog: a dismissal kept only on screen would come back the next time the panel opened.
+fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    let ids = state.selection.ids();
+    if ids.is_empty() {
+        hint(ui, t, "Select a photo to see what its own file and the keyword packs propose.");
+        return;
+    }
+
+    // One row per keyword, not per photo: a keyword proposed for eight of the twelve selected photographs is one
+    // decision, and the count says how far-reaching it would be.
+    let mut merged: std::collections::BTreeMap<String, Proposal> = std::collections::BTreeMap::new();
+    for (_, suggestions) in engine.suggestions_for_all(&ids) {
+        for suggestion in suggestions {
+            merged
+                .entry(suggestion.tag.clone())
+                .and_modify(|proposal| {
+                    proposal.photos += 1;
+                    if suggestion.score > proposal.score {
+                        proposal.score = suggestion.score;
+                        proposal.source = suggestion.source;
+                        proposal.kind = SuggestKind::of(suggestion.source);
+                    }
+                })
+                .or_insert_with(|| Proposal {
+                    tag: suggestion.tag.clone(),
+                    score: suggestion.score,
+                    photos: 1,
+                    source: suggestion.source,
+                    kind: SuggestKind::of(suggestion.source),
+                });
+        }
+    }
+
+    if merged.is_empty() {
+        hint(ui, t, "Nothing to propose for this selection.");
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new("Proposals come from each file's own EXIF and from the keyword packs that are switched on.")
+                .size(10.0)
+                .color(t.text_faint),
+        );
+        return;
+    }
+
+    ui.label(
+        RichText::new(format!(
+            "{} proposal{} for {} photo{}",
+            merged.len(),
+            if merged.len() == 1 { "" } else { "s" },
+            ids.len(),
+            if ids.len() == 1 { "" } else { "s" }
+        ))
+        .size(10.5)
+        .color(t.text_faint),
+    );
+
+    for kind in SuggestKind::ALL {
+        let family: Vec<&Proposal> = merged.values().filter(|proposal| proposal.kind == kind).collect();
+        if family.is_empty() {
+            continue;
+        }
+        ui.add_space(7.0);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(kind.label()).size(10.5).strong().color(t.text_muted));
+            ui.label(RichText::new(format!("{}", family.len())).size(10.0).color(t.text_faint));
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let all: Vec<String> = family.iter().map(|proposal| proposal.tag.clone()).collect();
+                if ui
+                    .add(Button::new(RichText::new("Accept all").size(10.0)).frame(false))
+                    .on_hover_text(format!(
+                        "Add every {} proposal as a keyword, as one undo",
+                        kind.label().to_lowercase()
+                    ))
+                    .clicked()
+                {
+                    match engine.accept_suggestions(&ids, &all) {
+                        Ok(0) => state.notice("Those keywords are already on every selected photo"),
+                        Ok(count) => state.notice(format!("Added {count} keyword(s) — one undo takes them back")),
+                        Err(error) => state.notice_problem(error.to_string()),
+                    }
+                }
+            });
+        });
+
+        for proposal in family {
+            ui.horizontal(|ui| {
+                let accept = ui
+                    .add(Button::new(RichText::new(format!("+ {}", proposal.tag)).size(11.0)).fill(t.card))
+                    .on_hover_text(format!(
+                        "{} · {:.0}% from {}{}",
+                        proposal.tag,
+                        proposal.score * 100.0,
+                        proposal.source.label(),
+                        if proposal.photos < ids.len() {
+                            format!(" · on {} of the {} selected photos", proposal.photos, ids.len())
+                        } else {
+                            String::new()
+                        }
+                    ));
+                ui.label(
+                    RichText::new(format!("{:.0}%", proposal.score * 100.0))
+                        .size(10.0)
+                        .color(t.text_faint),
+                );
+                ui.label(RichText::new(proposal.source.label()).size(10.0).color(t.text_faint));
+                // The count is printed only when the proposal does not cover the whole selection: "3×" beside every
+                // row of a three-photo selection is noise, and a bare row would hide that it is partial.
+                if proposal.photos < ids.len() {
+                    ui.label(RichText::new(format!("{}×", proposal.photos)).size(10.0).color(t.text_faint));
+                }
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui
+                        .add(Button::new(RichText::new("×").size(12.0).color(t.text_muted)).frame(false))
+                        .on_hover_text(format!(
+                            "Don't propose “{}” again for these photos — one undo brings it back",
+                            proposal.tag
+                        ))
+                        .clicked()
+                    {
+                        match engine.dismiss_suggestions(&ids, std::slice::from_ref(&proposal.tag)) {
+                            Ok(0) => state.notice(format!("“{}” was already dismissed", proposal.tag)),
+                            Ok(_) => state.notice(format!("Won't propose “{}” again — one undo brings it back", proposal.tag)),
+                            Err(error) => state.notice_problem(error.to_string()),
+                        }
+                    }
+                });
+                if accept.clicked() {
+                    match engine.accept_suggestions(&ids, std::slice::from_ref(&proposal.tag)) {
+                        Ok(0) => state.notice(format!("“{}” is already on every selected photo", proposal.tag)),
+                        Ok(_) => state.notice(format!("Added “{}” — one undo takes it back", proposal.tag)),
+                        Err(error) => state.notice_problem(error.to_string()),
+                    }
+                }
+            });
         }
     }
 }
@@ -4030,7 +4254,7 @@ fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<A
     });
     ui.add_space(10.0);
     ui.label(
-        RichText::new("JPEG, HEIC, TIFF, PNG, WebP, GIF and camera raw · video poster frames arrive later")
+        RichText::new("JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate")
             .size(10.5)
             .color(t.text_faint),
     );
@@ -8286,6 +8510,7 @@ mod tests {
             focal: None,
             tags: Vec::new(),
             tag_sources: std::collections::BTreeMap::new(),
+            dismissed_suggestions: std::collections::BTreeSet::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -8341,6 +8566,7 @@ mod tests {
             focal: None,
             tags: Vec::new(),
             tag_sources: std::collections::BTreeMap::new(),
+            dismissed_suggestions: std::collections::BTreeSet::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -9329,6 +9555,7 @@ mod tests {
             focal: None,
             tags: Vec::new(),
             tag_sources: std::collections::BTreeMap::new(),
+            dismissed_suggestions: std::collections::BTreeSet::new(),
             edited: false,
             retry: false,
             sharpness: None,
@@ -10728,6 +10955,21 @@ mod tests {
         output.shapes.iter().find_map(|clipped| walk(&clipped.shape, needle))
     }
 
+    /// The rect of a text shape whose whole string is exactly `needle`.
+    ///
+    /// `label_at` answers "is this string painted somewhere", which is the wrong question when a row paints `3×` for
+    /// a count and `×` for a button: the count comes first in paint order and would be clicked instead.
+    fn exact_label_at(output: &egui::FullOutput, needle: &str) -> Option<Rect> {
+        fn walk(shape: &egui::Shape, needle: &str) -> Option<Rect> {
+            match shape {
+                egui::Shape::Text(text) if text.galley.job.text == needle => Some(text.visual_bounding_rect()),
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| walk(shape, needle)),
+                _ => None,
+            }
+        }
+        output.shapes.iter().find_map(|clipped| walk(&clipped.shape, needle))
+    }
+
     /// A click at a point: egui reports a click on the release, so the press goes out in one frame.
     fn press_and_release(at: egui::Pos2) -> [egui::RawInput; 2] {
         let button = |pressed| egui::Event::PointerButton {
@@ -11751,6 +11993,240 @@ mod tests {
         );
         assert!(actions.is_empty(), "opening the menu asks for nothing");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Paint the whole shell, settled: the SVG loader is asynchronous, so one frame can be a frame with no glyphs.
+    fn paint_shell(
+        ctx: &egui::Context,
+        screen: Vec2,
+        state: &mut UiState,
+        engine: &mut Engine,
+        thumbs: &mut Thumbnails,
+        actions: &mut Vec<Action>,
+    ) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+            ..egui::RawInput::default()
+        };
+        let mut settled = None;
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let asked = show(ui, state, engine, thumbs);
+                    actions.extend(asked);
+                });
+            });
+            output.textures_delta.clear();
+            settled = Some(output);
+        }
+        settled.expect("three frames were painted")
+    }
+
+    /// A click anywhere in the shell: press in one frame, release in the next, painting the whole window.
+    fn click_shell(
+        ctx: &egui::Context,
+        screen: Vec2,
+        at: egui::Pos2,
+        state: &mut UiState,
+        engine: &mut Engine,
+        thumbs: &mut Thumbnails,
+        actions: &mut Vec<Action>,
+    ) {
+        for input in press_and_release(at) {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events: input.events,
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let asked = show(ui, state, engine, thumbs);
+                        actions.extend(asked);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+        }
+    }
+
+    /// The glyphs painted inside `area`, top to bottom: the far-edge rail is a column, so its order is its y.
+    fn glyphs_top_to_bottom(output: &egui::FullOutput, area: Rect) -> Vec<Rect> {
+        let mut rects: Vec<Rect> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                egui::Shape::Rect(shape) => shape
+                    .brush
+                    .as_ref()
+                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                    .map(|_| shape.rect),
+                _ => None,
+            })
+            .filter(|rect| area.contains(rect.center()))
+            .collect();
+        rects.sort_by(|left, right| left.center().y.total_cmp(&right.center().y));
+        rects
+    }
+
+    /// Phase 3B.5: the four questions live on a far-edge rail that is always there, and switching tools never closes
+    /// the panel — that is the whole point of the pattern.
+    #[test]
+    fn the_far_edge_rail_switches_the_panel_and_only_a_second_click_closes_it() {
+        assert_eq!(RightTab::ALL.len(), 4, "four questions, in tab order");
+        assert_eq!(
+            RightTab::ALL[2],
+            RightTab::Suggestions,
+            "Suggestions sits between Tags and Activity"
+        );
+        assert_eq!(RightTab::ALL[3], RightTab::Activity, "and Activity stays last");
+
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-right-rail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        let screen = vec2(1200.0, 800.0);
+        // The rail spans the window between the top and bottom bars, so the band is clipped to that middle: the top
+        // bar's own glyphs sit at the same x and would otherwise be counted as rail entries.
+        let rail = Rect::from_min_max(pos2(screen.x - TAB_STRIP_W, 50.0), pos2(screen.x, screen.y - 60.0));
+
+        let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        let glyphs = glyphs_top_to_bottom(&painted, rail);
+        assert_eq!(
+            glyphs.len(),
+            RightTab::ALL.len(),
+            "one glyph per question and nothing else in the rail: {glyphs:?}"
+        );
+        assert_eq!(state.right_tab, RightTab::Details, "Details is still the first question");
+        assert!(state.right_open);
+
+        click_shell(&ctx, screen, glyphs[2].center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert_eq!(state.right_tab, RightTab::Suggestions, "the third glyph is Suggestions");
+        assert!(state.right_open, "switching tools keeps the panel open");
+        let switched = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(
+            label_at(&switched, "Suggestions").is_some(),
+            "the panel's header names the tool it is showing"
+        );
+
+        let glyphs = glyphs_top_to_bottom(&switched, rail);
+        click_shell(&ctx, screen, glyphs[1].center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert_eq!(state.right_tab, RightTab::Tags);
+        assert!(state.right_open, "moving between tools never hides the panel");
+
+        let tags = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        let glyphs = glyphs_top_to_bottom(&tags, rail);
+        click_shell(&ctx, screen, glyphs[1].center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(!state.right_open, "clicking the active tool closes the body");
+        assert_eq!(state.right_tab, RightTab::Tags, "and remembers which tool it was");
+
+        let closed = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert_eq!(
+            glyphs_top_to_bottom(&closed, rail).len(),
+            RightTab::ALL.len(),
+            "the rail is still there with the body closed, which is how the body is reopened"
+        );
+        assert!(actions.is_empty(), "none of this asks the host for anything");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Phase 3B.5: the Suggestions tab proposes, accepts and dismisses for the whole selection — and both writes go
+    /// through the ordinary op log, so a whole kind is one undo rather than one per photograph.
+    #[test]
+    fn the_suggestions_tab_accepts_and_dismisses_for_the_whole_selection() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-suggest-tab-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-suggest-tab");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40 + index * 20, 80, 150], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        // A pack is the only proposal a fixture JPEG can produce (it carries no EXIF), and two keywords in it are what
+        // lets accepting one be told apart from dismissing the other.
+        std::fs::create_dir_all(dir.join(sortlens_engine::PACKS_DIR)).expect("packs dir");
+        std::fs::write(
+            dir.join(sortlens_engine::PACKS_DIR).join("jpgs.json"),
+            r#"{"name":"JPEGs","licence":"CC0-1.0","keywords":[{"keyword":"jpeg","when":{"folder_contains":".jpg"}},{"keyword":"archive","when":{"folder_contains":".jpg"}}]}"#,
+        )
+        .expect("write pack");
+        engine.set_pack("JPEGs", true).expect("enable");
+
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        assert_eq!(ids.len(), 3);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.right_tab = RightTab::Suggestions;
+        state.selection.select_many(&ids);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        let screen = vec2(1200.0, 800.0);
+
+        // Nothing selected: the tab says what it would show rather than painting an empty list.
+        let mut apart = UiState::new(ThemeKind::Charcoal, 0.0);
+        apart.right_tab = RightTab::Suggestions;
+        let empty = paint_shell(&ctx, screen, &mut apart, &mut engine, &mut thumbs, &mut actions);
+        assert!(
+            label_at(&empty, "Select a photo to see what its own file").is_some(),
+            "an empty selection is answered in words"
+        );
+
+        let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(label_at(&painted, "Scene").is_some(), "a pack proposal is under Scene, not EXIF");
+        let accept = label_at(&painted, "+ jpeg").expect("the proposal is a button");
+        click_shell(&ctx, screen, accept.center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        for id in &ids {
+            let photo = engine.photo(*id).expect("photo");
+            assert!(photo.has_tag("jpeg"), "the keyword reached every selected photo");
+            assert_eq!(
+                photo.tag_source("jpeg"),
+                sortlens_core::TagSource::Ai,
+                "an accepted proposal is recorded as one"
+            );
+        }
+        assert!(state.notice.is_some(), "the panel says what it did");
+        assert!(engine.undo().expect("undo"), "one undo took the whole selection back");
+        for id in &ids {
+            assert!(engine.photo(*id).expect("photo").tags.is_empty());
+        }
+
+        // Dismissal: the panel remembers it, the engine stops offering it, and undo brings it back.
+        let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        // Exactly `×`, not the `3×` beside the proposal: the count and the dismiss button share a glyph.
+        let dismiss = exact_label_at(&painted, "×").expect("every row can be dismissed");
+        click_shell(&ctx, screen, dismiss.center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        let dismissed: Vec<String> = ids
+            .iter()
+            .filter_map(|id| engine.photo(*id))
+            .flat_map(|photo| photo.dismissed_suggestions.iter().cloned().collect::<Vec<String>>())
+            .collect();
+        assert_eq!(
+            dismissed.len(),
+            3,
+            "all three selected photos dismissed the same proposal: {dismissed:?}"
+        );
+        let gone = engine.suggestions(ids[0]);
+        assert!(
+            !gone.iter().any(|suggestion| suggestion.tag == dismissed[0]),
+            "the dismissed proposal is not offered again"
+        );
+        assert!(engine.undo().expect("undo"));
+        assert!(!engine.photo(ids[0]).expect("photo").dismissed(&dismissed[0]));
+        assert!(actions.is_empty(), "the tab writes through the engine, not through the host");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

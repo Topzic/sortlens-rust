@@ -360,6 +360,7 @@ fn photo_with_exif(id: sortlens_core::PhotoId, index: usize) -> sortlens_engine:
         focal: None,
         tags: Vec::new(),
         tag_sources: std::collections::BTreeMap::new(),
+        dismissed_suggestions: std::collections::BTreeSet::new(),
         edited: false,
         retry: false,
         sharpness: None,

@@ -317,6 +317,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "suggest.dismiss",
+                    label: "Dismiss a Suggested Keyword",
+                    group: Group::Organise,
+                    shortcut: None,
+                    menu: "Organise > Dismiss a Suggested Keyword",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "edit.export",
                     label: "Export Picks…",
                     group: Group::Organise,

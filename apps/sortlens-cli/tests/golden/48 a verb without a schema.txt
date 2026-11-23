@@ -1,4 +1,4 @@
 exit 1
 --- stdout
 --- stderr
-sortlens-cli: notacommand has no JSON schema yet; --json works for: roots, keywords, stats, list, check, moves, changed, history, audit, memories, shortcuts, registry, packs, jobs, models, suggest, folders, mark, marks, rate, flag, label, tag, untag, date, rename, alias, accept, pack, delete, undo, retry, relocate, remap, schemas
+sortlens-cli: notacommand has no JSON schema yet; --json works for: roots, keywords, stats, list, check, moves, changed, history, audit, memories, shortcuts, registry, packs, jobs, models, suggest, folders, mark, marks, rate, flag, label, tag, untag, date, rename, alias, accept, dismiss, pack, delete, undo, retry, relocate, remap, schemas

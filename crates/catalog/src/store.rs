@@ -826,6 +826,41 @@ impl Catalog {
         Ok(count)
     }
 
+    /// Record that these proposals are not wanted, for these photos. One op, so one undo.
+    ///
+    /// Returns how many (photo, keyword) dismissals were newly recorded. Dismissing something already dismissed is
+    /// not a change and must not spend an undo level — the same rule every other write follows.
+    pub fn dismiss_suggestions(&mut self, ids: &[PhotoId], tags: &[String]) -> Result<usize> {
+        let wanted: BTreeSet<String> = tags
+            .iter()
+            .map(|tag| tag.trim().to_lowercase())
+            .filter(|tag| !tag.is_empty())
+            .collect();
+        if wanted.is_empty() {
+            return Err(Error::Invalid("a suggestion needs a keyword".into()));
+        }
+        let mut changes = Vec::new();
+        let mut recorded = 0;
+        for id in ids {
+            let photo = self.photos.get(id).ok_or(Error::NoSuchPhoto(*id))?;
+            let fresh: Vec<String> = wanted.iter().filter(|tag| !photo.dismissed(tag)).cloned().collect();
+            if fresh.is_empty() {
+                continue;
+            }
+            let mut next: Vec<String> = photo.dismissed_suggestions.iter().cloned().collect();
+            next.extend(fresh.iter().cloned());
+            next.sort_unstable();
+            next.dedup();
+            recorded += fresh.len();
+            changes.push((*id, next));
+        }
+        if changes.is_empty() {
+            return Ok(0);
+        }
+        self.commit(Op::SuggestionDismissed { changes })?;
+        Ok(recorded)
+    }
+
     /// Remove a keyword from every photo that carries it, and forget every alias that pointed at it.
     ///
     /// Naming an alias deletes the keyword it stands for, the way the rest of the app resolves names.
@@ -984,6 +1019,25 @@ impl Catalog {
             }
         }
         Ok(Op::TagSourced { changes: previous })
+    }
+
+    /// Replace the dismissed-suggestion set on each photo, returning what it was.
+    ///
+    /// The revision is deliberately not bumped: `rev` is what a stale sidecar writer is refused against, and a
+    /// dismissal never reaches a sidecar. The tags are not pruned against either — a dismissal names a *proposal*, not
+    /// a keyword, so it is allowed to outlive a keyword the photo no longer carries: someone who said "not this one"
+    /// meant it, and asking again the moment the word is removed would be the panel arguing.
+    fn apply_suggestion_dismissed(&mut self, changes: &[(PhotoId, Vec<String>)]) -> Result<Op> {
+        let mut previous = Vec::new();
+        for (id, tags) in changes {
+            let photo = self.photos.get_mut(id).ok_or(Error::NoSuchPhoto(*id))?;
+            let next: BTreeSet<String> = tags.iter().cloned().collect();
+            if photo.dismissed_suggestions != next {
+                previous.push((*id, photo.dismissed_suggestions.iter().cloned().collect()));
+                photo.dismissed_suggestions = next;
+            }
+        }
+        Ok(Op::SuggestionDismissed { changes: previous })
     }
 
     fn apply_scores(&mut self, changes: &[(PhotoId, Option<sortlens_quality::Score>)]) -> Result<Op> {
@@ -1277,6 +1331,7 @@ impl Catalog {
             }
             Op::Tagged { changes } => self.apply_tagged(changes),
             Op::TagSourced { changes } => self.apply_tag_sourced(changes),
+            Op::SuggestionDismissed { changes } => self.apply_suggestion_dismissed(changes),
             Op::Label { changes } => {
                 let mut previous = Vec::new();
                 for (id, label) in changes {
@@ -3053,6 +3108,67 @@ mod tests {
         assert_eq!(recorded(sortlens_core::TagSource::Unrecorded), 1, "it is still findable");
         assert_eq!(recorded(sortlens_core::TagSource::Manual), 0, "but it is not called manual");
         assert_eq!(recorded(sortlens_core::TagSource::Ai), 0);
+    }
+
+    /// A dismissal is a decision, so it must outlive the panel that collected it, undo like any other change, and
+    /// leave a library that never dismissed anything byte-identical.
+    #[test]
+    fn a_dismissed_suggestion_survives_a_reopen_undoes_as_one_step_and_costs_nothing_when_unused() {
+        let temp = TempCatalog::new("dismiss-suggestions");
+        {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+            assert_eq!(
+                catalog
+                    .dismiss_suggestions(&[PhotoId(1), PhotoId(2)], &["Low Light".into()])
+                    .expect("dismiss"),
+                2,
+                "both photos record the dismissal, and the keyword is normalised"
+            );
+            assert!(catalog.photo(PhotoId(1)).expect("photo").dismissed("low light"));
+            assert_eq!(
+                catalog.dismiss_suggestions(&[PhotoId(1)], &["low light".into()]).expect("again"),
+                0,
+                "dismissing what is already dismissed changed nothing"
+            );
+            assert!(
+                catalog.dismiss_suggestions(&[PhotoId(1)], &[]).is_err(),
+                "an empty keyword is a refusal"
+            );
+            assert!(
+                catalog.dismiss_suggestions(&[PhotoId(9)], &["x".into()]).is_err(),
+                "an unknown photo is a refusal"
+            );
+            catalog.close().expect("close");
+        }
+
+        let (mut catalog, _) = temp.open();
+        assert!(
+            catalog.photo(PhotoId(1)).expect("photo").dismissed("low light"),
+            "the dismissal is in the log, so a reopen still knows it"
+        );
+        assert!(catalog.undo().expect("undo"), "one dismissal is one undo step");
+        assert!(
+            !catalog.photo(PhotoId(1)).expect("photo").dismissed("low light"),
+            "undoing takes the whole batch back"
+        );
+        assert!(catalog.redo().expect("redo"));
+        assert!(catalog.photo(PhotoId(2)).expect("photo").dismissed("low light"));
+
+        // A photo nobody has dismissed anything on writes no field at all, so an older reader sees the same record.
+        let other = TempCatalog::new("dismiss-suggestions-untouched");
+        {
+            let (mut catalog, _) = other.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+            catalog.snapshot().expect("snapshot");
+        }
+        let text = fs::read_to_string(other.0.join(SNAPSHOT_NAME)).expect("read");
+        assert!(
+            !text.contains("dismissed_suggestions"),
+            "nothing was dismissed, so nothing is written"
+        );
+        let (catalog, _) = other.open();
+        assert!(!catalog.photo(PhotoId(1)).expect("photo").dismissed("low light"));
     }
 
     #[test]

@@ -41,6 +41,12 @@ pub enum Op {
     TagSourced {
         changes: Vec<(PhotoId, std::collections::BTreeMap<String, sortlens_core::TagSource>)>,
     },
+    /// Keywords a photo's owner does not want proposed again. Each list is the complete read-then-dismissed set for
+    /// that photo, so the inverse is the previous set — the same shape as [`Self::Tagged`].
+    ///
+    /// This is stored rather than computed because the suggestions themselves are derived from the file and the packs:
+    /// a dismissal kept only in the panel would last until the panel was reopened, which is a button that does nothing.
+    SuggestionDismissed { changes: Vec<(PhotoId, Vec<String>)> },
     /// Photos were found at a new path inside the same root.
     Relocate { changes: Vec<(PhotoId, String)> },
     /// A collection was created.
@@ -106,6 +112,7 @@ impl Op {
             Self::Captured { .. } => "captured",
             Self::Tagged { .. } => "tagged",
             Self::TagSourced { .. } => "tagSourced",
+            Self::SuggestionDismissed { .. } => "suggestionDismissed",
             Self::Relocate { .. } => "relocate",
             Self::Retry { .. } => "retry",
             Self::Aliased { .. } => "aliased",
@@ -159,6 +166,7 @@ impl Op {
             Self::Label { changes } => changes.is_empty(),
             Self::Tagged { changes } => changes.is_empty(),
             Self::TagSourced { changes } => changes.is_empty(),
+            Self::SuggestionDismissed { changes } => changes.is_empty(),
             Self::Relocate { changes } => changes.is_empty(),
             Self::Retry { changes } => changes.is_empty(),
             Self::Aliased { changes } => changes.is_empty(),
@@ -181,6 +189,7 @@ impl Op {
             // Provenance rides with the words it describes, so counting its photos as well would report a keyword
             // added to forty photos as eighty. A source-only change is described by its own summary instead.
             Self::TagSourced { .. } => 0,
+            Self::SuggestionDismissed { changes } => changes.len(),
             Self::Relocate { changes } => changes.len(),
             Self::Retry { changes } => changes.len(),
             Self::Aliased { .. } => 0,
@@ -208,6 +217,14 @@ impl Op {
             Self::Tagged { changes } => format!("Keyworded {}", photos(changes.len())),
             Self::TagSourced { changes } => {
                 format!("Recorded where keywords came from on {}", photos(changes.len()))
+            }
+            Self::SuggestionDismissed { changes } => {
+                let count: usize = changes.iter().map(|(_, tags)| tags.len()).sum();
+                match count {
+                    0 => "Dismissed nothing".to_string(),
+                    1 => "Stopped suggesting 1 keyword".to_string(),
+                    count => format!("Stopped suggesting {count} keywords"),
+                }
             }
             Self::Relocate { changes } => format!("Found {} somewhere else", photos(changes.len())),
             Self::Retry { changes } => format!("Queued {} for a metadata retry", photos(changes.len())),
