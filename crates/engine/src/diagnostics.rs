@@ -23,6 +23,15 @@ pub const HISTORY_LINES: usize = 25;
 /// same report.
 #[must_use]
 pub fn redact(text: &str, library: Option<&str>, roots: &[String]) -> String {
+    redact_with_homes(text, library, roots, [std::env::var_os("HOME"), std::env::var_os("USERPROFILE")])
+}
+
+fn redact_with_homes(
+    text: &str,
+    library: Option<&str>,
+    roots: &[String],
+    homes: impl IntoIterator<Item = Option<std::ffi::OsString>>,
+) -> String {
     let mut pairs: Vec<(String, String)> = Vec::new();
     if let Some(library) = library
         && !library.is_empty()
@@ -34,10 +43,11 @@ pub fn redact(text: &str, library: Option<&str>, roots: &[String]) -> String {
             pairs.push((root.clone(), format!("<root-{}>", index + 1)));
         }
     }
-    if let Some(home) = std::env::var_os("HOME").map(|home| home.to_string_lossy().to_string())
-        && home.len() > 1
-    {
-        pairs.push((home, "<home>".to_string()));
+    for home in homes.into_iter().flatten() {
+        let home = home.to_string_lossy();
+        if home.len() > 1 {
+            pairs.push((home.into_owned(), "<home>".to_string()));
+        }
     }
     // Longest first: a root under the library must not be half-replaced by the library's own prefix.
     pairs.sort_by_key(|pair| std::cmp::Reverse(pair.0.len()));
@@ -161,11 +171,14 @@ mod tests {
 
     #[test]
     fn redaction_without_a_library_or_roots_still_removes_the_home() {
-        // Whichever home this test runs under, not a guessed one.
-        let home = std::env::var("HOME").expect("HOME is set in every environment this runs in");
-        let redacted = redact(&format!("in {home}/Pictures"), None, &[]);
-        assert!(redacted.contains("Pictures"), "{redacted}");
-        assert!(!redacted.contains(&home), "{redacted}");
+        // Exercise HOME and USERPROFILE independently, without relying on the runner's environment.
+        for homes in [[Some("/home/person".into()), None], [None, Some("/home/person".into())]] {
+            let redacted = redact_with_homes("in /home/person/Pictures", None, &[], homes);
+            assert_eq!(redacted, "in <home>/Pictures");
+        }
+        let homes = [Some("/home/person".into()), Some("C:\\Users\\person".into())];
+        let redacted = redact_with_homes("/home/person/a C:\\Users\\person\\b", None, &[], homes);
+        assert_eq!(redacted, "<home>/a <home>\\b");
     }
 
     #[test]

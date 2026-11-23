@@ -11,10 +11,10 @@
 //!    `Ångström.jpg` and `ångström.jpg` are two files, and merging them loses one.
 //!
 //! So this type does the first two unconditionally, and resolves the third by **asking the disk**: for each
-//! component, a case-insensitive lookup is made in its parent, and the on-disk spelling is adopted only when
-//! exactly one entry matches. Two matches means the volume can hold both spellings, so nothing is folded and the
-//! given spelling stands. A component that does not exist keeps the spelling it was given — a folder that is not
-//! mounted yet still has an identity, and it should be the one that was typed.
+//! component, the given spelling must actually open an entry in its parent before the on-disk spelling is adopted.
+//! The spelling is adopted only when exactly one entry matches case-insensitively. Two matches mean the volume
+//! can hold both spellings, so nothing is folded and the given spelling stands. A component that does not exist
+//! keeps the spelling it was given — a folder that is not mounted yet still has the identity that was typed.
 //!
 //! The result is a stable string for keys: two spellings of one folder produce one key on a case-insensitive
 //! volume, two keys on a case-sensitive one, and nothing is ever silently merged.
@@ -98,6 +98,11 @@ fn split_components(text: &str) -> impl Iterator<Item = &str> {
 /// use the spelling the disk uses at every level, not only in its last component.
 fn resolve_component(parent: &str, component: &str) -> String {
     let directory = if parent.is_empty() { Path::new(".") } else { Path::new(parent) };
+    // A single case-insensitive directory entry does not prove the filesystem can open the given spelling.
+    // In particular, on a case-sensitive volume it may denote an absent (or future) different file.
+    if std::fs::symlink_metadata(directory.join(component)).is_err() {
+        return component.to_string();
+    }
     let Ok(entries) = std::fs::read_dir(directory) else {
         return component.to_string();
     };
@@ -190,6 +195,13 @@ mod tests {
             assert_eq!(PathKey::of_display(&stored).as_str(), key);
         }
 
+        if case_sensitive {
+            // An absent differently-cased path must not change identity when it is subsequently created.
+            std::fs::create_dir(temp.0.join("photos")).expect("second dir");
+            assert_eq!(PathKey::of_display(&typed).as_str(), key);
+            assert_ne!(PathKey::of_display(&stored), PathKey::of_display(&typed));
+        }
+
         // Two files differing only by case: whichever volume this is, the two keys are never merged.
         let first = temp.0.join("\u{c5}ngstr\u{f6}m.jpg");
         let second = temp.0.join("\u{e5}ngstr\u{f6}m.jpg");
@@ -229,7 +241,7 @@ mod tests {
                 "the disk's spelling is used all the way down: {key}"
             );
         } else {
-            assert_eq!(key.as_str(), typed, "a case-sensitive disk keeps what was typed");
+            assert_eq!(key.as_str(), canonicalise(&typed), "a case-sensitive disk keeps what was typed");
         }
     }
 
@@ -242,7 +254,7 @@ mod tests {
     fn a_joined_path_and_a_hand_spelled_one_are_one_key() {
         let temp = Temp::new("join");
         std::fs::create_dir_all(temp.0.join("Photos")).expect("dir");
-        let joined = PathKey::of(&temp.0.join("photos"));
+        let joined = PathKey::of(&temp.0.join("Photos"));
         let hand = PathKey::of_display(&format!("{}/Photos", temp.0.display()));
         assert_eq!(joined, hand, "the separator is not part of a folder's identity");
         assert!(joined.as_str().ends_with("/Photos"), "the disk's spelling is adopted: {joined}");
