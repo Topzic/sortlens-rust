@@ -1631,6 +1631,42 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
         });
 }
 
+/// What the search field's hint says on this platform: the shortcut is the palette's, and the
+/// modifier is the one the platform's keyboard has.
+fn palette_hint() -> String {
+    if craft_keymap::Platform::current().is_mac() {
+        "Search photos or ⌘K".to_owned()
+    } else {
+        "Search photos or Ctrl+K".to_owned()
+    }
+}
+
+/// The narrowest the search field gets, and the widest it may grow to keep its hint whole.
+const SEARCH_FIELD_WIDTH: f32 = 240.0;
+const SEARCH_FIELD_MAX_WIDTH: f32 = 300.0;
+
+/// The first hint that fits `room`, or the shortest when none does.
+///
+/// The list runs longest to shortest, so the answer keeps as much of the sentence as the field can
+/// hold; the shortest is what is kept when even that does not fit, because a clipped word is worse than
+/// a short one.
+fn fitting_hint<'a>(candidates: &[&'a str], width: impl Fn(&str) -> f32, room: f32) -> &'a str {
+    candidates
+        .iter()
+        .find(|candidate| width(candidate) <= room)
+        .copied()
+        .or_else(|| candidates.last().copied())
+        .unwrap_or_default()
+}
+
+/// How wide `text` paints in `font`.
+fn measure(ui: &Ui, text: &str, font: &egui::FontId) -> f32 {
+    ui.painter()
+        .layout_no_wrap(text.to_owned(), font.clone(), Color32::PLACEHOLDER)
+        .size()
+        .x
+}
+
 /// The one field, in its two modes: photographs live, commands on ⌘K.
 ///
 /// The two buffers are separate so leaving command mode returns to the search that was there before,
@@ -1651,14 +1687,33 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         state.palette_anchor = Some(field.rect);
         return;
     }
-    let hint = match state
+    // The hint is chosen to fit rather than clipped: egui cuts it hard at the field's edge, so a
+    // laptop's field ended at "⌘" with the key it was teaching cut off. Shorter hints are tried in
+    // order, and the collection's own name is what gets dropped, not the shortcut.
+    let room = SEARCH_FIELD_MAX_WIDTH - 16.0;
+    let style = ui.style().clone();
+    let body = egui::TextStyle::Body.resolve(&style);
+    let hint: String = match state
         .collection_filter
         .and_then(|id| engine.collections().into_iter().find(|collection| collection.id == id))
     {
-        Some(collection) => format!("Search in {}", collection.name),
-        None => "Search photos or ⌘K".to_string(),
+        Some(collection) => {
+            let named = format!("Search in {}", collection.name);
+            let candidates = [named.as_str(), "Search photos", "Search"];
+            fitting_hint(&candidates, |text| measure(ui, text, &body), room).to_owned()
+        }
+        None => {
+            // The key the hint teaches is the one this platform actually runs: `Ctrl+K` here, ⌘K on
+            // a Mac. The ⌘ glyph is egui's own, and on Windows it was drawn over the letter after it.
+            let palette = palette_hint();
+            let candidates = [palette.as_str(), "Search photos", "Search"];
+            fitting_hint(&candidates, |text| measure(ui, text, &body), room).to_owned()
+        }
     };
-    let search = ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
+    // The field then takes the width its hint needs, between the two bounds: widening it a few points
+    // keeps the shortcut on screen, and beyond the cap the hint is the thing that gets shorter.
+    let width = (measure(ui, &hint, &body) + 16.0).clamp(SEARCH_FIELD_WIDTH, SEARCH_FIELD_MAX_WIDTH);
+    let search = ui.add_sized([width, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
     if search.changed() {
         state.selection.clear();
     }
@@ -7422,7 +7477,7 @@ fn age_label(applied_at: i64) -> String {
 
 fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     let mut open = state.deleted_open;
-    egui::Window::new("Recently Deleted")
+    dialog_window("Recently Deleted")
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -7515,7 +7570,7 @@ fn similar_delete_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &
     let ids = state.selection.ids();
     let mut open = true;
     let mut close = false;
-    egui::Window::new("Delete selected photos")
+    dialog_window("Delete selected photos")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -7569,7 +7624,7 @@ fn similar_delete_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &
 fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     if let Some(receipt) = state.export_receipt.clone() {
         let mut open = true;
-        egui::Window::new("Export finished")
+        dialog_window("Export finished")
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
@@ -7594,7 +7649,7 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     let progress = engine.export_progress();
     let mut open = state.export_open;
     let mut start = false;
-    egui::Window::new("Export")
+    dialog_window("Export")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -7690,7 +7745,7 @@ fn empty_bin_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut E
     let batch_count = engine.deleted_batches().len();
     let files: usize = engine.deleted_batches().iter().map(|batch| batch.items.len()).sum();
     let mut open = state.empty_bin_open;
-    egui::Window::new("Empty the rejects bin?")
+    dialog_window("Empty the rejects bin?")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -7729,7 +7784,7 @@ fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
         return;
     };
     let mut open = true;
-    egui::Window::new("Rename collection")
+    dialog_window("Rename collection")
         .collapsible(false)
         .resizable(false)
         .default_width(300.0)
@@ -7757,7 +7812,7 @@ fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
 
 fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.health_open;
-    egui::Window::new("Library health")
+    dialog_window("Library health")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -7963,7 +8018,7 @@ fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &En
     let mut open = true;
     let mut put_back = false;
     let mut done = false;
-    egui::Window::new("Moved")
+    dialog_window("Moved")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8012,7 +8067,7 @@ fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &En
 /// What happened recently, read from the op log.
 fn history_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.history_open;
-    egui::Window::new("Recent changes")
+    dialog_window("Recent changes")
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -8078,7 +8133,7 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
         None => (0, 0),
     };
     let mut open = state.apply_open;
-    egui::Window::new("Apply cull batch")
+    dialog_window("Apply cull batch")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8203,7 +8258,7 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
     let mut text = typing;
     let mut open = true;
     let mut commit = false;
-    egui::Window::new("Rename keyword")
+    dialog_window("Rename keyword")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8268,7 +8323,7 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
     let reasons = engine.unsaved();
     let mut open = state.quit_open;
-    egui::Window::new("Quit Sortlens?")
+    dialog_window("Quit Sortlens?")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8304,7 +8359,7 @@ fn summary_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     };
     let summary = session.summary();
     let mut open = state.summary_open;
-    egui::Window::new("Cull summary")
+    dialog_window("Cull summary")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8382,7 +8437,7 @@ fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     let mut restore = false;
     let mut show_bin = false;
     let mut done = false;
-    egui::Window::new("Batch applied")
+    dialog_window("Batch applied")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8449,7 +8504,7 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
     // unchanged.
     let ceiling = (ui.ctx().content_rect().height() - 96.0).max(280.0);
     let scrolling = state.settings_height > ceiling;
-    let mut window = egui::Window::new(tl!("Settings"))
+    let mut window = dialog_window(tl!("Settings"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8866,7 +8921,7 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
 /// reviewed is the thing this panel exists to avoid.
 fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.suggest_open;
-    egui::Window::new("Suggested keywords")
+    dialog_window("Suggested keywords")
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -8941,9 +8996,22 @@ fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     state.suggest_open = open;
 }
 
+/// A dialog opens in the middle of the window.
+///
+/// egui stacks a window it has never seen at the available area's top-left corner, which put
+/// Settings' title bar under the top bar and cut the About box's rounded corner off at the screen
+/// edge. An anchored window is centred exactly, whatever height it measures, and stays centred at
+/// every size — the cost is that it cannot be dragged aside, which for a dialog that closes on Esc
+/// or its own button is not a loss.
+fn dialog_window(title: impl Into<egui::WidgetText>) -> egui::Window<'static> {
+    egui::Window::new(title)
+        .collapsible(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+}
+
 fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
     let mut open = state.about_open;
-    egui::Window::new("About Sortlens")
+    dialog_window("About Sortlens")
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8974,7 +9042,7 @@ fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
 /// Every shortcut, searchable, grouped by where it applies.
 fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
     let mut open = state.shortcuts_open;
-    egui::Window::new("Keyboard shortcuts")
+    dialog_window("Keyboard shortcuts")
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -13669,8 +13737,11 @@ mod tests {
         };
 
         // With consent off: the rows paint, the switch is off, and there is no Install button.
-        // The window positions itself on its first frame, so the claims are read on the second.
-        let _warm = frame(&mut state, egui::RawInput::default());
+        // A window settles over a frame or two before its position and cap are final, so the claims
+        // are read once it has.
+        for _ in 0..4 {
+            let _ = frame(&mut state, egui::RawInput::default());
+        }
         let output = frame(&mut state, egui::RawInput::default());
         assert!(
             output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
@@ -13685,19 +13756,21 @@ mod tests {
         assert!(actions_cell.borrow().is_empty(), "painting alone changes nothing");
 
         // Click the consent checkbox: the label's own rect is the click target.
-        let label = output
-            .shapes
-            .iter()
-            .find_map(|clipped| match &clipped.shape {
-                egui::Shape::Text(text) if text.galley.text().starts_with("Allow downloading models") => {
-                    Some(text.galley.rect.translate(text.pos.to_vec2()))
-                }
-                _ => None,
-            })
-            .expect("the consent checkbox painted its label");
-        let at = label.center();
+        let label_at = |output: &egui::FullOutput| {
+            output
+                .shapes
+                .iter()
+                .find_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) if text.galley.text().starts_with("Allow downloading models") => {
+                        Some(text.galley.rect.translate(text.pos.to_vec2()))
+                    }
+                    _ => None,
+                })
+                .expect("the consent checkbox painted its label")
+        };
+        let at = label_at(&output).center();
         let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0))),
             events: vec![
                 egui::Event::PointerMoved(at),
                 egui::Event::PointerButton {
@@ -13730,8 +13803,10 @@ mod tests {
             "nothing is installed, so nothing offers Remove"
         );
 
-        // And the gate can be withdrawn: the switch goes off and the buttons go with it.
+        // And the gate can be withdrawn: the switch goes off and the buttons go with it. Consent on
+        // adds the rows' buttons, so the dialog grows and the row moves; read where it is now.
         actions_cell.borrow_mut().clear();
+        let at = label_at(&frame(&mut state, egui::RawInput::default())).center();
         frame(&mut state, click(at, true));
         frame(&mut state, click(at, false));
         assert!(!engine_cell.borrow().models_consent(), "consent is withdrawn");
@@ -13891,8 +13966,10 @@ mod tests {
             output
         };
 
-        // The window positions itself on its first frame; read the claims on the second.
-        let _warm = frame(&mut state, egui::RawInput::default());
+        // A capped window takes a frame to learn its ceiling; read the claims once it has settled.
+        for _ in 0..4 {
+            let _ = frame(&mut state, egui::RawInput::default());
+        }
         let output = frame(&mut state, egui::RawInput::default());
         for kind in ThemeKind::ALL {
             assert!(
@@ -14872,6 +14949,28 @@ mod tests {
         assert_eq!(engine.photo(second).expect("photo").flag, Flag::Reject);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The search field's hint is chosen to fit, because egui clips it hard at the field's edge.
+    ///
+    /// The field is a fixed 240 points, so the sentence that teaches ⌘K is the one that gets cut on a
+    /// display whose font resolves a little wider. The chain is longest first, and the fallback is the
+    /// shortest, so a narrow field degrades to a word rather than to half a symbol.
+    #[test]
+    fn the_search_hint_shrinks_instead_of_being_cut() {
+        let width = |text: &str| text.chars().count() as f32 * 7.0;
+        let hints = ["Search photos or Ctrl+K", "Search photos", "Search"];
+        assert_eq!(
+            fitting_hint(&hints, width, 200.0),
+            "Search photos or Ctrl+K",
+            "a roomy field teaches the key"
+        );
+        assert_eq!(fitting_hint(&hints, width, 100.0), "Search photos", "a narrow field drops the key");
+        assert_eq!(
+            fitting_hint(&hints, width, 20.0),
+            "Search",
+            "a field too narrow for a phrase still says what it is"
+        );
     }
 
     /// The message about the last action belongs to the bar, but it is not laid out in it.

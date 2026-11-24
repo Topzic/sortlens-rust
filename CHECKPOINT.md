@@ -1,5 +1,35 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-fourth) — the shell taught the wrong key, and every dialog opened in the corner
+
+- **Why this came up.** The sweep stayed on the top bar and then opened what it had not seen live. The
+  search field's hint said `Search photos or ⌘K` on Windows, where the key is Ctrl+K; under a 10× crop the
+  ⌘ was painted over the K rather than before it, because the glyph is egui's own and its advance does not
+  match the sample's. The palette opened cleanly (grouped rows, filtering, the shortcut column) — and
+  About opened half off the canvas: its rounded corner cut at the screen edge, its title bar under the top
+  bar, the paragraph's first letter clipped. Settings was in the same corner, title bar under the bar.
+- **The read.** egui stacks a window it has never seen at the available area's top-left, and nothing in the
+  shell had ever said otherwise: the Alerts popover is the only window with a position of its own, and it
+  uses `anchor(RIGHT_TOP)` deliberately. The About box was simply the first dialog the audit opened, so it
+  was the one that showed the corner to be wrong.
+- **The paint.** The hint's key now comes from `palette_hint()`: `Ctrl+K` off a Mac, `⌘K` on one, so the
+  words teach the press the platform actually runs and Windows never draws the ⌘ over its letter. The
+  field keeps measuring itself from the hint and gives the words up in a stated order (key, then `or …`,
+  then `photos`) — on Windows that costs a few points, which is why the field is 3×700 wide in the scenes
+  and every baseline moved by the same 105 pixels. Every dialog now goes through `dialog_window()`, which
+  anchors it `CENTER_CENTER`: the window measures itself and is centred exactly, at 1440×900 and at
+  900×620 alike, and stays centred. The cost is that a dialog cannot be dragged aside; for a surface that
+  closes on Escape or its own button that is no loss, and it is stated in `docs/UX.md`.
+- **Tests.** `cargo test -p sortlens-ui --lib` is 156 passed; `the_search_hint_shrinks_instead_of_being_cut`
+  now expects the Windows spelling in the roomy case. `cargo xtask screenshots` is 21 scenes regenerated
+  and green — the twenty-one were all touched by the field's width, and the four dialog scenes
+  (`shortcuts`, `settings-short`, `settings-sync`, `shortcut-editor`) now paint centred. `cargo xtask ci`
+  and `cargo xtask wasm` are green.
+- **Verified live, after the rebuild.** At 1280×800 the field reads `Search photos or Ctrl+K` whole, with
+  no overlap; Ctrl+K opens the palette under the field, `exp` narrows it to the two Export rows and Enter
+  runs the first; About opens centred with its whole paragraph, and the palette and About are both clear
+  of the dark scroll bars that the corner placement had hidden them under.
+
 ## 2026-11-24 (sixty-third) — the chrome that only holds at one size: a toast with nowhere to sit, a footer cut by the bar at every window, and a compare's names running under its buttons
 
 - **Why this came up.** The live sweep that produced the last checkpoint kept reading 1280×800, then 900×620, and
