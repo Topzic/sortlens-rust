@@ -1035,12 +1035,13 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   Square), Cull, Detail, Compare, Similar, Places, Insights, each in Charcoal and Paper, with committed or
   cleanly emitted baselines (B) — shipped 2026-11-23: `crates/ui/tests/screenshots.rs` paints the real shell
   inside an `eframe::App` at 1440×900 (ppp 1.0) through the same egui fork, and 18 baselines lived under
-  `crates/ui/tests/snapshots/` at that time (31 after the later Phase 3 slices), diffed by `egui_kittest` with the tolerance in `kittest.toml`. The harness is
+  `crates/ui/tests/snapshots/` at that time (33 after the later Phase 3 slices), diffed by `egui_kittest` with the tolerance in `kittest.toml`. The harness is
   a `sortlens-ui` feature no app links (it needs a GPU; `cargo xtask ci` stays headless) and `--update` is the
   rewrite path. It found and this commit fixed two defects: the sort dropdown had no accessible name (the
   suite's AccessKit check fails an unnamed control) and the detail footer painted `←`/`→`, which no bundled
   font has, so a zero-config build showed tofu (the footer now says "left/right"). It also recorded three
-  open visual defects named in 3B.6 below
+  open visual defects named in 3B.6 below — all closed since, (a) through (h), the last of them (g) adding a
+  narrowed `shortcuts-*` scene of its own
 - [x] 3B.1 `Tokens` mapped onto `craft_ui::theme::WidgetPalette`; monochrome SVG icons across top bar, sidebar,
   filter strip, bottom bar and right panel (B) — shipped 2026-11-23: `Tokens::palette` is the one mapping and
   `apply` installs it through `WidgetPalette::apply_to` (the accent ring on the pressed state is the one
@@ -1203,9 +1204,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   points: the live line falls out of the column). `cull-charcoal`/`cull-paper` regenerated and read — the full strip,
   the decisions, the chip band, the field and `Photo 1 of 12` are all above the bar; the photograph is ~40 points
   smaller, which is the room the field was hiding in
-- [ ] 3B.6 (g) `←`/`→` are still used as text in the keymap overlay's keycaps and the command registry's `shortcut`
-  strings, where the bundled faces have no glyph — the detail footer was fixed in 3A and these two were left, because
-  they are cross-checked against each other and against the CLI goldens and were not part of that slice
+- [x] 3B.6 (g) The keycaps and shortcut strings no longer spell arrows the bundled faces cannot
+  paint — **shipped 2026-11-23 (part 9)**: measured, not assumed — in a default build (no craft-fonts)
+  the proportional face's chain (Ubuntu-Light → egui-icons → NotoEmoji → emoji-icon) has neither
+  `←` (U+2190) nor `→` (U+2192), while the monospace face (Hack) has both and the triangles `◀`/`▶`
+  render in *both* chains; the keycaps had been drawing fine in monospace all along, but the
+  proportional surfaces the same strings reach — the palette's shortcut column if `cull.back` is ever
+  listed there, and the cull start screen's hint line, which painted `← back` today — did not. Every
+  painted spelling is now the triangles: the four keymap rows, the registry's `cull.back` shortcut
+  (and with it the CLI golden `24 shortcuts.txt`), and the cull hint; the same audit retired the
+  proportional `⇧`/`✓`/`✕` the keymap's Shift row, the strip's count hint, the keyword menu and the
+  strip's clear chip painted (Shift-click, a strong `•` marker, `×`). `fonts.rs`'s comment claimed the
+  keymap draws `⌃`, `✕`, `◀` and `✓` — no code drew `⌃` and the defaults lack `✕`/`✓`; it now names
+  what the UI really paints (`◀`/`▶`, `↔`, `⌘`). Two guards: a string-level test asserting every
+  keycap renders in the monospace face and every action and registry shortcut in the proportional
+  one, and a headless audit painting the shortcuts dialog with an empty query and a `◀` needle; the
+  string test fails on the old spelling (`←` has no proportional glyph). New `shortcuts-charcoal`/
+  `-paper` baselines regenerated with all others and read — the keycap column, the triangles and the
+  `0–5`/`6–9` ranges are all real glyphs in both presets
 - [x] 3B.6 (h) The filter strip's `N shown` summary no longer lands on a chip — **shipped 2026-11-23 (part 6)**:
   the count was the wrapped row's last child, and a wrapped layout hands its last child the row's whole width, so a
   right-aligned label there was laid out from the wrap cursor and drawn underneath `Clear` (visible in the

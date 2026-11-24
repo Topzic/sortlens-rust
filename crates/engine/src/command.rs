@@ -696,7 +696,7 @@ impl Registry {
                     id: "cull.back",
                     label: "Previous Photo",
                     group: Group::Review,
-                    shortcut: Some("←"),
+                    shortcut: Some("◀"),
                     menu: "Review > Previous Photo",
                     status: Status::Ready,
                 },

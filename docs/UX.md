@@ -143,7 +143,7 @@ Same row anatomy minus the tree. Right-click: add selection, remove selection, f
 rename, delete (with a "photos and files are not deleted" line). `+ New Collection` creates and
 immediately starts inline rename.
 
-Several collections can be acted on at once: click ticks one, ⌘-click adds or removes, ⇧-click takes
+Several collections can be acted on at once: click ticks one, ⌘-click adds or removes, Shift-click takes
 the run between the last click and this row *in sidebar order*, and a ticked row carries a dot next to
 its colour dot. When two or more are ticked a line appears saying how many, with ✕ to clear; the
 context menu then acts on everything ticked, and Rename/Delete stay single-collection unless you chose
@@ -285,7 +285,7 @@ only signal.
 - Filmstrip (optional) along the bottom, horizontally virtualised, synced selection.
 - EXIF panel groups fields; missing fields are omitted rather than shown as "—".
 - Prev/next pre-fetches the next and previous photo at loupe size before you ask.
-- `Esc` closes, `←/→` steps, `I` cycles info overlay, `L` lights out.
+- `Esc` closes, `◀/▶` steps, `I` cycles info overlay, `L` lights out.
 
 ### 5.5 Cull
 

@@ -4,6 +4,11 @@
 //! meant the only way to learn a shortcut was to read the source. This table is what the overlay
 //! draws, and it is cross-checked against the command registry so a renamed shortcut cannot leave
 //! the help wrong: a binding that names a command must agree with that command's declared shortcut.
+//!
+//! Arrow keys are spelled with the triangles `◀`/`▶` rather than `←`/`→`: the keycap column paints
+//! in the monospace face, which has both, but the palette and the hint lines paint the same strings
+//! in the proportional face, which has neither — so one spelling has to render in both. The test
+//! at the foot of this file is the guard, not this comment.
 
 #![forbid(unsafe_code)]
 
@@ -114,7 +119,7 @@ pub const BINDINGS: &[Binding] = &[
     ),
     binding(
         "Click",
-        "Select one photo; ⌘-click adds or removes, ⇧-click takes the run",
+        "Select one photo; ⌘-click adds or removes, Shift-click takes the run",
         Context::Library,
         None,
     ),
@@ -127,8 +132,8 @@ pub const BINDINGS: &[Binding] = &[
     binding("M", "Open the map", Context::Library, Some("view.places")),
     binding("S", "Open the similar-photo search", Context::Library, Some("view.similar")),
     // Detail view.
-    binding("→ / Space", "Next photo in the sorted order", Context::Detail, None),
-    binding("←", "Previous photo in the sorted order", Context::Detail, None),
+    binding("▶ / Space", "Next photo in the sorted order", Context::Detail, None),
+    binding("◀", "Previous photo in the sorted order", Context::Detail, None),
     binding("Z", "Zoom to fit or 1:1", Context::Detail, None),
     binding("C", "Compare with the next photo", Context::Detail, None),
     binding("D / Esc", "Close the detail view", Context::Detail, None),
@@ -137,7 +142,7 @@ pub const BINDINGS: &[Binding] = &[
     binding("X", "Reject this photo", Context::Cull, None),
     binding("Space", "Leave it undecided and move on", Context::Cull, None),
     binding("U", "Mark undecided again", Context::Cull, None),
-    binding("←", "Step back one photo", Context::Cull, Some("cull.back")),
+    binding("◀", "Step back one photo", Context::Cull, Some("cull.back")),
     binding(
         "T",
         "Apply the keyword you last added to this photo",
@@ -150,7 +155,7 @@ pub const BINDINGS: &[Binding] = &[
     // Compare.
     binding("C", "Close the compare", Context::Compare, None),
     binding("S", "Swap the two sides", Context::Compare, None),
-    binding("→ / ←", "Step the pair together", Context::Compare, None),
+    binding("▶ / ◀", "Step the pair together", Context::Compare, None),
 ];
 
 /// Shorthand for the table above; `const fn` so `BINDINGS` stays a plain constant.
@@ -265,6 +270,36 @@ mod tests {
             keys.sort_unstable();
             keys.dedup();
             assert_eq!(count, keys.len(), "{} repeats a key", context.label());
+        }
+    }
+
+    /// Every string the overlay and the palette paint exists in the face that paints it.
+    ///
+    /// Keycaps paint in the monospace face, actions in the proportional one, and the registry's
+    /// `shortcut` strings reach the proportional palette even though the overlay spells them in
+    /// monospace — which is exactly how `←` survived until a palette row drew a box for it. Both
+    /// faces are therefore asserted, per string, against the default stack a build without
+    /// craft-fonts runs on.
+    #[test]
+    fn every_painted_keycap_and_action_exists_in_the_face_that_paints_it() {
+        let ctx = egui::Context::default();
+        ctx.run_ui(egui::RawInput::default(), |_| {}).textures_delta.clear();
+        let mono = egui::FontId::monospace(10.5);
+        let prop = egui::FontId::proportional(10.5);
+        let has = |font: &egui::FontId, body: &str| ctx.fonts_mut(|fonts| fonts.has_glyphs(font, body));
+        for binding in BINDINGS {
+            assert!(has(&mono, binding.keys), "{}: the keycap face lacks a glyph", binding.keys);
+            assert!(has(&prop, binding.action), "{}: the action face lacks a glyph", binding.action);
+        }
+        let registry = sortlens_engine::command::Registry::v0();
+        for command in registry.ready() {
+            let Some(shortcut) = command.shortcut else { continue };
+            assert!(
+                has(&prop, shortcut),
+                "{} ({}) paints {shortcut} in the palette, which lacks a glyph",
+                command.id,
+                command.label
+            );
         }
     }
 }

@@ -449,6 +449,24 @@ fn command_palette_paints_in_both_themes() {
     }
 }
 
+/// The shortcuts overlay, narrowed to the arrow keys: every keycap the search can surface.
+///
+/// This is 3B.6 (g)'s proof: the triangles that replaced `←`/`→` — glyphs the proportional face a
+/// default build runs on does not have — are visible as real glyphs in both presets, in the keycap
+/// column the overlay paints in monospace. The query is the triangles themselves, so the three rows
+/// that spell them are what the baseline is of; the full table is covered by the headless glyph
+/// audits, and an empty-query run of this scene showed it clean before this became the subject.
+#[test]
+fn shortcuts_paint_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        scene.state.shortcuts_open = true;
+        scene.state.shortcut_query = "◀".to_string();
+        library.keep(shoot(kind, scene, &format!("shortcuts-{}", kind_id(kind))));
+    }
+}
+
 /// Soft Focus: the relative sharpness review as its own destination, with stored scores.
 ///
 /// A library with measured scores shows the histogram and the cut it would select; this is the proof that

@@ -4079,8 +4079,12 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                         }
                         for (tag, count) in vocabulary.iter().take(24) {
                             let active = state.tag_filters.iter().any(|chosen| chosen == tag);
-                            let label = format!("{}{tag}  ({count})", if active { "✓ " } else { "" });
-                            if ui.add(Button::new(RichText::new(label).size(11.0)).frame(false)).clicked() {
+                            let label = format!("{}{tag}  ({count})", if active { "• " } else { "" });
+                            let mut text = RichText::new(label).size(11.0);
+                            if active {
+                                text = text.strong();
+                            }
+                            if ui.add(Button::new(text).frame(false)).clicked() {
                                 if active {
                                     state.tag_filters.retain(|chosen| chosen != tag);
                                 } else {
@@ -5541,7 +5545,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             }
             ui.add_space(6.0);
             ui.label(
-                RichText::new("P pick · X reject · Space defer · U clear · ← back · T last keyword · drag up/down")
+                RichText::new("P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down")
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -6929,13 +6933,13 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
         let count = state.collection_selection.len();
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(format!("{count} selected · ⌘-click to add, ⇧-click for a run"))
+                RichText::new(format!("{count} selected · ⌘-click to add, Shift-click for a run"))
                     .size(10.0)
                     .color(t.text_muted),
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
-                    .add(Button::new(RichText::new("✕").size(10.0)).fill(Color32::TRANSPARENT))
+                    .add(Button::new(RichText::new("×").size(10.0)).fill(Color32::TRANSPARENT))
                     .clicked()
                 {
                     state.collection_selection.clear();
@@ -13251,6 +13255,58 @@ mod tests {
         assert!(painted > 0, "the bar painted something");
         assert!(missing.is_empty(), "these strings have no glyphs in the bundled faces: {missing:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The same audit, aimed at the shortcuts overlay.
+    ///
+    /// The keycap column paints in the monospace face and the actions in the proportional one, and
+    /// the search field can surface any binding — so one missing glyph is a box in front of the one
+    /// screen whose whole subject is keys. This is where 3B.6 (g)'s arrows were found: `←`/`→` do
+    /// not exist in the proportional face a default build runs on, and the triangles that replaced
+    /// them must stay covered.
+    #[test]
+    fn the_shortcuts_dialog_paints_only_glyphs_the_bundled_faces_have() {
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.shortcuts_open = true;
+        let t = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0));
+        let mut missing: Vec<String> = Vec::new();
+        let mut painted = 0;
+        // With the query empty every binding paints; a second pass with a needle proves the search
+        // field narrows to strings the audit still covers.
+        for query in ["", "◀"] {
+            state.shortcut_query = query.to_string();
+            for _ in 0..2 {
+                let input = egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..egui::RawInput::default()
+                };
+                let mut output = ctx.run_ui(input, |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        shortcuts_dialog(ui, &mut state, &t);
+                    });
+                });
+                output.textures_delta.clear();
+                painted = output.shapes.len();
+                for clipped in &output.shapes {
+                    if let egui::Shape::Text(text) = &clipped.shape {
+                        let font = text
+                            .galley
+                            .job
+                            .sections
+                            .first()
+                            .map_or_else(|| egui::FontId::proportional(12.0), |section| section.format.font_id.clone());
+                        let body = text.galley.job.text.clone();
+                        if !ctx.fonts_mut(|fonts| fonts.has_glyphs(&font, &body)) {
+                            missing.push(body);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(painted > 0, "the dialog painted something");
+        assert!(missing.is_empty(), "these strings have no glyphs in the bundled faces: {missing:?}");
     }
 
     /// Paint only the bottom bar and hand back what it drew.

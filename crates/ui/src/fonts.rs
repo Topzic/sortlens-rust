@@ -9,7 +9,8 @@
 //!   Japanese, Korean, Hebrew, the Indian scripts and the UI symbols. Putting them first would change
 //!   Latin text, which is the one thing a font fallback must never do.
 //! - **The scripts the interface actually needs are named in code.** [`REQUIRED_SCRIPTS`] is what
-//!   [`coverage`] checks: the UI draws `⌃`, `✕`, `◀` and `✓` as text, so `Zsym` is not decoration.
+//!   [`coverage`] checks: the UI paints `◀`/`▶`, `↔` and `⌘` as text, and none of them live in
+//!   egui's Latin face — they come from the bundled emoji faces or, on a craft build, from `Zsym`.
 
 #![forbid(unsafe_code)]
 
@@ -32,9 +33,9 @@ include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs"));
 
 /// Scripts the interface needs a face for.
 ///
-/// `Latn` and `Zsym` are not optional: the first is the interface language and the second is how the
-/// keymap draws `⌃`, `✕`, `◀` and `✓`. The rest arrive with translations and are listed so a build
-/// that ships them can check them in one place.
+/// `Latn` and `Zsym` are not optional: the first is the interface language and the second is the
+/// symbol coverage behind the `◀`/`▶` keycaps, the compare header's `↔` and the `⌘` hints. The rest
+/// arrive with translations and are listed so a build that ships them can check them in one place.
 pub const REQUIRED_SCRIPTS: &[&str] = &["Latn", "Zsym"];
 
 /// Scripts a translation would add, each of which needs a face when the language ships.
