@@ -1,0 +1,63 @@
+[package]
+name = "sortlens-mobile"
+description = "Sortlens for phones and tablets (SL-J10): the desktop's engine and shell in an Android and iOS host"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lib]
+# `cdylib` is the Android activity's library, `staticlib` is what the iOS app links, `rlib` is what
+# the tests and the desktop build of this crate use.
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+sortlens-core = { workspace = true }
+sortlens-engine = { workspace = true }
+sortlens-ui = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# The same version winit carries; the activity the host hands to `android_main`.
+android-activity = { version = "0.6", features = ["native-activity"] }
+eframe = { workspace = true, features = ["android-native-activity"] }
+
+[dev-dependencies]
+sortlens-testkit = { workspace = true }
+
+# The workspace forbids unsafe code. The two C entry points a phone host calls are the only
+# exception, and they live in `entry.rs`, which says so; everything else stays forbidden by
+# the `#![forbid]`-equivalent below.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+cognitive_complexity = "deny"
+too_many_arguments = "deny"
+wildcard_imports = "deny"
+dbg_macro = "warn"
+todo = "warn"
+
+[package.metadata.android]
+package = "app.sortlens.mobile"
+build_targets = ["aarch64-linux-android"]
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 34
+
+[package.metadata.android.application]
+label = "Sortlens"
+
+[package.metadata.android.application.activity]
+config_changes = "orientation|keyboardHidden|screenSize"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.READ_MEDIA_IMAGES"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.READ_EXTERNAL_STORAGE"
+max_sdk_version = 32

@@ -621,30 +621,24 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   progress, and `remove()` refuses to delete what it cannot identify. The shipped manifest is empty:
   no model has been chosen, pinned and licensed for redistribution, so there is nothing to describe.
 
-## 10. Remote and web
+## 10. Remote and phones
 
-- `apps/sortlens-web`: the same `sortlens-ui` compiled to wasm32, minus native file access. Its
-  catalog path (shipped 2026-11-24, Phase 4 item 3): `Catalog::open_memory` opens the state from
-  snapshot JSON alone — no directory, no log, no lock — and applies operations in memory with the
-  same undo, redo and stale-revision rules as the disk catalog; `Catalog::snapshot_json` hands the
-  state back for the client to persist. A snapshot schema newer than the build's is refused, not
-  opened read-only, because a client that cannot read the format must not pretend to hold the
-  library. `Engine::open_memory` mirrors that one layer up, and `library.snapshot` serves the
-  state over the wire under `read`, so `sortlens-web`'s `RemoteLibrary` can hydrate from a paired
-  server and save the state back between sessions. The device protocol lives in
-  `sortlens_remote::client` — pairing, `/api` calls, the resumable `/upload` with the
-  keep-or-remove decision applied on the ack, and `thumbnail` fetching `GET /thumb/<id>/<edge>`
-  — and its request builders and answer parsers are the one wire both clients share: the blocking
-  native client, and the async wasm client (`sortlens_remote::web::WebClient`) that backs the same
-  functions with the browser's `fetch`. The browser shell itself shipped 2026-11-24: the page is
-  the eframe fork's `WebRunner` in the browser's canvas (`cargo xtask web` builds the wasm32
-  release binary, the wasm-bindgen glue and `apps/sortlens-web/web/index.html` into
-  `apps/sortlens-web/dist`), the host serves its own page from `/app` under `--web DIR` so the
-  page is same-origin with the protocol it speaks, and the page pairs with the host's code,
-  hydrates the wire snapshot, paints the grid from wire thumbnails decoded through the desktop's
-  own codec, and keeps the token and the snapshot in browser storage between sessions. Still
-  open: the shell's upload surface — the file picker or drag-and-drop feeding the resumable
-  `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
+- `apps/sortlens-mobile` (SL-J10): the phone and tablet app, a native Rust library — a `cdylib` for the
+  Android activity, a `staticlib` for the iOS app, an `rlib` for tests. It is the desktop host with the
+  desktop taken out: the same `sortlens-engine` and `sortlens-ui` driven by an eframe `App`, minus the title
+  bar, file dialogs, reveal-in-folder and the sync server. The photographs are on the device, so the phone
+  opens its own catalog under the app's private directory and indexes the camera roll (`places`); the
+  two entry points (`android_main`, `sortlens_ios_main`) are the only unsafe code in the application and
+  sit in one module. `cargo xtask mobile` checks both targets, which keeps the shared crates portable.
+  Not yet done: a phone layout (the shell is still the desktop's), settings persistence, trimming the
+  embedded font set for a phone binary, and the iOS Photos library (until then iOS reads the
+  Files-visible Documents folder).
+- `Catalog::open_memory`, `Engine::open_memory` and `library.snapshot` (shipped 2026-11-24): a catalog
+  opened from snapshot JSON alone — no directory, log or lock — with the same undo, redo and
+  stale-revision rules as the disk catalog. The device protocol lives in `sortlens_remote::client`: pairing,
+  `/api` calls, the resumable `/upload` with the keep-or-remove decision applied on the ack, and
+  `thumbnail` fetching `GET /thumb/<id>/<edge>`. A phone uses it to send what it shoots to the
+  desktop's library.
 - `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
   hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
   default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five
@@ -653,10 +647,7 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   Routes: `GET /health` (the connection test, no token), `POST /pair`, `POST /api`
   (`{method, params}` → the registry's answer), `POST /upload`, `GET /upload/<id>`, and
   `GET /thumb/<photo-id>/<edge>` (the export path's lossless PNG, decoded through the desktop
-  grid's `sortlens-thumbs` path, bounded to 16–1024 px, under `read`). With `--web DIR` (shipped
-  2026-11-24) the server also serves the browser client from `/app` and `/app/<path>` — same-origin
-  with the protocol, so the page needs no CORS — serving only paths that resolve inside the
-  bundle directory, a traversal answering 404.
+  grid's `sortlens-thumbs` path, bounded to 16–1024 px, under `read`).
 - The desktop's own surface (shipped 2026-11-24, Phase 4 item 3): Settings → Sync & devices spawns
   the server binary beside the app and follows its stdout through `sortlens-remote::supervise`
   (the startup-line contract is parsed once, beside the protocol), shows the live port and pairing
@@ -751,7 +742,7 @@ suite's own project treats them as authoritative.
 
 CI (`xtask`, mirroring LightCraft):
 `cargo xtask ci --quick` (fmt, clippy -D warnings, changed-package tests, layers, roots,
-assets), `cargo xtask ci` (full + benches smoke + wasm check), plus a Windows leg and a
+assets), `cargo xtask ci` (full + benches smoke), plus `cargo xtask mobile` per platform, plus a Windows leg and a
 snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 
 ## 13. Distribution
@@ -762,7 +753,7 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
   `update.check` (SL-I10, opt-in); the answer — tag, version, notes headline — shows in Settings →
   Updates and `update.status`. Nothing downloads or installs automatically; self-update stays out
   until the installer work in M10's absence table exists.
-- Web: wasm bundle served by the optional server; no CDN dependencies.
+- Phones: an APK/AAB from `cargo-apk` and an iOS app linking the `sortlens-mobile` staticlib; no network at runtime.
 - Geography: `assets/coastline.txt` — the Natural Earth 1:110m coastline (public domain), embedded in
   `sortlens-geo` with `include_str!` and stroked under the Places dots with its credit on screen. A `tiles/`
   folder the person supplies replaces it; nothing is fetched at run time.
@@ -787,7 +778,7 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 | Map | Offline vector world, opt-in tiles | Online tiles by default | Privacy promise is the product |
 | Similarity | dHash + pHash | CNN embeddings only | Works before any model download, milliseconds per 100k |
 | Thumbnail format | JPEG | WebP/AVIF | Encoder maturity and speed; WebP optional later |
-| Remote | Rust wasm client + Rust server | React native app, Electron | Rule: no handwritten JS; one UI |
+| Phones | Native Rust app (`sortlens-mobile`) + optional Rust server | wasm web client, React Native, Swift/Kotlin UIs | The vendor ships native phone apps; the Rust engine and UI are reused, no handwritten UI code |
 | Deletion | Trash default, staged | Direct delete | Safety is a feature, not a preference |
 | Library identity | Volume serial + rel path | Absolute path | Removable media and moves are the normal case |
 
@@ -804,7 +795,7 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 | M6 Analyze | blur, similarity, map, dashboard, memories | quality, hash, geo, similar, insights, ui |
 | M7 Safety | delete modes, bin, audit, backup/remap | catalog, engine, ui |
 | M8 AI + export | model store, inference, packs, export | ai, engine, ui |
-| M9 Remote/automation | CLI, MCP, server, wasm client, i18n, keymap | mcp, remote, ui, cli |
+| M9 Remote/automation | CLI, MCP, server, phone app, i18n, keymap | mcp, remote, ui, cli |
 | M10 Release | a11y audit, themes, updates, packaging | all |
 
 ## MCP

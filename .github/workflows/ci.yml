@@ -24,7 +24,6 @@ jobs:
         with:
           toolchain: "1.95.0"
           components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
 
       - name: Linux windowing headers
         if: runner.os == 'Linux'
@@ -41,9 +40,31 @@ jobs:
       - name: ci
         run: cargo xtask ci
 
-      - name: wasm
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo xtask wasm
+  # The phone app shares the desktop's engine and shell, so a phone target that stops compiling is a
+  # regression in shared code. Ubuntu runners carry the Android NDK; macOS runners carry Xcode.
+  mobile:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: android
+            target: aarch64-linux-android
+          - os: macos-latest
+            platform: ios
+            target: aarch64-apple-ios
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mobile-${{ matrix.platform }}
+      - name: mobile
+        run: cargo xtask mobile ${{ matrix.platform }}
 
   # The goldens are a claim about what the tool says. One OS, because the fixture bytes and the
   # normalised output are machine-independent, and a second machine would only add noise.

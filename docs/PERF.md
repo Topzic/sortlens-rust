@@ -7,7 +7,7 @@ scalar, and disc cache decides how fast a first scan goes.
 
 ```
 hardware  Apple M4, 16 GB, macOS 27.0.1, 10 logical cores
-toolchain rust 1.95.0, edition 2024, wasm32-unknown-unknown installed
+toolchain rust 1.95.0, edition 2024, aarch64-linux-android and aarch64-apple-ios installed
 command   cargo xtask perf --photos 2000 --thumbs 200 --frames 120
           cargo xtask perf --photos 10000 --thumbs 20 --frames 40
 build     release (the binary prints a warning when it is a debug build, because those timings lie)
@@ -83,7 +83,7 @@ thousand, so the curve is linear. That is a 7× improvement on the same machine,
 | 100 000-photo scroll at 60 Hz | Not measured. Generating and indexing a hundred thousand fixtures takes half an hour on this machine, and the grid is virtualised — it paints the visible cells, not the library — so a frame cost measured at ten thousand is mostly a statement about the viewport, not the library. What would unblock it: a real library to test against, which this project deliberately does not ship. |
 | GPU frame time | Not measured, and not measurable here. Frames are `Context::run_ui` without a GPU and without texture uploads, so they are layout and shape building only. There is no vsync in this harness and no 60 Hz budget to check against. What would unblock it: running the app on a machine with a display and reading a real frame timer. |
 | Memory, RSS per thousand photos | Not measured. The harness reports resident textures, not process memory, because a headless context does not allocate what a window does. What would unblock it: a long single-process run of the real app, which is not something this loop can drive. |
-| Mobile, or any device that is not this laptop | Not measured. `wasm32-unknown-unknown` builds are checked in `cargo xtask wasm`, but a wasm build compiling is not a wasm build running at speed. |
+| Mobile, or any device that is not this laptop | Not measured. The phone targets are checked in `cargo xtask mobile`, but a build compiling is not a build running at speed. |
 | HEIC, RAW, video thumbnails | No decoder ships for the first two (`docs/ATTRIBUTION.md` lists what is linked), so there is nothing to time. |
 | Cold start of the window, first paint on screen | Not measured: the harness has no window. The first headless frame costs 4.3 ms and installs fonts, which is a floor, not the answer. |
 

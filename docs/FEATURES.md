@@ -64,7 +64,7 @@ those six, never a prerequisite.
 | G. Collections and albums | 10 | M5 | Static vs smart vs on-disk |
 | H. Safety, data, recovery | 14 | M3, M7 | Non-negotiable; shipped before deletes exist |
 | I. Settings, appearance, platform | 16 | M0–M10 | ArtCraft chrome, not the blue webview look |
-| J. Profiles and remote access | 9 | M9 | Optional; wasm client + local server |
+| J. Profiles and remote access | 9 | M9 | Optional; phone app + local server |
 | K. Automation (CLI/control/MCP) | 8 | M2–M9 | Every UI action is a command from day one |
 | L. Accessibility and i18n | 9 | continuous | Required by ArtCraft standards |
 | M. Performance and scale | 11 | continuous | Budgeted and CI-checked |
@@ -370,7 +370,7 @@ folders/collections, creates albums, uploads photos, and can keep or remove the 
 | ID | Feature | Evidence | Behaviour | Rust approach | Pri | Phase |
 | --- | --- | --- | --- | --- | --- | --- |
 | SL-J01 | Local network server (opt-in) | [D] | Serve the library to a paired device | Server shipped 2026-11-24 (Phase 4 item 3): loopback by default, `--bind lan` explicit, `/health`, `/pair`, `/api`, `/upload`, `/thumb` | P2 | M9 |
-| SL-J02 | Phone client | [D] | Browse, cull, albums, upload | The same egui UI compiled to wasm (`sortlens-web`). The library path shipped 2026-11-24 (Phase 4 item 3): `RemoteLibrary` hydrates a `library.snapshot` pull into `Engine::open_memory`, saves the state back as the JSON the next session opens, and refuses a snapshot it cannot read; the device protocol (pair, `/api`, resumable `/upload`, SL-J05's ack) is `sortlens_remote::client`, proven against the real server in the loopback harness. Thumbnails over the wire shipped 2026-11-24: `GET /thumb/<id>/<edge>` answers the export path's lossless PNG decoded through the desktop grid's `sortlens-thumbs` path (bounded 16–1024 px, under `read`), fetched with `Client::thumbnail`. Still open: the eframe browser entry (needs the wasm-bindgen CLI in `.toolchain`) and the shell's Settings/pairing/upload surface | P2 | M9 |
+| SL-J02 | Phone client | [D] | Browse, cull, albums, upload | The native phone app (`apps/sortlens-mobile`, SL-J10) replaces the wasm browser client: the same engine and shell on Android and iOS. Done: the device protocol (pair, `/api`, resumable `/upload`, SL-J05's ack) in `sortlens_remote::client`, proven against the real server in the loopback harness; thumbnails over the wire; `Engine::open_memory`; the app crate with its Android and iOS entry points. Still open: a phone layout, settings persistence, uploading to a desktop from the app, the iOS Photos library, and a device build (needs the NDK and Xcode) | P2 | M9 |
 | SL-J03 | Pairing + tokens | [D] | Connection test, saved address | Shipped 2026-11-24 (Phase 4 item 3): six-digit code (10 min, 5 wrong attempts lock out) → scoped bearer token in `<library>/remote-tokens.json`; the desktop's Settings → Sync & devices (2026-11-24) spawns the server, shows the live port and code, lists the paired devices from the token file and revokes by exact token once the server is stopped | P2 | M9 |
 | SL-J04 | Upload into an album | [D] v0.11 | Phone → album folder on the host | Shipped 2026-11-24 (Phase 4 item 3): `Content-Range` chunks on disk, resume from the received count, size+SHA-256 verified before the final chunk lands, ` (n)` collisions | P2 | M9 |
 | SL-J05 | Keep or remove after upload | [D] | Toggle, including background refresh | Shipped 2026-11-24 (Phase 4 item 3, client half): `UploadItem.remove_after_upload` chosen when the item is queued, applied on the server's ack as `LocalCopy::Keep`/`Remove` — the decision rides on the item, so a transfer that died mid-flight and resumed still lands with the right answer (proved in the loopback harness) | P2 | M9 |
@@ -378,6 +378,7 @@ folders/collections, creates albums, uploads photos, and can keep or remove the 
 | SL-J07 | Connection test | [D] v0.10 | In setup and settings | `GET /health` (no token) plus the auth probes shipped 2026-11-24 (Phase 4 item 3); the settings screen is open with the client | P2 | M9 |
 | SL-J08 | Remote rescan | [I] | Host rescans on demand | `library.rescan` on the shipped allow-list under `annotate` (Phase 4 item 3, 2026-11-24) | P2 | M9 |
 | SL-J09 | No cloud, VPN-friendly | [D] | Works over an existing VPN | Loopback default, `--bind lan` explicit, allow-list over the registry — shipped 2026-11-24 (Phase 4 item 3) | P2 | M9 |
+| SL-J10 | Phone app | [I] | Install Sortlens on a phone or tablet | `apps/sortlens-mobile`: the same engine and shell as the desktop, native on Android and iOS (see SL-J02) | P2 | M9 |
 
 Note: Sortlens integrates a specific VPN product. We implement "reachable over the network
 the user already has" (LAN, or any VPN/overlay they run) and never bundle or configure a
@@ -448,7 +449,7 @@ ArtCraft standards make these release-blocking, not polish.
 | Inno Setup + PowerShell self-updater | Fragile, platform-specific | `craft-update` with signed artifacts |
 | React/Tailwind blue-dark chrome | ArtCraft identity required | egui + ArtCraft tokens, docking, menus |
 | Vendored Python AI runtime | Huge, opaque | `tract`/candle with pinned model digests |
-| iOS native app | Out of scope for v1 | wasm client served by the host (M9) |
+| iOS native app | In scope | `apps/sortlens-mobile` (SL-J10): the same Rust engine and UI |
 | Vendor screenshots and icons | Clean-room rule | Original icon set and our own screenshots |
 
 ## Open questions to resolve before M4

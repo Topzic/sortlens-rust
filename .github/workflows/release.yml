@@ -20,14 +20,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.95.0
         with:
-          targets: wasm32-unknown-unknown
           components: clippy, rustfmt
       - name: ci
         run: cargo xtask ci
       - name: goldens
         run: cargo xtask snapshot
-      - name: wasm
-        run: cargo xtask wasm
 
   build:
     name: ${{ matrix.target }}

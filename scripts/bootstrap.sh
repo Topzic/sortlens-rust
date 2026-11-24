@@ -16,5 +16,5 @@ export RUSTUP_HOME="$PWD/.toolchain/rustup"
 export CARGO_HOME="$PWD/.toolchain/cargo"
 rustup toolchain install 1.95.0 --profile minimal
 rustup component add rustfmt clippy --toolchain 1.95.0
-rustup target add wasm32-unknown-unknown --toolchain 1.95.0
+rustup target add aarch64-linux-android aarch64-apple-ios --toolchain 1.95.0
 echo "Ready. Run: . scripts/env.sh && cargo build -p sortlens"

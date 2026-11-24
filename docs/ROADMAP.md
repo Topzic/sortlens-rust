@@ -962,7 +962,7 @@ unnamed controls; every budget in `FEATURES.md` §M passes.
 Re-opened by the owner's course correction (`docs/sortlens_agent_completion_directive.md`). **M0–M10 are not
 "done" while any row below is open.** One vertical slice per commit; every slice lands with a test that fails
 when the behaviour is absent, ticks its row here, and updates `CHECKPOINT.md` in the same commit. Gates per
-commit: `cargo xtask ci`, `snapshot`, `deny`, and `wasm` when `crates/core`, `crates/ui` or wasm-facing
+commit: `cargo xtask ci`, `snapshot`, `deny`, and `mobile` when `crates/core`, `crates/ui` or phone-facing
 crates change.
 
 Owner sign-offs (Phase 0): user-initiated, opt-in network calls for `model.install` and `craft-update` only —
@@ -1354,7 +1354,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     need an Arabic-capable font build (CI's has none).
   (B,E)
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
-  resumable uploads) and `sortlens-web` reusing `sortlens-ui` (SL-J01..J09), proved by a two-process loopback
+  resumable uploads) and the phone client (SL-J01..J09; the browser client was dropped 2026-11-24 for the native `sortlens-mobile`, below), proved by a two-process loopback
   integration harness in CI (E)
   - **The server half shipped 2026-11-24.** `crates/remote` holds the three shared pieces: the scoped
     device tokens (`Permission::Read/Upload/Annotate/Cull`, persisted as
@@ -1467,8 +1467,17 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     re-pairing — and by the harness test that reads `/app`, `/app/sortlens-web.js`, the nested
     `snippets/` asset and the wasm back with the content types a browser needs, a traversal and an
     unknown name refused, an unconfigured server naming the `--web` flag.
-  - **Still open here:** the shell's upload surface — the file picker or drag-and-drop feeding the
-    resumable `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
+  - **The browser client was removed 2026-11-24.** Phones get a native app, as the vendor's product does, so
+    `sortlens-web`, `cargo xtask web`, `sortlens_remote::web` and the server's `--web`/`/app` route are gone;
+    `Engine::open_memory`, `library.snapshot`, `/thumb` and the device protocol stay, because a phone uses them.
+- [ ] 3b. **`apps/sortlens-mobile` (SL-J10)** — the native Android and iOS app over the desktop's engine and shell.
+  - **Shipped 2026-11-24:** the crate (`cdylib` + `staticlib` + `rlib`), the shared `App`, the Android
+    (`android_main`) and iOS (`sortlens_ios_main`) entry points, where the library and the camera roll live,
+    `cargo xtask mobile`, and a CI job per platform. Verified: the crate builds and its tests pass on the host.
+  - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
+    `cargo xtask mobile` (this checkout has neither); a phone layout (the shell is still the desktop's, 880 px
+    minimum); settings persistence; trimming the embedded font set for a phone; the iOS Photos library; a
+    send-to-desktop action over the resumable upload; an APK/AAB and an `.ipa` in the release workflow.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 
@@ -1478,7 +1487,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 - [ ] 2. `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only `agent-ready`/`triaged` issues; never push to
   `main`, auto-merge, bypass `deny` or touch signing secrets; the repro-first loop ending in a Draft PR; the bounded
   improvement queue (perf regressions, `enhancement-approved`, unchecked roadmap rows) (E)
-- [ ] 3. `.github/workflows/agent-intake.yml` and a `ci.yml` that runs `ci`, `snapshot`, `deny`, `wasm` and
+- [ ] 3. `.github/workflows/agent-intake.yml` and a `ci.yml` that runs `ci`, `snapshot`, `deny`, `mobile` and
   `screenshots` on every PR (E)
 
 ---

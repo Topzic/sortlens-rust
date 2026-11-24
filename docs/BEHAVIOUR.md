@@ -190,7 +190,7 @@ Two actions, `photo.reveal` and `photo.open`, and one rule about who does what.
 - **The engine builds the command; the host runs it.** `sortlens_core::reveal` turns a path and a
   desktop into a program and an argument list, with no process table involved, so the exact argv is
   asserted in a test for each platform. The app and the CLI execute it; the engine's command result
-  says `"ran": false` and hands back the line, because a library opened by the wasm client has no
+  says `"ran": false` and hands back the line, because a library held in memory has no
   process table to run anything in.
 - **Arguments are always a list.** A file called `$(rm -rf ~).jpg` is one argument, never a shell
   string.

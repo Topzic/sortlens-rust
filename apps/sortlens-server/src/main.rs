@@ -44,7 +44,6 @@ Routes:
   POST /upload          a resumable chunk into the album folder
   GET  /upload/<id>     how much of an upload the host already holds
   GET  /thumb/<id>/<n>  one photograph's thumbnail as PNG, edge n pixels (16 to 1024)
-  GET  /app             the browser client (cargo xtask web), when started with --web DIR
 ";
 
 fn main() -> std::process::ExitCode {
@@ -72,7 +71,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
     let mut ttl = CODE_TTL_SECS;
     let mut grants: Option<Permissions> = None;
     let mut max_upload = 512 * 1024 * 1024;
-    let mut web: Option<PathBuf> = None;
 
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
@@ -118,16 +116,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     .map_err(|_| "--max-upload-mb is a number".to_string())?
                     .saturating_mul(1024 * 1024);
             }
-            "--web" => {
-                let dir = PathBuf::from(value("--web")?);
-                if !dir.join("index.html").is_file() {
-                    return Err(format!(
-                        "--web {} has no index.html; build the bundle with `cargo xtask web`",
-                        dir.display()
-                    ));
-                }
-                web = Some(dir);
-            }
             other => return Err(format!("unknown argument {other}; --help lists them")),
         }
     }
@@ -148,7 +136,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
         grants: grants.unwrap_or_else(Permissions::all),
         max_upload,
         pairing_file: None,
-        web,
     };
     let mut server = Server::new(engine, token_store, gate, config);
 
@@ -161,9 +148,6 @@ fn run(args: Vec<String>) -> Result<(), String> {
     println!("tokens {}", tokens.display());
     println!("pairing {}", server.pairing_code());
     println!("paired devices: {}", if server_is_empty(&server) { "none yet" } else { "some" });
-    if let Some(dir) = &server.web {
-        println!("web {} (GET /app)", dir.display());
-    }
     use std::io::Write;
     let _ = std::io::stdout().flush();
 

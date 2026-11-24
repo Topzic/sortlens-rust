@@ -5,7 +5,7 @@ application in the ArtCraft style: fast enough for 50k–200k image libraries, s
 nothing is ever lost, and organised so that every tool is one obvious step away.
 
 **Deliverable shape.** One desktop app (macOS, Windows, Linux), an optional headless CLI, an
-optional wasm client for phones/tablets, and an automation surface (control channel + MCP) that
+phone/tablet app (Android and iOS, the same Rust engine and shell), and an automation surface (control channel + MCP) that
 can do everything the GUI can.
 
 **Documents in this set**
@@ -59,7 +59,7 @@ So the recreation is a **behavioural** port, not a code port:
 
 - RAW *development* (tone curves, masks, healing, export rendering) — that is LightCraft.
 - Cloud sync, accounts, telemetry, subscriptions.
-- A native iOS/Android app; the wasm client covers phones.
+- A browser or wasm client. Phones get the native app (`apps/sortlens-mobile`), not a web page.
 - Windows/macOS code-signing infrastructure beyond a documented, scripted release.
 - Recreating the vendor's exact pixels or copy; clean-room behaviour only.
 - Network-drive libraries (SMB/NFS) as a supported target: they work read-only, badly, and we
@@ -76,7 +76,7 @@ So the recreation is a **behavioural** port, not a code port:
 | D5 | XMP sidecars on by default for rating/label/tags | Interop is the reason people trust the tool |
 | D6 | AI is optional, `tract`-based, model store with sha256 | Pure Rust, offline, auditable |
 | D7 | Map is offline by default; tiles opt-in | The product promise is "nothing leaves your machine" |
-| D8 | Remote access is a Rust wasm client + local server | No handwritten JS; one UI to maintain |
+| D8 | Phones run a native Rust app (`sortlens-mobile`) over the same engine and UI; the optional local server is how a phone and a desktop share a library | No handwritten JS or Swift/Kotlin UI; one UI to maintain. Reverses the earlier wasm-client decision (2026-11-24) |
 | D9 | Product name **Sortlens**; crates `sortlens-*`; id `app.sortlens.desktop` | The owner's existing brand; ArtCraft-style internals |
 | D10 | Licence MIT OR Apache-2.0 (pending owner confirmation) | Matches the suite and every dependency |
 
@@ -97,7 +97,7 @@ not 60%, because the catalog and UI have hard sequencing.
 | **M6** | Analyse | 2.5 | Soft-focus, similar shots, places map, dashboard, memories | Find 20 blurred frames and 12 duplicate groups; map shows clusters; dashboard numbers match the catalog; memories are deterministic |
 | **M7** | Safety | 1.5 | Delete modes, rejects bin, restore, backup/restore, volume remap, audit viewer, integrity/compact | Delete in all three modes; restore from bin and from trash; corrupt the op log tail and recover; export/import a library |
 | **M8** | AI + export | 2.5 | Model store, object detection, embeddings, packs, suggestion panel, batch suggest, export original/JPEG/PNG | Install the model offline, suggest tags for 50 photos, accept 10, export a selection with metadata policy |
-| **M9** | Remote + automation | 2.5 | MCP server, CLI parity, remote server, wasm client, pairing, i18n + RTL, keymap editor, `craft-update` | Cull 20 photos from a phone over LAN; an agent runs a full cull + report via MCP in CI |
+| **M9** | Remote + automation | 2.5 | MCP server, CLI parity, remote server, phone app, pairing, i18n + RTL, keymap editor, `craft-update` | Cull 20 photos from a phone over LAN; an agent runs a full cull + report via MCP in CI |
 | **M10** | Release | 2.0 | Accessibility audit, high-contrast theme, theme import, packaging, signing, docs, benchmarks, 1.0 | Signed notarised macOS app, MSI, AppImage; a11y tree verified; all budgets green; release notes published |
 | | **Total** | **23.5** | | |
 
@@ -212,7 +212,7 @@ Hard sequencing rules:
 **M9 — Remote + automation (2.5 w)**
 - `sortlens-mcp` (read/write roots, tool list from the command registry), CLI parity for every
   non-UI command, stable JSON schemas.
-- `sortlens-server` + `sortlens-web`: token auth, pairing code, permissions, upload with
+- `sortlens-server` + `sortlens-mobile`: token auth, pairing code, permissions, upload with
   resume + verification, album creation.
 - i18n catalogs + RTL screenshots for ar/ja/zh-TW/ko/th/vi; localised numbers/dates.
 - `craft-keymap` editor + import of other apps' shortcut sets; `craft-update` + release notes.
@@ -221,7 +221,7 @@ Hard sequencing rules:
 - Accessibility audit (focus order, roles, announcements, contrast, no keyboard traps),
   high-contrast preset, reduced motion.
 - Theme import via `craft-ext-core` palette (data only); icon set final pass.
-- Packaging: macOS `.app` (signed, notarised), Windows MSI, Linux AppImage/Flatpak, wasm bundle.
+- Packaging: macOS `.app` (signed, notarised), Windows MSI, Linux AppImage/Flatpak, Android APK/AAB and the iOS app.
 - Benchmarks recorded in `docs/PERF.md`; release notes; `docs/ATTRIBUTION.md` complete;
   launcher entry; 1.0 tag.
 

@@ -1,5 +1,25 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-seventh) — the browser client is gone; phones get a native Rust app (SL-J10)
+
+- **Why.** The vendor's own product ships iOS and Android apps, and a wasm page served from the desktop is not
+  that. The owner asked for the web version to be removed and a downloadable phone app built from the same Rust.
+- **Removed.** `apps/sortlens-web` (wasm shell, `RemoteLibrary`), `sortlens_remote::web` and its wasm
+  dependencies, `cargo xtask web` and `wasm`, the server's `--web` flag and `/app` route with their harness
+  test, and the wasm steps in both workflows. Kept: `Engine::open_memory`, `library.snapshot`, `/thumb` and
+  `sortlens_remote::client`, which a phone uses.
+- **Added.** `apps/sortlens-mobile`: the desktop host without the desktop — the same `sortlens-engine` and
+  `sortlens-ui` in an eframe `App`, the library under the app's private directory, the camera roll as its
+  source, `android_main` and `sortlens_ios_main` as the only unsafe code in the application. `cargo xtask
+  mobile [android|ios]`, a `mobile` CI job per platform, the phone targets in `rust-toolchain.toml` and
+  `scripts/bootstrap.sh`. D8 in `docs/PLAN.md` is reversed and says so.
+- **Verified here.** `cargo check -p sortlens-mobile` and the crate's tests on the host; `layers`, `roots`,
+  `assets`, `version`, `attribution`, `a11y` and `docs`. **Not verified:** the Android and iOS targets. Both
+  stop in `ring` and `tract-linalg`'s build scripts for want of the NDK and the iPhoneOS SDK (this Mac has
+  command line tools only, and 3 GB free). The first machine with both runs `cargo xtask mobile`.
+- **Next for the phone.** A phone layout (the shell is still desktop-shaped), settings persistence, the font set,
+  send-to-desktop over the resumable upload, the iOS Photos library, packaging in the release workflow.
+
 ## 2026-11-24 (fifty-sixth) — the Mac reads the table the way the table means it: ⌘ is the command key, and a build without a symbols face says the glyphs as words
 
 - **Why this came up.** The whole suite had only ever run on Windows. On this macOS checkout six
@@ -4112,8 +4132,9 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
 that fails when the behaviour is absent, its ROADMAP row ticked and a CHECKPOINT entry in the same commit.
-Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, and `wasm` when `crates/core`,
-`crates/ui` or wasm-facing crates change. The full text is in `docs/ROADMAP.md` "Completion phases".
+Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, and `mobile` when `crates/core`,
+`crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
+says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
@@ -4215,22 +4236,20 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     the forty-sixth entry; **2b the High-Contrast preset (SL-L09) done 2026-11-24**, see the forty-seventh
     entry; **2c the opt-in `craft-update` (SL-I10) done 2026-11-24**, see the forty-eighth entry; **2d the
     `craft-i18n` scaffolding (SL-L07) done 2026-11-24**, see the forty-ninth entry.
-18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI — the
+18. `sortlens-server` + the phone client with a two-process loopback integration harness in CI — the
     server half, the harness and the desktop's start/stop surface are **done 2026-11-24** (fiftieth and
     fifty-first entries); the in-memory catalog path the wasm client needs is **done 2026-11-24**
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
     the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the browser shell
-    itself — the eframe wasm entry, the fetch-backed client over the same wire, the pairing surface
-    and the wire-grid thumbnails, served by the host from `/app` — is **done 2026-11-24** (fifty-fifth
-    entry). What remains of the row is the shell's upload surface: the file picker or drag-and-drop
-    feeding the resumable `upload` the client already speaks, with the keep-or-remove decision shown
-    on the ack.
+    itself — the eframe wasm entry — was **removed 2026-11-24** (fifty-seventh entry) in favour of
+    the native `apps/sortlens-mobile`. What remains of the row is that app: a phone layout, settings,
+    send-to-desktop upload, the iOS Photos library and a device build.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates.
 20. `docs/AUTONOMOUS_AGENT.md`.
-21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`).
+21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `mobile`, `screenshots`).
 
 Stop condition: every row under "Completion phases" ticked. Never move a buildable feature into a
 "Deliberately absent" table to close a milestone.

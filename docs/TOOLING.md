@@ -84,7 +84,7 @@ and incomprehensible trait errors.
 | `craft-ipc` | Per-user local sockets, token auth, instance discovery, launch-on-demand, frame transfer | M4, M9 | Control channel and launcher hand-off |
 | `craft-jsonrpc` | JSON-RPC message parsing/batch dispatch | M4 | Pairs with `craft-ipc` and `craft-mcp` |
 | `craft-mcp` | MCP 2025-03-26 server init + tool result helpers | M9 | We own tools, transport and roots |
-| `craft-web-api` / `craft-web-host` | Browser-facing method/paging/reply layer and host | M9 | Remote + wasm client |
+| `craft-web-api` / `craft-web-host` | Browser-facing method/paging/reply layer and host | M9 | Remote + phone app |
 | `craft-ai-core` | AI connection/model/capability contract, `SecretRef`, no I/O | M8 (optional) | Only if we ever add BYO cloud AI; local inference does not need it |
 | `craft-sniff` / `craft-file-formats` | Format sniffing helpers | M1 | Double-check extension with magic bytes |
 | `craft-zip` | Bounded ZIP read/write | M7 | Backup archives, imports |
@@ -240,7 +240,7 @@ What we actually need on each development machine and in CI:
 # 1. Toolchain, pinned by rust-toolchain.toml (craft-libs requires 1.95+)
 rustup toolchain install 1.95.0 --profile minimal \
   --component rustfmt clippy \
-  --target wasm32-unknown-unknown
+  --target aarch64-linux-android aarch64-apple-ios
 rustup default 1.95.0
 
 # 2. Cargo tools used by the repo (all optional for building the app)
@@ -250,6 +250,8 @@ cargo install --locked cargo-nextest cargo-deny cargo-mutants cargo-binstall
 # 3. Platform prerequisites
 # macOS:   xcode-select --install     (linker, SDK, codesign)
 # Windows: MSVC build tools + Windows SDK
+# Android: the NDK (ANDROID_NDK_HOME) — `ring` and `tract-linalg` compile C and assembly
+# iOS:     full Xcode (the iPhoneOS SDK), not just the command line tools
 # Linux:   build-essential pkg-config libxkbcommon-dev libwayland-dev \
 #          libx11-dev libxrandr-dev libxi-dev libxcursor-dev libegl1-mesa-dev
 ```
@@ -260,7 +262,7 @@ cargo install --locked cargo-nextest cargo-deny cargo-mutants cargo-binstall
 [toolchain]
 channel = "1.95.0"
 components = ["rustfmt", "clippy"]
-targets = ["wasm32-unknown-unknown"]
+targets = ["aarch64-linux-android", "aarch64-apple-ios"]
 profile = "minimal"
 ```
 
@@ -268,7 +270,7 @@ Notes and gotchas:
 
 - **Do not use `stable`.** `craft-libs` is `edition 2024` with `rust-version 1.95`; a CI runner
   with an older stable fails on syntax before it fails on a real problem.
-- **`wasm32-unknown-unknown` from day one.** The remote client reuses the UI; adding the target
+- **The phone targets from day one.** The phone app reuses the engine and UI; adding the targets
   later tends to surface non-portable code (threads, file paths, `std::time`) late and cheaply
   only if the check runs in CI from M0.
 - **`rustup` installs into `$HOME`,** not the project. On a sandboxed machine, run the installer
@@ -317,7 +319,7 @@ Notes and gotchas:
 | Screenshots show a blue/dark Tailwind-ish chrome, full-height sidebar, dense filter row | We keep the information architecture (sources/tools/folders/collections + filter bar) but restyle completely with ArtCraft tokens |
 | Supported formats table (JPEG, PNG, WebP, TIFF, HEIC, NEF, CR2/CR3, ARW, RAF, ORF, RW2, DNG) | `craft-raw` + `craft-heif` cover this; encode it as a feature matrix test |
 | "AI runs locally, CPU only, no GPU required", CLIP model ~150 MB in README vs 580 MB installed in the screenshot | Model sizes change; the UI must read the real size from the model manifest, never hardcode |
-| iOS app exists in the vendor's product (not in the public repo) | Out of scope; the wasm client is the phone story, and it reuses the desktop UI |
+| iOS and Android apps exist in the vendor's product (not in the public repo) | In scope as `apps/sortlens-mobile`: the Rust engine and egui shell on `winit`'s Android and iOS backends; nothing of the vendor's code is used |
 | Proprietary licence | Confirm with the owner (the user) before publishing a reimplementation; the repo's own README should state the licence of *this* code (MIT OR Apache-2.0 unless told otherwise) |
 
 ---
@@ -341,16 +343,16 @@ in `Cargo.toml`, and (if it parses untrusted bytes) a hostile-input test.
 
 ## 8. Tooling checklist for Milestone 0
 
-- [ ] `rust-toolchain.toml` pinned to 1.95.0 + wasm target
+- [ ] `rust-toolchain.toml` pinned to 1.95.0 + phone targets
 - [ ] Workspace skeleton with the 19 library crates and 4 app crates from `ARCHITECTURE.md` §2; `[lints] workspace = true`
 - [ ] `#![forbid(unsafe_code)]` and the panic-free lint set in every crate root
 - [ ] Craft rev pinned in `Cargo.toml`, egui fork pinned in `.cargo/config.toml`, `Cargo.lock` committed
-- [ ] `xtask` with `ci --quick`, `ci`, `layers`, `roots`, `assets`, `fonts`, `wasm`, `bench`
+- [ ] `xtask` with `ci --quick`, `ci`, `layers`, `roots`, `assets`, `fonts`, `mobile`, `bench`
 - [ ] Window opens with ArtCraft chrome, 4 themes, Inter + craft-fonts, integrated macOS titlebar
 - [ ] `craft-settings` wired with a versioned settings type and a damaged-file test
 - [ ] Empty-library state with working commands: add folder, settings, shortcuts, about
 - [ ] `docs/ATTRIBUTION.md` generated from the font manifest + crate licences
-- [ ] CI: fmt, clippy `-D warnings`, tests, wasm check, Windows leg, snapshot job
+- [ ] CI: fmt, clippy `-D warnings`, tests, phone-target check, Windows leg, snapshot job
 - [ ] A one-photo smoke path: add folder → index → thumbnail → detail view
 
 ## Scripting the CLI

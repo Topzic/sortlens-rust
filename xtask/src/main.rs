@@ -12,7 +12,7 @@ const LIB_CRATES: &[&str] = &[
     "similar", "remote", "engine", "ui", "mcp",
 ];
 
-const APP_CRATES: &[&str] = &["sortlens", "sortlens-cli", "sortlens-web", "sortlens-server"];
+const APP_CRATES: &[&str] = &["sortlens", "sortlens-cli", "sortlens-mobile", "sortlens-server"];
 
 /// Crates that only the shell may use. Format and platform craft crates (metadata, jpeg, tiff,
 /// raw, settings, atomic) are allowed at any layer; these are the ones that assume a window.
@@ -36,28 +36,7 @@ fn main() -> ExitCode {
         "fmt" => run("cargo", &["fmt", "--all", "--", "--check"]),
         "clippy" => run("cargo", &["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]),
         "test" => run("cargo", &["test", "--workspace"]),
-        "wasm" => run(
-            "cargo",
-            &[
-                "check",
-                "-p",
-                "sortlens-ui",
-                "-p",
-                "sortlens-core",
-                // The wasm client and what it stands on: the remote protocol (client side),
-                // the engine over the in-memory catalog, and the page itself — the eframe
-                // shell that runs in the browser.
-                "-p",
-                "sortlens-web",
-                "-p",
-                "sortlens-remote",
-                "-p",
-                "sortlens-engine",
-                "--target",
-                "wasm32-unknown-unknown",
-            ],
-        ),
-        "web" => web(),
+        "mobile" => mobile(),
         "layers" => layers(),
         "roots" => roots(),
         "assets" => assets(),
@@ -93,8 +72,7 @@ fn help() {
   fmt      check formatting
   clippy   lint every target with -D warnings
   test     run the workspace tests
-  wasm     check the wasm-safe crates for wasm32
-  web      build the browser client: wasm32 release, wasm-bindgen glue, `apps/sortlens-web/dist`
+  mobile   check the phone app and the crates under it for Android and iOS (`mobile android|ios` for one)
   layers   enforce the dependency layering rules
   roots    enforce the crate-level lint header
   assets   enforce that every asset has a provenance entry
@@ -138,32 +116,22 @@ fn run(program: &str, args: &[&str]) -> Result<(), String> {
     }
 }
 
-/// Build the browser client (SL-J02): the wasm32 release binary, the JavaScript glue
-/// wasm-bindgen generates for it, and the page that loads both — left servable in
-/// `apps/sortlens-web/dist`. The paired host serves that directory from `/app` (`--web`),
-/// same-origin, so the page and the protocol never meet a CORS check.
-fn web() -> Result<(), String> {
-    run(
-        "cargo",
-        &["build", "-p", "sortlens-web", "--target", "wasm32-unknown-unknown", "--release"],
-    )?;
-    run(
-        "wasm-bindgen",
-        &[
-            "target/wasm32-unknown-unknown/release/sortlens-web.wasm",
-            "--target",
-            "web",
-            "--out-dir",
-            "apps/sortlens-web/dist",
-            "--out-name",
-            "sortlens-web",
-            "--no-typescript",
-        ],
-    )?;
-    fs::copy("apps/sortlens-web/web/index.html", "apps/sortlens-web/dist/index.html")
-        .map_err(|error| format!("could not copy the page: {error}"))?;
-    println!("web: bundle ready in apps/sortlens-web/dist");
-    println!("web: serve it with `sortlens-server --library DIR --web apps/sortlens-web/dist`");
+/// Check the phone app (SL-J10) for the targets it ships on: `cargo xtask mobile [android|ios]`, both
+/// when no platform is named. The crates under it are the desktop's own, so a target that stops
+/// compiling is a regression in shared code, caught here rather than at the release build. Android
+/// needs the NDK (`ANDROID_NDK_HOME`) and iOS needs Xcode, because `ring` and `tract-linalg` compile
+/// C and assembly; the Rust targets come from `scripts/bootstrap.sh`.
+fn mobile() -> Result<(), String> {
+    let platform = std::env::args().nth(2);
+    let targets: &[&str] = match platform.as_deref() {
+        None => &["aarch64-linux-android", "aarch64-apple-ios"],
+        Some("android") => &["aarch64-linux-android"],
+        Some("ios") => &["aarch64-apple-ios"],
+        Some(other) => return Err(format!("mobile knows android and ios, not {other}")),
+    };
+    for target in targets {
+        run("cargo", &["check", "-p", "sortlens-mobile", "--target", target])?;
+    }
     Ok(())
 }
 
