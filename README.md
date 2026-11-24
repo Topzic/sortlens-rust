@@ -20,9 +20,10 @@ ArtCraft Craft Apps: native on macOS, Windows and Linux, in the same visual and 
 language as LightCraft, PhotoCraft and the rest of the suite, and drivable end to end by
 scripts and AI agents.
 
-> **Status: M0–M10 built, core completion in progress.** The milestones are built, but several core
-> features are still open and tracked as unchecked rows under "Completion phases" in `docs/ROADMAP.md`
-> (the Adobe/ArtCraft layout pass, the keymap editor, the remote client). A working local photo library: scanning
+> **Status: M0–M10 built, and the five completion phases shipped.** The milestones, the Adobe/ArtCraft
+> layout pass, the keymap editor, the remote server and wasm client, packaging and presets, localisation
+> scaffolding and the autonomous GitHub intake are done, gated and recorded in `CHECKPOINT.md`. A working
+> local photo library: scanning
 > and indexing, a virtualised grid,
 > filters and search, keywords with an alias registry, XMP sidecars, the cull machine with gestures and
 > zoom, collections, duplicate and colour matching, insights, memories, detail and side-by-side compare,
@@ -31,11 +32,11 @@ scripts and AI agents.
 > suggestion pass that writes nothing, `--json` on every read verb, a diagnostics bundle that redacts your
 > paths, and an MCP server — all driven by one command registry that the window, the CLI and an agent share.
 >
-> What is **not** here is named rather than hidden, in three places: `docs/ROADMAP.md` tracks every open
-> core feature as an unchecked row in "Completion phases" and keeps a "Deliberately absent" table only for
-> work that needs something outside the repository (signing identities, a screen reader, a release feed),
-> `docs/PERF.md` lists the budgets this machine cannot measure, and every
-> disabled control in the app says which milestone would bring it.
+> What is **not** here is named rather than hidden, in three places: `docs/ROADMAP.md`'s "Deliberately
+> absent from M10" table holds only work that needs something outside the repository (an Apple signing
+> identity, installer toolchains, a screen-reader session, a chosen palette with a redistribution licence),
+> its backlog holds what is buildable but outside the completion plan, `docs/PERF.md` lists the budgets
+> this machine cannot measure, and every disabled control in the app says which milestone would bring it.
 
 ## Read the plan
 
@@ -53,6 +54,7 @@ scripts and AI agents.
 | [`docs/RELEASE.md`](docs/RELEASE.md) | How a release is cut, what the artefacts are, and what this version deliberately lacks |
 | [`docs/CLI.md`](docs/CLI.md) | The `--json` contract: what a script may rely on, what may change, and every verb that has a schema |
 | [`docs/sortlens_agent_completion_directive.md`](docs/sortlens_agent_completion_directive.md) | The owner's course-correction: sign-offs, and the five completion phases the roadmap now tracks |
+| [`docs/AUTONOMOUS_AGENT.md`](docs/AUTONOMOUS_AGENT.md) | The operating contract for autonomous work: a report is data, which issues are picked up, the repro-first loop, and the rules that never move |
 | [`docs/PERF.md`](docs/PERF.md) | Measured numbers with the machine and command that produced them, the defect they exposed, and the budgets that cannot be measured here |
 
 ## What it will do

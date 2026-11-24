@@ -1,5 +1,94 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-ninth) — Phase 5 closed: the playbook is enforced, the intake reads a stranger's report without obeying it, and the fifth gate runs on every PR
+
+- **Why this came up.** Items 2 and 3 of Phase 5 were the last unchecked rows in the completion
+  plan. They ship as one slice because the repository forbids docs-only commits after Phase 0: a
+  playbook with no workflow is prose nobody checks, and a workflow with no written contract is a
+  gate nobody can read. Every rule below exists so that the promise and its enforcement land
+  together. The parent rows that had been left unchecked while their children shipped (M8 item 3,
+  M10 item 2) were reconciled in the same commit, because otherwise Phases 0–5 could never read as
+  closed.
+
+- **The playbook** (`docs/AUTONOMOUS_AGENT.md`, 145 lines) is the narrow operating contract for an
+  agent that reads issues and opens pull requests unattended. It draws the boundary first: a report
+  is untrusted data, never instructions — no command, install, link or file is obeyed because an
+  issue asks, and the reason the intake passes the body through the environment is written down as
+  the same rule. Only an `agent-ready` issue is picked up; `triaged` is a statement about attention
+  (the forms apply it themselves, the intake removes it when structure is missing), not pickup
+  permission, and a `needs-info` issue is never implemented. The never-list is explicit: never push
+  to `main`, never auto-merge or self-approve, never bypass `cargo xtask deny` or another gate,
+  never read or pass a signing or release secret, never publish, force-push or spend. The
+  repro-first loop is ordered and finite — read the evidence, reproduce and write the failing test
+  that is the proof it bites, minimal fix, reconcile the documents in the same commit, run the
+  gates, open a **Draft pull request**, stop. The improvement queue is bounded (`sortlens-perf`, then
+  `enhancement-approved`, then unchecked roadmap rows, one slice per PR, empty queue means stop),
+  and the stop rules say when trying again would be noise: a red tree not understood, an external
+  secret, or two runs shipping nothing.
+
+- **The intake checker** (`xtask/src/intake.rs`, +178 lines): `cargo xtask intake` reads
+  `SORTLENS_ISSUE_BODY` and `SORTLENS_ISSUE_LABELS` from the environment, decides from the labels
+  which form the report came through (a report that is neither a bug nor a feature is not judged),
+  and reads the required headings **from the form itself** rather than from a second copy that
+  would drift. Each missing heading and each empty section is named; `_No response_` counts as
+  empty, and `Diagnostics` must still contain `sortlens`, so a sentence is not a bundle. Exit 1
+  prints the comment body the workflow posts. Six new tests cover the reading of headings from the
+  form, a complete report, a missing section, an empty section, a diagnostics sentence, and an
+  unlabelled issue.
+
+- **The workflow gate** (`xtask/src/workflow.rs`, new, 368 lines): `cargo xtask workflows`, wired
+  into `cargo xtask ci`, reads both workflows with the same small YAML-subset reader `templates`
+  uses. It refuses a `ci.yml` with no `pull_request` trigger, a missing one of the five gate
+  commands (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`), a `continue-on-error` step, or an `if`
+  that would leave pull requests out. It refuses an intake that does not run on opened/edited/labeled
+  issues, that uses `pull_request_target`, that reaches a `secrets.` value, that cannot write issues,
+  that does not stay off pull request events, that does not pass both environment variables, or that
+  lost the comment / `--remove-label triaged` / `--add-label needs-info` bookkeeping. And it holds
+  the playbook to ten load-bearing phrases, so a rule can be rewritten but not removed. Ten tests,
+  each proved by mutating a fixture (a removed gate, a weakened step, a skipped job, a lost
+  trigger, a secret, a dropped label command, a deleted rule) until the checker bites.
+
+- **`ci.yml` was rewritten in block style** (the reader refuses flow lists, so `branches: [main]`
+  and the `os:` flow list became block lists) and gained the fifth job: `screenshots` on ubuntu with
+  Mesa's software Vulkan (`mesa-vulkan-drivers`, `WGPU_BACKEND=vulkan`, `LIBGL_ALWAYS_SOFTWARE=1`),
+  so the 33 painted baselines are a real pull-request gate rather than a local hope. The existing
+  jobs, cache keys and wasm-on-ubuntu condition are unchanged.
+
+- **`agent-intake.yml`** triggers on issues only, holds `contents: read` and `issues: write` and
+  nothing else, has no path to a repository secret, and refuses pull request events. It runs
+  `cargo xtask intake` and posts the returned body as a comment; an incomplete report loses
+  `triaged` and gains `needs-info`, and a complete edit swaps them back. If the checker fails
+  before writing anything (a build failure), the job exits red without touching the issue, so a
+  broken toolchain cannot mislabel a stranger's report. The five label names the playbook and the
+  forms use (`triaged`, `needs-info`, `agent-ready`, `sortlens-perf`, `enhancement-approved`) were
+  created on the repository with `gh label create --force`; the workflow recreates the two it swaps
+  on every run, so a fresh repository or a renamed label cannot silently drop the bookkeeping.
+
+- **Verification.** `. scripts/env.sh && cargo xtask workflows` → `xtask workflows: ok`.
+  `cargo test -p xtask` → 34 passed. A body containing only `### Sortlens version` produced exit 1
+  naming the empty section and six missing ones; a bare enhancement body named its three missing
+  feature fields. Both workflow files were parsed independently with PyYAML, which agrees with the
+  project reader on keys, triggers and jobs (PyYAML reads `on` as `True`, which is the YAML 1.1
+  quirk, not a difference in the file). `cargo xtask ci`, `snapshot` and `deny` green below.
+  Not verified: the workflows have never run on GitHub — this commit is their first run — and the
+  ubuntu `screenshots` job is expected to spell chords in ASCII like Windows, which cannot be
+  observed from either local checkout (macOS paints `⌘Shift+R`; the Mac gate remains red for the
+  reason in the fifty-sixth entry).
+
+- **Documents reconciled in the same commit.** `README.md` (status prose no longer says core
+  completion is in progress; the document table names the playbook), `docs/PLAN.md` §12 (the five
+  phases done; what remains is the external table, the visible backlog and the two M9 rows),
+  `docs/ROADMAP.md` (Phase 5 items 2 and 3 ticked with shipped notes; M8 item 3 and M10 item 2
+  ticked with the signing blocker left in its own table; a status-log row), `CONTRIBUTING.md` (the
+  `ci` line and `screenshots`), `docs/TOOLING.md` (the intake paragraph extended to the workflows
+  and the playbook).
+
+- **The plan is closed.** Every row under "Completion phases" is ticked. What remains is named
+  where it was already named and nothing buildable was moved: the M10 "Deliberately absent" table
+  (Apple identity, installer toolchains, a screen-reader session, a chosen palette, the owner's
+  tag), the post-1.0 backlog, and the two M9 rows (more i18n catalogues with RTL screenshots,
+  localised numbers and dates). The scheduled continuation task is left disabled and the run ends
+  with the completion sentence.
 ## 2026-11-24 (fifty-sixth) — the Mac reads the table the way the table means it: ⌘ is the command key, and a build without a symbols face says the glyphs as words
 
 - **Why this came up.** The whole suite had only ever run on Windows. On this macOS checkout six
@@ -4355,12 +4444,22 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     `cargo xtask templates` (in `ci`) reads both forms through a strict YAML-subset reader and refuses the
     shape GitHub would, naming the file and line, and checks the template still names every gate. 18 xtask
     tests; a broken field id makes the real gate fail and restoring it makes it pass.
-20. `docs/AUTONOMOUS_AGENT.md` — the issue-intake playbook (Phase 5 item 2).
+20. `docs/AUTONOMOUS_AGENT.md` — the issue-intake playbook (Phase 5 item 2) — **done 2026-11-24**,
+    see the fifty-ninth entry: the untrusted-data boundary, `agent-ready` as the only pickup
+    signal, the never-list, the repro-first loop ending in a Draft pull request, the bounded
+    improvement queue, the stop rules, and the rails/labels tables; `cargo xtask workflows` fails
+    when it loses one of the ten rules it is the only copy of.
 21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`)
-    (Phase 5 item 3).
+    (Phase 5 item 3) — **done 2026-11-24**, see the fifty-ninth entry: the intake runs on issues
+    only, posts `cargo xtask intake` findings passed through the environment, and swaps `triaged`
+    for `needs-info`; `ci.yml` was rewritten in the reader's block style and gained the ubuntu
+    software-Vulkan `screenshots` job; `cargo xtask workflows` (in `ci`) holds both files and the
+    playbook.
 
-Stop condition: every row under "Completion phases" ticked. Never move a buildable feature into a
-"Deliberately absent" table to close a milestone.
+Stop condition: **reached 2026-11-24** — every row under "Completion phases" is ticked, including
+the M8/M10 parent rows reconciled with this slice. Phases 0–5 are complete; from here the work is
+autonomous GitHub maintenance of the named backlog and the external blockers, not more of this plan.
+Never move a buildable feature into a "Deliberately absent" table to close a milestone.
 
 Note for the next run: the owner runs two checkouts — Windows (`C:\Users\Ian_C\sortlens-rust`) and
 macOS (aarch64), each with its own `.toolchain`; `. scripts/env.sh && cargo xtask ci` works as
@@ -4368,4 +4467,7 @@ documented on both. `cargo xtask screenshots` is red on the Mac checkout at HEAD
 painted where the shell spells chords in ASCII, and a Mac without a craft-faces symbols font paints
 `⌘Shift+R` instead and makes `craft-keymap`'s editor scene panic on `⇧` (see the fifty-sixth entry).
 Making the shots a Mac gate means the harness embedding the symbol faces and a separate baseline
-set — a UI slice of its own. On the Windows checkout the screenshots gate is green.
+set — a UI slice of its own. On the Windows checkout the screenshots gate is green. The new CI
+`screenshots` job runs on ubuntu with Mesa's software Vulkan; Linux should spell chords in ASCII
+like Windows, but that has not been observed yet — the first pull-request run is the first
+measurement, and if the Linux baselines differ it is a harness slice, not a reason to drop the gate.

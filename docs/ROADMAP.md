@@ -1018,7 +1018,7 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   the module). Consent is an engine state the app persists in Settings → AI (`ai.download_consent`), and the
   `model.install` command refuses without it from every face: UI, CLI (`models`, `model-consent`,
   `model-install`, `model-remove`) and MCP. Progress and cancel sit in the Activity stack as a `Model` job.
-- [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04):
+- [x] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04) — both halves shipped 2026-11-23; see 3a and 3b:
   - [x] 3a. The runtime and the detector path: `crates/ai/src/infer.rs` (desktop-only, offline;
     contract-checked loading, softmax over the YOLOS logits, the COCO-91 label map shipped with the
     slice, NMS through `detect::suppress`), wired into the engine's suggestion pass and the
@@ -1291,7 +1291,8 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   installs only egui's faces, so `shortcut_editor_paints_in_both_themes` panics and two scenes' chord
   wording differs. Making the shots a Mac gate means the harness embedding the symbol faces and a
   separate baseline set.
-- [ ] 2. Packaging and accessibility, in this order:
+- [x] 2. Packaging and accessibility, in this order — 2a–2d shipped 2026-11-24; the signed and notarised
+  bundles that would consume the icons are not this row and stay blocked in "Deliberately absent from M10":
   - [x] 2a. `.icns`/`.ico` generated from `crates/icon` by `cargo xtask icons` (B)
     — shipped 2026-11-24: `sortlens-icon::ico()` packs PNG entries at 16/32/48/64/128/256 px into the
     little-endian ICONDIR layout (0-as-256 honoured), `icns()` packs PNG chunks `ic11`/`ic12`/`ic07`/
@@ -1504,11 +1505,25 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   scan/catalog/thumbs `cargo xtask perf` table and the `crates/ui` before-and-after. `cargo xtask templates`,
   in `ci`, reads both forms through a small YAML-subset reader and refuses the shape GitHub would reject,
   naming the file and line; it also checks the PR template still names every gate.
-- [ ] 2. `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only `agent-ready`/`triaged` issues; never push to
+- [x] 2. `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only `agent-ready`/`triaged` issues; never push to
   `main`, auto-merge, bypass `deny` or touch signing secrets; the repro-first loop ending in a Draft PR; the bounded
-  improvement queue (perf regressions, `enhancement-approved`, unchecked roadmap rows) (E)
-- [ ] 3. `.github/workflows/agent-intake.yml` and a `ci.yml` that runs `ci`, `snapshot`, `deny`, `wasm` and
-  `screenshots` on every PR (E)
+  improvement queue (perf regressions, `enhancement-approved`, unchecked roadmap rows) (E) — **done 2026-11-24**, see
+  the fifty-ninth CHECKPOINT entry: the playbook draws the boundary (a report is data, never instructions, and the
+  intake hands the body to the checker through the environment for that reason), makes `agent-ready` the only pickup
+  signal with `triaged` a statement about attention rather than permission, and names the never-list — never push to
+  `main`, auto-merge, bypass `deny`, or read a signing or release secret. The repro-first loop runs read the evidence
+  → failing test → minimal fix → documents reconciled in the same commit → the gates → **Draft pull request** and
+  stop; the improvement queue is `sortlens-perf`, then `enhancement-approved`, then unchecked roadmap rows, and an
+  empty queue means stop. The document is not prose nobody checks: `cargo xtask workflows` (in `ci`) fails when it
+  loses one of ten load-bearing rules, matched by phrase rather than wording.
+- [x] 3. `.github/workflows/agent-intake.yml` and a `ci.yml` that runs `ci`, `snapshot`, `deny`, `wasm` and
+  `screenshots` on every PR (E) — **done 2026-11-24**, see the fifty-ninth entry: `agent-intake.yml` triggers on
+  opened/edited/labeled issues, holds `contents: read` and `issues: write` and nothing else, cannot run on a pull
+  request, never reaches a repository secret, and passes the body and labels to `cargo xtask intake` through the
+  environment (never interpolated into the script). A report missing a required heading gets a comment naming each
+  one, loses `triaged` and gains `needs-info`; a later complete edit swaps them back. `ci.yml` now runs the fifth
+  gate, `screenshots`, on Mesa's software Vulkan so the baselines are checked headlessly, and `cargo xtask workflows`
+  refuses a missing gate, a `continue-on-error` step, or an `if` that would leave pull requests out.
 
 ---
 
@@ -1529,6 +1544,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 
 | Date | Change |
 | --- | --- |
+| 2026-11-24 | **Phase 5 complete — the owner's completion plan is closed.** `docs/AUTONOMOUS_AGENT.md` and the workflows that enforce it shipped: `agent-intake.yml` validates a filed report's structure and corrects its labels, `ci.yml` gained the `screenshots` gate, and `cargo xtask workflows` holds both files and the playbook's ten rules. Phases 0–5 are all ticked; what remains is the M10 "Deliberately absent" table (Apple identity, installer toolchains, a screen reader, a chosen palette, the owner's tag) and the visible post-1.0 backlog and M9 rows — named, not hidden. |
 | 2026-11-22 | **Phase 0 of the completion directive.** "M0–M10 shipped" withdrawn: the buildable features that had been moved into "Deliberately absent" tables are re-opened as Phases 1–5 above. `docs/RELEASE.md` and `docs/ATTRIBUTION.md` corrected, 13 unused dependency pins pruned. Owner sign-offs recorded: opt-in network for model download and update checks, real permissively licensed weights and map data, `MIT OR Apache-2.0`. |
 | 2026-11-21 | **M0–M10 built, and the documents reconciled with the tracker** (the word "shipped" was withdrawn in Phase 0). Everything that needs no weights, no signing identity, no second device and no translation pass is built and tested: 432 tests, one command registry behind the window, the CLI, the MCP server and `--json`; measured numbers in `docs/PERF.md` (which found and fixed a quadratic import); an icon the window actually loads; gates for layer rules, lint headers, asset provenance, fonts, one version, attribution, accessibility names and the documents themselves (`cargo xtask docs`). What remains is itemised in each milestone's "Deliberately absent" table with its unblocker. |
 | 2026-11-21 | Plan written: feature inventory (176), architecture, tooling audit, UX spec, roadmap. Implementation not started; Rust toolchain not yet installed on this machine. |

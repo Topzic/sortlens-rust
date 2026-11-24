@@ -48,10 +48,11 @@ Open an issue before writing code if you are changing:
 ```sh
 . scripts/env.sh          # project-local toolchain, if you used scripts/bootstrap.sh
 cargo run -p sortlens     # the application
-cargo xtask ci            # fmt, clippy, tests, layer rules, provenance, fonts, docs, intake
+cargo xtask ci            # fmt, clippy, tests, layer rules, provenance, fonts, docs, intake, workflows
 cargo xtask wasm          # wasm-safe crates
 cargo xtask deny          # licences, advisories, bans, sources (needs cargo-deny)
 cargo xtask snapshot      # diff the recorded CLI output
+cargo xtask screenshots   # diff the painted shell when crates/ui changes
 ```
 
 If `xtask snapshot` fails, it is either a bug or an intended change. Read the diff: an intended one

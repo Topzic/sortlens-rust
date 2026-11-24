@@ -31,9 +31,19 @@ const GATES: &[&str] = &[
 
 /// Which form a file is, so the checks only a bug report needs can run.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Form {
+pub(crate) enum Form {
     Bug,
     Feature,
+}
+
+impl Form {
+    /// The intake file this form is written in.
+    fn file(self) -> &'static str {
+        match self {
+            Form::Bug => "bug_report.yml",
+            Form::Feature => "feature_request.yml",
+        }
+    }
 }
 
 /// Every problem the intake has, each naming the file it was found in.
@@ -308,6 +318,101 @@ fn pull_request_problems(label: &str, text: &str) -> Vec<String> {
     problems
 }
 
+/// The form a filed issue followed, read from the labels the form itself applies.
+pub(crate) fn form_for_labels(labels: &str) -> Option<Form> {
+    let names: Vec<&str> = labels.split(',').map(str::trim).collect();
+    if names.contains(&"bug") {
+        Some(Form::Bug)
+    } else if names.contains(&"enhancement") {
+        Some(Form::Feature)
+    } else {
+        None
+    }
+}
+
+/// The headings GitHub paints for the fields a form requires, in form order.
+///
+/// Read from the form rather than copied next to it: a required field renamed in the form is
+/// required under the new name here the same day, with no second list to forget.
+pub(crate) fn required_labels(root: &Path, form: Form) -> Result<Vec<String>, String> {
+    let path = root.join(".github/ISSUE_TEMPLATE").join(form.file());
+    let text = fs::read_to_string(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let node = yaml::parse(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok(required_labels_in(&node))
+}
+
+fn required_labels_in(node: &Node) -> Vec<String> {
+    let mut labels = Vec::new();
+    for element in node.field("body").and_then(Node::as_list).unwrap_or_default() {
+        let required = element
+            .field("validations")
+            .and_then(|validations| validations.field("required"))
+            .and_then(Node::as_str)
+            == Some("true");
+        if !required {
+            continue;
+        }
+        if let Some(label) = element
+            .field("attributes")
+            .and_then(|attributes| attributes.field("label"))
+            .and_then(Node::as_str)
+        {
+            labels.push(label.to_string());
+        }
+    }
+    labels
+}
+
+/// What a filed report is missing, compared with the form it came through.
+///
+/// GitHub enforces a form's required fields in the browser, not in the API: an issue opened by a
+/// script, a bot, or a form whose answer was later edited arrives with whatever the author sent.
+/// A report that names none of its fields is not a report, and one whose `Diagnostics` section is a
+/// sentence instead of the bundle cannot be acted on. This says which headings are absent or empty;
+/// it does not judge the prose inside them.
+pub(crate) fn report_problems(root: &Path, labels: &str, body: &str) -> Vec<String> {
+    let Some(form) = form_for_labels(labels) else {
+        return Vec::new();
+    };
+    let required = match required_labels(root, form) {
+        Ok(labels) => labels,
+        Err(error) => return vec![error],
+    };
+    let sections = sections(body);
+    let mut problems = Vec::new();
+    for label in &required {
+        match sections.iter().find(|(heading, _)| heading == label) {
+            None => problems.push(format!("the `{label}` section is missing")),
+            Some((_, text)) if text.trim().is_empty() || text.trim().eq_ignore_ascii_case("_No response_") => {
+                problems.push(format!("the `{label}` section is empty"));
+            }
+            Some(_) => {}
+        }
+    }
+    if let Some((_, diagnostics)) = sections.iter().find(|(heading, _)| heading == "Diagnostics")
+        && !diagnostics.to_lowercase().contains("sortlens")
+    {
+        problems.push("the `Diagnostics` section does not look like `sortlens-cli diagnostics` output".to_string());
+    }
+    problems
+}
+
+/// The `### Heading` sections of an issue body, as GitHub renders a form's answers.
+fn sections(body: &str) -> Vec<(String, String)> {
+    let mut sections: Vec<(String, String)> = Vec::new();
+    for line in body.lines() {
+        if let Some(heading) = line.strip_prefix("### ") {
+            sections.push((heading.trim().to_string(), String::new()));
+            continue;
+        }
+        if let Some((_, text)) = sections.last_mut() {
+            text.push_str(line);
+            text.push('\n');
+        }
+    }
+    sections
+}
+
 fn check_text(problems: &mut Vec<String>, label: &str, node: &Node, key: &str, limit: usize) {
     match node.field(key).and_then(Node::as_str) {
         None => problems.push(format!("{label}: no `{key}`")),
@@ -482,5 +587,76 @@ body:
         let without_deny = template.replace("- [ ] `cargo xtask deny`\n", "");
         let problems = pull_request_problems("test", &without_deny);
         assert!(problems.iter().any(|problem| problem.contains("cargo xtask deny")), "{problems:#?}");
+    }
+
+    fn repository() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
+    }
+
+    /// A report with every required heading, filled the way a careful reporter fills it.
+    fn complete_bug_body() -> String {
+        let root = repository();
+        let mut body = String::new();
+        for label in required_labels(&root, Form::Bug).expect("the bug form is readable") {
+            body.push_str(&format!("### {label}\n\n"));
+            if label == "Diagnostics" {
+                body.push_str("sortlens 0.1.0\nlibrary <library>, 3 photos\n");
+            } else {
+                body.push_str("filled in\n");
+            }
+        }
+        body
+    }
+
+    #[test]
+    fn the_required_headings_come_from_the_form() {
+        let node = yaml::parse(MINIMAL).expect("the fixture is readable");
+        assert_eq!(required_labels_in(&node), vec!["Operating system".to_string()]);
+    }
+
+    #[test]
+    fn a_complete_bug_report_has_no_problems() {
+        let problems = report_problems(&repository(), "bug", &complete_bug_body());
+        assert!(problems.is_empty(), "{problems:#?}");
+    }
+
+    #[test]
+    fn a_missing_section_is_named() {
+        let body = complete_bug_body().replace("### Steps to reproduce", "### What I did");
+        let problems = report_problems(&repository(), "bug", &body);
+        assert!(
+            problems.iter().any(|problem| problem.contains("`Steps to reproduce`")),
+            "{problems:#?}"
+        );
+    }
+
+    #[test]
+    fn an_empty_section_is_named() {
+        let body = complete_bug_body().replace(
+            "### What you expected to happen\n\nfilled in",
+            "### What you expected to happen\n\n_No response_",
+        );
+        let problems = report_problems(&repository(), "bug", &body);
+        assert!(
+            problems
+                .iter()
+                .any(|problem| problem.contains("`What you expected to happen` section is empty")),
+            "{problems:#?}"
+        );
+    }
+
+    #[test]
+    fn a_diagnostics_sentence_is_not_a_diagnostics_bundle() {
+        let body = complete_bug_body().replace("sortlens 0.1.0", "see the screenshot");
+        let problems = report_problems(&repository(), "bug", &body);
+        assert!(
+            problems.iter().any(|problem| problem.contains("does not look like")),
+            "{problems:#?}"
+        );
+    }
+
+    #[test]
+    fn an_issue_that_is_neither_a_bug_nor_a_feature_is_not_judged() {
+        assert!(report_problems(&repository(), "question", "where is the manual?").is_empty());
     }
 }
