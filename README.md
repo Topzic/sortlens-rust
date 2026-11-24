@@ -110,7 +110,7 @@ changes; the same folder is what this repository's `scripts/env.sh` expects.
 . scripts/env.sh              # project-local CARGO_HOME and RUSTUP_HOME
 cargo run -p sortlens         # the window
 cargo run -p sortlens-cli -- --library ./lib stats
-cargo xtask ci                # fmt, clippy, tests, layers, roots, assets, fonts, version, attribution, a11y, docs
+cargo xtask ci                # fmt, clippy, tests, layers, roots, assets, fonts, version, attribution, a11y, docs, templates
 cargo xtask snapshot          # diff the recorded CLI output
 cargo xtask layers            # only the architecture rules
 cargo xtask perf              # measure scan, index, thumbnails, suggestions, frames (release build)

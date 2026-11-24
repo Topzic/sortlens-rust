@@ -287,6 +287,15 @@ Notes and gotchas:
   `docs/PLAN.md` §12, requires every crate and app in the workspace to be named in the layer diagram, and
   requires every `docs/*.md` to be reachable from the README. It checks facts that have one right answer,
   not how they are phrased.
+- **The GitHub intake is checked with the code**: `cargo xtask templates` (in `ci`) reads the two issue
+  forms through a deliberately small YAML reader — block mappings, block sequences, scalars and `|`
+  blocks; flow collections, folded scalars, anchors and tab indentation are refused with their line —
+  and then checks the shape GitHub renders: the keys an issue form carries, the element types it knows,
+  an id on every field, a label on everything a person fills in, options where a dropdown or checkbox
+  list needs them, at least one required field, and that the bug form asks for
+  `sortlens-cli diagnostics`. The pull-request template is checked for the markers a reviewer needs:
+  the linked issue, the failing-then-passing test, every gate as a checkbox, the scan/catalog/thumbs
+  `cargo xtask perf` table and the `crates/ui` before-and-after. It checks facts, not phrasing.
 - **Measurements, not budgets, in `perf`**: `cargo xtask perf` runs `apps/sortlens-perf` in release mode
   and prints one table — scan, index, cold and warm thumbnails, the worker service, the suggestion pass,
   library open, headless grid frames. It is deliberately not in `ci`: a timing that fails on a loaded box

@@ -1,0 +1,70 @@
+name: Feature request
+description: A capability Sortlens should have — a work flow it gets in the way of, or a format it cannot read.
+title: "[Feature]: "
+labels:
+  - enhancement
+  - triaged
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sortlens is built command-first: an action is a command in the engine before it is a menu
+        item, a shortcut, a CLI verb or an MCP tool. Describe the work rather than the widget and the
+        design usually falls out of it.
+
+        The roadmap's backlog names what is deliberately deferred and why. If your request is there,
+        say what has changed since it was deferred.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, with what kind of library, and where does Sortlens stop you?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+      description: The result, not the pixels. If it belongs to an existing command, name that command.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you have tried
+      description: Another tool, a script, or a step outside Sortlens — say what it costs you.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Library, scanning and storage
+        - Culling and the cull view
+        - Metadata, keywords and sidecars
+        - Search, filters and collections
+        - Previews, thumbnails and export
+        - Insights, duplicates and memories
+        - AI suggestions and models
+        - Remote, server and the browser client
+        - Platform integration and packaging
+        - Something else
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before opening this
+      options:
+        - label: I searched the open and closed issues for the same request
+          required: true
+        - label: I read the roadmap's backlog entry for this area
+          required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Mockups, links, or the version of another tool whose behaviour is the reference.
+    validations:
+      required: false

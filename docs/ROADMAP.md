@@ -1494,9 +1494,16 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 
-- [ ] 1. `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version, repro, expected vs actual, `sortlens-cli diagnostics`),
+- [x] 1. `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version, repro, expected vs actual, `sortlens-cli diagnostics`),
   `feature_request.yml`, and a PR template requiring the linked issue, the failing-then-passing test, the gate
-  confirmations, a `perf` delta for scan/catalog/thumbs and before/after screenshots for `crates/ui` (E)
+  confirmations, a `perf` delta for scan/catalog/thumbs and before/after screenshots for `crates/ui` (E) —
+  **done 2026-11-24**, see the fifty-eighth CHECKPOINT entry: seven bug fields (version, OS, OS version and
+  display, repro, expected, actual, diagnostics) and six feature fields, both with a markdown intro, the
+  `bug`/`enhancement` and `triaged` labels, and every reporter field labelled and required where it must be;
+  the PR template carries the five gates as checkboxes, the failing-then-passing test prompt, the
+  scan/catalog/thumbs `cargo xtask perf` table and the `crates/ui` before-and-after. `cargo xtask templates`,
+  in `ci`, reads both forms through a small YAML-subset reader and refuses the shape GitHub would reject,
+  naming the file and line; it also checks the PR template still names every gate.
 - [ ] 2. `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only `agent-ready`/`triaged` issues; never push to
   `main`, auto-merge, bypass `deny` or touch signing secrets; the repro-first loop ending in a Draft PR; the bounded
   improvement queue (perf regressions, `enhancement-approved`, unchecked roadmap rows) (E)

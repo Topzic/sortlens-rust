@@ -7,6 +7,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod intake;
+mod yaml;
+
 const LIB_CRATES: &[&str] = &[
     "core", "hash", "quality", "testkit", "meta", "media", "sidecar", "geo", "ai", "thumbs", "scan", "catalog", "cull", "insights",
     "similar", "remote", "engine", "ui", "mcp",
@@ -71,6 +74,7 @@ fn main() -> ExitCode {
         "a11y" => a11y(),
         "perf" => perf(),
         "docs" => docs(),
+        "templates" => templates(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -107,7 +111,8 @@ fn help() {
   attribution  every dependency attributed, and the document honest about what is linked
   a11y     every custom-painted clickable region registers a name
   perf     measurements for docs/PERF.md (not in ci: a timing that fails on a loaded box gets ignored)
-  docs     the documents agree with the tracker, and every crate and document is named"
+  docs     the documents agree with the tracker, and every crate and document is named
+  templates  the GitHub issue forms and the pull-request checklist are the shape GitHub accepts"
     );
 }
 
@@ -123,6 +128,7 @@ fn ci() -> Result<(), String> {
     attribution()?;
     a11y()?;
     docs()?;
+    templates()?;
     Ok(())
 }
 
@@ -745,6 +751,17 @@ fn shipped_through(roadmap: &str) -> Option<u32> {
         }
     }
     shipped
+}
+
+/// Check the GitHub intake: the issue forms GitHub will parse, and the pull-request checklist.
+///
+/// A malformed issue form fails from the reporter's side, where nobody here sees it, and the
+/// checklist is the only place the gates are written down for a contributor. Both are checked in
+/// `ci` for the reason the documents are: a promise nobody verifies has already drifted.
+fn templates() -> Result<(), String> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let problems = intake::check(&root);
+    report("templates", problems)
 }
 
 fn assets() -> Result<(), String> {

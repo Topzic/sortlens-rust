@@ -48,7 +48,7 @@ Open an issue before writing code if you are changing:
 ```sh
 . scripts/env.sh          # project-local toolchain, if you used scripts/bootstrap.sh
 cargo run -p sortlens     # the application
-cargo xtask ci            # fmt, clippy, tests, layer rules, lint headers, provenance, fonts
+cargo xtask ci            # fmt, clippy, tests, layer rules, provenance, fonts, docs, intake
 cargo xtask wasm          # wasm-safe crates
 cargo xtask deny          # licences, advisories, bans, sources (needs cargo-deny)
 cargo xtask snapshot      # diff the recorded CLI output

@@ -97,6 +97,66 @@
   issue, the failing-then-passing test, the gate confirmations, a `perf` delta for scan/catalog/thumbs
   and before/after screenshots for `crates/ui` (ROADMAP Phase 5 item 1).
 
+## 2026-11-24 (fifty-eighth) — Phase 5 item 1: the GitHub intake is written, and `cargo xtask templates` refuses what GitHub would refuse
+
+- **What shipped.** The three intake files Phase 5 item 19 named, and nothing else moved: the two issue
+  forms GitHub renders, the pull-request checklist a contributor reads, and a gate that keeps both
+  honest. `.github/` had workflows only; it now has `ISSUE_TEMPLATE/` and `PULL_REQUEST_TEMPLATE.md`.
+- **The bug form** (`.github/ISSUE_TEMPLATE/bug_report.yml`): labels `bug` and `triaged`, the title
+  prefix `[Bug]: `, a markdown intro that says why the bundle is safe to attach, and seven required
+  fields — version, OS (a seven-option dropdown, Apple silicon through to "another platform"), OS
+  version and display setup, numbered repro steps, expected, actual, and the `sortlens-cli diagnostics`
+  textarea — plus one optional "anything else". The diagnostics field is the one the gate checks by
+  name: GitHub can render a bug form without it, and a bug report without the bundle is a round trip.
+- **The feature form** (`.github/ISSUE_TEMPLATE/feature_request.yml`): labels `enhancement` and
+  `triaged`, title prefix `[Feature]: `, the command-first framing in the intro, required problem,
+  proposal and area (ten options that follow the crates and surfaces), two "before opening"
+  checkboxes, optional workarounds and extras.
+- **The pull-request template** (`.github/PULL_REQUEST_TEMPLATE.md`): the five gates as checkboxes —
+  `ci`, `snapshot`, `deny`, `wasm`, and `screenshots` with when it applies — the failing-then-passing
+  test prompt (`Test:` and "it fails on `HEAD~` because"), `Closes #`, the scan/catalog/thumbs
+  `cargo xtask perf` before-and-after table, and the `crates/ui` before-and-after screenshot table.
+- **The gate** (`cargo xtask templates`, in `ci`): `xtask/src/yaml.rs` reads exactly the subset the
+  forms use — block mappings, block sequences, plain and quoted scalars, `|` blocks — and refuses flow
+  collections, folded scalars, anchors, tags, duplicate keys and tab indentation *with the line that
+  caused them*; `xtask/src/intake.rs` then checks the shape GitHub renders: the keys a form carries,
+  the six element types, an id on every field and no id on a markdown note, unique lowercase ids, a
+  label wherever a person types or picks, options (and their own allow-list) for dropdowns and
+  checkboxes, `validations` with only `required`, at least one required field, that the bug form's
+  diagnostics field is a required textarea whose description names `sortlens-cli diagnostics`, and the
+  GitHub length limits on `name` and `description`. The pull-request template is checked for the
+  markers a reviewer needs, because a checklist that lost its `deny` box is a promise that already
+  drifted. Both run from the repository root derived from `CARGO_MANIFEST_DIR`, so the same code works
+  from `cargo xtask` and from `cargo test`.
+- **Against a real parser.** The two shipped forms were also read once with PyYAML as an independent
+  check, and it agreed on the top-level keys and the field ids — the reader is a subset, not a
+  different dialect. It is still the shape of the file that is checked here, not GitHub's server-side
+  validation; the entry says so where the code does.
+- **Tests.** 18 in `xtask` (10 intake, 8 reader), all in `cargo test --workspace`. The reader's
+  refusals are pinned: tab indent, flow list, `: ` in a plain value, duplicate key, indented document,
+  and a block scalar that keeps its lines. The intake's are pinned too: a missing required id, a form
+  with no required field, a duplicate id, an unrenderable element type, a misspelled attribute
+  (`lable:`), a dropdown with no options, a bug form whose diagnostics description never names the
+  command, and a pull-request template missing its `deny` checkbox. Breaking the shipped form for real
+  — `id: os_version` → `id: os-version` — made `cargo xtask templates` fail naming that file and that
+  id, and pass again once restored.
+- **Visual verification: none needed.** No `crates/ui` file changed, so no baseline moved and
+  `cargo xtask screenshots` was not run; `cargo xtask wasm` was not either, because no wasm-facing
+  crate changed.
+- **Also this run:** `cargo-deny` was not installed in this worktree's fresh `.toolchain` (deny
+  reported it and stopped), so it was installed with the documented `cargo install cargo-deny --locked`
+  and the gate then passed.
+- **Verified on this macOS checkout:** `. scripts/env.sh && cargo xtask ci` (fmt, clippy `-D warnings`,
+  the whole workspace's tests including the 18 above, layers, roots, assets, fonts, version,
+  attribution, a11y, docs and the new templates check), `cargo xtask snapshot` (no golden moved), and
+  `cargo xtask deny` (advisories, bans, licences, sources all ok).
+- **Also reconciled in this commit:** ROADMAP's Phase 5 item 1 ticked with what shipped; README's
+  `cargo xtask ci` line, CONTRIBUTING's gate list and `docs/TOOLING.md`'s "checked, not trusted"
+  section now name the intake gate.
+- **Next**: Phase 5 item 2 — `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only
+  `agent-ready`/`triaged` issues; never push to `main`, never auto-merge, never bypass `deny`, never
+  touch signing secrets; the repro-first loop that ends in a Draft PR; and the bounded improvement
+  queue (perf regressions, `enhancement-approved`, unchecked roadmap rows).
 ## 2026-11-24 (fifty-fifth) — Phase 4 item 3, the browser shell: the eframe wasm entry, the fetch client, the pairing surface, the wire-grid thumbnails
 
 - **What shipped:** the last piece row 18 named but the upload surface — the page itself.
@@ -4288,10 +4348,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     on the ack — **done 2026-11-24** (fifty-seventh entry). **Phase 4 is complete.** Phase 5 starts
     here, in this order:
 
-19. **GitHub templates** (Phase 5 item 1): `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version,
-    repro, expected vs actual, `sortlens-cli diagnostics`), `feature_request.yml`, and a PR template
-    requiring the linked issue, the failing-then-passing test, the gate confirmations, a `perf` delta
-    for scan/catalog/thumbs and before/after screenshots for `crates/ui`.
+19. **GitHub templates** (Phase 5 item 1) — **done 2026-11-24**, see the fifty-eighth entry: two issue
+    forms (seven required bug fields including the `sortlens-cli diagnostics` bundle, six feature fields,
+    labels and title prefixes) and the PR template with its five gate checkboxes, the failing-then-passing
+    prompt, `Closes #`, the scan/catalog/thumbs `perf` table and the `crates/ui` before-and-after;
+    `cargo xtask templates` (in `ci`) reads both forms through a strict YAML-subset reader and refuses the
+    shape GitHub would, naming the file and line, and checks the template still names every gate. 18 xtask
+    tests; a broken field id makes the real gate fail and restoring it makes it pass.
 20. `docs/AUTONOMOUS_AGENT.md` — the issue-intake playbook (Phase 5 item 2).
 21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`)
     (Phase 5 item 3).
