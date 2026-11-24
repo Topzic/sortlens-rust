@@ -56,6 +56,14 @@ pub fn families() -> Vec<&'static str> {
     names
 }
 
+/// Whether this build embeds a symbols face of its own, which the keymap's glyphs need.
+///
+/// Without one the keymap must not paint `⌃`/`⇧`/`⏎`: egui's bundled faces draw `⌘` but none
+/// of the others, so a keycap spelled with them would be a box in front of the shortcut.
+pub fn symbols() -> bool {
+    CRAFT_FONTS.iter().any(|font| font.scripts.contains(&"Zsym"))
+}
+
 /// Which required scripts the embedded faces cover, and which they do not.
 ///
 /// A build without craft-fonts covers nothing, and that is reported as such rather than as a pass:

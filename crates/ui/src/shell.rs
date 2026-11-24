@@ -11563,9 +11563,15 @@ mod tests {
             painted.iter().any(|text| text.contains("Apply the staged rejections")),
             "the table carries the whole catalog, cull section included"
         );
+        let rescan = keymap::catalog()
+            .into_iter()
+            .find(|entry| entry.command.id == "library.rescan")
+            .and_then(|entry| entry.defaults.first().cloned())
+            .map(|binding| binding.trigger.display(craft_keymap::Platform::current()))
+            .expect("the rescan row is in the catalog");
         assert!(
-            painted.iter().any(|text| text.contains("Ctrl+Shift+R")),
-            "the chords paint the way the table spells them"
+            painted.iter().any(|text| text.contains(&rescan)),
+            "the chords paint the way the keymap spells them ({rescan}): {painted:?}"
         );
         assert!(painted.iter().any(|text| text.contains("Import\u{2026}")), "a set can be imported");
         assert!(painted.iter().any(|text| text.contains("Export\u{2026}")), "a set can be exported");

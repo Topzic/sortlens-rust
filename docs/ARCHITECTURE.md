@@ -495,8 +495,18 @@ before the scaffold existed — the screenshot baselines are the proof, all 19 u
 
 `craft-keymap` owns chords, scopes, conflicts, overrides and the editor. Our contribution is
 the catalog: ids, labels, menu paths, defaults — the rebindable rows of `crates/ui/src/keymap.rs`'s
-table, which is also what the editor, the palette and the `?` overlay read. Defaults for culling
-(the shipped ones, not a plan):
+table, which is also what the editor, the palette and the `?` overlay read.
+
+The table spells the primary modifier `Ctrl+`, and that is the platform's command key, not the
+physical Control: ⌘ on macOS, Ctrl everywhere else (where `craft_keymap` folds the two for matching
+anyway). The translation is one function at the ui's edge, so a table row, a rebind typed as
+`Ctrl+Alt+O` and the chord the dialog paints all mean the same press — before it, a Mac build bound
+Control, so none of the shortcuts the help listed worked. Painting follows the faces: with a symbols
+face embedded the keycaps are the platform's own (`⌘⇧R`), and without one the shell spells what egui's
+bundled fonts cannot draw as the table's words (`⌘Shift+R`), because `⌘` is the one modifier glyph they
+carry and `⌃`/`⇧`/`⏎` are boxes in front of every shortcut.
+
+Defaults for culling (the shipped ones, not a plan):
 
 | Action | Key |
 | --- | --- |

@@ -1,5 +1,42 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-sixth) — the Mac reads the table the way the table means it: ⌘ is the command key, and a build without a symbols face says the glyphs as words
+
+- **Why this came up.** The whole suite had only ever run on Windows. On this macOS checkout six
+  `sortlens-ui` tests failed before any of this run's work: every shortcut was bound to the physical
+  Control key (the table spells `Ctrl+O`, and `craft_keymap`'s `effective` folds ctrl into cmd only *off*
+  macOS), so the ⌘O the help lists did nothing; and the shell painted `⌃`/`⇧`/`⏎` as keycaps while
+  egui's bundled faces carry `⌘` and no other modifier glyph, so the audits tripped over tofu. A tree
+  cannot be committed red, so the repair ships as a commit of its own.
+- **The read.** `keymap::on_platform` is now the single translation at the ui's edge: on macOS a chord
+  with `ctrl` and no `cmd` becomes `cmd` (⌘), which is what the table's `Ctrl+` means everywhere
+  (`Ctrl+O` is ⌘O on a Mac and Ctrl+O elsewhere). Applied to the table's text (`chord_of`), to a
+  rebind parsed as text (`keymap::parse_binding`) and to matching (`binding_runs`), so a table row,
+  a user's `Ctrl+Alt+O` and the chord the dialog paints are one press — one function, not a copy in
+  each reader.
+- **The paint.** `keymap::spell` asks `fonts::symbols()`: with a symbols face embedded (craft
+  fonts present) the keycaps are the platform's own (`⌘⇧R`); without one the glyphs egui's bundled
+  faces cannot draw are spelled as the table's words (`⌘Shift+R`, `⌘Enter`), with ⌘ kept because it is
+  the one modifier glyph the bundled emoji face does have. The arrows keep their triangles.
+- **Tests.** Six tests that encoded Windows now read the platform: `dispatch_reads_the_keymap_not_the_handwritten_table`
+  (⌘ opens), `painted_keys_follow_the_rebinds` (compares against `spell`, not a literal), the three
+  glyph audits (they pass because nothing unpaintable is painted) and the shell's
+  `the_shortcut_editor_opens_rebinds_and_saves` (compares against the catalog's own display, not the
+  literal `Ctrl+Shift+R`). New `the_platform_spells_the_primary_modifier_its_own_way` pins the rule per
+  platform: `Ctrl+Shift+R` on Windows/Linux, `⌘⇧R` with a symbols face on a Mac, `⌘Shift+R` without,
+  and the plain keys and triangles unchanged. `cargo test -p sortlens-ui --lib` is 148 passed.
+- **Still red on a Mac, and it predates this run:** `cargo xtask screenshots`. Two scenes
+  (`command-palette`, `places`) differ by the chord wording, and
+  `shortcut_editor_paints_in_both_themes` panics because `craft-keymap`'s own dialog paints the
+  platform's `⇧`/`⌃` and the screenshot harness installs only egui's bundled faces — a face it
+  needs is a craft-fonts face, and the harness never calls `fonts::install`. The gate is therefore a
+  Windows/Linux gate today; making it a Mac gate means the harness embedding the symbol faces and a
+  separate baseline set, which is a UI slice of its own (recorded in ROADMAP's Phase 4 item 1 row).
+- **Verified:** `. scripts/env.sh && cargo xtask ci` (fmt, clippy `-D warnings`, the whole workspace's
+  tests, assets, icons, fonts, docs, a11y, layers, roots, version, attribution), `cargo xtask snapshot`,
+  `cargo xtask deny` and `cargo xtask wasm` are green on this macOS checkout — after the rebase onto
+  the browser-shell commit, too.
+
 ## 2026-11-24 (fifty-fifth) — Phase 4 item 3, the browser shell: the eframe wasm entry, the fetch client, the pairing surface, the wire-grid thumbnails
 
 - **What shipped:** the last piece row 18 named but the upload surface — the page itself.
@@ -4198,5 +4235,9 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 Stop condition: every row under "Completion phases" ticked. Never move a buildable feature into a
 "Deliberately absent" table to close a milestone.
 
-Note for the next run: this Windows checkout has its own toolchain (`.toolchain`) —
-`. scripts/env.sh && cargo xtask ci` works as documented.
+Note for the next run: this checkout is macOS (aarch64) with its own toolchain (`.toolchain`) —
+`. scripts/env.sh && cargo xtask ci` works as documented. `cargo xtask screenshots` is red *here and
+at HEAD*: the baselines were painted where the shell spells chords in ASCII, and a Mac without a
+craft-faces symbols font paints `⌘Shift+R` instead and makes `craft-keymap`'s editor scene panic on
+`⇧` (see the fifty-sixth entry). Making the shots a Mac gate means the harness embedding the symbol
+faces and a separate baseline set — a UI slice of its own.

@@ -24,6 +24,7 @@
 
 #![forbid(unsafe_code)]
 
+use crate::fonts;
 use craft_keymap::{Bindable, Binding as CraftBinding, Chord, CommandRef, Key, Keymap, Overrides, Platform, Scope, Scopes, Trigger};
 use serde::{Deserialize, Serialize};
 
@@ -198,6 +199,35 @@ pub fn len() -> usize {
 
 // ---- The runtime half: the catalog the editor edits and the dispatch the shell reads ----
 
+/// The table writes `Ctrl+…` for the platform's command key: ⌘ on macOS, Ctrl everywhere else.
+///
+/// `craft_keymap`'s `effective` folds the other way — off macOS `ctrl` becomes `cmd` — so the
+/// translation back happens here, once, for the table's own text and for any chord a user hands
+/// the ui: a `Ctrl+O` row and a `Ctrl+O` rebind are the same press, which is ⌘O on a Mac. Without
+/// it the mac build bound the physical Control key, so no shortcut the help listed worked.
+fn on_platform(chord: Chord, platform: Platform) -> Chord {
+    if platform.is_mac() && chord.mods.ctrl && !chord.mods.cmd {
+        Chord {
+            mods: craft_keymap::Mods {
+                cmd: true,
+                ctrl: false,
+                ..chord.mods
+            },
+            key: chord.key,
+        }
+    } else {
+        chord
+    }
+}
+
+/// A chord from text, read the way the table is read, so a rebind typed or imported as
+/// `Ctrl+Alt+O` means the same press the table's spellings do.
+pub fn parse_binding(text: &str) -> Option<CraftBinding> {
+    Chord::parse(text)
+        .ok()
+        .map(|chord| CraftBinding::new(Trigger::single(on_platform(chord, Platform::current()))))
+}
+
 /// The one chord a table row binds, when it names a single chord at all.
 ///
 /// The spellings that mean one press parse; the ranges (`0–5`), the mouse rows (`Click`, `Drag`,
@@ -208,7 +238,7 @@ fn chord_of(keys: &str) -> Option<Chord> {
     match keys {
         "◀" => Some(Chord::plain(Key::Left)),
         "▶" => Some(Chord::plain(Key::Right)),
-        other => Chord::parse(other).ok(),
+        other => Chord::parse(other).ok().map(|chord| on_platform(chord, Platform::current())),
     }
 }
 
@@ -301,15 +331,61 @@ pub fn painted(keymap: &Keymap, id: &str) -> Option<String> {
     )
 }
 
+/// The key glyphs egui's bundled faces cannot draw, and the words the table already uses for
+/// them. `⌘` and the letters are the ones the faces do have.
+const WORDED: &[(char, &str)] = &[
+    ('⏎', "Enter"),
+    ('⌤', "Enter"),
+    ('␣', "Space"),
+    ('⌫', "Backspace"),
+    ('⌦', "Delete"),
+    ('⎋', "Esc"),
+    ('⇥', "Tab"),
+];
+
+/// A chord in words, for a build whose faces cannot draw the platform's keycaps: `⌘Shift+R`.
+///
+/// ⌘ reads first, the way a Mac spells it, and it is the one modifier glyph egui's own faces
+/// carry; the rest are the table's words. A build *with* a symbols face keeps the platform's
+/// keycaps (⌘⇧R) instead, which is what such a face is for.
+fn words(chord: Chord) -> String {
+    let mods = chord.mods;
+    let mut out = String::new();
+    if mods.cmd {
+        out.push('⌘');
+    }
+    for (on, word) in [(mods.ctrl, "Ctrl+"), (mods.alt, "Alt+"), (mods.shift, "Shift+")] {
+        if on {
+            out.push_str(word);
+        }
+    }
+    let key = Chord::plain(chord.key).display(Platform::Mac);
+    for character in key.chars() {
+        match WORDED.iter().find(|(glyph, _)| *glyph == character) {
+            Some((_, word)) => out.push_str(word),
+            None => out.push(character),
+        }
+    }
+    out
+}
+
 /// One trigger in keycap spelling: the arrows keep their triangles, everything else reads as the
-/// platform spells it (`Ctrl+Shift+R`).
+/// platform spells it (`Ctrl+Shift+R`), the primary modifier folded to the platform's command
+/// key, and — when no symbols face is embedded — the glyphs those faces lack spelled as words.
 pub fn spell(trigger: &Trigger, platform: Platform) -> String {
     match trigger.chord.key {
         Key::Left => "◀".to_owned(),
         Key::Right => "▶".to_owned(),
         Key::Up => "▲".to_owned(),
         Key::Down => "▼".to_owned(),
-        _ => trigger.display(platform),
+        _ => {
+            let chord = on_platform(trigger.chord, platform);
+            if platform.is_mac() && !fonts::symbols() {
+                words(chord)
+            } else {
+                chord.display(platform)
+            }
+        }
     }
 }
 
@@ -344,7 +420,7 @@ fn binding_runs(keymap: &Keymap, binding: &CraftBinding, event: &egui::Event) ->
         return false;
     };
     let Some(pressed) = Key::from_egui(*key) else { return false };
-    let chord = &binding.trigger.chord;
+    let chord = &on_platform(binding.trigger.chord, keymap.platform());
     if chord.mods.is_none() {
         // Plain: the shell's own semantics — the letter fires however Shift or Alt ride along,
         // as long as the command modifier does not.
@@ -638,7 +714,7 @@ mod tests {
         keymap
             .assign(
                 &CommandRef::new("cull.apply"),
-                CraftBinding::parse("Ctrl+Z").unwrap(),
+                parse_binding("Ctrl+Z").expect("the conflict chord parses"),
                 craft_keymap::Policy::Keep,
             )
             .expect("assigned keep");
@@ -685,7 +761,7 @@ mod tests {
         rebound
             .set_bindings(
                 &CommandRef::new("library.addFolder"),
-                vec![CraftBinding::parse("Ctrl+Alt+O").unwrap()],
+                vec![parse_binding("Ctrl+Alt+O").expect("the moved chord parses")],
                 Policy::Steal,
             )
             .expect("rebind addFolder");
@@ -758,7 +834,8 @@ mod tests {
     #[test]
     fn painted_keys_follow_the_rebinds() {
         let mut keymap = build(Overrides::new());
-        assert_eq!(painted(&keymap, "library.addFolder").as_deref(), Some("Ctrl+O"));
+        let spelled = |text: &str| spell(&parse_binding(text).expect("the chord parses").trigger, Platform::current());
+        assert_eq!(painted(&keymap, "library.addFolder").as_deref(), Some(spelled("Ctrl+O").as_str()));
         assert_eq!(
             painted(&keymap, "view.compare"),
             None,
@@ -767,16 +844,45 @@ mod tests {
         keymap
             .set_bindings(
                 &CommandRef::new("library.addFolder"),
-                vec![CraftBinding::parse("Ctrl+Alt+O").unwrap()],
+                vec![parse_binding("Ctrl+Alt+O").expect("the rebind parses")],
                 craft_keymap::Policy::Steal,
             )
             .expect("rebind");
-        assert_eq!(painted(&keymap, "library.addFolder").as_deref(), Some("Ctrl+Alt+O"));
+        assert_eq!(
+            painted(&keymap, "library.addFolder").as_deref(),
+            Some(spelled("Ctrl+Alt+O").as_str())
+        );
         // The ◀ row spells the triangle in the runtime text as in the table.
         assert_eq!(painted(&keymap, "cull.back").as_deref(), Some("◀"));
         let open_row = BINDINGS.iter().find(|binding| binding.keys == "Ctrl+O").expect("overlay row");
-        assert_eq!(row_keys(&keymap, open_row), "Ctrl+Alt+O");
+        assert_eq!(row_keys(&keymap, open_row), spelled("Ctrl+Alt+O"));
         let click_row = BINDINGS.iter().find(|binding| binding.keys == "Click").expect("mouse row");
         assert_eq!(row_keys(&keymap, click_row), "Click", "a fixed row paints its own spelling");
+    }
+
+    /// The spelling rule, per platform: the table's \`Ctrl+\` is the platform's command key — ⌘ on a
+    /// Mac — and a build without a symbols face says the glyphs no face has as words, so the key
+    /// the help prints is the key a person can actually press and read.
+    #[test]
+    fn the_platform_spells_the_primary_modifier_its_own_way() {
+        let chord = parse_binding("Ctrl+Shift+R").expect("parses").trigger;
+        assert_eq!(spell(&chord, Platform::Windows), "Ctrl+Shift+R");
+        assert_eq!(spell(&chord, Platform::Linux), "Ctrl+Shift+R");
+        let mac = spell(&chord, Platform::Mac);
+        if fonts::symbols() {
+            assert_eq!(mac, "⌘⇧R", "a symbols face draws the platform's own keycaps");
+        } else {
+            assert_eq!(mac, "⌘Shift+R", "the words stand in for glyphs no face has");
+        }
+        assert_eq!(
+            spell(&Trigger::single(Chord::plain(Key::Left)), Platform::Mac),
+            "◀",
+            "the triangles stay"
+        );
+        assert_eq!(
+            spell(&parse_binding("P").expect("parses").trigger, Platform::Mac),
+            "P",
+            "a plain key is itself"
+        );
     }
 }

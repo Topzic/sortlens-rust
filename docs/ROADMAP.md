@@ -1275,6 +1275,19 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   after OK and the host receives the override), the settings round trip
   `shortcut_sets_round_trip_and_an_older_file_reads_the_defaults`, and the `shortcut-editor-charcoal`/
   `-paper` baselines (31 at the time; 33 after item 2b), all read.
+- **The platform read of the table shipped 2026-11-24** (a repair: the suite had only run on Windows, and
+  on macOS six tests failed). The table's `Ctrl+` is the platform's command key — `keymap::on_platform`
+  folds `ctrl` into `cmd` on macOS, once, for the table's own chords, a rebind parsed as text
+  (`parse_binding`) and matching (`binding_runs`), so the Mac build finally answers the ⌘ chords the
+  help lists; before, every shortcut was the physical Control key. Painting follows the faces:
+  `spell` keeps the platform's keycaps (`⌘⇧R`) when a symbols face is embedded and the table's words
+  (`⌘Shift+R`, `⌘Enter`) when it is not, because egui's bundled faces carry `⌘` and none of
+  `⌃`/`⇧`/`⏎`. Proved by `the_platform_spells_the_primary_modifier_its_own_way` and the six
+  formerly-Windows-only tests, 148 in the crate. **Still open on a Mac without craft faces:** the
+  screenshot gate — `craft-keymap`'s own editor dialog paints the platform's `⇧`/`⌃` and the harness
+  installs only egui's faces, so `shortcut_editor_paints_in_both_themes` panics and two scenes' chord
+  wording differs. Making the shots a Mac gate means the harness embedding the symbol faces and a
+  separate baseline set.
 - [ ] 2. Packaging and accessibility, in this order:
   - [x] 2a. `.icns`/`.ico` generated from `crates/icon` by `cargo xtask icons` (B)
     — shipped 2026-11-24: `sortlens-icon::ico()` packs PNG entries at 16/32/48/64/128/256 px into the

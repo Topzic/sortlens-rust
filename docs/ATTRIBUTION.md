@@ -104,8 +104,12 @@ in `craft-fonts` itself:
 | Noto Sans Symbols | Regular | OFL-1.1 |
 | Noto Sans Symbols 2 | Regular | OFL-1.1 |
 
-The keymap draws `⌃ ✕ ◀ ✓` as text, which is why a symbols face is required rather than optional. A build
-with no craft faces ships egui's bundled fonts instead, which are also permissively licensed.
+The keymap draws `⌃ ⇧ ⌘ ✕ ◀ ✓` as text, which is why a symbols face matters: with one the keycaps are
+the platform's own, and without one the shell spells what egui's bundled fonts lack as words
+(`Ctrl+Shift+R`, `⌘Shift+R`) rather than painting boxes. A build with no craft faces ships egui's
+bundled fonts instead, which are also permissively licensed. One corner is still not covered on a
+Mac without craft faces: `craft-keymap`'s own editor dialog paints the platform's keycaps and so needs
+that face, which is why the screenshot gate is a desktop-Linux/Windows gate today.
 
 ## Data and models
 
