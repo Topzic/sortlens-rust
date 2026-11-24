@@ -9,3 +9,6 @@
 
 # The screenshot harness keeps its fixture library here; it is rebuilt by every run.
 /crates/ui/tests/.screenshots
+
+# The browser client's bundle, built by `cargo xtask web` and served by `sortlens-server --web`.
+/apps/sortlens-web/dist

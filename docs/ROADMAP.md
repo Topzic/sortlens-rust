@@ -834,7 +834,9 @@ bundle. The remote server shipped 2026-11-24 (pairing, scoped tokens, the allow-
 resumable uploads — see the Phase 4 item 3 row), the desktop's own server start/stop shipped the same
 day, and the wasm client's library path shipped 2026-11-24 with it (`sortlens_remote::client` +
 `Engine::open_memory` + `RemoteLibrary`, SL-J02's engine and protocol halves — see the Phase 4 item 3
-row) while the browser shell itself stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
+row) and the browser shell itself shipped 2026-11-24 (the eframe wasm entry, the fetch-backed client,
+the pairing surface and the wire-grid thumbnails — see the Phase 4 item 3 row) while the shell's
+upload surface stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
 Arabic, Japanese and the direction plumbing — see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted
 surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
@@ -886,8 +888,9 @@ and none of M9 is closed until the remaining rows are ticked.
 `sortlens-server` (token auth, pairing, upload resume — SL-J01/J03/J04) and remote collection create and
 rescan (SL-J06/J08) shipped 2026-11-24, proved by the two-process loopback integration harness the old
 table's blocker asked for; the wasm client's library path (SL-J02's engine and protocol halves plus
-SL-J05's client-side ack) shipped 2026-11-24, leaving the eframe browser entry and the shell's own
-surface as the remaining half of Phase 4 item 3.
+SL-J05's client-side ack) shipped 2026-11-24, and the browser shell itself shipped 2026-11-24 — the
+eframe wasm entry, the fetch-backed client over the same wire, the pairing surface and the wire-grid
+thumbnails — leaving the shell's upload surface as the remaining half of Phase 4 item 3.
 `docs/ARCHITECTURE.md` §10 keeps the design; the command registry is already the API.
 
 **Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
@@ -1428,8 +1431,31 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     named in the refusal; a token without `read` refused the same as the snapshot) and unit tests
     on the client (the request is `GET /thumb/<id>/<edge>` with the bearer token, PNG bytes return
     untouched, unpaired refuses without talking).
-  - **Still open here:** the browser shell itself — the eframe wasm entry (needs the
-    wasm-bindgen CLI in `.toolchain`) and the Settings/pairing/upload surface in that shell.
+  - **The browser shell shipped 2026-11-24.** The page is the eframe fork's `WebRunner` running in
+    the browser's canvas (`cargo xtask web`: the wasm32 release build, the wasm-bindgen CLI glue —
+    pinned to the exact 0.2.130 the egui fork carries — and `apps/sortlens-web/web/index.html`, left
+    servable in `apps/sortlens-web/dist`). The host serves its own page: `--web DIR` answers `/app`
+    with the bundle, same-origin, so the page pairs and speaks to the host it was served by and no
+    CORS check is ever in the picture (paths resolve inside the bundle dir only; a traversal answers
+    404). The page's protocol is the crate's, not a second one: `crates/remote/src/web.rs` is the
+    async wasm client over the browser's `fetch`, built from the same wire functions the blocking
+    client and the native tests run (`health`/`pair`/`call`/`snapshot`/`thumbnail` request builders
+    and answer parsers, shared, so a browser cannot drift from what the two-process harness proves).
+    The page pairs with the host's code, hydrates the wire snapshot into `RemoteLibrary`, paints the
+    grid from the PNG thumbnails the wire carries (decoded through the desktop's own
+    `craft_image_codecs`), refreshes the snapshot on every boot, and keeps the token and the snapshot
+    in browser storage between sessions — a saved token opens the page straight into its library.
+    The page's state machine (`apps/sortlens-web/src/shell.rs`) is compiled natively too and tested
+    there: empty session starts unpaired, a saved token reopens, pairing is not open until the
+    snapshot arrives, a failure returns to the form only unpaired, the session round-trips and
+    untrusted storage reads as absent. Proved live: a real server (`--library` with three scanned
+    photographs, `--web dist`) serving `/app` in a real browser — pair with the pinned code, the
+    grid paints the three photographs from wire thumbnails, a reload opens the library without
+    re-pairing — and by the harness test that reads `/app`, `/app/sortlens-web.js`, the nested
+    `snippets/` asset and the wasm back with the content types a browser needs, a traversal and an
+    unknown name refused, an unconfigured server naming the `--web` flag.
+  - **Still open here:** the shell's upload surface — the file picker or drag-and-drop feeding the
+    resumable `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

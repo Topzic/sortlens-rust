@@ -281,10 +281,111 @@ fn an_upload_resumes_and_the_ack_decides_the_local_copy() {
     let _ = kept_item;
 }
 
+/// The browser client (SL-J02) is served by the host itself: `--web DIR` answers `/app` with
+/// the page and its assets, same-origin, so the page pairs and speaks to the host it was
+/// served by. No token covers a page, and a misconfigured or absent bundle says so.
+#[test]
+fn the_host_serves_the_browser_client_from_the_app_route() {
+    let library = Library::build("client-web-app");
+    let bundle = library._fixture.root().join("web");
+    std::fs::create_dir_all(&bundle).expect("bundle dir");
+    std::fs::write(bundle.join("index.html"), b"<!doctype html><title>Sortlens</title>").expect("page");
+    std::fs::write(
+        bundle.join("sortlens-web.js"),
+        b"export default () => {}; export const boot = {};".as_slice(),
+    )
+    .expect("glue");
+    std::fs::write(bundle.join("sortlens-web_bg.wasm"), b"\0asm\x01").expect("wasm magic");
+    // The glue loads its own nested assets, so a nested path under the bundle is served too.
+    std::fs::create_dir_all(bundle.join("snippets")).expect("snippets dir");
+    std::fs::write(bundle.join("snippets").join("inline0.js"), b"export default 1;").expect("snippet");
+
+    let web = bundle.to_str().expect("bundle path is text");
+    let server = Server::spawn(&library, &["--code", "258258", "--web", web]);
+    let addr = server.addr.clone();
+
+    // The page, the glue and the wasm answer with the content types a browser needs.
+    let get = |path: &str| -> (u16, String, Vec<u8>) {
+        let response = raw_get(&addr, path);
+        let head = String::from_utf8_lossy(&response.0).to_string();
+        let status: u16 = head
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .parse()
+            .unwrap_or(0);
+        let kind = head
+            .lines()
+            .find_map(|line| line.strip_prefix("Content-Type:").map(|value| value.trim().to_string()))
+            .unwrap_or_default();
+        (status, kind, response.1)
+    };
+    let (status, kind, body) = get("/app");
+    assert_eq!(status, 200);
+    assert!(kind.starts_with("text/html"), "{kind}");
+    assert!(String::from_utf8_lossy(&body).contains("Sortlens"));
+    let (status, kind, _) = get("/app/sortlens-web.js");
+    assert_eq!(status, 200);
+    assert!(kind.starts_with("text/javascript"), "{kind}");
+    let (status, kind, _) = get("/app/snippets/inline0.js");
+    assert_eq!(status, 200);
+    assert!(kind.starts_with("text/javascript"), "{kind}");
+    let (status, kind, body) = get("/app/sortlens-web_bg.wasm");
+    assert_eq!(status, 200);
+    assert_eq!(kind, "application/wasm");
+    assert_eq!(&body[..4], b"\0asm", "the bytes are not re-wrapped");
+
+    // A name that is not in the bundle, and a traversal, are refused — a static file
+    // server that answers the filesystem instead of the bundle is not this server.
+    assert_eq!(get("/app/nothing.js").0, 404);
+    assert_eq!(get("/app/../remote-tokens.json").0, 404);
+
+    // Without a bundle the route says what to do, rather than an empty 500.
+    drop(server);
+    let server = Server::spawn(&library, &["--code", "258258"]);
+    let addr = server.addr.clone();
+    let get = move |path: &str| -> (u16, String, Vec<u8>) {
+        let response = raw_get(&addr, path);
+        let head = String::from_utf8_lossy(&response.0).to_string();
+        let status: u16 = head
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .parse()
+            .unwrap_or(0);
+        (status, String::new(), response.1)
+    };
+
+    let (status, _, body) = get("/app");
+    assert_eq!(status, 404);
+    assert!(String::from_utf8_lossy(&body).contains("--web"), "the refusal names the flag");
+}
+
+/// A raw HTTP GET over one blocking connection — the same wire the client speaks.
+fn raw_get(addr: &str, path: &str) -> (Vec<u8>, Vec<u8>) {
+    use std::io::{Read, Write};
+    let mut stream = std::net::TcpStream::connect(addr).expect("the server answers");
+    stream
+        .write_all(format!("GET {path} HTTP/1.1\r\nHost: sortlens\r\nConnection: close\r\n\r\n").as_bytes())
+        .expect("the request is sent");
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).expect("the answer is read");
+    let head_end = raw
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("a header terminator");
+    (raw[..head_end].to_vec(), raw[head_end + 4..].to_vec())
+}
+
 /// A wrapper that lets the first N requests through and then reports the connection dead,
 /// so the resume test loses a transfer without staging a real network fault.
 struct DropAfter(usize, TcpTransport);
-
 impl Transport for DropAfter {
     fn request(
         &mut self,

@@ -624,8 +624,17 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   server and save the state back between sessions. The device protocol lives in
   `sortlens_remote::client` — pairing, `/api` calls, the resumable `/upload` with the
   keep-or-remove decision applied on the ack, and `thumbnail` fetching `GET /thumb/<id>/<edge>`
-  — over a `Transport` the wasm build backs with the browser's fetch. Still open: the eframe
-  browser entry and the shell's own surface.
+  — and its request builders and answer parsers are the one wire both clients share: the blocking
+  native client, and the async wasm client (`sortlens_remote::web::WebClient`) that backs the same
+  functions with the browser's `fetch`. The browser shell itself shipped 2026-11-24: the page is
+  the eframe fork's `WebRunner` in the browser's canvas (`cargo xtask web` builds the wasm32
+  release binary, the wasm-bindgen glue and `apps/sortlens-web/web/index.html` into
+  `apps/sortlens-web/dist`), the host serves its own page from `/app` under `--web DIR` so the
+  page is same-origin with the protocol it speaks, and the page pairs with the host's code,
+  hydrates the wire snapshot, paints the grid from wire thumbnails decoded through the desktop's
+  own codec, and keeps the token and the snapshot in browser storage between sessions. Still
+  open: the shell's upload surface — the file picker or drag-and-drop feeding the resumable
+  `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
 - `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
   hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
   default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five
@@ -634,7 +643,10 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   Routes: `GET /health` (the connection test, no token), `POST /pair`, `POST /api`
   (`{method, params}` → the registry's answer), `POST /upload`, `GET /upload/<id>`, and
   `GET /thumb/<photo-id>/<edge>` (the export path's lossless PNG, decoded through the desktop
-  grid's `sortlens-thumbs` path, bounded to 16–1024 px, under `read`).
+  grid's `sortlens-thumbs` path, bounded to 16–1024 px, under `read`). With `--web DIR` (shipped
+  2026-11-24) the server also serves the browser client from `/app` and `/app/<path>` — same-origin
+  with the protocol, so the page needs no CORS — serving only paths that resolve inside the
+  bundle directory, a traversal answering 404.
 - The desktop's own surface (shipped 2026-11-24, Phase 4 item 3): Settings → Sync & devices spawns
   the server binary beside the app and follows its stdout through `sortlens-remote::supervise`
   (the startup-line contract is parsed once, beside the protocol), shows the live port and pairing

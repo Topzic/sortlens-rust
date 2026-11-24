@@ -38,6 +38,146 @@ pub trait Transport {
     fn request(&mut self, method: &str, path: &str, headers: &[(String, String)], body: &[u8]) -> Result<Response, ClientError>;
 }
 
+/// One fully built request: the transport's only job is to send it and bring the answer back.
+///
+/// The protocol is the crate's, not the transport's: the blocking [`Client`] and the wasm
+/// page's [`crate::web::WebClient`] both build their calls with these functions, so a browser
+/// cannot drift from what the native tests and the two-process harness prove.
+#[derive(Debug, Clone)]
+pub struct Request {
+    /// The HTTP method.
+    pub method: String,
+    /// The path, any query already encoded.
+    pub path: String,
+    /// The request headers, in the order the call built them.
+    pub headers: Vec<(String, String)>,
+    /// The request body; empty on the GETs.
+    pub body: Vec<u8>,
+}
+
+/// `GET /health`: the connection test takes no token, by design (SL-J07).
+#[must_use]
+pub fn health_request() -> Request {
+    Request {
+        method: "GET".to_string(),
+        path: "/health".to_string(),
+        headers: Vec::new(),
+        body: Vec::new(),
+    }
+}
+
+/// Interpret the answer to [`health_request`].
+pub fn health_answer(response: Response) -> Result<Value, ClientError> {
+    let body = response.json()?;
+    if response.status == 200 && body.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(body)
+    } else {
+        Err(ClientError::Server {
+            status: response.status,
+            message: "the health answer did not say ok".to_string(),
+        })
+    }
+}
+
+/// What pairing left the client holding: the token every later call carries, and the device
+/// name the server recorded.
+#[derive(Debug, Clone)]
+pub struct Pairing {
+    /// The scoped bearer token. The code is a human carrier and is never kept.
+    pub token: String,
+    /// The device name the server recorded for this client.
+    pub device: Option<String>,
+}
+
+/// `POST /pair`: trade a pairing code for a scoped token.
+#[must_use]
+pub fn pair_request(code: &str, device: &str) -> Request {
+    Request {
+        method: "POST".to_string(),
+        path: "/pair".to_string(),
+        headers: vec![("Content-Type".to_string(), "application/json".to_string())],
+        body: json!({ "code": code, "device": device }).to_string().into_bytes(),
+    }
+}
+
+/// Interpret the answer to [`pair_request`].
+pub fn pair_answer(response: Response) -> Result<Pairing, ClientError> {
+    let body = response.json()?;
+    if response.status != 200 {
+        return Err(server_error(response.status, &body));
+    }
+    let token = body.get("token").and_then(Value::as_str).unwrap_or("");
+    if token.is_empty() {
+        return Err(ClientError::Server {
+            status: 200,
+            message: "the pairing answer carried no token".to_string(),
+        });
+    }
+    Ok(Pairing {
+        token: token.to_string(),
+        device: body.get("device").and_then(Value::as_str).map(str::to_string),
+    })
+}
+
+/// `POST /api`: one registry command through the allow-list, under the paired token's scopes.
+#[must_use]
+pub fn call_request(token: &str, method: &str, params: &Value) -> Request {
+    Request {
+        method: "POST".to_string(),
+        path: "/api".to_string(),
+        headers: vec![
+            ("Authorization".to_string(), format!("Bearer {token}")),
+            ("Content-Type".to_string(), "application/json".to_string()),
+        ],
+        body: json!({ "method": method, "params": params }).to_string().into_bytes(),
+    }
+}
+
+/// Interpret the answer to [`call_request`]: the registry's result on success, the server's
+/// own reason on a refusal.
+pub fn call_answer(response: Response) -> Result<Value, ClientError> {
+    let body = response.json()?;
+    if response.status == 200 && body.get("ok").and_then(Value::as_bool) == Some(true) {
+        Ok(body.get("result").cloned().unwrap_or(Value::Null))
+    } else {
+        Err(server_error(response.status, &body))
+    }
+}
+
+/// The snapshot string inside a `library.snapshot` result — the state a wasm client opens
+/// with [`sortlens_engine::Engine::open_memory`] and saves back between sessions.
+pub fn snapshot_from_result(result: &Value) -> Result<String, ClientError> {
+    result
+        .get("snapshot")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| ClientError::Server {
+            status: 200,
+            message: "the snapshot answer carried no snapshot".to_string(),
+        })
+}
+
+/// `GET /thumb/<id>/<edge>` under the paired token's `read` scope.
+#[must_use]
+pub fn thumbnail_request(token: &str, id: sortlens_core::PhotoId, edge: u32) -> Request {
+    Request {
+        method: "GET".to_string(),
+        path: format!("/thumb/{}/{}", id, edge),
+        headers: vec![("Authorization".to_string(), format!("Bearer {token}"))],
+        body: Vec::new(),
+    }
+}
+
+/// Interpret the answer to [`thumbnail_request`]: PNG bytes returned untouched — the bytes
+/// are what a browser `<img>` or an egui texture decodes — and every refusal, which the
+/// server answers in JSON whatever the success body was, as a typed error.
+pub fn thumbnail_answer(response: Response) -> Result<Vec<u8>, ClientError> {
+    if response.status == 200 && response.body.starts_with(b"\x89PNG") {
+        return Ok(response.body);
+    }
+    Err(server_error(response.status, &response.json()?))
+}
+
 /// A response, split the way a client needs it.
 #[derive(Debug)]
 pub struct Response {
@@ -232,38 +372,16 @@ impl<T: Transport> Client<T> {
 
     /// The connection test: `GET /health` takes no token, by design (SL-J07).
     pub fn health(&mut self) -> Result<Value, ClientError> {
-        let response = self.transport.request("GET", "/health", &[], &[])?;
-        let body = response.json()?;
-        if response.status == 200 && body.get("ok").and_then(Value::as_bool) == Some(true) {
-            Ok(body)
-        } else {
-            Err(ClientError::Server {
-                status: response.status,
-                message: "the health answer did not say ok".to_string(),
-            })
-        }
+        health_answer(self.send(health_request())?)
     }
 
     /// Trade a pairing code for a scoped token. The code is a human carrier, never stored by
     /// the client; the token is, because every later call carries it.
     pub fn pair(&mut self, code: &str, device: &str) -> Result<(), ClientError> {
-        let response = self.post_json("/pair", None, json!({ "code": code, "device": device }))?;
-        let body = response.json()?;
-        match response.status {
-            200 => {
-                let token = body.get("token").and_then(Value::as_str).unwrap_or("");
-                if token.is_empty() {
-                    return Err(ClientError::Server {
-                        status: 200,
-                        message: "the pairing answer carried no token".to_string(),
-                    });
-                }
-                self.token = Some(token.to_string());
-                self.device = body.get("device").and_then(Value::as_str).map(str::to_string);
-                Ok(())
-            }
-            _ => Err(server_error(response.status, &body)),
-        }
+        let pairing = pair_answer(self.send(pair_request(code, device))?)?;
+        self.token = Some(pairing.token);
+        self.device = pairing.device;
+        Ok(())
     }
 
     /// One registry command through `/api`, under the paired token's scopes.
@@ -272,27 +390,14 @@ impl<T: Transport> Client<T> {
             .token
             .clone()
             .ok_or_else(|| ClientError::Connection("the client is not paired".into()))?;
-        let response = self.post_json("/api", Some(&token), json!({ "method": method, "params": params }))?;
-        let body = response.json()?;
-        if response.status == 200 && body.get("ok").and_then(Value::as_bool) == Some(true) {
-            Ok(body.get("result").cloned().unwrap_or(Value::Null))
-        } else {
-            Err(server_error(response.status, &body))
-        }
+        let response = self.send(call_request(&token, method, params))?;
+        call_answer(response)
     }
 
     /// The library as snapshot JSON — the state a wasm client opens with `Engine::open_memory`
     /// and saves back between sessions.
     pub fn snapshot(&mut self) -> Result<String, ClientError> {
-        let result = self.call("library.snapshot", &json!({}))?;
-        result
-            .get("snapshot")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-            .ok_or_else(|| ClientError::Server {
-                status: 200,
-                message: "the snapshot answer carried no snapshot".to_string(),
-            })
+        snapshot_from_result(&self.call("library.snapshot", &json!({}))?)
     }
 
     /// One photograph's thumbnail as PNG bytes: `GET /thumb/<id>/<edge>` under the paired
@@ -304,13 +409,7 @@ impl<T: Transport> Client<T> {
             .token
             .clone()
             .ok_or_else(|| ClientError::Connection("the client is not paired".into()))?;
-        let headers = [("Authorization".to_string(), format!("Bearer {token}"))];
-        let response = self.transport.request("GET", &format!("/thumb/{}/{}", id, edge), &headers, &[])?;
-        if response.status == 200 && response.body.starts_with(b"\x89PNG") {
-            return Ok(response.body);
-        }
-        // Every refusal the server answers is JSON, whatever the success body was.
-        Err(server_error(response.status, &response.json()?))
+        thumbnail_answer(self.send(thumbnail_request(&token, id, edge))?)
     }
 
     /// Send one photograph, and apply the keep-or-remove decision on the ack.
@@ -413,14 +512,10 @@ impl<T: Transport> Client<T> {
         }
     }
 
-    /// POST JSON with the token when there is one.
-    fn post_json(&mut self, path: &str, token: Option<&str>, body: Value) -> Result<Response, ClientError> {
-        let mut headers = Vec::new();
-        if let Some(token) = token {
-            headers.push(("Authorization".to_string(), format!("Bearer {token}")));
-        }
-        headers.push(("Content-Type".to_string(), "application/json".to_string()));
-        self.transport.request("POST", path, &headers, body.to_string().as_bytes())
+    /// Send one fully built request through the transport.
+    fn send(&mut self, request: Request) -> Result<Response, ClientError> {
+        self.transport
+            .request(&request.method, &request.path, &request.headers, &request.body)
     }
 }
 
@@ -549,6 +644,99 @@ mod tests {
         let id = &item.id;
         assert_eq!(id.len(), 25, "u + 24 hex");
         assert!(id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+    }
+
+    /// A snapshot call returns the exact string the answer carried — the state
+    /// `Engine::open_memory` reopens, untouched.
+    #[test]
+    fn a_snapshot_call_returns_the_wire_state() {
+        let mut client = Client::new(Scripted::with(vec![ok_json(json!({
+            "ok": true, "result": { "snapshot": "{\"version\":3}" }
+        }))]));
+        client.token = Some("t".to_string());
+        let snapshot = client.snapshot().expect("snapshot");
+        assert_eq!(snapshot, "{\"version\":3}");
+    }
+
+    /// The wire builders are the protocol: what a wasm page builds is what the blocking
+    /// client builds, and the answers parse the same way. Pairing first.
+    #[test]
+    fn the_pair_wire_builds_the_request_and_parses_the_answer() {
+        let request = pair_request("369369", "tablet");
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/pair");
+        let body: Value = serde_json::from_slice(&request.body).expect("JSON body");
+        assert_eq!(body["code"], "369369");
+        assert_eq!(body["device"], "tablet");
+        let pairing =
+            pair_answer(ok_json(json!({ "ok": true, "token": "tok-1", "device": "tablet" })).expect("response")).expect("pairing");
+        assert_eq!(pairing.token, "tok-1");
+        assert_eq!(pairing.device.as_deref(), Some("tablet"));
+        // A refusal is the server's own reason; a 200 without a token is not a pairing.
+        let error = pair_answer(error_json(401, json!({ "ok": false, "error": "wrong code" })).expect("response")).expect_err("refused");
+        assert!(error.to_string().contains("wrong code"), "{error}");
+        let error = pair_answer(ok_json(json!({ "ok": true })).expect("response")).expect_err("no token");
+        assert!(error.to_string().contains("no token"), "{error}");
+    }
+
+    /// The `/api` wire: the token rides on the request, the result is what the answer
+    /// carried, and a refusal is the server's own reason.
+    #[test]
+    fn the_call_wire_carries_the_token_and_parses_the_result() {
+        let request = call_request("tok-1", "library.snapshot", &json!({}));
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/api");
+        assert!(
+            request
+                .headers
+                .iter()
+                .any(|(name, value)| name == "Authorization" && value == "Bearer tok-1")
+        );
+        let body: Value = serde_json::from_slice(&request.body).expect("JSON body");
+        assert_eq!(body["method"], "library.snapshot");
+        let result = call_answer(ok_json(json!({ "ok": true, "result": { "n": 2 } })).expect("response")).expect("result");
+        assert_eq!(result["n"], 2);
+        let error = call_answer(error_json(403, json!({ "ok": false, "error": "lacks read" })).expect("response")).expect_err("refused");
+        assert!(error.to_string().contains("lacks read"), "{error}");
+    }
+
+    /// The snapshot is the string inside the `library.snapshot` result, and a result without
+    /// one is refused, not swallowed.
+    #[test]
+    fn the_snapshot_is_the_string_inside_the_result() {
+        let snapshot = snapshot_from_result(&json!({ "snapshot": "{\"v\":1}" })).expect("snapshot");
+        assert_eq!(snapshot, "{\"v\":1}");
+        let error = snapshot_from_result(&json!({ "n": 2 })).expect_err("no snapshot");
+        assert!(error.to_string().contains("no snapshot"), "{error}");
+    }
+
+    /// The thumbnail wire: PNG bytes pass through untouched, and a 200 that is not a PNG —
+    /// the shape of a JSON refusal over a photo that is gone — is a typed error, not pixels.
+    #[test]
+    fn the_thumbnail_wire_answers_png_bytes_or_a_typed_refusal() {
+        let png: Vec<u8> = b"\x89PNG\r\n\x1a\npixels".to_vec();
+        let got = thumbnail_answer(Response {
+            status: 200,
+            body: png.clone(),
+        })
+        .expect("thumbnail");
+        assert_eq!(got, png, "the bytes are not re-wrapped");
+        let request = thumbnail_request("tok-1", sortlens_core::PhotoId(7), 256);
+        assert_eq!(request.method, "GET");
+        assert_eq!(request.path, "/thumb/7/256");
+        assert!(request.body.is_empty());
+        assert!(
+            request
+                .headers
+                .iter()
+                .any(|(name, value)| name == "Authorization" && value == "Bearer tok-1")
+        );
+        let error = thumbnail_answer(Response {
+            status: 200,
+            body: json!({ "ok": false, "error": "no such photo" }).to_string().into_bytes(),
+        })
+        .expect_err("not pixels");
+        assert!(error.to_string().contains("no such photo"), "{error}");
     }
 
     /// A transport that records what it was asked and answers from a script, so the client's

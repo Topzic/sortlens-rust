@@ -8,10 +8,17 @@
 //! keep-or-remove decision on the ack (SL-J05) — proven against the real server in
 //! `apps/sortlens-server/tests/client.rs`.
 //!
-//! The eframe browser entry (the wasm-bindgen build of this shell) is the next slice; it needs
-//! the wasm-bindgen CLI, which this checkout's toolchain does not carry yet.
+//! The page itself ([`web`], wasm only) runs this shell in the browser: it pairs with the
+//! host, refreshes the snapshot, paints the grid from wire thumbnails, and keeps the token
+//! and the snapshot in browser storage between sessions. Build it with `cargo xtask web`;
+//! the host serves it from `/app` (`--web dist`), same-origin, so no CORS is involved.
 
 #![forbid(unsafe_code)]
+
+pub mod shell;
+
+#[cfg(target_arch = "wasm32")]
+pub mod web;
 
 use sortlens_core::Error;
 use sortlens_engine::Engine;

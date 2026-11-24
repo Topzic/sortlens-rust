@@ -1,5 +1,64 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-fifth) — Phase 4 item 3, the browser shell: the eframe wasm entry, the fetch client, the pairing surface, the wire-grid thumbnails
+
+- **What shipped:** the last piece row 18 named but the upload surface — the page itself.
+  `apps/sortlens-web` stopped being a library plus a promise: `src/main.rs` is the wasm-bindgen
+  `start` entry (panic hook first, so a crash is a console error, not a white canvas; a native build
+  prints what the app actually is and exits), `src/web.rs` is the eframe fork's `WebRunner` running
+  the shell in the page's `#sortlens-canvas`, and `cargo xtask web` builds the bundle — wasm32
+  release, the wasm-bindgen CLI glue (`--target web`, the CLI now installed at the exact 0.2.130 the
+  egui fork pins, project-local under `.toolchain/cargo/bin`), and `web/index.html` — into
+  `apps/sortlens-web/dist`, gitignored like any build output.
+- The host serves its own client: `sortlens-server --web DIR` answers `GET /app` and
+  `GET /app/<path>` from the bundle, same-origin with the protocol the page speaks, so no CORS is
+  ever in the picture. Only paths that resolve inside the bundle directory are served — the
+  canonicalised file must stay under the dir, so `../` answers 404 — and content types match what a
+  browser needs (`text/html`, `text/javascript`, `application/wasm`). An unconfigured server names
+  the flag instead of answering 500.
+- **The protocol is the crate's, not the page's.** `crates/remote/src/client.rs` now holds the wire
+  as shared functions — `health_request`/`health_answer`, `pair_request`/`pair_answer`,
+  `call_request`/`call_answer`, `thumbnail_request`/`thumbnail_answer`, `snapshot_from_result` —
+  and the blocking `Client<T>` is thin over them, so `crates/remote/src/web.rs` (wasm32 only) is the
+  same protocol behind the browser's `fetch`: `FetchTransport` turns a `Request` into one fetch
+  (headers, the body as a `Uint8Array`, nothing set on GETs because the browser refuses a GET with
+  a body) and `WebClient` gives the page `pair`/`call`/`snapshot`/`thumbnail` async. The page
+  cannot drift from what the two-process harness proves — the builders are the tested code.
+- **The page** (`apps/sortlens-web/src/web.rs`): pairs with the host's current code (host prefilled
+  with the origin that served it, device name defaulting to `browser`, the code field kept to
+  digits), hydrates the wire snapshot into `RemoteLibrary`, and paints the grid from the PNG bytes
+  `GET /thumb/<id>/256` carries, decoded through the desktop's own `craft_image_codecs` — the tile
+  is the desktop's tier, not a second decode path. Every call is a `spawn_local` job answering into
+  an outcome queue the next frame drains; each job builds its own `WebClient` (a base URL and a
+  token), so nothing shares a borrow. A paired page refreshes the snapshot on every boot, and keeps
+  the token and the snapshot in browser storage (`sortlens.session`): a reload opens the library
+  without re-pairing, exactly what a saved snapshot is for.
+- **The page's state machine is testable.** `apps/sortlens-web/src/shell.rs` compiles natively:
+  `Phase` (Unpaired/Connecting/Open) advances only on finished answers, pairing is not open until
+  the snapshot hydrates, a failure returns to the form only when unpaired (a paired page keeps its
+  snapshot and names what failed), and `SavedSession` round-trips while untrusted storage — garbage,
+  a JSON array, an empty string — reads as absent. Five native tests.
+- **Verified live, not just compiled:** a real server (`--library` holding three scanned
+  photographs, pinned code `773477`, `--web dist`) serving `http://127.0.0.1:8642/app` in a real
+  browser — the pairing form came up with the host prefilled, pairing answered, the grid painted
+  forest/ocean/sunset from the wire's PNGs (`POST /pair` 200, `POST /api` 200, three
+  `GET /thumb/<id>/256` 200s in the page's network log), and a reload opened straight into the
+  library with the token and snapshot restored. Along the way the page caught two real layout
+  truths: the wasm-bindgen glue loads its own nested `snippets/` assets (the static route serves
+  paths under the bundle, not only basenames), and stacking `Panel::top` under `CentralPanel` in
+  this fork's web shell paints the header twice-offset from where the layout puts it — the page is
+  one `CentralPanel` with a header row instead, which is the truth for a device page anyway.
+- Tests: two `sortlens-remote` unit groups extended (the wire builders: pair/call/thumbnail request
+  shapes and typed answer parsing, the snapshot string inside the result, a 200 that is not a PNG
+  refused) plus the snapshot-call unit test; `the_host_serves_the_browser_client_from_the_app_route`
+  in the client harness (page/glue/nested snippet/wasm content types, traversal and unknown name
+  404, unconfigured server naming `--web`); five `shell.rs` state tests; the `sortlens-web` library
+  tests unchanged and green. 827 tests total; ci, wasm (the gate now compiles the eframe shell for
+  wasm32), deny, snapshot green; the bundle built by `cargo xtask web`. No desktop UI change, so no
+  screenshot baseline moved; the page's visual proof is the live browser session described above.
+- **Not shipped here**: the shell's upload surface — the file picker or drag-and-drop feeding the
+  resumable `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
+  That is the exact next slice, and the last one row 18 has open.
 ## 2026-11-24 (fifty-fourth) — Phase 4 item 3, thumbnails over the wire: the server's PNG route and the client's fetch
 
 - **What shipped:** the piece a browser page cannot do without — its grid has no file access, so the
@@ -4124,9 +4183,12 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     fifty-first entries); the in-memory catalog path the wasm client needs is **done 2026-11-24**
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
-    the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry). What remains of the
-    row is the browser shell itself: the eframe wasm entry (needs the wasm-bindgen CLI in
-    `.toolchain`) and the shell's pairing/upload surface.
+    the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the browser shell
+    itself — the eframe wasm entry, the fetch-backed client over the same wire, the pairing surface
+    and the wire-grid thumbnails, served by the host from `/app` — is **done 2026-11-24** (fifty-fifth
+    entry). What remains of the row is the shell's upload surface: the file picker or drag-and-drop
+    feeding the resumable `upload` the client already speaks, with the keep-or-remove decision shown
+    on the ack.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates.

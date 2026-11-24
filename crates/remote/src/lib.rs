@@ -17,5 +17,8 @@ pub mod pairing;
 pub mod supervise;
 pub mod tokens;
 
+#[cfg(target_arch = "wasm32")]
+pub mod web;
+
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

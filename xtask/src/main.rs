@@ -45,7 +45,8 @@ fn main() -> ExitCode {
                 "-p",
                 "sortlens-core",
                 // The wasm client and what it stands on: the remote protocol (client side),
-                // the engine over the in-memory catalog.
+                // the engine over the in-memory catalog, and the page itself — the eframe
+                // shell that runs in the browser.
                 "-p",
                 "sortlens-web",
                 "-p",
@@ -56,6 +57,7 @@ fn main() -> ExitCode {
                 "wasm32-unknown-unknown",
             ],
         ),
+        "web" => web(),
         "layers" => layers(),
         "roots" => roots(),
         "assets" => assets(),
@@ -92,6 +94,7 @@ fn help() {
   clippy   lint every target with -D warnings
   test     run the workspace tests
   wasm     check the wasm-safe crates for wasm32
+  web      build the browser client: wasm32 release, wasm-bindgen glue, `apps/sortlens-web/dist`
   layers   enforce the dependency layering rules
   roots    enforce the crate-level lint header
   assets   enforce that every asset has a provenance entry
@@ -133,6 +136,35 @@ fn run(program: &str, args: &[&str]) -> Result<(), String> {
     } else {
         Err(format!("{program} {} failed", args.join(" ")))
     }
+}
+
+/// Build the browser client (SL-J02): the wasm32 release binary, the JavaScript glue
+/// wasm-bindgen generates for it, and the page that loads both — left servable in
+/// `apps/sortlens-web/dist`. The paired host serves that directory from `/app` (`--web`),
+/// same-origin, so the page and the protocol never meet a CORS check.
+fn web() -> Result<(), String> {
+    run(
+        "cargo",
+        &["build", "-p", "sortlens-web", "--target", "wasm32-unknown-unknown", "--release"],
+    )?;
+    run(
+        "wasm-bindgen",
+        &[
+            "target/wasm32-unknown-unknown/release/sortlens-web.wasm",
+            "--target",
+            "web",
+            "--out-dir",
+            "apps/sortlens-web/dist",
+            "--out-name",
+            "sortlens-web",
+            "--no-typescript",
+        ],
+    )?;
+    fs::copy("apps/sortlens-web/web/index.html", "apps/sortlens-web/dist/index.html")
+        .map_err(|error| format!("could not copy the page: {error}"))?;
+    println!("web: bundle ready in apps/sortlens-web/dist");
+    println!("web: serve it with `sortlens-server --library DIR --web apps/sortlens-web/dist`");
+    Ok(())
 }
 
 /// Read the dependency section of a crate manifest, excluding dev-dependencies and build-dependencies.

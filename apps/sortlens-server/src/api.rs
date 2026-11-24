@@ -31,6 +31,8 @@ pub struct Server {
     pub max_upload: u64,
     /// Where the current pairing code is written, if the owner asked for the file.
     pub pairing_file: Option<PathBuf>,
+    /// The browser client's bundle (`cargo xtask web`), served from `/app` when given.
+    pub web: Option<PathBuf>,
 }
 
 /// The parts of a server that come from the command line.
@@ -43,6 +45,8 @@ pub struct ServerConfig {
     pub max_upload: u64,
     /// Where the current pairing code is written, if the owner asked for the file.
     pub pairing_file: Option<PathBuf>,
+    /// The browser client's bundle (`cargo xtask web`), served from `/app` when given.
+    pub web: Option<PathBuf>,
 }
 
 impl Server {
@@ -56,6 +60,7 @@ impl Server {
             grants: config.grants,
             max_upload: config.max_upload,
             pairing_file: config.pairing_file,
+            web: config.web,
         }
     }
 
@@ -111,9 +116,11 @@ impl Server {
             ("POST", "/upload") => self.upload(request),
             ("GET", path) if path.starts_with("/upload/") => self.upload_status(request, &path["/upload/".len()..]),
             ("GET", path) if path.starts_with("/thumb/") => self.thumb(request, &path["/thumb/".len()..]),
+            ("GET", "/app") => self.web_page("index.html"),
+            ("GET", path) if path.starts_with("/app/") => self.web_page(&path["/app/".len()..]),
             ("GET", "/") => Response::json(
                 200,
-                json!({ "ok": true, "name": "sortlens-server", "version": sortlens_remote::VERSION, "routes": ["/health", "/pair", "/api", "/upload", "/thumb"] }),
+                json!({ "ok": true, "name": "sortlens-server", "version": sortlens_remote::VERSION, "routes": ["/health", "/pair", "/api", "/upload", "/thumb", "/app"] }),
             ),
             ("GET", _) | ("POST", _) => Response::json(404, json!({ "ok": false, "error": "no such route" })),
             _ => Response::json(405, json!({ "ok": false, "error": "method not allowed" })),
@@ -254,6 +261,42 @@ impl Server {
     /// [`THUMB_MAX_EDGE`] it would mean decoding a primary image to serve a grid cell.
     /// The bytes are the same lossless PNG the export path writes, and a photo whose file
     /// cannot be read answers 404 — a page must show a hole, not a lie.
+    ///
+    /// The browser client's bundle, served same-origin from `/app`: the page pairs and
+    /// speaks to the host it was served by, so no CORS is in the picture at all. Any path
+    /// under the bundle is served — the wasm-bindgen glue loads its own `snippets/` — but
+    /// never a path out of it: the resolved file must stay inside the directory `--web`
+    /// named, so a traversal answers 404 instead of a file from elsewhere.
+    fn web_page(&self, name: &str) -> Response {
+        let Some(dir) = &self.web else {
+            return Response::json(
+                404,
+                json!({ "ok": false, "error": "no web bundle: start the server with --web DIR (cargo xtask web builds it)" }),
+            );
+        };
+        if name.is_empty() || name.starts_with('/') || name.starts_with('\\') {
+            return Response::json(404, json!({ "ok": false, "error": "no such page" }));
+        }
+        let content_type = match name.rsplit('.').next().unwrap_or("") {
+            "html" | "htm" => "text/html; charset=utf-8",
+            "js" | "mjs" => "text/javascript; charset=utf-8",
+            "wasm" => "application/wasm",
+            "css" => "text/css; charset=utf-8",
+            "png" => "image/png",
+            _ => "application/octet-stream",
+        };
+        let inside = dir
+            .canonicalize()
+            .ok()
+            .zip(dir.join(name.replace('\\', "/")).canonicalize().ok())
+            .filter(|(base, resolved)| resolved.starts_with(base))
+            .map(|(_, resolved)| resolved);
+        match inside.and_then(|resolved| std::fs::read(resolved).ok()) {
+            Some(bytes) => Response::bytes(200, content_type, bytes),
+            None => Response::json(404, json!({ "ok": false, "error": "no such page" })),
+        }
+    }
+
     fn thumb(&mut self, request: &Request, rest: &str) -> Response {
         let device = match self.authorise(request, Permission::Read) {
             Ok(device) => device,
