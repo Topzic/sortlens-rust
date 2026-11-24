@@ -4859,8 +4859,10 @@ name = "sortlens-mobile"
 version = "0.1.0"
 dependencies = [
  "android-activity",
+ "craft-settings",
  "eframe",
  "egui",
+ "serde",
  "sortlens-core",
  "sortlens-engine",
  "sortlens-testkit",

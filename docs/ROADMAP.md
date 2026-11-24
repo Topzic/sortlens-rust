@@ -1440,10 +1440,20 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   - **Shipped 2026-11-24:** the crate (`cdylib` + `staticlib` + `rlib`), the shared `App`, the Android
     (`android_main`) and iOS (`sortlens_ios_main`) entry points, where the library and the camera roll live,
     `cargo xtask mobile`, and a CI job per platform. Verified: the crate builds and its tests pass on the host.
+  - **Shipped 2026-11-24 (settings):** the choices the phone's shell offers are kept in the suite's own
+    `craft-settings` document — `config.toml` in the app's private directory, beside the library and never
+    inside it — so the theme, density, layout, motion and order chosen on the phone reopen with it. The file
+    goes through the same store the desktop uses (`apps/sortlens-mobile/src/prefs.rs`): it saves on a
+    debounce, because an OS that ends the process mid-session must not lose a choice already tapped; a damaged
+    file is moved aside with the "Settings could not be read in full" notice; an id from a later build reads
+    as its default; and keys the phone does not understand survive its saves, so a file shared with the
+    desktop keeps the desktop's settings. Tests: every id round-trips one variant at a time through the real
+    file, the action→id mapping is driven through `Action` itself (a missing arm fails), and the settings sit
+    outside the catalog.
   - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
     `cargo xtask mobile` (this checkout has neither); a phone layout (the shell is still the desktop's, 880 px
-    minimum); settings persistence; trimming the embedded font set for a phone; the iOS Photos library; a
-    send-to-desktop action over the resumable upload; an APK/AAB and an `.ipa` in the release workflow.
+    minimum); trimming the embedded font set for a phone; the iOS Photos library; a send-to-desktop action
+    over the resumable upload; an APK/AAB and an `.ipa` in the release workflow.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

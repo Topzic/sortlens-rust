@@ -60,8 +60,13 @@ phases"), and the list shrinks as those rows are ticked.
 - **The map is schematic until you supply tiles.** Places ships the public-domain Natural Earth 1:110m coastline,
   so there is geography with no setup, and it opens fitted to your photographs. A real basemap is a `tiles/`
   folder you supply, and names are a `places.txt` you supply; nothing is downloaded.
-- **No remote.** There is no server and no phone client (Phase 4); the design is in
-  `docs/ARCHITECTURE.md` §11.
+- **The remote half exists; nothing is packaged for a phone yet.** A token-authenticated server
+  (`apps/sortlens-server`), a pairing code, scoped device tokens and resumable uploads ship, and
+  Settings → Sync & devices spawns and follows that server. `apps/sortlens-mobile` is the native Rust
+  app over the same engine and shell — it indexes the device's photographs, keeps its own settings in
+  `config.toml` beside the library, and `cargo xtask mobile` checks both targets — but no APK, AAB or
+  `.ipa` is published yet and the phone still paints the desktop's layout. See §10 of
+  `docs/ARCHITECTURE.md`.
 - **No localisation.** The interface is English (Phase 4); the font stack and the keymap already handle the
   symbols the interface draws. Shortcuts *are* rebindable now: Settings → Shortcuts opens the `craft-keymap`
   editor (rebinding, conflict detection, named sets, craft-keymap JSON import and export), and the help and
@@ -70,7 +75,8 @@ phases"), and the list shrinks as those rows are ticked.
   the opt-in check: Settings → Updates or `sortlens-cli update-check` asks the project's GitHub
   releases once, with the consent switch off until you turn it on, and nothing is downloaded or
   installed automatically — an update means fetching the source and building, as today.
-- **A prototype-grade layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` is Phase 3.
+- **A phone-sized layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` shipped for the
+  desktop (Phase 3); the phone app still paints that desktop layout, which is the open roadmap row.
 
 What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF
 thumbnails, RAW previews, the shipped coastline and the tile-folder map.

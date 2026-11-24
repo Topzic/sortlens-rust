@@ -2,40 +2,53 @@
 //!
 //! One engine, one shell, one catalog format: this crate is the desktop application's host with the
 //! desktop removed — no title bar, no file dialogs, no reveal-in-folder, no sync server. What the
-//! phone adds is where it looks for photographs ([`places`]) and the two entry points a phone
-//! host calls ([`entry`]). Everything that decides, ranks, culls or paints is `sortlens-engine`
-//! and `sortlens-ui`, the same code the desktop runs.
+//! phone adds is where it looks for photographs ([`places`]), where it keeps the choices the shell
+//! offers ([`prefs`]), and the two entry points a phone host calls ([`entry`]). Everything that
+//! decides, ranks, culls or paints is `sortlens-engine` and `sortlens-ui`, the same code the
+//! desktop runs.
 
 #![deny(unsafe_code)]
 
 pub mod entry;
 pub mod places;
+pub mod prefs;
 
 use std::path::PathBuf;
 
+use craft_settings::store::SettingsStore;
 use sortlens_engine::Engine;
 use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 
-/// The phone's theme until settings are persisted on the device.
-const THEME: ThemeKind = ThemeKind::Charcoal;
+use crate::prefs::PhonePrefs;
 
-/// The application: one engine, one shell, no settings file yet.
+/// The application: one engine, one shell, one settings file.
 pub struct App {
     engine: Engine,
     ui: UiState,
+    /// The choices the shell offers, kept on the device: the file is what a restart opens from.
+    store: SettingsStore<PhonePrefs>,
     thumbs: Thumbnails,
     /// The theme the context currently carries.
     applied_theme: ThemeKind,
 }
 
 impl App {
-    /// Open the library under `data_dir` and style the context. The shell's own title inset is zero:
-    /// a phone has no traffic lights to clear.
+    /// Open the library and the settings under `data_dir` and style the context. The shell's own
+    /// title inset is zero: a phone has no traffic lights to clear.
     #[must_use]
     pub fn new(cc: &eframe::CreationContext<'_>, data_dir: PathBuf) -> Self {
+        // The settings first, so the very first frame is already the theme the person chose and the
+        // grid opens in the order they left it. A file that could not be read in full is reported
+        // before anything else, because its defaults are what is on screen.
+        let (store, report) = prefs::open(&data_dir);
+        let kind = store.get().theme();
         sortlens_ui::fonts::install(&cc.egui_ctx);
-        apply_theme(&cc.egui_ctx, THEME);
-        let mut ui = UiState::new(THEME, 0.0);
+        apply_theme(&cc.egui_ctx, kind);
+        let mut ui = UiState::new(kind, 0.0);
+        store.get().apply(&mut ui);
+        if let Some(text) = prefs::notice(&report) {
+            ui.notice(text);
+        }
         let engine = match Engine::open(places::library_dir(&data_dir)) {
             Ok(engine) => engine,
             Err(error) => {
@@ -46,8 +59,9 @@ impl App {
         Self {
             engine,
             ui,
+            store,
             thumbs: Thumbnails::new(places::cache_dir(&data_dir)),
-            applied_theme: THEME,
+            applied_theme: kind,
         }
     }
 
@@ -69,13 +83,19 @@ impl App {
 
     /// The actions a phone answers; the desktop-only ones say so rather than doing nothing.
     fn apply(&mut self, ctx: &egui::Context, action: Action) {
+        // Every appearance or order choice is written to the document before it is shown, so the
+        // next launch opens the way this one ended: the OS may end the process at any moment, and
+        // `tick` is what saves on a debounce (the desktop's own rule).
+        prefs::record(&mut self.store, &action);
         match action {
             Action::SetTheme(kind) if kind != self.applied_theme => {
                 apply_theme(ctx, kind);
                 self.applied_theme = kind;
             }
             Action::SetTheme(_) => {}
-            Action::SetDensity(_) | Action::SetGrid(_) | Action::SetMotion(_) => {}
+            Action::SetDensity(density) => self.ui.density = density,
+            Action::SetGrid(mode) => self.ui.grid_mode = mode,
+            Action::SetMotion(motion) => self.ui.motion = motion,
             Action::SetSort(sort) => self.ui.sort = sort,
             Action::Notice(text) => self.ui.notice(text),
             Action::PickFolder => self.add_device_photos(),
@@ -123,6 +143,12 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // The settings save on a debounce and the tick is what fires it; a phone that went idle
+        // after a tap would otherwise hold the change in memory until the OS ends the process.
+        let tick = self.store.tick(std::time::Instant::now());
+        if let Some(deadline) = tick.next_deadline {
+            ctx.request_repaint_after(deadline.saturating_duration_since(std::time::Instant::now()));
+        }
         if let Some(count) = self.engine.poll_batch() {
             self.ui.notice(format!("{count} photo(s) have something to suggest"));
             ctx.request_repaint();
@@ -137,9 +163,10 @@ impl eframe::App for App {
     }
 
     /// Every change is appended to the catalog's log as it is made, so the phone loses nothing when
-    /// the OS ends the process; this only pushes the buffered tail out on a clean exit.
+    /// the OS ends the process; this only pushes the buffered tails out on a clean exit.
     fn on_exit(&mut self) {
         let _ = self.engine.close();
+        let _ = self.store.flush();
     }
 }
 

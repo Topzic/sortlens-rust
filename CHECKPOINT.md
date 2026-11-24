@@ -1,5 +1,55 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-fifth) — the phone remembers what you chose (SL-J10, Phase 4 item 3b)
+
+- **Why this came up.** The phone's `App` was handed a `data_dir` and spent it on the catalog and the
+  thumbnail cache only. Every launch opened Charcoal at the shell's default density, and the Appearance
+  menu's taps went nowhere: `Action::SetDensity`, `SetGrid` and `SetMotion` shared an empty arm with
+  the actions a phone genuinely cannot do. A phone app that forgets the theme you picked is not a phone app.
+- **The read.** The document already exists on the desktop (`apps/sortlens/src/settings.rs`): two sections,
+  `[appearance]` with the four ids and `[library]` with the order, and `craft-settings` owns the hard
+  parts — atomic save, backup, damaged-file recovery, unknown-key preservation. None of that is
+  desktop-shaped; only the *location* is. `Location::Auto` wants a platform config folder a phone does not
+  have, so the phone names its own directory and inherits every rule: `config.toml` in the app's private
+  data directory, beside `Library/` and `Cache/`, never inside them.
+- **The document.** `apps/sortlens-mobile/src/prefs.rs`: `PhonePrefs` — the desktop's two sections cut to
+  the five choices the phone's shell can make (theme, density, layout, motion, order), with the same ids and
+  the same defaults. `open` is `SettingsStore::open_at(data_dir)`; `notice` repeats the desktop's
+  sentence only when the load report has something to say; `apply` reads each id the way the desktop reads
+  it, an unknown one landing on its default; `record` is the one place an `Action` becomes a stored id,
+  kept out of `App` so the mapping is testable without a window.
+- **The application.** `App` owns the store: it opens before the first frame, so that frame is already the
+  saved theme and order; every appearance or order action is written before the frame shows it; `tick` fires
+  the debounced save each frame and schedules a repaint for its deadline (the desktop's own rule, and the
+  reason an OS that ends the process mid-session loses nothing already tapped); a clean exit flushes.
+  `SetDensity`, `SetGrid` and `SetMotion` now change the shell instead of being ignored.
+- **Tests that fail when the behaviour is absent** (7 new, 10 in the crate): the defaults are the desktop's
+  own and land on the shell's own defaults; every id the shell offers — 5 themes, 3 densities, 2 layouts, 2
+  motions and 7 orders — round-trips through the real file one variant at a time; a test drives
+  `Action::SetDensity(Compact)`, `SetGrid(Square)`, `SetMotion(Reduced)`, `SetSort(Newest)` and
+  `SetTheme(Paper)` through `record`, flushes, reopens and reads the shell back, while `Action::Notice`
+  and `Action::PickFolder` must write nothing (a missing arm fails); an unknown id is not a damaged file; an
+  `[experimental]` key written by a later build survives a save this build makes; a damaged file is moved
+  aside and `notice` says so while a clean file says nothing; the file sits outside the library directory.
+- **Verified.** `cargo test -p sortlens-mobile` is 10 passed. `cargo xtask ci` green through every gate
+  (fmt, clippy, workspace tests, layers, roots, assets, fonts, version, attribution, a11y, docs, templates,
+  workflows); `cargo xtask snapshot` green with no golden moved; `cargo xtask deny` green. No paint
+  changed, so no baseline was regenerated and `cargo xtask screenshots` was not needed. The new dependency is
+  the only part that could have broken the phone targets this checkout cannot link:
+  `cargo check -p craft-settings --target aarch64-linux-android` and `--target aarch64-apple-ios` both
+  finish clean (dirs has an explicit path for each, and the phone passes an explicit directory anyway), so the
+  settings crate is portable; `cargo xtask mobile` itself is still for a machine with the NDK and Xcode.
+- **Reconciled.** ROADMAP 3b moved settings persistence out of "Still open" into a shipped bullet and left the
+  rest of the row open; ARCHITECTURE §10 says where the phone's document lives and which rules it keeps;
+  RELEASE's "No remote" bullet was stale — the server, pairing and the phone app shipped yesterday — and now
+  says what exists and that nothing is packaged for a phone; its "prototype-grade layout / Phase 3" bullet,
+  which still called Phase 3 ahead, now names the one layout gap that is real: the phone paints the desktop
+  shell.
+- **Next.** Phase 4 item 3b's remainder, in order of value here: a phone layout (the shell still demands
+  880 px, which no phone has), a send-to-desktop action over the resumable upload (the client is built and
+  tested; the phone needs a paired address and a button), trimming the embedded font set for a phone binary,
+  the iOS Photos library, and an APK/AAB plus an `.ipa` in the release workflow.
+
 ## 2026-11-24 (sixty-fourth) — the shell taught the wrong key, and every dialog opened in the corner
 
 - **Why this came up.** The sweep stayed on the top bar and then opened what it had not seen live. The
@@ -4452,20 +4502,23 @@ says so rather than skipping it silently). The full text is in `docs/ROADMAP.md`
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
     the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the native
-    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). What remains of the row is that app: a phone layout, settings,
-    send-to-desktop upload, the iOS Photos library and a device build.
+    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). What remains of
+    the row is that app: a phone layout, send-to-desktop upload, the iOS Photos library and a device build.
 
 **Phase 5 — autonomous GitHub maintenance**
-19. Issue/PR templates.
-20. `docs/AUTONOMOUS_AGENT.md`.
-21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `mobile`, `screenshots`).
+19. Issue/PR templates — **done 2026-11-24**, see the fifty-eighth entry.
+20. `docs/AUTONOMOUS_AGENT.md` — **done 2026-11-24**, see the fifty-ninth entry.
+21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `mobile`, `screenshots`) —
+    **done 2026-11-24**, see the fifty-ninth entry. **Phase 5 is complete.**
 
 Stop condition: every row under "Completion phases" ticked. Never move a buildable feature into a
 "Deliberately absent" table to close a milestone.
 
-Note for the next run: this checkout is macOS (aarch64) with its own toolchain (`.toolchain`) —
-`. scripts/env.sh && cargo xtask ci` works as documented. `cargo xtask screenshots` is red *here and
-at HEAD*: the baselines were painted where the shell spells chords in ASCII, and a Mac without a
-craft-faces symbols font paints `⌘Shift+R` instead and makes `craft-keymap`'s editor scene panic on
-`⇧` (see the fifty-sixth entry). Making the shots a Mac gate means the harness embedding the symbol
-faces and a separate baseline set — a UI slice of its own.
+Note for the next run: this checkout builds on Windows (x86_64, `x86_64-pc-windows-msvc`) with its own
+toolchain in `.toolchain` — `. scripts/env.sh && cargo xtask ci` works as documented, and so do
+`snapshot`, `deny` and `screenshots` (21 scenes, green as of the sixty-fourth entry). `cargo xtask
+mobile` cannot run here: there is no Android NDK and no Xcode, so both phone targets stay *unverified on a
+device* rather than silently skipped — that is why the roadmap's 3b still names it as open. On a Mac the
+screenshots are a separate known problem: a Mac without a craft-faces symbols font paints `⌘Shift+R`
+instead of the ASCII baseline and makes `craft-keymap`'s editor scene panic on `⇧` (fifty-sixth entry), so
+making the shots a Mac gate means the harness embedding the symbol faces and a second baseline set.

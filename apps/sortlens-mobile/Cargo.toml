@@ -17,8 +17,12 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 sortlens-ui = { workspace = true }
+# The choices the shell offers, kept in the suite's own settings document (the phone's only
+# configuration folder is the app's data directory, so the store is opened there explicitly).
+craft-settings = { workspace = true }
 eframe = { workspace = true }
 egui = { workspace = true }
+serde = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # The same version winit carries; the activity the host hands to `android_main`.

@@ -628,9 +628,11 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   opens its own catalog under the app's private directory and indexes the camera roll (`places`); the
   two entry points (`android_main`, `sortlens_ios_main`) are the only unsafe code in the application and
   sit in one module. `cargo xtask mobile` checks both targets, which keeps the shared crates portable.
-  Not yet done: a phone layout (the shell is still the desktop's), settings persistence, trimming the
-  embedded font set for a phone binary, and the iOS Photos library (until then iOS reads the
-  Files-visible Documents folder).
+  The choices its shell offers live in `config.toml` in that same private directory, read and written
+  through `craft-settings` (`apps/sortlens-mobile/src/prefs.rs`): a debounced save, a damaged file moved
+  aside with a notice, and an unknown id reading as its default — the desktop's exact rules. Not yet
+  done: a phone layout (the shell is still the desktop's), trimming the embedded font set for a phone
+  binary, and the iOS Photos library (until then iOS reads the Files-visible Documents folder).
 - `Catalog::open_memory`, `Engine::open_memory` and `library.snapshot` (shipped 2026-11-24): a catalog
   opened from snapshot JSON alone — no directory, log or lock — with the same undo, redo and
   stale-revision rules as the disk catalog. The device protocol lives in `sortlens_remote::client`: pairing,
