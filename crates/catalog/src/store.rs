@@ -153,8 +153,12 @@ pub struct Seed {
 #[derive(Debug)]
 pub struct Catalog {
     dir: PathBuf,
-    /// Held for the life of the catalog when this process is the writer. `None` when read-only.
+    /// Held for the life of the catalog when this process is the writer. `None` when read-only,
+    /// and always `None` for an in-memory catalog, which needs no lock to begin with.
     lock: Option<File>,
+    /// True when the catalog lives only in memory (wasm client): a snapshot JSON in, operations
+    /// applied, no directory, no log, no lock. Nothing touches the filesystem.
+    memory: bool,
     photos: BTreeMap<PhotoId, Photo>,
     roots: Vec<String>,
     collections: BTreeMap<CollectionId, Collection>,
@@ -169,7 +173,8 @@ pub struct Catalog {
     /// persisted as a stack: after a restart the same steps are reachable by undoing the undo
     /// entries, which the log holds in order.
     redo: Vec<Op>,
-    log: File,
+    /// The open log file. `None` for an in-memory catalog, which keeps no log.
+    log: Option<File>,
     unlogged: usize,
     /// Depth of batch operations that take their own snapshot at the end instead of one every 256 ops.
     batching: usize,
@@ -269,6 +274,7 @@ impl Catalog {
             let mut catalog = Self {
                 dir: dir.clone(),
                 lock: lock.take(),
+                memory: false,
                 photos,
                 roots,
                 collections,
@@ -281,14 +287,16 @@ impl Catalog {
                 undo: restore_undo.clone(),
                 redo: Vec::new(),
                 log: if writable {
-                    OpenOptions::new()
-                        .append(true)
-                        .create(true)
-                        .open(&log_path)
-                        .map_err(|error| Error::io(log_path.display().to_string(), error))?
+                    Some(
+                        OpenOptions::new()
+                            .append(true)
+                            .create(true)
+                            .open(&log_path)
+                            .map_err(|error| Error::io(log_path.display().to_string(), error))?,
+                    )
                 } else {
                     // Read-only: open for reading so replay works and nothing can be appended.
-                    File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?
+                    Some(File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?)
                 },
                 unlogged: 0,
                 batching: 0,
@@ -340,18 +348,21 @@ impl Catalog {
         }
 
         let log = if lock.is_some() {
-            OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(&log_path)
-                .map_err(|error| Error::io(log_path.display().to_string(), error))?
+            Some(
+                OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open(&log_path)
+                    .map_err(|error| Error::io(log_path.display().to_string(), error))?,
+            )
         } else {
-            File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?
+            Some(File::open(&log_path).map_err(|error| Error::io(log_path.display().to_string(), error))?)
         };
         Ok((
             Self {
                 dir,
                 lock,
+                memory: false,
                 photos,
                 roots,
                 collections,
@@ -373,12 +384,94 @@ impl Catalog {
         ))
     }
 
-    /// Whether this process may change the catalog.
-    pub fn read_only(&self) -> bool {
-        self.lock.is_none()
+    /// Open a catalog that lives only in memory.
+    ///
+    /// The wasm client's path: a browser page has no library directory to open, so it receives the
+    /// snapshot JSON the server holds (or nothing, for a fresh client), applies operations in
+    /// memory, and never touches the filesystem — no directory, no log, no lock. Undo works
+    /// exactly as on disk because the snapshot carries the history; there is simply no replay
+    /// after a page reload unless the client saves [`Self::snapshot_json`] somewhere and passes it
+    /// back. A snapshot schema newer than [`SCHEMA`] is refused rather than opened read-only: a
+    /// client that cannot read the format must not pretend to hold the library.
+    pub fn open_memory(snapshot: Option<&str>) -> Result<(Self, OpenReport)> {
+        let mut report = OpenReport::default();
+        let mut photos = BTreeMap::new();
+        let mut roots = Vec::new();
+        let mut next_id = 1u64;
+        let mut next_collection = 1u32;
+        let mut collections: BTreeMap<CollectionId, Collection> = BTreeMap::new();
+        let mut aliases: BTreeMap<String, String> = BTreeMap::new();
+        let mut packs: BTreeSet<String> = BTreeSet::new();
+        let mut folders = crate::folder::FolderMarks::new();
+        let mut seq = 0u64;
+        let mut undo: Vec<Op> = Vec::new();
+        if let Some(text) = snapshot {
+            let parsed: Snapshot =
+                serde_json::from_str(text).map_err(|error| Error::Invalid(format!("the snapshot is unreadable ({error})")))?;
+            if parsed.schema > SCHEMA {
+                return Err(Error::Invalid(format!("snapshot schema {} is newer than {SCHEMA}", parsed.schema)));
+            }
+            seq = parsed.seq;
+            next_id = parsed.next_id;
+            roots = parsed.roots;
+            photos = parsed.photos.into_iter().map(|photo| (photo.id, photo)).collect();
+            next_collection = parsed.next_collection.max(1);
+            collections = parsed
+                .collections
+                .into_iter()
+                .map(|collection| (collection.id, collection))
+                .collect();
+            aliases = parsed.aliases;
+            packs = parsed.packs;
+            folders = parsed.folders;
+            report.snapshot_seq = seq;
+            undo = if parsed.undo_history.is_empty() {
+                parsed.undo.clone().into_iter().collect()
+            } else {
+                parsed.undo_history
+            };
+        }
+        Ok((
+            Self {
+                dir: PathBuf::new(),
+                lock: None,
+                memory: true,
+                photos,
+                roots,
+                collections,
+                aliases,
+                packs,
+                folders,
+                next_collection,
+                next_id,
+                seq,
+                undo,
+                redo: Vec::new(),
+                log: None,
+                unlogged: 0,
+                batching: 0,
+                snapshots: 0,
+                stats: None,
+            },
+            report,
+        ))
     }
 
-    /// Directory holding the catalog files.
+    /// Whether this process may change the catalog.
+    ///
+    /// An in-memory catalog is always writable: there is no other process to contend with and no
+    /// lock to lose.
+    pub fn read_only(&self) -> bool {
+        !self.memory && self.lock.is_none()
+    }
+
+    /// Whether this catalog lives only in memory (the wasm client's path).
+    pub fn is_memory(&self) -> bool {
+        self.memory
+    }
+
+    /// Directory holding the catalog files. Empty for an in-memory catalog, which has no files —
+    /// anything that would write there must be skipped by the caller.
     pub fn dir(&self) -> &Path {
         &self.dir
     }
@@ -1609,8 +1702,11 @@ impl Catalog {
         self.unlogged
     }
 
-    /// How many bytes the log occupies on disk.
+    /// How many bytes the log occupies on disk. An in-memory catalog has none.
     pub fn log_bytes(&self) -> u64 {
+        if self.memory {
+            return 0;
+        }
         fs::metadata(self.dir.join(LOG_NAME)).map(|meta| meta.len()).unwrap_or(0)
     }
 
@@ -1621,6 +1717,10 @@ impl Catalog {
     /// wants to know what was dropped.
     pub fn compact(&mut self) -> Result<u64> {
         let before = self.log_bytes();
+        if self.memory {
+            // Nothing is on disk, so there is nothing to reclaim and nothing to verify.
+            return Ok(0);
+        }
         self.snapshot()?;
         // Only after the snapshot has been read back does the log become redundant. Truncating a
         // log whose snapshot did not survive is how a library disappears.
@@ -1638,32 +1738,24 @@ impl Catalog {
             .open(&log_path)
             .map_err(|error| Error::io(log_path.display().to_string(), error))?;
         drop(truncated);
-        self.log = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&log_path)
-            .map_err(|error| Error::io(log_path.display().to_string(), error))?;
+        self.log = Some(
+            OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(&log_path)
+                .map_err(|error| Error::io(log_path.display().to_string(), error))?,
+        );
         self.unlogged = 0;
         let after = self.log_bytes();
         Ok(before.saturating_sub(after))
     }
 
     pub fn snapshot(&mut self) -> Result<()> {
-        let snapshot = Snapshot {
-            schema: SCHEMA,
-            seq: self.seq,
-            next_id: self.next_id,
-            roots: self.roots.clone(),
-            photos: self.photos.values().cloned().collect(),
-            collections: self.collections.values().cloned().collect(),
-            aliases: self.aliases.clone(),
-            packs: self.packs.clone(),
-            folders: self.folders.clone(),
-            next_collection: self.next_collection,
-            undo: self.undo.last().cloned(),
-            undo_history: self.undo.clone(),
-        };
-        let text = serde_json::to_string(&snapshot).map_err(|error| Error::Invalid(error.to_string()))?;
+        if self.memory {
+            // There is nowhere to write it. Nothing else changes: the state is the state.
+            return Ok(());
+        }
+        let text = self.snapshot_json()?;
         let tmp = self.dir.join("snapshot.json.tmp");
         let path = self.dir.join(SNAPSHOT_NAME);
         fs::write(&tmp, text.as_bytes()).map_err(|error| Error::io(tmp.display().to_string(), error))?;
@@ -1679,13 +1771,39 @@ impl Catalog {
         Ok(())
     }
 
+    /// The current state as snapshot JSON, exactly the text [`Self::snapshot`] writes on disk and
+    /// [`Self::open_memory`] reads back.
+    ///
+    /// The wasm client's save: hand this to the browser's storage (or back to the server) and the
+    /// next page load opens where this one left off, undo history included.
+    pub fn snapshot_json(&self) -> Result<String> {
+        let snapshot = Snapshot {
+            schema: SCHEMA,
+            seq: self.seq,
+            next_id: self.next_id,
+            roots: self.roots.clone(),
+            photos: self.photos.values().cloned().collect(),
+            collections: self.collections.values().cloned().collect(),
+            aliases: self.aliases.clone(),
+            packs: self.packs.clone(),
+            folders: self.folders.clone(),
+            next_collection: self.next_collection,
+            undo: self.undo.last().cloned(),
+            undo_history: self.undo.clone(),
+        };
+        serde_json::to_string(&snapshot).map_err(|error| Error::Invalid(error.to_string()))
+    }
+
     /// Flush pending records and write a snapshot. Safe to call more than once.
     /// Push buffered log records to disk without snapshotting.
     ///
     /// Used before taking a backup, so the archive matches what the app is showing while the log
     /// keeps its records.
     pub fn flush(&mut self) -> Result<()> {
-        self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))
+        if let Some(log) = self.log.as_mut() {
+            log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))?;
+        }
+        Ok(())
     }
 
     /// Flush and stop. Deliberately *not* a snapshot.
@@ -1694,14 +1812,18 @@ impl Catalog {
     /// history — "what did I change yesterday" would always have no answer. Snapshots happen every
     /// [`SNAPSHOT_EVERY`] ops and on an explicit compaction instead.
     pub fn close(&mut self) -> Result<()> {
-        self.log.flush().map_err(|error| Error::io(self.dir.display().to_string(), error))
+        self.flush()
     }
 
     fn append(&mut self, seq: u64, op: &Op, inverse: Option<&Op>) -> Result<()> {
+        // In memory the log is nothing to maintain: the undo stack already holds the inverses and
+        // there is no restart to replay for.
+        let Some(log) = self.log.as_mut() else {
+            return Ok(());
+        };
         let line = encode(seq, op, inverse)?;
-        self.log
-            .write_all(line.as_bytes())
-            .and_then(|()| self.log.flush())
+        log.write_all(line.as_bytes())
+            .and_then(|()| log.flush())
             .map_err(|error| Error::io(self.dir.display().to_string(), error))
     }
 }
@@ -3571,5 +3693,133 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&text).expect("parse");
         assert_eq!(value["schema"], serde_json::Value::from(SCHEMA), "the resaved snapshot is schema 2");
         assert!(value["photos"][0].get("added").is_none(), "absence is preserved, not filled");
+    }
+
+    // --- the in-memory path (the wasm client's catalog) -------------------------------
+
+    /// A disk snapshot opens in memory and answers the same questions, and operating on it
+    /// touches no file anywhere.
+    #[test]
+    fn a_disk_snapshot_opens_in_memory_and_operating_on_it_touches_no_file() {
+        let temp = TempCatalog::new("memory-from-disk");
+        let json = {
+            let (mut catalog, _) = temp.open();
+            catalog.sync_root("/photos", vec![seed("a.jpg"), seed("b.jpg")]).expect("sync");
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                })
+                .expect("rate");
+            catalog
+                .commit(Op::Tagged {
+                    changes: vec![(PhotoId(2), vec!["sunset".into()])],
+                })
+                .expect("tag");
+            catalog.snapshot_json().expect("snapshot json")
+        };
+        let files_before: Vec<_> = fs::read_dir(&temp.0).expect("dir").collect();
+
+        let (mut catalog, report) = Catalog::open_memory(Some(&json)).expect("open memory");
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+        assert!(catalog.is_memory());
+        assert!(!catalog.read_only(), "an in-memory catalog is always writable");
+        assert!(catalog.dir().as_os_str().is_empty(), "no directory behind it");
+        assert_eq!(catalog.len(), 2);
+        assert_eq!(catalog.roots(), &["/photos".to_string()]);
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, 4);
+        assert!(catalog.photo(PhotoId(2)).expect("photo").has_tag("sunset"));
+        assert_eq!(catalog.log_bytes(), 0, "no log anywhere");
+
+        // Undo works, because the snapshot carried the history.
+        assert!(catalog.undo().expect("undo"), "the tag undo was in the snapshot");
+        assert!(!catalog.photo(PhotoId(2)).expect("photo").has_tag("sunset"));
+
+        // Writing works, and writes nothing anywhere.
+        let seq = catalog.seq();
+        catalog
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(2), 5)],
+            })
+            .expect("commit in memory");
+        assert_eq!(catalog.seq(), seq + 1, "the sequence still advances");
+        assert_eq!(catalog.photo(PhotoId(2)).expect("photo").rating, 5);
+        let files_after: Vec<_> = fs::read_dir(&temp.0).expect("dir").collect();
+        assert_eq!(files_before.len(), files_after.len(), "no file was created or touched");
+    }
+
+    /// A fresh in-memory catalog is writable, survives a round trip through its own snapshot JSON
+    /// with the undo history intact, and the periodic snapshot cadence costs nothing.
+    #[test]
+    fn a_fresh_memory_catalog_round_trips_through_its_snapshot_json() {
+        let (mut catalog, report) = Catalog::open_memory(None).expect("open empty");
+        assert!(report.warnings.is_empty());
+        assert_eq!(report.snapshot_seq, 0);
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        // Well past the SNAPSHOT_EVERY cadence: on disk this would have rewritten the snapshot
+        // repeatedly; in memory it must be free.
+        for step in 0..(SNAPSHOT_EVERY + 10) {
+            catalog
+                .commit(Op::Rate {
+                    changes: vec![(PhotoId(1), (step % 5) as u8 + 1)],
+                })
+                .expect("rate");
+        }
+        // The flag last, so it is the step one undo takes back.
+        catalog
+            .commit(Op::Flag {
+                changes: vec![(PhotoId(1), Flag::Pick)],
+            })
+            .expect("flag");
+        assert_eq!(catalog.snapshots_written(), 0, "no snapshot was written, there is nowhere");
+        let seq = catalog.seq();
+        let json = catalog.snapshot_json().expect("snapshot json");
+
+        let (mut reopened, report) = Catalog::open_memory(Some(&json)).expect("reopen");
+        assert_eq!(report.snapshot_seq, seq, "the client opens at the revision it saved");
+        assert_eq!(reopened.len(), 1);
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").flag, Flag::Pick);
+        // The undo history crossed the round trip: the flag is undoable in the new instance.
+        assert!(reopened.undo().expect("undo"), "the flag undoes after the round trip");
+        assert_eq!(reopened.photo(PhotoId(1)).expect("photo").flag, Flag::None);
+    }
+
+    /// Unreadable JSON and a newer schema are refused, not silently opened.
+    #[test]
+    fn a_broken_or_newer_snapshot_is_refused_in_memory() {
+        assert!(Catalog::open_memory(Some("{not json")).is_err());
+        // A structurally valid snapshot whose schema is one past this build's, so the refusal is
+        // about the schema and not about a broken record.
+        let (catalog, _) = Catalog::open_memory(None).expect("open");
+        let newer =
+            catalog
+                .snapshot_json()
+                .expect("json")
+                .replacen(&format!("\"schema\":{SCHEMA}"), &format!("\"schema\":{}", SCHEMA + 1), 1);
+        let error = Catalog::open_memory(Some(&newer)).expect_err("newer schema refused");
+        assert!(error.to_string().contains("newer than"), "the refusal names the problem: {error}");
+    }
+
+    /// The optimistic-concurrency guard holds in memory too: a writer that read a stale revision
+    /// is refused, exactly as against the disk catalog.
+    #[test]
+    fn the_stale_revision_guard_holds_in_memory() {
+        let (mut catalog, _) = Catalog::open_memory(None).expect("open");
+        catalog.sync_root("/photos", vec![seed("a.jpg")]).expect("sync");
+        let stale = catalog.seq();
+        catalog
+            .commit(Op::Rate {
+                changes: vec![(PhotoId(1), 3)],
+            })
+            .expect("rate");
+        let error = catalog
+            .commit_expect(
+                Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                },
+                stale,
+            )
+            .expect_err("stale revision refused");
+        assert!(matches!(error, sortlens_core::Error::StaleRevision { .. }), "{error}");
+        assert_eq!(catalog.photo(PhotoId(1)).expect("photo").rating, 3, "the stale write never landed");
     }
 }

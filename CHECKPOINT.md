@@ -1,5 +1,44 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-second) — Phase 4 item 3, the in-memory catalog path the wasm client needs
+
+- **What shipped:** `Catalog::open_memory` in `sortlens-catalog` — a catalog that lives only in
+  memory, because a browser page has no library directory to open. It receives the snapshot JSON
+  the server holds (or nothing, for a fresh client), applies operations in memory with the same
+  undo, redo, batch and stale-revision rules as the disk catalog, and never touches the
+  filesystem: no directory, no log file, no lock. `read_only` is always false there — there is no
+  other process to contend with and no lock to lose — and the periodic snapshot cadence is free,
+  since there is nowhere to write. Two new surfaces make the round trip possible:
+  `Catalog::snapshot_json` serialises the exact state `snapshot()` writes on disk (shared code,
+  so the two cannot drift), which the client will hand to browser storage or back to the server,
+  and a newer snapshot schema is *refused* rather than opened read-only — the disk path can warn
+  and sit read-only beside the library files, but a wasm client that cannot read the format must
+  not pretend to hold the library. `is_memory` names the mode for the engine layer that follows.
+- **Tests that fail when the behaviour is broken:** `a_disk_snapshot_opens_in_memory_and_operating_on_it_touches_no_file`
+  (a disk catalog's snapshot JSON opens in memory answering the same questions — roots, ratings,
+  tags, sequence — the tag undo replays from the snapshot's history, a commit in memory advances
+  the sequence and lands the rating, and the temp directory's file count is unchanged through all
+  of it); `a_fresh_memory_catalog_round_trips_through_its_snapshot_json` (an empty client syncs,
+  rates past the `SNAPSHOT_EVERY` cadence with `snapshots_written` still zero, and a reopen from
+  its own JSON restores the photos, the flag, the saved revision and an undo step);
+  `a_broken_or_newer_snapshot_is_refused_in_memory` (unreadable JSON and a schema-past-this-build
+  snapshot both err, the latter naming "newer than"); `the_stale_revision_guard_holds_in_memory`
+  (`commit_expect` refuses a stale revision and the stale write never lands).
+- **Files:** `crates/catalog/src/store.rs` (the `memory` flag, `log: Option<File>`, `open_memory`,
+  `snapshot_json`, `is_memory`, the no-op persistence paths, four tests), `docs/ROADMAP.md`
+  (Phase 4 item 3 row), `docs/ARCHITECTURE.md` §10, `CHECKPOINT.md`.
+- **Visual verification:** none needed — no UI code changed; `crates/ui` untouched and the wasm
+  gate covers the compile the slice actually affects.
+- Gates: `ci`, `snapshot`, `deny` (no new dependency — serde_json was already in the crate) and
+  `wasm` (sortlens-catalog compiles for wasm32) all green.
+- **Next**: the wasm client itself (SL-J02) — `sortlens-web` reusing `sortlens-ui` over the
+  server's `/api` and `/upload` protocol, with an engine-side in-memory path if the engine needs
+  one beyond the catalog's (check what `Engine::open` demands of the filesystem before writing
+  it), and the keep-or-remove-after-upload ack (SL-J05) as the client's half. Phase 4 is then one
+  row from done; after that, Phase 5 item 1 (the GitHub issue/PR templates) per the ROADMAP
+  order. The i18n row keeps its open half (zh-TW/ko/th/vi, unrouted surfaces, RTL screenshots
+  needing an Arabic font build).
+
 ## 2026-11-24 (fifty-first) — Phase 4 item 3, the desktop's own start/stop surface
 
 - **What shipped:** the owner's window on the server process, in Settings → Sync & devices. Start
@@ -3987,7 +4026,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     `craft-i18n` scaffolding (SL-L07) done 2026-11-24**, see the forty-ninth entry.
 18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI — the
     server half, the harness and the desktop's start/stop surface are **done 2026-11-24** (fiftieth and
-    fifty-first entries); the wasm client (SL-J02) and the keep-or-remove ack (SL-J05) remain.
+    fifty-first entries); the in-memory catalog path the wasm client needs is **done 2026-11-24**
+    (fifty-second entry); the wasm client itself (SL-J02) and the keep-or-remove ack (SL-J05) remain.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates.

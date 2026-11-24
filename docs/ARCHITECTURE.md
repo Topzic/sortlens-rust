@@ -613,7 +613,13 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
 
 ## 10. Remote and web
 
-- `apps/sortlens-web`: the same `sortlens-ui` compiled to wasm32, minus native file access.
+- `apps/sortlens-web`: the same `sortlens-ui` compiled to wasm32, minus native file access. Its
+  catalog path (shipped 2026-11-24, Phase 4 item 3): `Catalog::open_memory` opens the state from
+  snapshot JSON alone — no directory, no log, no lock — and applies operations in memory with the
+  same undo, redo and stale-revision rules as the disk catalog; `Catalog::snapshot_json` hands the
+  state back for the client to persist. A snapshot schema newer than the build's is refused, not
+  opened read-only, because a client that cannot read the format must not pretend to hold the
+  library.
 - `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
   hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
   default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five

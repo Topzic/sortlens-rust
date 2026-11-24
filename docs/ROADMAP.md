@@ -1372,10 +1372,18 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     Revoke that answers nothing; stopped, the same button hands over the exact token), the
     supervisor's line tests, and a new harness test that drives the real server through the
     supervisor and reads the paired row back from the token file.
-  - **Still open here:** the wasm client (`sortlens-web` reusing `sortlens-ui`, SL-J02) — which
-    needs an in-memory catalog path in `sortlens-catalog` first, because a wasm engine has no
-    directory to open — and a keep-or-remove-after-upload client behaviour (SL-J05), which is the
-    client's half of the ack.
+  - **The in-memory catalog path shipped 2026-11-24.** `Catalog::open_memory` in `sortlens-catalog`
+    opens the state from snapshot JSON alone — no directory, no log, no lock — with the same undo,
+    redo and stale-revision rules as the disk catalog, and `Catalog::snapshot_json` hands the state
+    back for the client to persist. A newer snapshot schema is refused rather than opened
+    read-only: a client that cannot read the format must not pretend to hold the library. Proved
+    by four tests in `store.rs`: a disk snapshot opening in memory and answering the same
+    questions while operating on it touches no file, a fresh client round-tripping through its own
+    snapshot JSON with the undo history intact and the snapshot cadence costing nothing, broken or
+    newer-schema JSON refused, and `commit_expect` refusing a stale revision in memory.
+  - **Still open here:** the wasm client itself (`sortlens-web` reusing `sortlens-ui`, SL-J02) —
+    the transport over the server's `/api` and `/upload`, the UI on the in-memory engine — and a
+    keep-or-remove-after-upload client behaviour (SL-J05), which is the client's half of the ack.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 
