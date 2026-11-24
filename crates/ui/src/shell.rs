@@ -756,6 +756,9 @@ pub struct UiState {
     /// Height the Settings body painted at, measured each frame so a short window can cap its window
     /// and scroll instead of running off the bottom of the screen.
     pub settings_height: f32,
+    /// Height the rows under the photograph took, measured each frame so the picture yields exactly
+    /// the room the facts, keywords, suggestions and filmstrip need.
+    pub detail_footer: f32,
     /// About dialog visibility.
     pub about_open: bool,
     /// Shortcut overlay visibility.
@@ -963,6 +966,7 @@ impl UiState {
             title_inset,
             settings_open: false,
             settings_height: 0.0,
+            detail_footer: 0.0,
             about_open: false,
             shortcuts_open: false,
             shortcut_query: String::new(),
@@ -1318,6 +1322,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
         right_panel(ui, state, &t, engine);
     }
     canvas(ui, state, &t, engine, thumbs, &mut actions);
+    notice_toast(ui.ctx(), state, &t);
 
     // A finished cull explains itself; so does a finished Apply.
     if engine.receipt().is_some() && !state.receipt_open {
@@ -2159,6 +2164,45 @@ fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
     }
 }
 
+/// What just happened, floating above the bar where a sentence can be a sentence.
+///
+/// The message used to live inside the bottom bar, in the few points the selection pill and the size
+/// slider leave on a laptop window. Truncating it by characters did not bound it by pixels, so on a
+/// 1280-point window a longer notice painted straight through the pill's count. A toast has the room
+/// it needs at every size, and the bar keeps its controls where they were.
+fn notice_toast(ctx: &egui::Context, state: &UiState, t: &Tokens) {
+    let Some((text, kind)) = state.live_notice() else {
+        return;
+    };
+    let colour = match kind {
+        NoticeKind::Info => t.accent,
+        NoticeKind::Problem => t.reject,
+    };
+    // Above the bar, centred on the canvas: the bar is the one row a person looks at after acting,
+    // so a message that covered it would hide the count it is talking about — and the right-hand
+    // dock is where the details of that same photo live, which a corner toast would sit on top of.
+    egui::Area::new(egui::Id::unique("sortlens.notice"))
+        .order(egui::Order::Middle)
+        .anchor(egui::Align2::CENTER_BOTTOM, vec2(0.0, -(t.bottom_bar_h + 12.0)))
+        .interactable(false)
+        .show(ctx, |ui| {
+            Frame::NONE
+                .fill(t.card)
+                .stroke(Stroke::new(1.0, t.border))
+                .corner_radius(t.corner())
+                .inner_margin(Margin::symmetric(10, 6))
+                .show(ui, |ui| {
+                    // A sentence, not a paragraph: the scanner's report names a folder, and a path
+                    // longer than the window would run off the edge. One line, because a toast that
+                    // re-wrapped as its own area grew would settle at whatever width the frame before
+                    // it had left.
+                    ui.add(
+                        egui::Label::new(RichText::new(truncate(text, 70)).size(11.5).color(colour)).wrap_mode(egui::TextWrapMode::Extend),
+                    );
+                });
+        });
+}
+
 fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::Panel::bottom("bottom_bar")
         .exact_size(t.bottom_bar_h)
@@ -2226,31 +2270,16 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         }
                         slider.on_hover_text(format!("Thumbnail size: {}", state.density.label()));
                     }
-                    match engine.scan_progress() {
-                        Some(progress) if engine.is_scanning() => {
-                            ui.label(
-                                RichText::new(format!(
-                                    "Indexing · {} files · {} folders",
-                                    format_count(progress.files as u64),
-                                    format_count(progress.dirs as u64)
-                                ))
-                                .size(11.0)
-                                .color(t.accent),
-                            );
-                        }
-                        _ => {
-                            if let Some((text, kind)) = state.live_notice() {
-                                let colour = match kind {
-                                    NoticeKind::Info => t.accent,
-                                    NoticeKind::Problem => t.reject,
-                                };
-                                // Clipped rather than allowed to run under the pill: the bar is laid out
-                                // from the right, so a long sentence would push the controls off the edge.
-                                // The whole sentence is a hover away.
-                                ui.label(RichText::new(truncate(text, 64)).size(11.0).color(colour))
-                                    .on_hover_text(text.to_owned());
-                            }
-                        }
+                    if let Some(progress) = engine.scan_progress().filter(|_| engine.is_scanning()) {
+                        ui.label(
+                            RichText::new(format!(
+                                "Indexing · {} files · {} folders",
+                                format_count(progress.files as u64),
+                                format_count(progress.dirs as u64)
+                            ))
+                            .size(11.0)
+                            .color(t.accent),
+                        );
                     }
                 });
             });
@@ -4449,6 +4478,32 @@ const HEADER_COUNT_GAP: f32 = 6.0;
 /// The narrowest strip that still answers "how many" without taking a chip's room.
 const STRIP_CHIP_ROOM: f32 = 180.0;
 
+/// The narrowest detail row that still offers Open, Show in folder and Export beside its name.
+///
+/// The three words cost about 230 points between them, and every command they run is also in the
+/// command palette; below this the row keeps the controls that exist nowhere else — Close, the zoom
+/// toggle, Swap and Close compare — and drops the conveniences rather than painting itself over the
+/// file name. The threshold is set above a 1280-point window's canvas on purpose: there the two
+/// names are the whole point of the row, and "IMG_0004.png ↔ IMG_0005.png" matters more than a
+/// second way to open Finder.
+const ACTIONS_ROOM: f32 = 720.0;
+
+/// The narrowest detail row that still offers the zoom toggle and Swap beside Close.
+///
+/// Below this the row keeps only the two ways out — Close, and leaving the compare — which is
+/// what a canvas of a few hundred points can hold without painting over its own file name. The
+/// zoom is still on `Z` and on a click on the photograph, and Swap is still on `S`.
+const TIGHT_ACTIONS_ROOM: f32 = 420.0;
+
+/// The shortest window that still shows the whole detail footer beside the photograph.
+///
+/// Below it the suggested-keyword row and the histogram strip step aside, because the photograph has
+/// a floor of its own and something has to give at the bottom of a 560-point window.
+const COMPACT_DETAIL_HEIGHT: f32 = 700.0;
+
+/// The smallest the photograph is allowed to get before the footer gives way instead.
+const PREVIEW_FLOOR: f32 = 96.0;
+
 fn chip(ui: &mut Ui, t: &Tokens, icon: Option<crate::icons::Icon>, label: &str, active: bool) -> egui::Response {
     let colour = if active { t.text } else { t.text_muted };
     let text = RichText::new(label).size(11.0).color(colour);
@@ -5059,6 +5114,121 @@ fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
     facts
 }
 
+/// The detail row's names: the photograph, the other half of a compare, and where they sit in the view.
+///
+/// Each name is given an explicit share of the row before it is laid out. Truncation only bounds the
+/// label it is set on, so a name allowed the whole row would spend it and push the rest of the row past
+/// its own block; the arrow, the position and the gaps are taken out of the budget first.
+fn detail_names(ui: &mut Ui, photo: &Photo, other: Option<&Photo>, position: Option<(usize, usize)>, t: &Tokens) {
+    let position_text = position.map(|(index, total)| format!("{index} of {total}"));
+    let position_width = position_text.as_ref().map_or(0.0, |text| {
+        ui.painter()
+            .layout_no_wrap(text.clone(), egui::FontId::new(11.5, egui::FontFamily::Proportional), t.text_muted)
+            .size()
+            .x
+    });
+    let arrow_width = if other.is_some() { 18.0 } else { 0.0 };
+    // The gaps between the pieces are part of the row too: leave them out of the budget and
+    // the last piece — the position — is the one that pays, ellipsized down to "1…".
+    let pieces = 1.0 + if other.is_some() { 2.0 } else { 0.0 } + if position.is_some() { 1.0 } else { 0.0 };
+    let gaps = (pieces - 1.0) * ui.spacing().item_spacing.x;
+    let names = (ui.available_width() - position_width - arrow_width - gaps).max(0.0);
+    let share = if other.is_some() { names / 2.0 } else { names };
+    ui.scope(|ui| {
+        ui.set_max_width(share.max(1.0));
+        ui.add(egui::Label::new(RichText::new(truncate(&photo.name, 42)).size(14.0).strong()).truncate());
+    });
+    if let Some(second) = other {
+        ui.label(RichText::new("↔").size(13.0).color(t.text_faint));
+        ui.scope(|ui| {
+            ui.set_max_width(share.max(1.0));
+            ui.add(egui::Label::new(RichText::new(truncate(&second.name, 42)).size(14.0).color(t.text_muted)).truncate());
+        });
+    }
+    if let Some(text) = position_text {
+        ui.label(RichText::new(text).size(11.5).color(t.text_muted));
+    }
+}
+
+/// The detail row's controls, right to left, with `room` deciding how many of them the row can hold.
+///
+/// Everything here is also a command in the palette; the point of the buttons is to say what the view
+/// can do without opening it. So the row drops its conveniences before it drops its names.
+fn detail_actions(
+    ui: &mut Ui,
+    state: &mut UiState,
+    engine: &mut Engine,
+    actions: &mut Vec<Action>,
+    id: PhotoId,
+    comparing: bool,
+    room: f32,
+) {
+    // Handing the file to another application, and writing a copy of it, are conveniences
+    // the command palette also offers; the controls that exist nowhere else stay. On a
+    // canvas too narrow for the whole row the conveniences are the first thing to go, so
+    // the row never gets to paint itself over the names or off the edge.
+    if room >= ACTIONS_ROOM {
+        if ui
+            .add(Button::new(RichText::new("Open").size(10.5)).frame(false))
+            .on_hover_text("Hand this file to the desktop's default application")
+            .clicked()
+        {
+            actions.push(Action::OpenExternal(id));
+        }
+        if ui
+            .add(Button::new(RichText::new("Show in folder").size(10.5)).frame(false))
+            .on_hover_text("Show this file where it lives on disk")
+            .clicked()
+        {
+            actions.push(Action::Reveal(id));
+        }
+        if ui
+            .add(Button::new(RichText::new("Export…").size(10.5)).frame(false))
+            .on_hover_text("Write a copy somewhere; the original is not touched")
+            .clicked()
+        {
+            state.export_ids = vec![id];
+            state.export_open = true;
+        }
+    }
+    if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
+        state.view = View::Library;
+        state.compare = None;
+    }
+    let zoom_label = if state.detail_zoom { "Fit  Z" } else { "1:1  Z" };
+    if room >= TIGHT_ACTIONS_ROOM && ui.button(RichText::new(zoom_label).size(11.0)).clicked() {
+        state.detail_zoom = !state.detail_zoom;
+    }
+    if comparing {
+        if room >= TIGHT_ACTIONS_ROOM
+            && ui
+                .button(RichText::new("Swap  S").size(11.0))
+                .on_hover_text("Swap which pane is the left one")
+                .clicked()
+            && let Some(second) = state.compare
+        {
+            state.selection.replace(second);
+            state.compare = Some(id);
+        }
+        // The button is a toggle, so in a compare it says what it will do: closing the pair
+        // rather than opening one you are already looking at.
+        if ui
+            .button(RichText::new("Close compare  C").size(11.0))
+            .on_hover_text("Go back to the single photograph")
+            .clicked()
+        {
+            state.compare = None;
+            state.view = View::Detail;
+        }
+    } else if ui
+        .button(RichText::new("Compare  C").size(11.0))
+        .on_hover_text("Show the next photo beside this one, at the same magnification")
+        .clicked()
+    {
+        toggle_compare(state, engine);
+    }
+}
+
 fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     let filter = state.filter();
     let Some(id) = state.selection.primary() else {
@@ -5095,79 +5265,42 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         state.view = View::Detail;
     }
 
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(truncate(&photo.name, 42)).size(14.0).strong());
-        if let Some(second) = &other {
-            ui.label(RichText::new("↔").size(13.0).color(t.text_faint));
-            ui.label(RichText::new(truncate(&second.name, 42)).size(14.0).color(t.text_muted));
-        }
-        if let Some((index, total)) = position {
-            ui.label(RichText::new(format!("{index} of {total}")).size(11.5).color(t.text_muted));
-        }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui
-                .add(Button::new(RichText::new("Open").size(10.5)).frame(false))
-                .on_hover_text("Hand this file to the desktop's default application")
-                .clicked()
-            {
-                actions.push(Action::OpenExternal(id));
-            }
-            if ui
-                .add(Button::new(RichText::new("Show in folder").size(10.5)).frame(false))
-                .on_hover_text("Show this file where it lives on disk")
-                .clicked()
-            {
-                actions.push(Action::Reveal(id));
-            }
-            if ui
-                .add(Button::new(RichText::new("Export…").size(10.5)).frame(false))
-                .on_hover_text("Write a copy somewhere; the original is not touched")
-                .clicked()
-            {
-                state.export_ids = vec![id];
-                state.export_open = true;
-            }
-            if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
-                state.view = View::Library;
-                state.compare = None;
-            }
-            let zoom_label = if state.detail_zoom { "Fit  Z" } else { "1:1  Z" };
-            if ui.button(RichText::new(zoom_label).size(11.0)).clicked() {
-                state.detail_zoom = !state.detail_zoom;
-            }
-            if other.is_some() {
-                if ui
-                    .button(RichText::new("Swap  S").size(11.0))
-                    .on_hover_text("Swap which pane is the left one")
-                    .clicked()
-                    && let Some(second) = state.compare
-                {
-                    state.selection.replace(second);
-                    state.compare = Some(id);
-                }
-                // The button is a toggle, so in a compare it says what it will do: closing the pair
-                // rather than opening one you are already looking at.
-                if ui
-                    .button(RichText::new("Close compare  C").size(11.0))
-                    .on_hover_text("Go back to the single photograph")
-                    .clicked()
-                {
-                    state.compare = None;
-                    state.view = View::Detail;
-                }
-            } else if ui
-                .button(RichText::new("Compare  C").size(11.0))
-                .on_hover_text("Show the next photo beside this one, at the same magnification")
-                .clicked()
-            {
-                toggle_compare(state, engine);
-            }
+    // The actions are measured before the names are laid out, so the words take what is left — the
+    // same rule as the canvas header. Laid out as a plain row, a compare's two file names ran under
+    // the button cluster and "2 of 7" was painted as a stray "2" between them.
+    let room = ui.available_width();
+    if room < TIGHT_ACTIONS_ROOM {
+        // Two rows rather than one row of ellipses: on a canvas this narrow a single row leaves each
+        // name a letter and an ellipsis, and in a compare the two names are the whole point of the row.
+        ui.horizontal(|ui| detail_names(ui, &photo, other.as_ref(), position, t));
+        ui.horizontal(|ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                detail_actions(ui, state, engine, actions, id, other.is_some(), room);
+            });
         });
-    });
+    } else {
+        let _ = egui::containers::Sides::new().spacing(6.0).shrink_left().truncate().show(
+            ui,
+            |ui| detail_names(ui, &photo, other.as_ref(), position, t),
+            |ui| detail_actions(ui, state, engine, actions, id, other.is_some(), room),
+        );
+    }
     ui.add_space(6.0);
 
-    let footer = 118.0;
-    let height = (ui.available_height() - footer).max(180.0);
+    // The rows under the photograph are the view's fixed cost: the facts line, Previous/Next, the
+    // keywords, the suggestions, the histogram with its lookahead, and the key hint. They used to be
+    // budgeted at a guessed 118 points, which the real rows always outgrew, so the filmstrip was cut
+    // by the bottom bar at every window size. Measured after they paint and used by the next frame —
+    // the one-frame lag is the price of not laying the view out twice.
+    //
+    // A short window cannot hold the photograph and the whole footer at once, and the photograph has
+    // a floor. The two rows that are decoration on the footer — the suggested keywords and the
+    // histogram strip — step aside there, so what is left still lands above the bar. The test is the
+    // window, not the measured footer: deciding on the footer would flip the layout back and forth as
+    // the measurement followed the decision.
+    let compact = ui.ctx().content_rect().height() < COMPACT_DETAIL_HEIGHT;
+    let footer = if state.detail_footer > 0.0 { state.detail_footer } else { 118.0 };
+    let height = (ui.available_height() - footer).max(PREVIEW_FLOOR);
     let (area, area_response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     crate::a11y::label_widget(
         ui,
@@ -5271,6 +5404,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         thumbs.prefetch(next, 1600);
     }
 
+    let footer_start = ui.cursor().top();
     if let Some(second) = &other {
         // The differences that matter when choosing between two frames, on one line.
         ui.add_space(4.0);
@@ -5317,9 +5451,14 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
 
     // What the file's own metadata suggests. Offers only — the keyword is written when one is
     // accepted, which is the same op as typing it by hand, so undo and the log behave the same.
-    suggestions_row(ui, t, id, &engine.suggestions(id), actions);
+    if !compact {
+        suggestions_row(ui, t, id, &engine.suggestions(id), actions);
+    }
 
     ui.horizontal(|ui| {
+        if compact {
+            return;
+        }
         if let Some(histogram) = thumbs.histogram(&photo) {
             histogram_widget(ui, t, histogram);
         } else {
@@ -5366,6 +5505,14 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
             .size(10.0)
             .color(t.text_faint),
     );
+    // What the next frame lets the photograph keep.
+    let measured = (ui.cursor().top() - footer_start).max(0.0);
+    if (measured - state.detail_footer).abs() > 0.5 {
+        state.detail_footer = measured;
+        // A view that has just been opened paints once with the fallback and then goes idle; without
+        // this the footer it never re-measured keeps the photograph too tall until the next input.
+        ui.ctx().request_repaint();
+    }
 }
 
 /// One row of suggested keywords, each a button that accepts it.
@@ -14725,6 +14872,311 @@ mod tests {
         assert_eq!(engine.photo(second).expect("photo").flag, Flag::Reject);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The message about the last action belongs to the bar, but it is not laid out in it.
+    ///
+    /// It used to be, in the points the selection pill and the size slider leave: on a 1280-point window
+    /// that is a few dozen, and truncating the sentence by characters did not bound it by pixels, so
+    /// "Selected 7 photos" painted straight through the pill's own "7 selected". A toast above the bar
+    /// has the room a sentence needs at every width, and the bar keeps each control where it was — so
+    /// the assertion is geometric, at the widths where the bar is fullest.
+    #[test]
+    fn the_notice_floats_above_the_bar_rather_than_through_the_selection_count() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-notice-toast-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-notice-toast");
+        for name in ["a.jpg", "b.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 2, "the bar needs a selection to count");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let tokens = Tokens::CHARCOAL;
+
+        for width in [1280.0_f32, 1024.0, 900.0] {
+            let screen = vec2(width, 800.0);
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            let ids: Vec<_> = engine
+                .page(&state.filter(), state.sort, 0, 100)
+                .photos
+                .iter()
+                .map(|photo| photo.id)
+                .collect();
+            state.selection.select_many(&ids);
+            state.notice("Selected 2 photos");
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx, ThemeKind::Charcoal);
+            crate::icons::install(&ctx);
+            let mut settled = None;
+            // Twice: an area that has not been laid out yet places itself from its own bounds, and only
+            // the second frame knows the size the sentence took.
+            for _ in 0..2 {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                        ..egui::RawInput::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let _ = show(ui, &mut state, &mut engine, &mut thumbs);
+                        });
+                    },
+                );
+                output.textures_delta.clear();
+                settled = Some(output);
+            }
+            let output = settled.expect("two frames were painted");
+            let toast = label_at(&output, "Selected 2 photos")
+                .unwrap_or_else(|| panic!("at {width} points the bar paints no message for the action"));
+            let bar_top = screen.y - tokens.bottom_bar_h;
+            assert!(
+                toast.bottom() <= bar_top,
+                "at {width} points the message ({toast:?}) reaches into the bar, whose top is {bar_top}"
+            );
+            assert!(
+                toast.min.x >= 0.0 && toast.max.x <= width,
+                "at {width} points the message ({toast:?}) runs off the window"
+            );
+            // The count is still the bar's own answer, and still painted: the message did not take its
+            // place, it moved off the row they were fighting over.
+            assert!(
+                label_at(&output, "2 selected").is_some(),
+                "at {width} points the pill still counts the selection"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The detail view's own rows are its fixed cost, and the photograph yields exactly that much.
+    ///
+    /// They were budgeted at a guessed 118 points once, and the real rows — facts, P/X/U row,
+    /// keywords, suggestions, histogram with its lookahead, key hint — always outgrew it, so the
+    /// filmstrip sat under the bottom bar at every window size, the workspace's own baseline
+    /// included. The last row is the one asserted: if the key hint is wholly on screen, everything
+    /// above it is too.
+    #[test]
+    fn the_detail_view_keeps_its_last_row_above_the_bar_at_every_size() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-detail-footer-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-detail-footer");
+        for name in ["a.jpg", "b.jpg", "c.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<_> = engine
+            .page(&Filter::default(), Sort::default(), 0, 100)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3, "three photographs, so the lookahead has neighbours");
+        // A keyword is one more row above the filmstrip: the footer the guess got wrong-most.
+        engine.set_tag(&[ids[1]], "sea", true).expect("tag");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let tokens = Tokens::CHARCOAL;
+        let hint = "P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close";
+
+        for (width, height) in [(1440.0_f32, 900.0_f32), (1280.0, 800.0), (1100.0, 700.0)] {
+            let screen = vec2(width, height);
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            state.view = View::Detail;
+            state.selection.replace(ids[1]);
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx, ThemeKind::Charcoal);
+            crate::icons::install(&ctx);
+            let mut settled = None;
+            // Twice: the footer is measured on the frame it paints, so the first frame still
+            // reserves the old estimate.
+            for _ in 0..2 {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                        ..egui::RawInput::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let _ = show(ui, &mut state, &mut engine, &mut thumbs);
+                        });
+                    },
+                );
+                output.textures_delta.clear();
+                settled = Some(output);
+            }
+            let output = settled.expect("two frames were painted");
+            let (rect, clip) =
+                label_at_clip(&output, hint).unwrap_or_else(|| panic!("at {width}×{height} the view paints no key hint at all"));
+            let visible = clip.intersect(rect);
+            assert!(
+                visible.height() >= rect.height() - 0.5,
+                "at {width}×{height} the hint row is cut: {rect:?} inside {clip:?}"
+            );
+            assert!(
+                rect.bottom() <= height - tokens.bottom_bar_h,
+                "at {width}×{height} the hint row ({rect:?}) reaches into the bar"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A compare's two names and its position share the row with the button cluster, and the names
+    /// must end where the buttons begin: laid out the other way round, "2 of 7" was painted under
+    /// the Close button and read as a stray "2" between the two file names.
+    #[test]
+    fn a_compares_names_stop_where_its_buttons_start() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-compare-header-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-compare-header");
+        let names = [
+            "2025-11-24_studio_portrait_edinburgh_0004.jpg",
+            "2025-11-24_studio_portrait_edinburgh_0005.jpg",
+            "2025-11-24_studio_portrait_edinburgh_0006.jpg",
+        ];
+        for (index, name) in names.iter().enumerate() {
+            std::fs::copy(fixture.jpeg(name, [90, (60 * index) as u8, 200], 64, 96), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<_> = engine
+            .page(&Filter::default(), Sort::default(), 0, 100)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3, "three photographs");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+
+        for width in [1440.0_f32, 1280.0, 1100.0, 980.0, 900.0] {
+            let screen = vec2(width, 800.0);
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            state.view = View::Compare;
+            state.selection.replace(ids[0]);
+            state.compare = Some(ids[1]);
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx, ThemeKind::Charcoal);
+            crate::icons::install(&ctx);
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let _ = show(ui, &mut state, &mut engine, &mut thumbs);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            let close = label_at(&output, "Close compare").expect("the compare row always offers a way out");
+            let row = shapes_text(&output)
+                .into_iter()
+                .filter(|(_, rect)| rect.center().y > close.center().y - 8.0 && rect.center().y < close.center().y + 8.0)
+                .collect::<Vec<_>>();
+            // Room for the position on a wide canvas: the fix truncates, it does not drop the row.
+            if width >= 1280.0 {
+                assert!(row.iter().any(|(text, _)| text.contains(" of 3")), "the position is on the row");
+            }
+            // On a canvas too narrow for one row the names move above the buttons rather than
+            // being ellipsized to a letter each: the row's widest name is still a real name, and it
+            // sits clear of the button strip instead of running through it.
+            let above = shapes_text(&output)
+                .into_iter()
+                .filter(|(_, rect)| rect.bottom() <= close.top() + 1.0 && rect.bottom() > close.top() - 30.0)
+                .collect::<Vec<_>>();
+            if width < 1100.0 {
+                let widest = above.iter().map(|(_, rect)| rect.width()).fold(0.0_f32, f32::max);
+                assert!(widest > 60.0, "the names get a row of their own at {width} (widest {widest})");
+            }
+            // And the degradation is asserted in both directions: the conveniences are offered on a
+            // roomy canvas and gone on a narrow one, so a row that dropped them everywhere fails
+            // as loudly as one that kept them where they do not fit.
+            let every_text = shapes_text(&output).into_iter().map(|(text, _)| text).collect::<Vec<_>>();
+            if width >= 1440.0 {
+                assert!(
+                    every_text.iter().any(|text| text == "Show in folder"),
+                    "the conveniences are offered at {width}"
+                );
+            } else {
+                assert!(
+                    !every_text.iter().any(|text| text == "Show in folder"),
+                    "the conveniences step aside at {width}"
+                );
+            }
+            for (text, rect) in row {
+                if rect.center().x < close.center().x {
+                    assert!(
+                        rect.max.x <= close.min.x + 0.5,
+                        "at {width} points \"{text}\" ({rect:?}) runs into the button cluster, which starts at {}",
+                        close.min.x
+                    );
+                }
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every text shape in the frame, in painting order.
+    fn shapes_text(output: &egui::FullOutput) -> Vec<(String, Rect)> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, Rect)>) {
+            match shape {
+                egui::Shape::Text(text) => out.push((text.galley.job.text.clone(), text.visual_bounding_rect())),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        walk(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in &output.shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    /// Where a label with this text was painted, and the clip it was painted inside.
+    fn label_at_clip(output: &egui::FullOutput, needle: &str) -> Option<(Rect, Rect)> {
+        fn walk(shape: &egui::Shape, needle: &str) -> Option<Rect> {
+            match shape {
+                egui::Shape::Text(text) if text.galley.job.text.contains(needle) => Some(text.visual_bounding_rect()),
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| walk(shape, needle)),
+                _ => None,
+            }
+        }
+        output
+            .shapes
+            .iter()
+            .find_map(|clipped| walk(&clipped.shape, needle).map(|rect| (rect, clipped.clip_rect)))
     }
 
     /// Press and release at a point, painting the bar in between.

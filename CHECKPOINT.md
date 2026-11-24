@@ -1,5 +1,46 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-third) — the chrome that only holds at one size: a toast with nowhere to sit, a footer cut by the bar at every window, and a compare's names running under its buttons
+
+- **Why this came up.** The live sweep that produced the last checkpoint kept reading 1280×800, then 900×620, and
+  found three more places where the layout was exact rather than measured: a transient message painted
+  through the annotation pill, the rows under the Detail photograph overflowed the bottom bar at every
+  size — including the 1440×900 baselines — and a compare's two file names plus its "2 of 7" ran under
+  the button cluster, which painted the position as a stray "2" between the names.
+- **The read.** (1) At 1280 the bottom bar is full end to end — tabs 0–707, the annotation pill 726–1102,
+  the right cluster 1104–1270 — so a message had about 54 points of its own. (2) The footer rows (facts,
+  Previous/Next, keywords, suggestions, histogram with lookahead, the key hint) were budgeted at a
+  guessed 118 points; the real rows are always taller, so the photograph took their room and the bar cut
+  the hint off. (3) `Sides` with `truncate` bounds left-to-right, not piece by piece: the first name spent
+  the whole row on itself and pushed its siblings past the block, still painted because the clip belongs
+  to the parent.
+- **The paint.** The notice is now an `Area` centred above the bar (`Order::Middle`, no click taken, one
+  line, the full text when it fits), which is also clear of the Details dock a corner toast would sit on.
+  The detail view measures its footer after the rows paint (`UiState::detail_footer`, the same one-frame
+  lag `settings_height` already pays) and lets the photograph take exactly what is left; when that
+  measurement changes it asks for a repaint, because the app goes idle after a view switch and would
+  otherwise keep the fallback layout until the next input. A short window (under 700 points) drops the two
+  decorative rows — suggested keywords and the histogram strip — so the hint row still lands above the bar;
+  the test is the window, not the measured footer, which would flip the layout back and forth as the
+  measurement followed the decision. The header sets each name's share before laying it out, with the
+  arrow, the position and the item gaps taken out of the budget first, and degrades in a stated order:
+  below 720 points the conveniences the palette also offers (Open, Show in folder, Export…) go, below 420
+  the zoom toggle and Swap go, and below that the names take a row of their own with the buttons under
+  them.
+- **Tests.** `cargo test -p sortlens-ui --lib` is 155 passed. New claims: the notice floats above the bar
+  rather than through the selection count; the detail view keeps its last row above the bar at 1440×900,
+  1280×800 and 1100×700 (the old 118-point budget panics "the view paints no key hint at all"); and
+  `a_compares_names_stop_where_its_buttons_start` walks 1440, 1280, 1100, 980 and 900, asserting that every
+  text left of the button cluster ends before it starts, that the conveniences appear at 1440 and are gone
+  below, that the position survives at 1280, and that under 1100 the names get a row of their own wider
+  than a letter. `cargo xtask screenshots` is 21 scenes, green; the four detail/compare baselines were
+  regenerated and now show the whole footer. `cargo xtask ci` and `cargo xtask wasm` are green.
+- **Verified live, after the rebuild.** At 1280×800 a rating notice appears centred above the bar clear of
+  the pill; Detail shows its names, `Compare C`, `1:1 Z`, `Close Esc` and the whole footer; Compare shows
+  `IMG_0004.png ↔ IMG_0005.png 1 of 7` with no overlap. At 900×620 the bar collapses to its destination
+  menu (nine items, caret included), Compare puts the names on their own row above two buttons, and the
+  compact footer ends with the key hint above the bar instead of under it.
+
 ## 2026-11-24 (sixty-second) — the sweep found what a static baseline hides: bars you could not see, insights columns that did not fit, a Settings dialog taller than the window, and Esc that only sometimes closed it
 
 - **Why this came up.** The suite has baselines for every view, but a baseline proves a frame paints, not

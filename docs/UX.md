@@ -480,6 +480,24 @@ Every destination is a `Ready` registry command (`view.detail`, `view.compare`, 
 `view.places`, `view.similar`, `view.insights`, `cull.start`), so the bar is a front door to the
 command registry rather than a second list that could drift from it.
 
+Above the bar, centred on the canvas: the notice for what just happened — "Rated 3★ on 7 photos",
+"Indexed 240 photos in July", "Update checks switched off". It floats rather than sitting in the bar
+row: at a laptop width the pill and the size slider leave a message a few dozen points, and a
+sentence laid out there painted through the pill's own count. It is a toast, not a dialog — it never
+takes a click, stays on one line with the full text when it fits, and the bell keeps the history for
+after it fades.
+
+Detail and Compare follow the same rule as the canvas header: the controls keep their size and the
+words give way. The names are measured, so a compare's two file names and its "2 of 7" ellipsize
+instead of running under the button cluster; on a canvas too narrow for one row the names take a row
+of their own and the buttons follow; and the conveniences the palette also offers — Open, Show in
+folder, Export… — step aside before the names do.
+
+The picture is the other half of that bargain. The rows under it — facts, Previous/Next, keywords,
+suggestions, the histogram with its lookahead, the key hint — are measured after they paint, and the
+photograph takes exactly what is left, so the last row never slips under the bottom bar. Below a
+700-point window the two decorative rows step aside for the same reason.
+
 ---
 
 ## 8. Dialogs
