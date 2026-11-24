@@ -642,9 +642,18 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   `apps/sortlens-web/dist`), the host serves its own page from `/app` under `--web DIR` so the
   page is same-origin with the protocol it speaks, and the page pairs with the host's code,
   hydrates the wire snapshot, paints the grid from wire thumbnails decoded through the desktop's
-  own codec, and keeps the token and the snapshot in browser storage between sessions. Still
-  open: the shell's upload surface — the file picker or drag-and-drop feeding the resumable
-  `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
+  own codec, and keeps the token and the snapshot in browser storage between sessions. The shell's
+  upload surface shipped 2026-11-24: the page's uploads strip holds the pick-or-drop chooser, the
+  keep-or-remove toggle (SL-J05) and every row the session queued, with the ack naming the published
+  file and the decision shown on it — each file is read through the browser's array buffer and sent
+  through `sortlens_remote::web::WebClient::upload`, the same resumable chunk loop the blocking client
+  walks, decoded through the same shared `upload_step` the native tests run; after the last transfer
+  lands the page asks the host to re-index (`library.rescan`, SL-J08) and refreshes the snapshot. The
+  live check also drove a fix inside the shared client: the upload id's entropy called
+  `SystemTime::now`, which panics on wasm32, so the wasm build now asks the browser's clock while
+  native keeps its own. The server's one-shot digest check had the same shape of discovery: it opened
+  a partial file that does not exist on first contact and refused every one-shot upload with a 500;
+  the digest is now taken over the body alone when there is no partial, proved by a new harness test.
 - `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
   hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
   default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five

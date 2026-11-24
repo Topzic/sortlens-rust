@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
+use sortlens_remote::client::LocalCopy;
 
 /// What the page is doing, decided only by answers that already arrived — no half states.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -50,6 +51,35 @@ impl SavedSession {
     }
 }
 
+/// Where one queued upload stands: the transfer is on the wire, the ack landed, or the
+/// server refused and said why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UploadStatus {
+    /// The transfer is on the wire.
+    Sending,
+    /// The host acked: the name the photograph landed under, after sanitising.
+    Saved { saved: String },
+    /// The host refused or the connection failed, and said why.
+    Failed { message: String },
+}
+
+/// One photograph the page is sending to the host, as the uploads list paints it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UploadRecord {
+    /// The page's own id for this transfer — two files with the same camera name are two
+    /// rows, not one.
+    pub id: u64,
+    /// The file name the upload asked to land under.
+    pub name: String,
+    /// How many bytes the transfer carries, so the row is honest about what is moving.
+    pub total: usize,
+    /// Where the transfer stands.
+    pub status: UploadStatus,
+    /// The keep-or-remove decision (SL-J05), chosen up front on the toggle and shown on
+    /// the ack — the decision lives on the item, not on the connection.
+    pub decision: LocalCopy,
+}
+
 /// The page's own state: what phase it is in, what it has, and what it says went wrong.
 #[derive(Debug, Default)]
 pub struct ShellState {
@@ -62,6 +92,15 @@ pub struct ShellState {
     pub snapshot: Option<String>,
     /// The one notice the page shows, replaced — never accumulated.
     pub notice: Option<String>,
+    /// The keep-or-remove toggle the uploads strip holds: on, the page asks to drop its
+    /// own copy once the host acks; off (the default), the copy is kept. A browser page
+    /// holds its copy only as long as the transfer runs — the decision is still the honest
+    /// thing to carry and show, because it is what the ack reports.
+    pub remove_after_upload: bool,
+    /// The uploads this session queued, in the order they were chosen.
+    pub uploads: Vec<UploadRecord>,
+    /// The next id [`ShellState::enqueue_upload`] mints.
+    next_upload: u64,
 }
 
 impl ShellState {
@@ -76,6 +115,9 @@ impl ShellState {
             token: session.token,
             snapshot: session.snapshot,
             notice: None,
+            remove_after_upload: false,
+            uploads: Vec::new(),
+            next_upload: 0,
         }
     }
 
@@ -111,6 +153,57 @@ impl ShellState {
         if self.token.is_none() {
             self.phase = Phase::Unpaired;
         }
+    }
+
+    /// Queue one photograph for the host: the row is minted here — its id is the page's
+    /// own, two files with one camera name stay two rows — and its keep-or-remove decision
+    /// is recorded the moment the toggle chose it, not rediscovered later.
+    pub fn enqueue_upload(&mut self, name: impl Into<String>, total: usize) -> u64 {
+        let id = self.next_upload;
+        self.next_upload += 1;
+        let decision = if self.remove_after_upload {
+            LocalCopy::Remove
+        } else {
+            LocalCopy::Keep
+        };
+        self.uploads.push(UploadRecord {
+            id,
+            name: name.into(),
+            total,
+            status: UploadStatus::Sending,
+            decision,
+        });
+        id
+    }
+
+    /// The host acked the transfer: the row names the file it landed under (sanitised,
+    /// ` (n)` beside a collision — the published name is the truth) and shows the decision
+    /// the toggle made.
+    pub fn upload_saved(&mut self, id: u64, saved: impl Into<String>) {
+        if let Some(record) = self.uploads.iter_mut().find(|record| record.id == id) {
+            record.status = UploadStatus::Saved { saved: saved.into() };
+        }
+    }
+
+    /// The transfer failed: the row stays, with the server's own reason — an upload that
+    /// did not land must not vanish from the page as if it had been chosen away.
+    pub fn upload_failed(&mut self, id: u64, message: impl Into<String>) {
+        if let Some(record) = self.uploads.iter_mut().find(|record| record.id == id) {
+            record.status = UploadStatus::Failed { message: message.into() };
+        }
+    }
+
+    /// Whether any transfer is still on the wire — the moment the last one lands, the page
+    /// refreshes its snapshot to see the new photographs in the grid.
+    #[must_use]
+    pub fn uploads_inflight(&self) -> bool {
+        self.uploads.iter().any(|record| record.status == UploadStatus::Sending)
+    }
+
+    /// Drop the rows whose transfer ended — the acks the user has read, and the failures —
+    /// keeping the ones still on the wire.
+    pub fn clear_finished_uploads(&mut self) {
+        self.uploads.retain(|record| record.status == UploadStatus::Sending);
     }
 }
 
@@ -186,5 +279,80 @@ mod tests {
         assert_eq!(SavedSession::parse("not json"), SavedSession::default());
         assert_eq!(SavedSession::parse("[1,2,3]"), SavedSession::default());
         assert_eq!(SavedSession::parse(""), SavedSession::default());
+    }
+
+    /// An upload is queued as `Sending` with the decision the toggle chose — keep by
+    /// default, remove when it is on — and the ack shows both the published name and that
+    /// decision. Two files with one camera name are two rows, not one.
+    #[test]
+    fn an_upload_is_queued_and_the_ack_shows_the_published_name_and_the_decision() {
+        let mut state = ShellState::default();
+        state.snapshot_finished("{}");
+        assert!(!state.remove_after_upload, "the toggle's default is keep");
+        let first = state.enqueue_upload("PXL_today.jpg", 2_048);
+        let second = state.enqueue_upload("PXL_today.jpg", 3_331);
+        assert_ne!(first, second, "two files with one name are two rows");
+        assert_eq!(state.uploads.len(), 2);
+        assert_eq!(state.uploads[0].decision, LocalCopy::Keep);
+        assert!(state.uploads_inflight(), "a queued transfer is on the wire");
+
+        state.upload_saved(first, "PXL_today.jpg");
+        assert_eq!(
+            state.uploads[0].status,
+            UploadStatus::Saved {
+                saved: "PXL_today.jpg".into()
+            },
+            "the ack names the file that landed"
+        );
+        assert!(state.uploads_inflight(), "the second transfer is still moving");
+
+        // The toggle flips between the two queueings: the first row keeps its own decision,
+        // because it lives on the item, not on the connection (SL-J05).
+        state.remove_after_upload = true;
+        let third = state.enqueue_upload("PXL_later.jpg", 1_000);
+        state.upload_saved(second, "PXL_today (1).jpg");
+        assert_eq!(
+            state.uploads[1].status,
+            UploadStatus::Saved {
+                saved: "PXL_today (1).jpg".into()
+            }
+        );
+        state.upload_saved(third, "PXL_later.jpg");
+        assert_eq!(state.uploads[2].decision, LocalCopy::Remove, "the toggle said remove at queue time");
+        assert_eq!(state.uploads[0].decision, LocalCopy::Keep, "an earlier row keeps its own decision");
+        assert!(!state.uploads_inflight(), "every transfer has landed");
+    }
+
+    /// A failed upload stays listed with the server's own reason, and clearing the finished
+    /// rows keeps only what is still on the wire.
+    #[test]
+    fn a_failed_upload_stays_listed_and_clearing_keeps_the_inflight() {
+        let mut state = ShellState::default();
+        state.snapshot_finished("{}");
+        let done = state.enqueue_upload("PXL_done.jpg", 512);
+        let failed = state.enqueue_upload("PXL_bad.jpg", 512);
+        let moving = state.enqueue_upload("PXL_slow.jpg", 512);
+        state.upload_saved(done, "PXL_done.jpg");
+        state.upload_failed(failed, "the total does not match the upload in progress");
+
+        state.clear_finished_uploads();
+        assert_eq!(
+            state.uploads.len(),
+            1,
+            "the landed and failed rows are cleared, the moving one stays"
+        );
+        // A failure that arrives while the row exists is recorded; a clear-then-failure is
+        // a row that no longer exists, and the id is simply not found.
+        state.upload_failed(moving, "the connection dropped");
+        assert_eq!(
+            state.uploads[0].status,
+            UploadStatus::Failed {
+                message: "the connection dropped".into()
+            }
+        );
+        // An unknown id answers nothing and breaks nothing.
+        state.upload_saved(999, "nowhere");
+        state.upload_failed(999, "nowhere");
+        assert_eq!(state.uploads.len(), 1);
     }
 }

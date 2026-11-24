@@ -835,8 +835,10 @@ resumable uploads — see the Phase 4 item 3 row), the desktop's own server star
 day, and the wasm client's library path shipped 2026-11-24 with it (`sortlens_remote::client` +
 `Engine::open_memory` + `RemoteLibrary`, SL-J02's engine and protocol halves — see the Phase 4 item 3
 row) and the browser shell itself shipped 2026-11-24 (the eframe wasm entry, the fetch-backed client,
-the pairing surface and the wire-grid thumbnails — see the Phase 4 item 3 row) while the shell's
-upload surface stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
+the pairing surface and the wire-grid thumbnails — see the Phase 4 item 3 row); the shell's upload
+surface — the file picker and drag-and-drop feeding the resumable `upload`, the keep-or-remove decision
+shown on the ack, the re-index request after the last transfer lands — shipped the same day and closed
+Phase 4 item 3 (see that row), while the rest of i18n stays open (the scaffolding shipped 2026-11-24 with
 Arabic, Japanese and the direction plumbing — see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted
 surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
@@ -890,7 +892,8 @@ rescan (SL-J06/J08) shipped 2026-11-24, proved by the two-process loopback integ
 table's blocker asked for; the wasm client's library path (SL-J02's engine and protocol halves plus
 SL-J05's client-side ack) shipped 2026-11-24, and the browser shell itself shipped 2026-11-24 — the
 eframe wasm entry, the fetch-backed client over the same wire, the pairing surface and the wire-grid
-thumbnails — leaving the shell's upload surface as the remaining half of Phase 4 item 3.
+thumbnails — and the shell's upload surface (the file picker and drag-and-drop into the resumable
+`upload`, the keep-or-remove decision shown on the ack) shipped the same day, closing Phase 4 item 3.
 `docs/ARCHITECTURE.md` §10 keeps the design; the command registry is already the API.
 
 **Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
@@ -1353,7 +1356,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     th, vi), the remaining unrouted surfaces, and RTL screenshots of the painted interface, which
     need an Arabic-capable font build (CI's has none).
   (B,E)
-- [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
+- [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and `sortlens-web` reusing `sortlens-ui` (SL-J01..J09), proved by a two-process loopback
   integration harness in CI (E)
   - **The server half shipped 2026-11-24.** `crates/remote` holds the three shared pieces: the scoped
@@ -1467,8 +1470,27 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     re-pairing — and by the harness test that reads `/app`, `/app/sortlens-web.js`, the nested
     `snippets/` asset and the wasm back with the content types a browser needs, a traversal and an
     unknown name refused, an unconfigured server naming the `--web` flag.
-  - **Still open here:** the shell's upload surface — the file picker or drag-and-drop feeding the
-    resumable `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
+  - **The shell's upload surface shipped 2026-11-24.** The page's uploads strip is the pick-or-drop
+    chooser, the keep-or-remove toggle (SL-J05) and every row the session queued — what is moving, what
+    landed (the ack names the published file and shows the decision, keep or remove), what was refused
+    (the server's own reason stays on the row) — with `Clear finished` for the rows that ended. A
+    photograph arrives by the hidden `<input type="file">` the Add button clicks, or by dropping files
+    on the page (the fork's own drag events feed the same intake); each file is read through the
+    browser's array buffer into the same `Outcome` queue the calls use, queued with its decision the
+    moment the toggle was set, and sent through `sortlens_remote::web::WebClient::upload` — the same
+    resumable chunk loop the blocking client walks, decoded through the same shared `upload_step` the
+    native tests run, so a page and a phone cannot drift. When the last transfer lands the page asks
+    the host to re-index (SL-J08's `library.rescan`, the wire way a device says "the album changed
+    because of me") and refreshes the snapshot, so a photograph whose album is one of the host's
+    library roots joins the grid. Along the way the live check found two real defects, both fixed and
+    pinned by tests: the upload id's entropy called `SystemTime::now`, which **panics** on wasm32
+    ("time not implemented on this platform") — the wasm build now asks the browser's clock, native
+    keeps its own — and the server's one-shot digest check opened the partial file that does not exist
+    yet on first contact, refusing every one-shot upload with a 500; the digest is now checked against
+    the body alone when there is no partial, proved by a new harness test (a one-shot completes with
+    its digest verified and lands byte for byte; a wrong digest answers 422 and nothing publishes) and
+    by the page's own session: pick, upload, ack with the decision, rescan, snapshot refresh, the new
+    photograph painting in the grid — and the same again by a synthetic drag-and-drop.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

@@ -14,11 +14,16 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions, Vec2};
-use wasm_bindgen::JsCast;
+use js_sys::Uint8Array;
+use wasm_bindgen::{JsCast, closure::Closure};
+use wasm_bindgen_futures::JsFuture;
+
+use serde_json::json;
 
 use crate::RemoteLibrary;
 use crate::shell::{Phase, ShellState};
 use sortlens_core::PhotoId;
+use sortlens_remote::client::{LocalCopy, UploadItem};
 use sortlens_remote::web::WebClient;
 use sortlens_ui::{ThemeKind, apply as apply_theme, fonts};
 
@@ -42,6 +47,14 @@ enum Outcome {
     Snapshot(Result<String, String>),
     /// One thumbnail answered: the photo and its PNG bytes, or why it was refused.
     Thumb(PhotoId, Result<Vec<u8>, String>),
+    /// One photograph — picked or dropped — was read into bytes, or could not be read.
+    Read { name: String, answer: Result<Vec<u8>, String> },
+    /// One upload answered: the page's own id, and the name the photograph landed under,
+    /// or the server's reason it did not.
+    Uploaded { id: u64, answer: Result<String, String> },
+    /// The re-index the page asked for after its uploads landed (SL-J08), or why it was
+    /// refused — the snapshot refresh follows it either way.
+    Rescan(Result<(), String>),
 }
 
 /// The page: one engine in memory, one state machine, one form.
@@ -58,6 +71,13 @@ pub struct WebShell {
     thumbs: HashMap<PhotoId, TextureHandle>,
     thumb_failed: HashSet<PhotoId>,
     thumb_inflight: usize,
+    /// How many upload transfers are on the wire — the page refreshes its snapshot when
+    /// the last one lands, so the new photographs join the grid.
+    uploads_inflight: usize,
+    /// The hidden `<input type="file">` the Add button clicks, and the change listener
+    /// that feeds its files into [`Outcome::Read`]. Both stay alive as long as the page.
+    picker: Option<Rc<web_sys::HtmlInputElement>>,
+    _picker_change: Option<Closure<dyn FnMut(web_sys::Event)>>,
 }
 
 impl WebShell {
@@ -85,7 +105,14 @@ impl WebShell {
             thumbs: HashMap::new(),
             thumb_failed: HashSet::new(),
             thumb_inflight: 0,
+            uploads_inflight: 0,
+            picker: None,
+            _picker_change: None,
         };
+        if let Some((picker, change)) = install_picker(shell.outcomes.clone(), &cc.egui_ctx) {
+            shell.picker = Some(picker);
+            shell._picker_change = Some(change);
+        }
         shell.fetch_snapshot(&cc.egui_ctx);
         shell
     }
@@ -142,6 +169,23 @@ impl WebShell {
         });
     }
 
+    /// Ask the host to re-index the album the uploads landed in (SL-J08) — the wire way a
+    /// device says "the album changed because of me".
+    fn rescan(&mut self, ctx: &Context) {
+        let Some(token) = self.state.token.clone() else { return };
+        let base = self.base.trim().trim_end_matches('/').to_string();
+        let outcomes = self.outcomes.clone();
+        let ctx = ctx.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut client = WebClient::paired(token, base);
+            let answer = client.call("library.rescan", &json!({})).await;
+            outcomes
+                .borrow_mut()
+                .push(Outcome::Rescan(answer.map(|_| ()).map_err(|error| error.to_string())));
+            ctx.request_repaint();
+        });
+    }
+
     /// Fetch one grid thumbnail under the paired token.
     fn fetch_thumb(&mut self, ctx: &Context, id: PhotoId) {
         let Some(token) = self.state.token.clone() else { return };
@@ -155,6 +199,26 @@ impl WebShell {
             outcomes
                 .borrow_mut()
                 .push(Outcome::Thumb(id, answer.map_err(|error| error.to_string())));
+            ctx.request_repaint();
+        });
+    }
+
+    /// Send one photograph the page chose: the resumable wire upload the client speaks,
+    /// with the keep-or-remove decision riding on the item the moment it was queued.
+    fn start_upload(&mut self, ctx: &Context, item: UploadItem) {
+        let Some(token) = self.state.token.clone() else { return };
+        let id = self.state.enqueue_upload(item.name.clone(), item.bytes.len());
+        let base = self.base.trim().trim_end_matches('/').to_string();
+        let outcomes = self.outcomes.clone();
+        let ctx = ctx.clone();
+        self.uploads_inflight += 1;
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut client = WebClient::paired(token, base);
+            let answer = match client.upload(&item).await {
+                Ok(ack) => Ok(ack.saved),
+                Err(error) => Err(error.to_string()),
+            };
+            outcomes.borrow_mut().push(Outcome::Uploaded { id, answer });
             ctx.request_repaint();
         });
     }
@@ -214,6 +278,44 @@ impl WebShell {
                     self.thumb_failed.insert(id);
                     self.state.notice = Some(message);
                 }
+                Outcome::Read { name, answer: Ok(bytes) } => {
+                    if bytes.is_empty() {
+                        self.state.notice = Some(format!("{name} is empty, so there is nothing to send"));
+                    } else {
+                        let item = UploadItem::new(name, bytes, self.state.remove_after_upload);
+                        self.start_upload(ctx, item);
+                    }
+                }
+                Outcome::Read {
+                    name,
+                    answer: Err(message),
+                } => {
+                    self.state.notice = Some(format!("{name} could not be read: {message}"));
+                }
+                Outcome::Uploaded { id, answer: Ok(saved) } => {
+                    self.uploads_inflight = self.uploads_inflight.saturating_sub(1);
+                    self.state.upload_saved(id, saved);
+                    // The last transfer landing is the moment the library changed: ask the
+                    // host to re-index the album (SL-J08), and the snapshot refresh
+                    // follows the rescan, so the new photographs join the grid.
+                    if self.uploads_inflight == 0 {
+                        self.rescan(ctx);
+                    }
+                }
+                Outcome::Uploaded { id, answer: Err(message) } => {
+                    self.uploads_inflight = self.uploads_inflight.saturating_sub(1);
+                    self.state.upload_failed(id, message);
+                }
+                Outcome::Rescan(Ok(())) => {
+                    // The re-index was granted; the snapshot is what the host holds now.
+                    self.fetch_snapshot(ctx);
+                }
+                Outcome::Rescan(Err(message)) => {
+                    // A refused re-index is worth naming: the uploads landed, but the host
+                    // will not look at the album until someone asks it to.
+                    self.state.notice = Some(format!("the re-index was refused: {message}"));
+                    self.fetch_snapshot(ctx);
+                }
             }
         }
     }
@@ -249,6 +351,70 @@ impl WebShell {
     }
 
     // ---------------------------------------------------------------- the painting
+
+    /// Take what the user dropped on the page this frame: each dropped file is one read
+    /// job, and the outcome lands with the rest. The list is drained here, so a file can
+    /// never be read twice.
+    fn take_drops(&mut self, ctx: &Context) {
+        let dropped = ctx.input(|input| input.raw.dropped_files.clone());
+        ctx.input_mut(|input| input.raw.dropped_files.clear());
+        for file in dropped {
+            let name = file
+                .path()
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| "dropped photograph".to_string());
+            let outcomes = self.outcomes.clone();
+            let ctx = ctx.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let answer = file.bytes_async().await;
+                outcomes.borrow_mut().push(Outcome::Read { name, answer });
+                ctx.request_repaint();
+            });
+        }
+    }
+
+    /// The uploads strip: the pick-or-drop chooser, the keep-or-remove toggle, and every
+    /// row this session queued — what is moving, what landed, what was refused, and what
+    /// the ack said about the page's own copy (SL-J05).
+    fn uploads_strip(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            let add = ui.add_enabled(self.picker.is_some(), egui::Button::new("Add photographs…"));
+            if add.clicked() {
+                if let Some(picker) = self.picker.as_ref() {
+                    let _ = picker.click();
+                }
+            }
+            ui.checkbox(&mut self.state.remove_after_upload, "Remove my copy when the host has it");
+            ui.weak("or drop photographs on the page");
+        });
+        if !self.state.uploads.is_empty() {
+            ui.add_space(2.0);
+            for record in &self.state.uploads {
+                let bytes = if record.total >= 1_048_576 {
+                    format!("{:.1} MB", record.total as f64 / 1_048_576.0)
+                } else {
+                    format!("{} B", record.total)
+                };
+                let line = match &record.status {
+                    crate::shell::UploadStatus::Sending => format!("{} · sending {}…", record.name, bytes),
+                    crate::shell::UploadStatus::Saved { saved } => {
+                        let copy = match record.decision {
+                            LocalCopy::Keep => "your copy is kept",
+                            LocalCopy::Remove => "your copy is removed",
+                        };
+                        format!("{} → saved as {saved} · {copy}", record.name)
+                    }
+                    crate::shell::UploadStatus::Failed { message } => format!("{} · not sent: {message}", record.name),
+                };
+                ui.weak(line);
+            }
+            if !self.state.uploads_inflight() && ui.button("Clear finished").clicked() {
+                self.state.clear_finished_uploads();
+            }
+        }
+    }
 
     fn pairing_form(&mut self, ui: &mut egui::Ui) {
         ui.heading("Sortlens");
@@ -374,6 +540,9 @@ impl eframe::App for WebShell {
                 Phase::Open => {
                     let photos = self.photos();
                     self.want_thumbs(&ctx, &photos);
+                    self.take_drops(&ctx);
+                    self.uploads_strip(ui);
+                    ui.add_space(4.0);
                     self.library_grid(ui, &photos);
                 }
                 Phase::Unpaired | Phase::Connecting => {
@@ -389,6 +558,55 @@ impl eframe::App for WebShell {
 /// The page's browser storage, when it can be reached.
 fn storage() -> Option<web_sys::Storage> {
     web_sys::window()?.local_storage().ok().flatten()
+}
+
+/// The hidden `<input type="file">` the Add button clicks, plus its change listener: the
+/// listener turns each picked file into one read job whose [`Outcome::Read`] the next
+/// frame drains, then clears the input so picking the same file again still fires. The
+/// element and the closure are returned alive; the caller keeps them for the page's life.
+fn install_picker(
+    outcomes: Rc<RefCell<Vec<Outcome>>>,
+    ctx: &Context,
+) -> Option<(Rc<web_sys::HtmlInputElement>, Closure<dyn FnMut(web_sys::Event)>)> {
+    let document = web_sys::window()?.document()?;
+    let input: web_sys::HtmlInputElement = document.create_element("input").ok()?.dyn_into().ok()?;
+    let _ = input.set_attribute("type", "file");
+    let _ = input.set_attribute("multiple", "multiple");
+    let _ = input.style().set_property("display", "none");
+
+    let listener = input.clone();
+    let job_ctx = ctx.clone();
+    let change = Closure::<dyn FnMut(web_sys::Event)>::new(move |_event: web_sys::Event| {
+        let Some(files) = listener.files() else { return };
+        for index in 0..files.length() {
+            let Some(file) = files.get(index) else { continue };
+            let name = file.name();
+            let outcomes = outcomes.clone();
+            let ctx = job_ctx.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let answer = read_file(&file).await;
+                outcomes.borrow_mut().push(Outcome::Read { name, answer });
+                ctx.request_repaint();
+            });
+        }
+        listener.set_value("");
+    });
+    let target: &web_sys::EventTarget = input.unchecked_ref();
+    target
+        .add_event_listener_with_callback("change", change.as_ref().unchecked_ref())
+        .ok()?;
+    if let Some(body) = document.body() {
+        let _ = body.append_child(&input);
+    }
+    Some((Rc::new(input), change))
+}
+
+/// Read one picked or dropped file into bytes, through the browser's own array buffer.
+async fn read_file(file: &web_sys::File) -> Result<Vec<u8>, String> {
+    let buffer = JsFuture::from(file.array_buffer())
+        .await
+        .map_err(|error| format!("the file could not be read: {error:?}"))?;
+    Ok(Uint8Array::new(&buffer).to_vec())
 }
 
 /// The origin that served the page — the pairing form's default host.

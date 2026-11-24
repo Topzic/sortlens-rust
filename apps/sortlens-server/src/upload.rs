@@ -194,32 +194,26 @@ pub fn ingest(album: &Path, chunk: &Chunk) -> Outcome {
 
     // A chunk that completes the file is verified *before* it is appended: a digest
     // mismatch must leave the partial exactly where it was, so the client can send the
-    // chunk again instead of starting over. Hash what is already on disk, feed the chunk
-    // through, and compare.
+    // chunk again instead of starting over. Hash what is already on disk — none, for a
+    // one-shot upload on first contact — feed the chunk through, and compare.
     let completing = start + body.len() as u64 == total;
     let mut digest_hex = String::new();
     if completing && expected_sha.is_some() {
         let mut hasher = sortlens_ai::sha256::Hasher::new();
-        let existing = match std::fs::File::open(&partial.part) {
-            Ok(file) => file,
-            Err(error) => {
-                return ok(
-                    500,
-                    json!({ "ok": false, "error": format!("could not read the partial file: {error}") }),
-                );
-            }
-        };
-        let mut reader = std::io::BufReader::new(existing);
-        let mut buffer = [0u8; 64 * 1024];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(read) => hasher.update(&buffer[..read]),
-                Err(error) => {
-                    return ok(
-                        500,
-                        json!({ "ok": false, "error": format!("could not read the partial file: {error}") }),
-                    );
+        // First contact has no partial file yet: everything to hash is the body itself.
+        if let Ok(reader) = std::fs::File::open(&partial.part) {
+            let mut reader = std::io::BufReader::new(reader);
+            let mut buffer = [0u8; 64 * 1024];
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(read) => hasher.update(&buffer[..read]),
+                    Err(error) => {
+                        return ok(
+                            500,
+                            json!({ "ok": false, "error": format!("could not read the partial file: {error}") }),
+                        );
+                    }
                 }
             }
         }

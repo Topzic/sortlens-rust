@@ -37,6 +37,66 @@
   `cargo xtask deny` and `cargo xtask wasm` are green on this macOS checkout — after the rebase onto
   the browser-shell commit, too.
 
+## 2026-11-24 (fifty-seventh) — Phase 4 item 3 complete: the shell's upload surface — the file picker and drag-and-drop feeding the resumable upload, the keep-or-remove decision shown on the ack, the re-index asked after the last transfer lands
+
+- **What shipped:** the last piece Phase 4 item 18/3 named — the page's uploads strip.
+  `apps/sortlens-web/src/web.rs` grew the intake and the painting: a hidden `<input type="file">
+  (`install_picker`, created once at boot, its change listener feeding `Outcome::Read` jobs, the input
+  cleared after each read so picking the same file again still fires) behind an `Add photographs…`
+  button, and drag-and-drop through the egui fork's own drag events (`take_drops` drains
+  `raw.dropped_files` once per frame, each file one read job through `bytes_async`) — both into the
+  same outcome queue every call already answers through. The strip holds the keep-or-remove toggle
+  (`Remove my copy when the host has it`, SL-J05) and every row the session queued: what is moving
+  (`sending 1.3 MB…`), what landed (`upload-source.png → saved as upload-source.png · your copy is
+  kept`), what was refused (`not sent: <the server's own reason>`), plus `Clear finished`.
+- **The upload itself is the crate's, not a second one.** `crates/remote/src/client.rs` now exposes
+  the shared decision: `UploadStep`/`upload_step(response, start)` decodes one server answer — a
+  completing 200 is `Saved{saved, sha256}`, a 200 or 409 naming a count past the cursor is
+  `Continue`, everything else is the server's typed refusal — and both the blocking `Client::upload`
+  and the new wasm `sortlens_remote::web::WebClient::upload` walk their resumable loops through it,
+  so a browser page and a phone build cannot drift. The helpers (`chunk_ranges`, `upload_headers`,
+  `resume_from`, `local_copy`, `finish_upload`) are `pub(crate)` for the same reason.
+- **The page's state machine grew the uploads natively tested:** `apps/sortlens-web/src/shell.rs`
+  holds `UploadStatus`/`UploadRecord` and `ShellState::{enqueue_upload, upload_saved, upload_failed,
+  uploads_inflight, clear_finished_uploads}` — the id is the page's own (two files with one camera
+  name are two rows), the decision is recorded at queue time and rides on the item (it survives a
+  resume), a failed upload stays listed with the server's reason, and clearing keeps only what is
+  still on the wire. Three new tests: the ack shows the published name and the decision both ways,
+  a failed upload stays listed and clearing keeps the inflight, plus the existing five.
+- **After the last transfer lands, the page asks the host to re-index** (`library.rescan`, SL-J08 —
+  the wire way a device says "the album changed because of me") and refreshes the snapshot, so a
+  photograph whose album is one of the host's library roots joins the grid; a refused re-index is
+  named, and the snapshot refresh happens either way.
+- **The live check found two real defects, both fixed with tests that fail without the fix.**
+  First, `UploadItem::new`'s entropy called `SystemTime::now`, which **panics on wasm32** ("time not
+  implemented on this platform") — the page died queueing its first upload. `upload_id` now splits
+  the clock out: native keeps `SystemTime`, wasm asks the browser's `Date::now` (the same browser
+  the page already speaks through). Second, the server's one-shot digest check opened the partial
+  file — which does not exist yet on first contact — refusing **every** one-shot upload carrying
+  `X-Content-Sha256` with a 500; the harness's uploads were always multi-chunk, so it hid. The
+  digest is now hashed over the partial when there is one, over the body alone when there is not,
+  and `apps/sortlens-server/tests/client.rs` grew `a_one_shot_upload_verifies_the_digest_on_first_contact`:
+  a one-shot completes with its declared digest verified and lands byte for byte (nothing left in
+  staging), a wrong digest answers 422 and nothing publishes, the right one completes (a raw request
+  helper, because the client API can only ever send a correct digest).
+- **Verified live, not just compiled:** the rebuilt bundle served by the real server in a real
+  browser — paired with a pinned code, `Add photographs…` answered the automation file chooser, the
+  pick uploaded (POST /upload 200), the ack row showed the decision, `library.rescan` and the
+  snapshot refresh followed, and (after the album was registered as a library root) the new
+  photograph painted in the grid from the wire thumbnail; a synthetic DragEvent drop went through
+  the same intake to its own 200 and its own row (its deliberately truncated bytes paint the
+  documented hole, not a lie). A reload mid-session also proved the stale-token refusal names
+  itself (401 unknown token) while the page keeps its snapshot.
+- Tests: two `upload_step` unit groups in `sortlens-remote` (Saved/Continue/Fail shapes, the one-shot
+  completion or the server's reason), three `sortlens-web` shell tests (now seven), the new harness
+  one-shot test (client 6, loopback 6 green), fmt/clippy/tests/attribution/docs green; ci, wasm (the
+  gate compiles the page for wasm32), deny, snapshot green. No desktop UI change, so no screenshot
+  baseline moved; the page's visual proof is the live session above.
+- **Next**: Phase 5 item 19 — `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version, repro, expected vs
+  actual, `sortlens-cli diagnostics`), `feature_request.yml`, and a PR template requiring the linked
+  issue, the failing-then-passing test, the gate confirmations, a `perf` delta for scan/catalog/thumbs
+  and before/after screenshots for `crates/ui` (ROADMAP Phase 5 item 1).
+
 ## 2026-11-24 (fifty-fifth) — Phase 4 item 3, the browser shell: the eframe wasm entry, the fetch client, the pairing surface, the wire-grid thumbnails
 
 - **What shipped:** the last piece row 18 named but the upload surface — the page itself.
@@ -4225,19 +4285,24 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     and the wire-grid thumbnails, served by the host from `/app` — is **done 2026-11-24** (fifty-fifth
     entry). What remains of the row is the shell's upload surface: the file picker or drag-and-drop
     feeding the resumable `upload` the client already speaks, with the keep-or-remove decision shown
-    on the ack.
+    on the ack — **done 2026-11-24** (fifty-seventh entry). **Phase 4 is complete.** Phase 5 starts
+    here, in this order:
 
-**Phase 5 — autonomous GitHub maintenance**
-19. Issue/PR templates.
-20. `docs/AUTONOMOUS_AGENT.md`.
-21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`).
+19. **GitHub templates** (Phase 5 item 1): `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version,
+    repro, expected vs actual, `sortlens-cli diagnostics`), `feature_request.yml`, and a PR template
+    requiring the linked issue, the failing-then-passing test, the gate confirmations, a `perf` delta
+    for scan/catalog/thumbs and before/after screenshots for `crates/ui`.
+20. `docs/AUTONOMOUS_AGENT.md` — the issue-intake playbook (Phase 5 item 2).
+21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`)
+    (Phase 5 item 3).
 
 Stop condition: every row under "Completion phases" ticked. Never move a buildable feature into a
 "Deliberately absent" table to close a milestone.
 
-Note for the next run: this checkout is macOS (aarch64) with its own toolchain (`.toolchain`) —
-`. scripts/env.sh && cargo xtask ci` works as documented. `cargo xtask screenshots` is red *here and
-at HEAD*: the baselines were painted where the shell spells chords in ASCII, and a Mac without a
-craft-faces symbols font paints `⌘Shift+R` instead and makes `craft-keymap`'s editor scene panic on
-`⇧` (see the fifty-sixth entry). Making the shots a Mac gate means the harness embedding the symbol
-faces and a separate baseline set — a UI slice of its own.
+Note for the next run: the owner runs two checkouts — Windows (`C:\Users\Ian_C\sortlens-rust`) and
+macOS (aarch64), each with its own `.toolchain`; `. scripts/env.sh && cargo xtask ci` works as
+documented on both. `cargo xtask screenshots` is red on the Mac checkout at HEAD: the baselines were
+painted where the shell spells chords in ASCII, and a Mac without a craft-faces symbols font paints
+`⌘Shift+R` instead and makes `craft-keymap`'s editor scene panic on `⇧` (see the fifty-sixth entry).
+Making the shots a Mac gate means the harness embedding the symbol faces and a separate baseline
+set — a UI slice of its own. On the Windows checkout the screenshots gate is green.

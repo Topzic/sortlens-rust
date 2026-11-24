@@ -147,4 +147,92 @@ impl WebClient {
         let response = self.transport.request(&client::thumbnail_request(&token, id, edge)).await?;
         client::thumbnail_answer(response)
     }
+
+    /// Send one photograph through the resumable chunk loop — the same wire the blocking
+    /// [`Client::upload`](client::Client::upload) walks, decoded through the same shared
+    /// [`client::upload_step`], so a page and a phone cannot drift. One request at or under
+    /// [`client::CHUNK`]; above it, `Content-Range` chunks that resume from the server's
+    /// received count; the completing chunk carries `X-Content-Sha256`; the ack carries the
+    /// keep-or-remove decision (SL-J05) that rides on the item.
+    pub async fn upload(&mut self, item: &client::UploadItem) -> Result<client::UploadAck, ClientError> {
+        let Some(token) = self.token.clone() else {
+            return Err(ClientError::Connection("the client is not paired".into()));
+        };
+        let total = item.bytes.len() as u64;
+        if total == 0 {
+            return Err(ClientError::Server {
+                status: 400,
+                message: "the upload is empty".to_string(),
+            });
+        }
+        let id = item.id.clone();
+        let sha = sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&item.bytes));
+        let chunk = client::CHUNK as u64;
+
+        // One request covers a file that fits a chunk: the server hashes the whole body
+        // against `X-Content-Sha256` before it publishes.
+        if total <= chunk {
+            let headers = client::upload_headers(item, &id, Some(&sha), &token);
+            let response = self
+                .transport
+                .request(&client::Request {
+                    method: "POST".to_string(),
+                    path: "/upload".to_string(),
+                    headers,
+                    body: item.bytes.clone(),
+                })
+                .await?;
+            return client::finish_upload(response, item.remove_after_upload);
+        }
+
+        // Chunked, resuming from wherever the server says its copy ends — the same
+        // cursor logic the blocking client walks, over an await instead of a block.
+        let mut cursor = 0u64;
+        loop {
+            let ranges = client::chunk_ranges(total, chunk);
+            let found = ranges.iter().find(|(from_range, _)| *from_range >= cursor).copied();
+            let (start, end) = match found {
+                Some(range) => range,
+                // Every range is behind the cursor: the server has all the bytes and the
+                // final ack was lost, and re-sending the completing chunk is the one way
+                // to learn that — it either answers `saved` again or refuses harmlessly.
+                None => {
+                    let Some(&(last_start, last_end)) = ranges.last() else {
+                        return Err(ClientError::Connection("the upload had no chunks".into()));
+                    };
+                    if cursor > last_end + 1 {
+                        return Err(ClientError::Server {
+                            status: 409,
+                            message: "the upload did not advance".to_string(),
+                        });
+                    }
+                    (last_start, last_end)
+                }
+            };
+            let span = item.bytes[start as usize..(end + 1) as usize].to_vec();
+            let completing = end + 1 == total;
+            let mut headers = client::upload_headers(item, &id, completing.then_some(sha.as_str()), &token);
+            headers.push(("Content-Range".to_string(), format!("bytes {start}-{end}/{total}")));
+            let response = self
+                .transport
+                .request(&client::Request {
+                    method: "POST".to_string(),
+                    path: "/upload".to_string(),
+                    headers,
+                    body: span,
+                })
+                .await?;
+            match client::upload_step(response, start) {
+                client::UploadStep::Saved { saved, sha256 } => {
+                    return Ok(client::UploadAck {
+                        saved,
+                        sha256,
+                        local_copy: client::local_copy(item.remove_after_upload),
+                    });
+                }
+                client::UploadStep::Continue(received) => cursor = received,
+                client::UploadStep::Fail(error) => return Err(error),
+            }
+        }
+    }
 }
