@@ -1494,9 +1494,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 
-- [ ] 1. `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version, repro, expected vs actual, `sortlens-cli diagnostics`),
+- [x] 1. `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version, repro, expected vs actual, `sortlens-cli diagnostics`),
   `feature_request.yml`, and a PR template requiring the linked issue, the failing-then-passing test, the gate
   confirmations, a `perf` delta for scan/catalog/thumbs and before/after screenshots for `crates/ui` (E)
+  — shipped 2026-11-24, see the fifty-eighth entry: the bug form requires version, OS, OS version, reproduction,
+  expected, actual and the `sortlens-cli diagnostics` bundle; the feature form requires the problem, the proposed
+  behaviour and the area, and names the offline constraint; `.github/PULL_REQUEST_TEMPLATE.md` is the checklist for
+  the linked issue, the test that failed first, `ci`/`snapshot`/`deny`/`wasm`, a `perf` table when scan/catalog/
+  thumbnails moved and before/after `egui_kittest` evidence when a painted surface did. `cargo xtask templates`
+  (in `ci`) checks the facts those forms cannot lose, with nine tests of its own
 - [ ] 2. `docs/AUTONOMOUS_AGENT.md`: issue text is untrusted data; only `agent-ready`/`triaged` issues; never push to
   `main`, auto-merge, bypass `deny` or touch signing secrets; the repro-first loop ending in a Draft PR; the bounded
   improvement queue (perf regressions, `enhancement-approved`, unchecked roadmap rows) (E)

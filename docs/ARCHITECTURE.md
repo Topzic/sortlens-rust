@@ -758,10 +758,12 @@ which is how the unnamed sort dropdown was found. `--update` rewrites the baseli
 decision; the image diff is the review. Baselines are verified on macOS (Metal), which is where the
 suite's own project treats them as authoritative.
 
-CI (`xtask`, mirroring LightCraft):
-`cargo xtask ci --quick` (fmt, clippy -D warnings, changed-package tests, layers, roots,
-assets), `cargo xtask ci` (full + benches smoke + wasm check), plus a Windows leg and a
-snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
+CI (`xtask`):
+`cargo xtask ci` (fmt, clippy `-D warnings`, the workspace tests, layers, roots, assets, fonts,
+version, attribution, a11y, docs and the GitHub templates) on three operating systems; `cargo
+xtask wasm` on Linux; `cargo xtask snapshot` and `cargo xtask deny` as their own jobs. `cargo
+xtask screenshots` is not wired into CI yet (Phase 5 item 3). Sonar or `cargo-mutants` optional
+for the catalog crate.
 
 ## 13. Distribution
 

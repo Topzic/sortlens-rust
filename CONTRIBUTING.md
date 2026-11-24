@@ -16,8 +16,9 @@ this repository (see `LICENSE-MIT` and `LICENSE-APACHE`).
 4. **No new dependency** without a licence check (`MIT`, `Apache-2.0`, `BSD`, `ISC`, `Zlib`,
    `MPL-2.0`, `CC0` only) and one sentence in the PR about why the standard library or an existing
    crate is not enough.
-5. **Green before review.** `cargo xtask ci` must pass. CI runs exactly that task on three
-   operating systems.
+5. **Green before review.** `cargo xtask ci`, `cargo xtask snapshot` and `cargo xtask deny`
+   must pass; `.github/PULL_REQUEST_TEMPLATE.md` is the checklist, including `wasm` and the
+   `screenshots`/perf evidence for the surfaces that need it. CI runs the same tasks.
 
 ## Architecture rules
 

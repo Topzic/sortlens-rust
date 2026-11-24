@@ -1,0 +1,66 @@
+name: Feature request
+description: Ask for something Sortlens should do
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sortlens is local-first: it works offline, it does not upload a library, and it reaches the
+        network only when you turn a download on. A request that keeps those promises is much easier
+        to accept.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Sortlens makes slow, awkward, or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+      description: Describe the behaviour, not the implementation. A sketch or a screenshot of another tool is welcome; do not paste its source.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: false
+      options:
+        - Library and import
+        - Culling and compare
+        - Keywords, ratings and sidecars
+        - Search and filters
+        - Places and map
+        - Insights, memories and similarity
+        - Export and sharing
+        - Remote device
+        - Packaging, updates and translations
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have tried
+      description: Another tool, a script, or a workaround. If there is none, say so.
+    validations:
+      required: false
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: What you would give up
+      description: Every feature costs something, whether a slower scan, a bigger download, or a setting to learn. Which of those is acceptable?
+    validations:
+      required: false
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: This can work fully offline, with no upload of a library or its photographs.
+          required: true
+        - label: I have searched the existing issues and this is not already filed.
+          required: true

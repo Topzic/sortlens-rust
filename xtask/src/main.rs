@@ -3,6 +3,8 @@
 //! `cargo xtask ci` is what CI runs, so a green local run means a green build. Every check is
 //! cheap enough to run on each commit; none of them need network access.
 
+mod templates;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -71,6 +73,7 @@ fn main() -> ExitCode {
         "a11y" => a11y(),
         "perf" => perf(),
         "docs" => docs(),
+        "templates" => templates::run(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -107,7 +110,8 @@ fn help() {
   attribution  every dependency attributed, and the document honest about what is linked
   a11y     every custom-painted clickable region registers a name
   perf     measurements for docs/PERF.md (not in ci: a timing that fails on a loaded box gets ignored)
-  docs     the documents agree with the tracker, and every crate and document is named"
+  docs     the documents agree with the tracker, and every crate and document is named
+  templates  the GitHub issue forms and pull-request template ask what their gates require"
     );
 }
 
@@ -123,6 +127,7 @@ fn ci() -> Result<(), String> {
     attribution()?;
     a11y()?;
     docs()?;
+    templates::run()?;
     Ok(())
 }
 
@@ -862,7 +867,7 @@ fn version() -> Result<(), String> {
     report("version", problems)
 }
 
-fn report(name: &str, problems: Vec<String>) -> Result<(), String> {
+pub(crate) fn report(name: &str, problems: Vec<String>) -> Result<(), String> {
     if problems.is_empty() {
         println!("xtask {name}: ok");
         return Ok(());

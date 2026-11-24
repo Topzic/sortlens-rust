@@ -1,5 +1,46 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-eighth) — Phase 5 item 1: the intake forms ask what a report needs, and the pull-request template is the gate checklist
+
+- **What shipped:** `.github/ISSUE_TEMPLATE/bug_report.yml` is a GitHub issue form whose required fields are
+  the version, OS (dropdown), OS version, numbered reproduction, expected, actual and the whole
+  `sortlens-cli diagnostics` output (rendered as text; the bundle already redacts absolute paths), with an
+  optional "anything else" and a warning against pasting a token or a photograph. `.github/ISSUE_TEMPLATE/
+  feature_request.yml` requires the problem, the proposed behaviour and the area, asks the alternatives and
+  trade-offs, and makes two checkboxes mandatory (can work fully offline; not already filed). `.github/
+  PULL_REQUEST_TEMPLATE.md` is the checklist: `Closes #`, the test that failed first, one box per
+  `ci`/`snapshot`/`deny`/`wasm`, a clean-room statement (CONTRIBUTING §3), a before/after `cargo xtask perf`
+  table for scan/catalog/thumbnails and before/after `egui_kittest` evidence for `crates/ui`.
+- **Why a gate, and what it checks:** a form field quietly relaxed to optional is how an intake form becomes a
+  paragraph box, and a template that stops naming a gate is how a red tree gets merged. `cargo xtask
+  templates` (called from `ci`) reads both forms' `body:` entries: every required fact must still be asked and
+  still be `required: true` (a missing `validations:` is named, not assumed), every `input`/`textarea`/
+  `dropdown` must say `required: true|false`, a checkbox group must have at least one required option and
+  must not carry GitHub-ignored `validations:`, and every gate command plus the clean-room note must still be
+  a `- [ ]` line in the pull-request template. It is not a YAML parser: GitHub parses the YAML, and this checks
+  the facts GitHub will not.
+- **Tests:** nine in `xtask/src/templates.rs`. A complete form and a complete pull-request template are
+  accepted; a dropped required field, a field relaxed to optional, a checkbox group with no required box, an
+  element GitHub does not have, a removed perf checkbox and a removed issue link are each named by the check
+  that should catch them; the ninth reads this checkout's real templates, so the repository cannot drift from
+  them without a red test. `cargo xtask templates` is also the discoverable front door (`--help`).
+- **Docs in the same commit:** ROADMAP's Phase 5 item 1 ticked with the shipped note; CONTRIBUTING's "green
+  before review" now names `snapshot`/`deny` and the PR template; ARCHITECTURE's CI paragraph was corrected to
+  what `ci.yml` actually runs — it still described a `--quick` task that does not exist, a benches smoke, a
+  Windows leg and a snapshot-update job — and now names the templates gate.
+- **Visual verification:** no painted surface changed, no baseline moved, so `cargo xtask screenshots` was not a
+  gate for this commit (it remains red on a Mac checkout for the recorded symbol-face reason; unchanged here).
+- **Gates:** `cargo xtask ci` green (fmt, clippy `-D warnings`, 833 workspace tests — nine new — layers, roots,
+  assets, fonts, version, attribution, a11y, docs, templates), `cargo xtask snapshot` green (four golden tests),
+  `cargo xtask deny` green (advisories/bans/licenses/sources all ok) after installing `cargo-deny` 0.22.0 into
+  the project-local `.toolchain`. No crate below `xtask` changed, so `wasm` was not a gate.
+- **Not verified here:** how GitHub itself renders the two forms (their shape is checked by the gate, not by
+  GitHub), and whether unchecked Markdown boxes stop a merge — they do not, which is why the same gates live in
+  `ci.yml` and Phase 5 item 21's workflow is the enforcement point.
+- **Next**: Phase 5 item 20 — `docs/AUTONOMOUS_AGENT.md`, the issue-intake playbook: issue text is untrusted
+  data, only `agent-ready`/`triaged` issues are picked up, never push to `main`/auto-merge/bypass `deny`/touch
+  signing secrets, the repro-first loop ends in a Draft PR, and the bounded improvement queue is named.
+
 ## 2026-11-24 (fifty-sixth) — the Mac reads the table the way the table means it: ⌘ is the command key, and a build without a symbols face says the glyphs as words
 
 - **Why this came up.** The whole suite had only ever run on Windows. On this macOS checkout six
@@ -4291,7 +4332,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 19. **GitHub templates** (Phase 5 item 1): `.github/ISSUE_TEMPLATE/bug_report.yml` (OS, version,
     repro, expected vs actual, `sortlens-cli diagnostics`), `feature_request.yml`, and a PR template
     requiring the linked issue, the failing-then-passing test, the gate confirmations, a `perf` delta
-    for scan/catalog/thumbs and before/after screenshots for `crates/ui`.
+    for scan/catalog/thumbs and before/after screenshots for `crates/ui` — **done 2026-11-24**, see the
+    fifty-eighth entry; `cargo xtask templates` (in `ci`) is the gate and has nine tests.
 20. `docs/AUTONOMOUS_AGENT.md` — the issue-intake playbook (Phase 5 item 2).
 21. `agent-intake.yml` and a PR-gating `ci.yml` (`ci`, `snapshot`, `deny`, `wasm`, `screenshots`)
     (Phase 5 item 3).

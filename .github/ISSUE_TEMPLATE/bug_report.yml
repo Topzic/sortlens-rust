@@ -1,0 +1,86 @@
+name: Bug report
+description: Something crashed, misbehaved, or touched a photograph it should not have
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Two things make a fix land in days instead of weeks: steps precise
+        enough to replay, and the diagnostics bundle.
+
+        `sortlens-cli diagnostics` redacts absolute paths before you paste it, but read it once
+        yourself first: it is a report about your machine, not only about Sortlens. Do not attach a
+        photograph you would not publish, and never paste a token or a signing secret.
+  - type: input
+    id: version
+    attributes:
+      label: Sortlens version
+      description: Settings → About shows it, and `sortlens-cli --version` prints the same number.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Windows 11
+        - Windows 10
+        - Linux (X11)
+        - Linux (Wayland)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: Enough to reproduce on the same release, for example macOS 15.1 or Windows 11 23H2.
+      placeholder: "macOS 15.1"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered from a fresh launch where you can. A short screen recording is welcome.
+      placeholder: |
+        1. Open a folder with ...
+        2. Press ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: The exact message or refusal, not a paraphrase. If files moved or vanished, name the operation that was running.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the whole output of `sortlens-cli diagnostics`. Absolute paths are already redacted.
+      render: text
+      placeholder: |
+        $ sortlens-cli diagnostics
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, the file format, or whether a second machine reproduces it.
+    validations:
+      required: false
