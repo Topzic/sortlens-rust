@@ -1450,9 +1450,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     desktop keeps the desktop's settings. Tests: every id round-trips one variant at a time through the real
     file, the action→id mapping is driven through `Action` itself (a missing arm fails), and the settings sit
     outside the catalog.
+  - **Shipped 2026-11-24 (phone width):** a window narrower than 600 points is a phone, decided once per frame
+    before anything paints (`NARROW_BELOW` in `crates/ui/src/shell.rs`). The two docks are put away so the grid
+    gets the screen instead of being squeezed to nothing; the bar drops the wordmark and "Local library" and
+    keeps the mark, the search field sized to the room its glyphs leave (with the palette's chord dropped from
+    the hint, and the field itself dropped below 140 points) and five glyphs — library sheet, inspector,
+    export, notices, settings — because the keyboard overlay and the appearance popover are about keys a phone
+    does not have; the read-only warning becomes the same sentence in a glyph's hover. Opening either dock makes
+    it a sheet the width of the screen, draws no canvas behind it, and closes the other dock by construction
+    (`toggle_left`/`toggle_right`/`open_right`). Visual proof: two new baselines, `phone-charcoal` and
+    `phone-sidebar-charcoal`, at 390×780, painted by the same harness as every other scene, and no earlier
+    baseline moved — the check that 900 points and up are unchanged. Tests: a phone frame opens on the grid with
+    every bar control on screen, each dock opens and closes from its own glyph one at a time, and a 900-point
+    window keeps both docks and its wordmark.
   - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
-    `cargo xtask mobile` (this checkout has neither); a phone layout (the shell is still the desktop's, 880 px
-    minimum); trimming the embedded font set for a phone; the iOS Photos library; a send-to-desktop action
+    `cargo xtask mobile` (this checkout has neither); the canvas at a phone's width (the header, the filter strip
+    and the bottom bar's control tray are still the desktop's, so a phone spends its first ~200 points on them);
+    switching the inspector's tab while its sheet is open (the rail sits behind the sheet, so it is close-then-
+    reopen today); trimming the embedded font set for a phone; the iOS Photos library; a send-to-desktop action
     over the resumable upload; an APK/AAB and an `.ipa` in the release workflow.
 
 ### Phase 5 — Autonomous GitHub maintenance setup

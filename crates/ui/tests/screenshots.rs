@@ -630,6 +630,35 @@ fn a_narrow_window_collapses_the_tab_row() {
     library.keep(shoot_at(kind, scene, "narrow-charcoal", egui::vec2(900.0, 620.0)));
 }
 
+/// A phone: 390 points wide, both docks put away, and the grid on the screen.
+///
+/// The scene starts with the docks open, the way a desktop does, so the baseline is also the proof that a window
+/// this narrow puts them away by itself instead of painting two panels and no canvas. What a phone does not have
+/// yet — a canvas header, a bottom bar and a grid tray that are still the desktop's — is open work, recorded in the
+/// roadmap rather than described here as done.
+#[test]
+fn a_phone_window_opens_on_the_grid() {
+    let mut library = library();
+    let kind = ThemeKind::Charcoal;
+    let scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+    library.keep(shoot_at(kind, scene, "phone-charcoal", egui::vec2(390.0, 780.0)));
+}
+
+/// The sidebar on a phone: the dock takes the screen, and the bar keeps the glyph that gives it back.
+///
+/// One dock at a time is the phone's rule, so the inspector is not behind it: the baseline is what a tap on the
+/// library glyph answers, and the grid is what a second tap returns to.
+#[test]
+fn a_phone_sidebar_takes_the_screen() {
+    let mut library = library();
+    let kind = ThemeKind::Charcoal;
+    let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+    scene.state.narrow = true;
+    scene.state.left_open = true;
+    scene.state.right_open = false;
+    library.keep(shoot_at(kind, scene, "phone-sidebar-charcoal", egui::vec2(390.0, 780.0)));
+}
+
 /// A canvas squeezed by both docks: the header keeps its name whole and its controls, and gives up the rest.
 ///
 /// 3B.6 (e) was reported at 900 points with both docks open, where the header's left block was handed the

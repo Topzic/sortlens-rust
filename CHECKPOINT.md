@@ -1,5 +1,52 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-sixth) — the phone gets its own frame (SL-J10, Phase 4 item 3b)
+
+- **Why this came up.** Yesterday's entry ended on the honest gap: the phone app paints the desktop shell, and
+  the roadmap said the shell "demanded 880 px". The number was in three documents and in no constant. Measured,
+  a 390-point window painted a 264-point sidebar, the 30-point rail and a 296-point inspector, so the canvas —
+  the grid, the reason the app exists — was given a negative width, while the bar ran eight glyphs and a
+  240-point field off the right edge. A phone saw the desktop squeezed and nothing to look at.
+- **The measurement.** `NARROW_BELOW = 600.0` in `crates/ui/src/shell.rs`, read once per frame before anything
+  paints into `UiState::narrow`, so the bar, the docks and the canvas answer the same number on the same frame.
+  600 is wider than every phone in portrait (390–440 points) and narrower than every window the committed
+  baselines record (900 and up) — which is why none of them moved.
+- **What a phone frame is.** As a window becomes that narrow the docks are put away, so a window that opens on a
+  phone opens on the grid; afterwards a person's taps win over the measurement (`toggle_left`, `toggle_right`,
+  `open_right`). The bar keeps the mark and gives up its two words; the search field takes the room the five
+  remaining glyphs leave, floors at 140 points and is left out below that; its hint stops naming `Ctrl+K`,
+  because a phone has none; the keyboard overlay and the appearance popover step aside (one is about a keyboard,
+  both live in Settings); the read-only warning becomes the same sentence in a glyph's hover. A dock that opens
+  is a sheet the width of the screen, the canvas is not painted behind it, and the two docks are one-at-a-time
+  by construction — a sheet needs no close button because the bar's glyph is the way back.
+- **Files.** `crates/ui/src/shell.rs`: `NARROW_BELOW`, `SEARCH_FIELD_NARROW`, `UiState::narrow` with the three
+  dock helpers, the narrow branches of `top_bar`/`left_panel`/`right_panel`, `left_sheet_width`, and
+  `search_field` taking the room it may use. `crates/ui/tests/screenshots.rs`: the two phone scenes.
+  `crates/ui/tests/snapshots/phone-charcoal.png` and `phone-sidebar-charcoal.png`: the new baselines.
+- **Tests that fail when the behaviour is absent** (3 new, 159 in the crate): a 390-point frame opens with both
+  docks put away, no "Sortlens"/"Local library" words in the bar, the Welcome card painted — and every glyph and
+  text rect of the top bar inside the screen, which the old bar failed by roughly 300 points; each dock opens and
+  closes from its own glyph, one at a time, the sidebar painting its sections and the inspector its Details tab;
+  a 900-point window keeps both docks and both words.
+- **Verified.** `cargo xtask ci` green through every gate (fmt, clippy, workspace tests, layers, roots, assets,
+  fonts, version, attribution, a11y, docs, templates, workflows). `cargo xtask snapshot` green with no golden
+  moved. `cargo xtask deny` green (advisories, bans, licences, sources). `cargo xtask screenshots` green with 23
+  scenes: the two phone scenes are new, and the 21 earlier baselines are byte-identical, which is the check that
+  nothing at 900 points or wider moved. The two new images were read: the phone frame is a bar with a field and
+  five glyphs over the grid, and the sidebar sheet covers the screen with the rail still beside it. There is no
+  `cargo xtask wasm` in this workspace — the string does not occur anywhere under `xtask` — so the wasm gate the
+  plan names has no task here; the portability gate for this change is `cargo xtask mobile`, still for a machine
+  with the NDK and Xcode.
+- **Reconciled.** ROADMAP 3b gained the shipped bullet, and its "Still open" now names what a phone still lacks
+  (the canvas header, filter strip and bottom-bar tray at that width; switching the inspector's tab while its
+  sheet is open; the font trim; the iOS Photos library; send-to-desktop; packaging) instead of claiming the shell
+  is "still the desktop's, 880 px minimum". UX §2 has the phone-width rules. ARCHITECTURE §10 says the shell
+  answers a phone's width itself, so the phone app inherits it. RELEASE's phone bullet says the frame is there and
+  the canvas inside it is not. FEATURES SL-J02 moved the phone layout out of "still open" and kept the canvas.
+- **Next.** The canvas at a phone's width: its header (name, count, sort combo, grid glyphs), the filter strip
+  (two rows of chips, about 200 points before the first photograph at 390) and the bottom bar's control tray. A
+  frame that shows a grid but spends its first quarter on desktop chrome is half a phone layout.
+
 ## 2026-11-24 (sixty-fifth) — the phone remembers what you chose (SL-J10, Phase 4 item 3b)
 
 - **Why this came up.** The phone's `App` was handed a `data_dir` and spent it on the catalog and the
@@ -4502,8 +4549,8 @@ says so rather than skipping it silently). The full text is in `docs/ROADMAP.md`
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
     the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the native
-    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). What remains of
-    the row is that app: a phone layout, send-to-desktop upload, the iOS Photos library and a device build.
+    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). What remains of
+    the row is that app: the canvas at that width (header, filter strip, bottom-bar tray), send-to-desktop upload, the iOS Photos library and a device build.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates — **done 2026-11-24**, see the fifty-eighth entry.
@@ -4516,7 +4563,8 @@ Stop condition: every row under "Completion phases" ticked. Never move a buildab
 
 Note for the next run: this checkout builds on Windows (x86_64, `x86_64-pc-windows-msvc`) with its own
 toolchain in `.toolchain` — `. scripts/env.sh && cargo xtask ci` works as documented, and so do
-`snapshot`, `deny` and `screenshots` (21 scenes, green as of the sixty-fourth entry). `cargo xtask
+`snapshot`, `deny` and `screenshots` (23 scenes, green as of the sixty-sixth entry; the two phone scenes at
+390×780 are in that count). There is no `cargo xtask wasm` in this workspace, whatever a plan may ask for. `cargo xtask
 mobile` cannot run here: there is no Android NDK and no Xcode, so both phone targets stay *unverified on a
 device* rather than silently skipped — that is why the roadmap's 3b still names it as open. On a Mac the
 screenshots are a separate known problem: a Mac without a craft-faces symbols font paints `⌘Shift+R`

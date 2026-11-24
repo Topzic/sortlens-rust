@@ -60,6 +60,28 @@ first-run setup, and export options. Nothing that is browsed repeatedly is a mod
 Reading order matches task order: choose scope (left) → narrow (top/filter bar) → work (canvas)
 → inspect/annotate (right) → switch task (bottom).
 
+### At a phone's width (under 600 points)
+
+A window narrower than 600 points is treated as a phone. The shell decides that once per frame, before
+anything paints, so the bar, the docks and the canvas all answer to the same measurement.
+
+- **The bar keeps the mark and one field.** The word "Sortlens" and "Local library" step aside — the mark
+  is the name — and the search field takes whatever room the glyphs leave, down to a floor of 140 points
+  and gone entirely below that, because a sliver of a field cannot show a word. Its hint drops the
+  palette's chord: a phone has no `⌘K`.
+- **Five glyphs, not eight.** The library sheet, the inspector, export, notices and settings. The keyboard
+  shortcut overlay and the appearance popover are not in this bar: one is about a keyboard the phone does
+  not have, and both are one tap into Settings.
+- **One dock at a time, as a sheet.** Opening the sidebar or the inspector makes it the width of the screen
+  and the canvas is not painted behind it — a grid squeezed into the hundred points beside a panel is a
+  grid nobody can read. The bar's glyph puts the sheet away again, so a sheet needs no close button of its
+  own, and opening one closes the other rather than stacking two.
+- **The read-only warning shrinks to its glyph.** The sentence moves into the hover instead of taking a
+  third of the bar. It is still said: saying nothing would be the screen claiming the library is writable.
+
+What is still the desktop's at this width is named in the roadmap's 3b row: the canvas header, the filter
+strip and the bottom bar's control tray.
+
 ---
 
 ## 3. Top bar

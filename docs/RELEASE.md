@@ -76,7 +76,10 @@ phases"), and the list shrinks as those rows are ticked.
   releases once, with the consent switch off until you turn it on, and nothing is downloaded or
   installed automatically — an update means fetching the source and building, as today.
 - **A phone-sized layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` shipped for the
-  desktop (Phase 3); the phone app still paints that desktop layout, which is the open roadmap row.
+  desktop (Phase 3), and a window under 600 points is now laid out as a phone: the docks become one
+  full-width sheet at a time, the bar drops its words and keeps five glyphs, and the search field keeps
+  the room they leave. The canvas inside that frame is still the desktop's — its header, filter strip and
+  the bottom bar's control tray — which is the open part of the roadmap's 3b row.
 
 What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF
 thumbnails, RAW previews, the shipped coastline and the tile-folder map.

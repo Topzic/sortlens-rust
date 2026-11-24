@@ -709,6 +709,18 @@ pub const NOTICE_HISTORY: usize = 50;
 /// that a rail which never closes still leaves a 900-point window's canvas usable.
 const TAB_STRIP_W: f32 = 30.0;
 
+/// The width at which the shell stops being a desktop, in points.
+///
+/// Below it two docks plus a grid do not fit in one window, so a window that becomes this narrow opens on the grid
+/// and the bar keeps one glyph per dock instead of drawing both beside the canvas. Wider than any phone in portrait
+/// (390–440 points) and narrower than every window the screenshot baselines record (900 and up), so those are
+/// untouched.
+const NARROW_BELOW: f32 = 600.0;
+
+/// The narrow bar's search field floor, in points. Below it the field is a decoration, so the bar leaves it out
+/// rather than painting a sliver of a box that cannot show a word.
+const SEARCH_FIELD_NARROW: f32 = 140.0;
+
 /// "just now", "4m", "2h", "3d" — the age of a notice, at the precision someone would say it out loud.
 pub fn notice_age(seconds: u64) -> String {
     match seconds {
@@ -747,6 +759,9 @@ pub struct UiState {
     pub left_w: f32,
     /// Whether the right panel is shown.
     pub right_open: bool,
+    /// Whether this frame is a phone's width. Decided once per frame in [`show`] from the window, and read by
+    /// the bars and the docks so they all answer to the same measurement.
+    pub narrow: bool,
     /// Right panel tab.
     pub right_tab: RightTab,
     /// Left padding that clears the window controls in an integrated title bar.
@@ -962,6 +977,7 @@ impl UiState {
             left_open: true,
             left_w: t.left_w,
             right_open: true,
+            narrow: false,
             right_tab: RightTab::Details,
             title_inset,
             settings_open: false,
@@ -1048,6 +1064,34 @@ impl UiState {
             places_tiles: places::TileCache::new(),
             places_names: places::Names::new(),
             similar_delete_open: false,
+        }
+    }
+
+    /// Show or hide the sidebar.
+    ///
+    /// A phone cannot hold both docks beside a grid, so there opening one puts the other away. On a desktop both
+    /// stay where they are: the two panels are different questions and a wide window answers them side by side.
+    pub fn toggle_left(&mut self) {
+        self.left_open = !self.left_open;
+        if self.left_open && self.narrow {
+            self.right_open = false;
+        }
+    }
+
+    /// Show or hide the inspector, with the same one-at-a-time rule on a phone.
+    pub fn toggle_right(&mut self) {
+        self.right_open = !self.right_open;
+        if self.right_open && self.narrow {
+            self.left_open = false;
+        }
+    }
+
+    /// Bring the inspector back, on `tab`, without a tap first closing it.
+    pub fn open_right(&mut self, tab: RightTab) {
+        self.right_tab = tab;
+        self.right_open = true;
+        if self.narrow {
+            self.left_open = false;
         }
     }
 
@@ -1254,6 +1298,17 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     // cheap, and a theme change installs a whole new Style, which resets the field.
     crate::i18n::apply_direction(ui.ctx());
 
+    // A phone is narrower than either dock. Measured once, before anything paints, so the bars, the docks and the
+    // canvas answer to the same number this frame. The docks are put away *only* as the window becomes narrow: a
+    // window that opens on a phone opens on the grid, and a person who then opens the sidebar or the inspector
+    // keeps it, because their tap is newer than the measurement.
+    let narrow = ui.available_width() < NARROW_BELOW;
+    if narrow && !state.narrow {
+        state.left_open = false;
+        state.right_open = false;
+    }
+    state.narrow = narrow;
+
     // A photo can vanish under the selection — a delete, an emptied bin, a rescan that found the file gone.
     // Dropping it here, once, keeps the inspector from showing a photo that is no longer in the library.
     state.selection.retain(|id| engine.photo(id).is_some());
@@ -1321,7 +1376,11 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if state.right_open {
         right_panel(ui, state, &t, engine);
     }
-    canvas(ui, state, &t, engine, thumbs, &mut actions);
+    // On a phone an open dock is the screen, so the canvas is not painted behind it: a grid squeezed into the
+    // sliver beside a sheet is a grid nobody can read, and the sheet is one glyph away from being put away.
+    if !(state.narrow && (state.left_open || state.right_open)) {
+        canvas(ui, state, &t, engine, thumbs, &mut actions);
+    }
     notice_toast(ui.ctx(), state, &t);
 
     // A finished cull explains itself; so does a finished Apply.
@@ -1583,20 +1642,36 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                 // The mark is the window icon's own geometry, registered from the icon crate rather than
                 // drawn a second time: the dock and the chrome show one product.
                 app_mark(ui, 16.0);
-                ui.add_space(6.0);
-                ui.label(RichText::new("Sortlens").size(14.0).strong());
-                ui.add_space(8.0);
-                ui.label(RichText::new("Local library").size(12.0).color(t.text_muted));
+                // A phone's bar has no room to say the product's name twice: the mark says it, and "Local
+                // library" is the one thing the sidebar's own header already answers.
+                if !state.narrow {
+                    ui.add_space(6.0);
+                    ui.label(RichText::new("Sortlens").size(14.0).strong());
+                    ui.add_space(8.0);
+                    ui.label(RichText::new("Local library").size(12.0).color(t.text_muted));
+                }
                 if engine.read_only() {
                     // Say it once, at the top: a library another window is writing cannot be changed
                     // here, and nothing on this screen should look as if it can.
                     ui.add_space(8.0);
-                    ui.label(
-                        RichText::new("Read-only · another window has this library")
-                            .size(10.5)
-                            .color(t.reject),
-                    )
-                    .on_hover_text("Close the other Sortlens window to edit here. Everything stays readable meanwhile.");
+                    if state.narrow {
+                        // The same sentence, in the hover. A phone cannot spend a third of its bar on it, and
+                        // saying nothing would be the screen claiming the library is writable.
+                        glyph_button(
+                            ui,
+                            t,
+                            crate::icons::Icon::Warning,
+                            "Read-only · another window has this library",
+                            false,
+                        );
+                    } else {
+                        ui.label(
+                            RichText::new("Read-only · another window has this library")
+                                .size(10.5)
+                                .color(t.reject),
+                        )
+                        .on_hover_text("Close the other Sortlens window to edit here. Everything stays readable meanwhile.");
+                    }
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -1607,25 +1682,48 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                     if glyph_button(ui, t, crate::icons::Icon::Sliders, "Settings", false).clicked() {
                         state.settings_open = true;
                     }
-                    if glyph_button(ui, t, crate::icons::Icon::Keyboard, "Help and shortcuts", false).clicked() {
-                        state.shortcuts_open = true;
-                        state.shortcut_query.clear();
+                    // Two of the bar's glyphs are about a keyboard, and a phone has none: the shortcut overlay
+                    // and the appearance popover would each be a tap that answers a question nobody asked. They
+                    // stay in Settings and in the palette, one dock away. The field they leave room for is the
+                    // only way to search photographs on a phone, which is why it comes first here.
+                    if !state.narrow {
+                        if glyph_button(ui, t, crate::icons::Icon::Keyboard, "Help and shortcuts", false).clicked() {
+                            state.shortcuts_open = true;
+                            state.shortcut_query.clear();
+                        }
+                        appearance_button(ui, state, t, actions);
                     }
-                    appearance_button(ui, state, t, actions);
                     bell_button(ui, state, t);
                     export_button(ui, state);
-                    if glyph_button(ui, t, crate::icons::Icon::FolderPlus, "Import a folder", false).clicked() {
-                        actions.push(Action::PickFolder);
+                    // A phone keeps one dock at a time: both open would leave the grid no width at all. Each
+                    // glyph below brings its own back, and a second tap on the same glyph puts it away, which
+                    // is the only close button a panel wider than the window needs.
+                    if !state.narrow {
+                        if glyph_button(ui, t, crate::icons::Icon::FolderPlus, "Import a folder", false).clicked() {
+                            actions.push(Action::PickFolder);
+                        }
+                        filter_button(ui, state, t);
                     }
-                    filter_button(ui, state, t);
                     // Selected, not merely clickable: the button says whether the panel it toggles is
                     // open, which is the only thing an unlabelled glyph can be asked to show.
                     if glyph_button(ui, t, crate::icons::Icon::Panel, "Details panel", state.right_open).clicked() {
-                        state.right_open = !state.right_open;
+                        state.toggle_right();
+                    }
+                    if state.narrow && glyph_button(ui, t, crate::icons::Icon::Library, "Library panel", state.left_open).clicked() {
+                        state.toggle_left();
                     }
 
-                    ui.add_space(8.0);
-                    search_field(ui, state, engine);
+                    // The field takes the room the glyphs left, and is left out when that is less than a word:
+                    // a phone has no keyboard, so the field is the way to search, and a sliver of one is not.
+                    let room = if state.narrow {
+                        (ui.available_width() - 8.0).max(0.0)
+                    } else {
+                        SEARCH_FIELD_MAX_WIDTH
+                    };
+                    if room >= SEARCH_FIELD_NARROW || !state.narrow {
+                        ui.add_space(8.0);
+                        search_field(ui, state, engine, room);
+                    }
                 });
             });
         });
@@ -1671,10 +1769,14 @@ fn measure(ui: &Ui, text: &str, font: &egui::FontId) -> f32 {
 ///
 /// The two buffers are separate so leaving command mode returns to the search that was there before,
 /// and the field records its own rectangle because the palette hangs from it rather than from a guess.
-fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
+fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32) {
+    // The column is the room the bar has left for it, capped at what the hint wants; the floor is the narrowest
+    // field that can show a word, and on a wide bar it is the field's designed width.
+    let cap = room.clamp(0.0, SEARCH_FIELD_MAX_WIDTH);
+    let floor = cap.min(SEARCH_FIELD_WIDTH);
     if state.palette_open {
         let field = ui.add_sized(
-            [240.0, 24.0],
+            [cap.min(SEARCH_FIELD_WIDTH).max(SEARCH_FIELD_NARROW.min(cap)), 24.0],
             TextEdit::singleline(&mut state.palette_query).hint_text("Type a command…"),
         );
         if field.changed() {
@@ -1690,7 +1792,7 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
     // The hint is chosen to fit rather than clipped: egui cuts it hard at the field's edge, so a
     // laptop's field ended at "⌘" with the key it was teaching cut off. Shorter hints are tried in
     // order, and the collection's own name is what gets dropped, not the shortcut.
-    let room = SEARCH_FIELD_MAX_WIDTH - 16.0;
+    let room = (cap - 16.0).max(0.0);
     let style = ui.style().clone();
     let body = egui::TextStyle::Body.resolve(&style);
     let hint: String = match state
@@ -1705,14 +1807,19 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         None => {
             // The key the hint teaches is the one this platform actually runs: `Ctrl+K` here, ⌘K on
             // a Mac. The ⌘ glyph is egui's own, and on Windows it was drawn over the letter after it.
+            // A phone has none of those keys, so its hint does not name one.
             let palette = palette_hint();
-            let candidates = [palette.as_str(), "Search photos", "Search"];
-            fitting_hint(&candidates, |text| measure(ui, text, &body), room).to_owned()
+            let candidates: &[&str] = if state.narrow {
+                &["Search photos", "Search"]
+            } else {
+                &[palette.as_str(), "Search photos", "Search"]
+            };
+            fitting_hint(candidates, |text| measure(ui, text, &body), room).to_owned()
         }
     };
     // The field then takes the width its hint needs, between the two bounds: widening it a few points
     // keeps the shortcut on screen, and beyond the cap the hint is the thing that gets shorter.
-    let width = (measure(ui, &hint, &body) + 16.0).clamp(SEARCH_FIELD_WIDTH, SEARCH_FIELD_MAX_WIDTH);
+    let width = (measure(ui, &hint, &body) + 16.0).clamp(floor, cap);
     let search = ui.add_sized([width, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
     if search.changed() {
         state.selection.clear();
@@ -2661,16 +2768,30 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     }
 }
 
+/// The width a dock takes on a phone: the screen, minus the far-edge rail this panel cannot cover, and never
+/// narrower than the narrowest dock — a sheet two words wide would be a dock again.
+fn left_sheet_width(ui: &Ui) -> f32 {
+    (ui.available_width() - TAB_STRIP_W).max(210.0)
+}
+
 fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     // The sidebar sits at the reading start: left in a left-to-right interface, right in a
     // right-to-left one (SL-L07).
-    start_panel(ui, "left_panel")
-        .resizable(true)
-        .default_size(state.left_w)
-        .size_range(210.0..=380.0)
+    let panel = start_panel(ui, "left_panel");
+    // A phone's sidebar is a sheet, not a dock: it takes the screen instead of squeezing a grid into the hundred
+    // points that would be left, which nobody can read and nobody can scroll. The bar keeps the glyph that gives
+    // the grid back, so a sheet needs no close button of its own.
+    let panel = if state.narrow {
+        panel.resizable(false).exact_size(left_sheet_width(ui))
+    } else {
+        panel.resizable(true).default_size(state.left_w).size_range(210.0..=380.0)
+    };
+    panel
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::same(10)))
         .show(ui, |ui| {
-            state.left_w = ui.available_width();
+            if !state.narrow {
+                state.left_w = ui.available_width();
+            }
             // The foot is laid out first so it can claim the bottom edge before the sections fill what is
             // left: a strip added last would be pushed off the panel by a long folder or keyword list, and
             // "always there" is the whole reason it left the middle of the sidebar.
@@ -2946,8 +3067,7 @@ fn right_tools(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
                     if active {
                         state.right_open = false;
                     } else {
-                        state.right_tab = tab;
-                        state.right_open = true;
+                        state.open_right(tab);
                     }
                 }
             }
@@ -2955,10 +3075,15 @@ fn right_tools(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
 }
 
 fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
-    end_panel(ui, "right_panel")
-        .resizable(true)
-        .default_size(t.right_w)
-        .size_range(250.0..=420.0)
+    // The same sheet on the inspector's side: on a phone it is the screen, and the rail's own glyph closes it.
+    let panel = end_panel(ui, "right_panel");
+    let panel = if state.narrow {
+        // The rail was drawn before this panel, so what is left is the sheet's room.
+        panel.resizable(false).exact_size(ui.available_width().max(210.0))
+    } else {
+        panel.resizable(true).default_size(t.right_w).size_range(250.0..=420.0)
+    };
+    panel
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::same(10)))
         .show(ui, |ui| {
             // The tabs live in the far-edge strip now, so the panel's own header is the one place that names the
@@ -4232,8 +4357,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     }
 
     if keyword {
-        state.right_tab = RightTab::Tags;
-        state.right_open = true;
+        state.open_right(RightTab::Tags);
         state.tag_focus = true;
     }
     let count = targets.len();
@@ -15564,6 +15688,144 @@ mod tests {
             "the rail is still there with the body closed, which is how the body is reopened"
         );
         assert!(actions.is_empty(), "none of this asks the host for anything");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A phone is narrower than both docks and narrower than the wordmark's words.
+    ///
+    /// A window that opens at that width opens on the grid: both docks put away, one glyph each in the bar to bring
+    /// them back, and nothing painted off the side of the screen. Every screenshot baseline starts at 900 points, so
+    /// this is the only place the narrow layout is asked to hold together.
+    #[test]
+    fn a_phone_width_window_opens_on_the_grid_with_every_control_on_screen() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-phone-width-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let phone = vec2(390.0, 780.0);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        assert!(
+            state.left_open && state.right_open,
+            "both docks start open, which is the desktop's answer"
+        );
+
+        let painted = paint_shell(&ctx, phone, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(state.narrow, "390 points is a phone, not a desktop");
+        assert!(!state.left_open, "the sidebar is put away so the grid has the screen");
+        assert!(!state.right_open, "and so is the inspector");
+        assert!(
+            label_at(&painted, "Local library").is_none(),
+            "the bar's subtitle would take the room its controls need"
+        );
+        assert!(
+            exact_label_at(&painted, "Sortlens").is_none(),
+            "the mark says the name, and a phone does not say it twice"
+        );
+        assert!(
+            label_at(&painted, "Welcome to Sortlens").is_some(),
+            "the grid is what the phone opens on"
+        );
+
+        // Nothing the bar paints may run off the side: a glyph half over the edge cannot be tapped, and this bar is
+        // the only way back to either dock.
+        let bar = Rect::from_min_max(pos2(0.0, 0.0), pos2(phone.x, Tokens::CHARCOAL.top_bar_h));
+        let mut drawn: Vec<Rect> = painted_pictures(&painted)
+            .into_iter()
+            .filter(|rect| bar.intersects(*rect))
+            .collect();
+        drawn.extend(
+            shapes_text(&painted)
+                .into_iter()
+                .map(|(_, rect)| rect)
+                .filter(|rect| bar.intersects(*rect)),
+        );
+        assert!(!drawn.is_empty(), "the bar painted something to measure");
+        for rect in drawn {
+            assert!(
+                rect.left() >= -0.5 && rect.right() <= phone.x + 0.5,
+                "a top-bar control is clipped at {rect:?} in a {}-point window",
+                phone.x
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The docks are one tap apart on a phone, and a tap opens one of them: the sidebar and the inspector cannot
+    /// both be on a 390-point screen, so the second one answers the first.
+    #[test]
+    fn a_phone_reaches_each_dock_from_the_bar_one_at_a_time() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-phone-docks-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let phone = vec2(390.0, 780.0);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let painted = paint_shell(&ctx, phone, &mut state, &mut engine, &mut thumbs, &mut actions);
+
+        // The bar's glyphs, left to right, with the app mark left out: the mark is the only picture at the reading
+        // edge, and the field that takes the glyphs' room is text, not a picture.
+        let mut glyphs: Vec<Rect> = painted_pictures(&painted)
+            .into_iter()
+            .filter(|rect| rect.center().y < Tokens::CHARCOAL.top_bar_h && rect.left() > 40.0)
+            .collect();
+        glyphs.sort_by(|a, b| a.left().total_cmp(&b.left()));
+        assert!(glyphs.len() >= 2, "a phone keeps a glyph for each dock: {glyphs:?}");
+
+        click_shell(&ctx, phone, glyphs[0].center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(state.left_open, "the second glyph from the reading edge brings the sidebar back");
+        assert!(
+            !state.right_open,
+            "and the inspector it would have shared the screen with stays away"
+        );
+        let open = paint_shell(&ctx, phone, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(
+            label_at(&open, "SUBFOLDERS").is_some() || label_at(&open, "KEYWORDS").is_some(),
+            "the sidebar is painted, not merely ticked"
+        );
+
+        click_shell(&ctx, phone, glyphs[1].center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(state.right_open, "the next glyph brings the inspector back");
+        assert_eq!(state.right_tab, RightTab::Details, "on the question it was left on");
+        assert!(!state.left_open, "and the sidebar makes way for it");
+
+        click_shell(&ctx, phone, glyphs[1].center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(
+            !state.right_open,
+            "the same glyph puts it away again, which is the only close button it needs"
+        );
+        assert!(actions.is_empty(), "none of this asks the host for anything");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The desktop is untouched: a window wider than the threshold keeps both docks, its wordmark and its words.
+    #[test]
+    fn a_wide_window_keeps_both_docks_and_the_wordmark() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-wide-window-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let painted = paint_shell(&ctx, vec2(900.0, 620.0), &mut state, &mut engine, &mut thumbs, &mut actions);
+
+        assert!(
+            !state.narrow,
+            "900 points is a desktop, which is the narrowest baseline the screenshots record"
+        );
+        assert!(state.left_open && state.right_open, "both docks are still there, as they were");
+        assert!(label_at(&painted, "Sortlens").is_some(), "the wordmark still has its word");
+        assert!(
+            label_at(&painted, "Local library").is_some(),
+            "and the subtitle says which library it is"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
