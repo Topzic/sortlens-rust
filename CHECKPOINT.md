@@ -4647,6 +4647,41 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   whether `cat · AI` crowds a long keyword. There is still no `cargo xtask screenshots` (Phase 3 item 9, which is
   explicitly to be done before the rest of the visual work), so the visual evidence is the headless paint.
 
+## 2026-11-24 (seventy-first) — the release builds the phone's APK, and the workflow file is a checked file at last
+
+- **Why this came up.** The seventieth entry closed with "everything buildable left is done", but its own
+  reasoning had folded two different blockers into one: the `.ipa` leg waits on the Apple identity, while
+  the **APK leg needs no external secret at all** — a sideloaded Android APK is signed with a self-signed
+  keystore, and the build runs on a runner that already carries the NDK. The roadmap's 3b still had it open,
+  so it was the one buildable item left in the owner's Phase 0 → Phase 5 plan.
+- **Shipped.** `.github/workflows/release.yml` gained an `android` job: `cargo apk build --release` from
+  the crate's own `package.metadata.android` (the manifest is the specification cargo-apk reads), the SDK
+  pieces the metadata names installed by `sdkmanager` (`platforms;android-34`, `build-tools;34.0.0`,
+  `ndk;26.3.11579264`) rather than trusted from the runner image, then `zipalign` + `apksigner` with a
+  keystore generated for the run and a signature verified before upload. The APK rides the same one-runner
+  checksum step and release attachment as every other artefact. Two latent defects in the never-run
+  workflow were fixed in the same commit: `verify` had no Linux windowing headers (the `cargo xtask ci`
+  it runs needs them on Ubuntu, as `ci.yml`'s own job does) and it used a `dtolnay/rust-toolchain@1.95.0`
+  ref where the checked `ci.yml` uses `@master` with the toolchain as an input; the release body — which
+  still said "no bundled models, no remote client, no localisation yet", three stale claims — was rewritten
+  to say what ships.
+- **Checked, not just written.** `cargo xtask workflows` now reads `release.yml` the way it reads
+  `ci.yml` and `agent-intake.yml`: a release with no `cargo apk build` step, a `publish` not gated on a
+  tag (a manual run from `main` must never create a release — that gate is new too, which is why a
+  dispatch can be used to exercise the pipeline), checksums that leave the APK out, and an attachment
+  that leaves it out are each refused with their file named. The subset reader refuses flow collections,
+  which caught `needs: [build, android]` and made the `on.push.tags` list a block list. Tests: the shipped
+  file passes, and a fixture release loses the APK build, the tag gate, the attachment and the checksum
+  coverage one at a time, each naming its own refusal.
+- **Reconciled.** ROADMAP 3b moved the APK out of "Still open" into a shipped bullet and split the rest
+  by its real unblocker (device verification and the iOS Photos library need the NDK/Xcode machine; the
+  `.ipa` needs the Apple identity; an AAB needs Play tooling; an in-place-update key is a release secret
+  the owner can add); RELEASE.md's phone bullet says what a release run now attaches and what still waits.
+- **Verification status.** `cargo test -p xtask workflow` (15, including the four new ones) and the
+  checker's read of the shipped file are green here; the full gates below. The one thing this checkout
+  cannot do is run the workflow itself — that is what a manual dispatch after the push is for, and the
+  result is read with `gh run` rather than assumed.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -4761,7 +4796,7 @@ says so rather than skipping it silently). The full text is in `docs/ROADMAP.md`
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
     the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the native
-    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). The canvas at that width — the far-edge rail standing down, a two-row filter strip, a tray whose every control is on screen — is **done 2026-11-24** (sixty-seventh entry). The send half, the pairing's connection test and the phone's own screens shipped the same day (sixty-eighth and sixty-ninth entries), and the phone's embedded font set is trimmed to the shipped languages' scripts (seventieth entry). What remains of the row is the iOS Photos library and a device build — both waiting for a machine with the NDK, Xcode and the iOS Photos framework.
+    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). The canvas at that width — the far-edge rail standing down, a two-row filter strip, a tray whose every control is on screen — is **done 2026-11-24** (sixty-seventh entry). The send half, the pairing's connection test and the phone's own screens shipped the same day (sixty-eighth and sixty-ninth entries), and the phone's embedded font set is trimmed to the shipped languages' scripts (seventieth entry). The release workflow now builds and attaches the Android APK (seventy-first entry). What remains of the row is the iOS Photos library, a device build, the `.ipa` (Apple identity) and an AAB — all named with their unblockers in the 3b row itself.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates — **done 2026-11-24**, see the fifty-eighth entry.

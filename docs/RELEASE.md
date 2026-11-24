@@ -69,9 +69,15 @@ phases"), and the list shrinks as those rows are ticked.
   spent — and sends the chosen photographs over the resumable upload
   with keep-or-remove; Remove carries the ack's decision out through the library's audited delete path to the
   phone's trash, and a file the catalog no longer matches is refused, not deleted. The layout is a phone's:
-  one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the screen. No
-  APK, AAB or `.ipa` is published yet, and a device build waits for a machine with the NDK and Xcode. See
-  §10 of `docs/ARCHITECTURE.md`.
+  one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the screen.
+  A release run (`git push --tags`, or a manual run of the `release` workflow for artefacts without a
+  release) builds and attaches `sortlens-<version>-android.apk`: `cargo apk build --release` from the
+  crate's own `package.metadata.android`, zipaligned and signed with a keystore generated for the run —
+  a sideloaded APK needs no signing identity, but a key that lets one release update another in place
+  is a release secret the owner can add. No AAB (that is Play-distribution tooling), no `.ipa` (that
+  needs the Apple identity the M10 table names), and no device verification yet — `cargo xtask mobile`
+  checks both targets on CI's runners, and running them on hardware waits for a machine with the NDK,
+  Xcode and the iOS Photos framework. See §10 of `docs/ARCHITECTURE.md`.
 - **No localisation.** The interface is English (Phase 4); the font stack and the keymap already handle the
   symbols the interface draws. Shortcuts *are* rebindable now: Settings → Shortcuts opens the `craft-keymap`
   editor (rebinding, conflict detection, named sets, craft-keymap JSON import and export), and the help and

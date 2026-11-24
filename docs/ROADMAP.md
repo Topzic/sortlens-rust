@@ -1517,9 +1517,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     the filtered build's generated table carries the five faces the filter keeps and not the
     Hangul one. Tests: manifest parsing, selection, the typo refusal, the coverage validation, the
     phone script set's definition, and a filtered build naming every shipped script.
+  - **The APK in the release workflow shipped 2026-11-24.** A release run (a `v*` tag, or a manual
+    dispatch that stops before `publish`) builds `sortlens-mobile` into an APK on the `aarch64-linux-android`
+    target with `cargo apk build --release` — the crate's own `package.metadata.android` is the
+    specification cargo-apk reads, so a manifest change and the package cannot disagree — zipaligns and
+    signs it with a keystore generated for the run (a sideloaded APK needs no signing identity; a key
+    that lets one release update another in place is a release secret the owner can add), verifies the
+    signature, and attaches it beside the desktop archives, with a checksum from the same one-runner
+    step as every other artefact. The workflow is written in the block style `cargo xtask workflows`
+    reads, which now checks the release file the way it checks `ci.yml` and the intake: a release
+    without a `cargo apk build` step, a `publish` not gated on a tag, checksums or an attachment that
+    leave the APK out, are all refused with tests (the same checker also refuses a flow list, which
+    caught `needs: [build, android]`, and fixed a `verify` job that had never run and was missing the
+    Linux windowing headers `cargo xtask ci` needs on Ubuntu).
   - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
-    `cargo xtask mobile` (this checkout has neither); the iOS Photos library; an APK/AAB and an `.ipa`
-    in the release workflow.
+    `cargo xtask mobile` (this checkout has neither; CI's runners check both targets compile); the iOS
+    Photos library; an `.ipa` in the release workflow (the Apple identity the M10 table names); an AAB
+    (Play-distribution tooling, for a Play listing); and a release key that lets one APK update another
+    in place (a release secret the owner can add).
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

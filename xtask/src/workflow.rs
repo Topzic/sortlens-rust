@@ -1,11 +1,13 @@
-//! The GitHub workflows: the gates every pull request meets, and the intake that reads a report.
+//! The GitHub workflows: the gates every pull request meets, the intake that reads a report, and
+//! the release that publishes the artefacts.
 //!
 //! `cargo xtask workflows` checks facts a workflow has one right answer about: every gate command
 //! is run by a step that can still fail, the workflow that promises them is triggered by a pull
-//! request, and the intake that reads a filed report runs on issues only, may label them and
-//! nothing else, and never reaches a secret. It also holds `docs/AUTONOMOUS_AGENT.md` to the rules
-//! it is the only copy of, because a playbook that quietly lost "never push to `main`" is a
-//! permission slip nobody notices was removed.
+//! request, the intake that reads a filed report runs on issues only, may label them and nothing
+//! else, and never reaches a secret, and the release builds the phone's APK while `publish` runs
+//! only on a tag. It also holds `docs/AUTONOMOUS_AGENT.md` to the rules it is the only copy of,
+//! because a playbook that quietly lost "never push to `main`" is a permission slip nobody notices
+//! was removed.
 //!
 //! The files are read with the same deliberately small YAML subset `templates` uses. That is a
 //! real constraint on the workflow files: block lists, plain or quoted scalars and `|` blocks, no
@@ -47,6 +49,7 @@ pub fn check(root: &Path) -> Vec<String> {
     for (file, checker) in [
         ("ci.yml", ci_problems as fn(&str, &str) -> Vec<String>),
         ("agent-intake.yml", intake_problems),
+        ("release.yml", release_problems),
     ] {
         let label = format!(".github/workflows/{file}");
         match fs::read_to_string(root.join(".github/workflows").join(file)) {
@@ -197,6 +200,51 @@ fn maps_of<'a>(node: &'a Node, out: &mut Vec<&'a Node>) {
     }
 }
 
+/// The release: the phone's APK is built by a step, `publish` runs only on a tag (a manual run
+/// from `main` must not create a release), and both the checksums and the attachment cover the APK.
+fn release_problems(label: &str, text: &str) -> Vec<String> {
+    let node = match yaml::parse(text) {
+        Ok(node) => node,
+        Err(error) => return vec![format!("{label}: {error}")],
+    };
+    let mut problems = Vec::new();
+    let mut runs = Vec::new();
+    entries_named(&node, "run", &mut runs);
+    if !runs
+        .iter()
+        .filter_map(|run| run.as_str())
+        .any(|run| run.contains("cargo apk build"))
+    {
+        problems.push(format!("{label}: no step builds the phone's APK (`cargo apk build`)"));
+    }
+    let publish = node.field("jobs").and_then(|jobs| jobs.field("publish"));
+    match publish {
+        None => problems.push(format!("{label}: no `publish` job, so nothing is attached to the release")),
+        Some(job) => {
+            let gate = job.field("if").and_then(Node::as_str).unwrap_or("");
+            if !gate.contains("refs/tags/") {
+                problems.push(format!(
+                    "{label}: `publish` is not gated on a tag, so a manual run would create a release"
+                ));
+            }
+            let mut files = Vec::new();
+            entries_named(job, "files", &mut files);
+            if !files.iter().filter_map(|file| file.as_str()).any(|file| file.contains("*.apk")) {
+                problems.push(format!("{label}: `publish` does not attach the APK (`dist/*.apk`)"));
+            }
+        }
+    }
+    let checksums = runs
+        .iter()
+        .filter_map(|run| run.as_str())
+        .find(|run| run.contains("sha256sum"))
+        .unwrap_or("");
+    if !checksums.contains(".apk") {
+        problems.push(format!("{label}: the checksums do not cover the APK"));
+    }
+    problems
+}
+
 /// Every value written under `key`, wherever it sits.
 fn entries_named<'a>(node: &'a Node, key: &str, out: &mut Vec<&'a Node>) {
     match node {
@@ -252,6 +300,8 @@ mod tests {
 
     const INTAKE: &str = "name: Agent intake\non:\n  issues:\n    types:\n      - opened\n      - edited\n      - labeled\npermissions:\n  contents: read\n  issues: write\njobs:\n  intake:\n    if: ${{ github.event.issue.pull_request == null }}\n    runs-on: ubuntu-latest\n    steps:\n      - name: Check the report\n        env:\n          SORTLENS_ISSUE_BODY: ${{ github.event.issue.body }}\n          SORTLENS_ISSUE_LABELS: ${{ github.event.issue.labels }}\n        run: |\n          if cargo xtask intake > intake.md; then\n            exit 0\n          fi\n          cat intake.md\n          gh issue comment \"$ISSUE\" --body-file intake.md\n          gh issue edit \"$ISSUE\" --remove-label triaged --add-label needs-info\n";
 
+    const RELEASE: &str = "name: release\non:\n  push:\n    tags:\n      - 'v*'\n  workflow_dispatch:\njobs:\n  android:\n    runs-on: ubuntu-latest\n    steps:\n      - name: build\n        run: cargo apk build --release -p sortlens-mobile\n      - name: sign\n        run: |\n          set -eu\n          apk=\"$(find target -name '*.apk' | head -n 1)\"\n          \"$tools/apksigner\" sign --out sortlens-android.apk \"$apk\"\n  publish:\n    if: startsWith(github.ref, 'refs/tags/')\n    needs: android\n    runs-on: ubuntu-latest\n    steps:\n      - name: checksums\n        run: |\n          cd dist\n          sha256sum *.tar.gz *.zip *.apk > SHA256SUMS\n      - uses: softprops/action-gh-release@v2\n        with:\n          files: |\n            dist/*.tar.gz\n            dist/*.apk\n";
+
     #[test]
     fn the_shipped_workflows_and_playbook_pass() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
@@ -263,6 +313,48 @@ mod tests {
     fn the_fixtures_are_what_the_checkers_want() {
         assert!(ci_problems("test", CI).is_empty(), "{:#?}", ci_problems("test", CI));
         assert!(intake_problems("test", INTAKE).is_empty(), "{:#?}", intake_problems("test", INTAKE));
+        assert!(
+            release_problems("test", RELEASE).is_empty(),
+            "{:#?}",
+            release_problems("test", RELEASE)
+        );
+    }
+
+    #[test]
+    fn a_release_that_does_not_build_the_apk_is_refused() {
+        let without = RELEASE.replace("cargo apk build --release -p sortlens-mobile", "cargo check -p sortlens-mobile");
+        let problems = release_problems("test", &without);
+        assert!(problems.iter().any(|problem| problem.contains("APK")), "{problems:#?}");
+    }
+
+    #[test]
+    fn a_publish_that_runs_off_a_tag_is_refused() {
+        let ungated = RELEASE.replace("    if: startsWith(github.ref, 'refs/tags/')\n", "");
+        let problems = release_problems("test", &ungated);
+        assert!(
+            problems.iter().any(|problem| problem.contains("not gated on a tag")),
+            "{problems:#?}"
+        );
+    }
+
+    #[test]
+    fn a_release_that_leaves_the_apk_unattached_or_unhashed_is_refused() {
+        let unattached = RELEASE.replace("            dist/*.apk\n", "");
+        assert!(
+            release_problems("test", &unattached)
+                .iter()
+                .any(|problem| problem.contains("does not attach the APK")),
+            "{:#?}",
+            release_problems("test", &unattached)
+        );
+        let unhashed = RELEASE.replace("*.zip *.apk > SHA256SUMS", "*.zip > SHA256SUMS");
+        assert!(
+            release_problems("test", &unhashed)
+                .iter()
+                .any(|problem| problem.contains("checksums do not cover the APK")),
+            "{:#?}",
+            release_problems("test", &unhashed)
+        );
     }
 
     #[test]

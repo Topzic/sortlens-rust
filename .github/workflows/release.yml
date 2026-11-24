@@ -1,12 +1,16 @@
 name: release
 
-# Written but not yet run: no tag exists, so nothing here has been executed. It is kept because a release
-# workflow that has never been read is a worse surprise than one that has never run — and because the
-# steps below are exactly what docs/RELEASE.md asks a person to do by hand.
+# Written in the block style `cargo xtask workflows` reads: block lists only (no flow lists), so the
+# small YAML reader that checks this file can parse it. The `verify` job runs the same gates a pull
+# request runs before anything is built; `android` builds the phone's APK — no signing identity is
+# needed, because a sideloaded APK is signed with a self-signed keystore generated for the run; and
+# `publish` runs only on a tag, so a manual run leaves its artefacts as workflow artefacts and never
+# creates a release by accident.
 
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -18,13 +22,64 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.95.0"
           components: clippy, rustfmt
+      - name: Linux windowing headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libxinerama-dev libvulkan-dev
       - name: ci
         run: cargo xtask ci
       - name: goldens
         run: cargo xtask snapshot
+
+  android:
+    name: the Android APK
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-apk
+      - name: the SDK pieces the crate's metadata names
+        run: |
+          set -eu
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264"
+      - name: cargo-apk
+        run: cargo install cargo-apk --locked
+      - name: build
+        run: |
+          set -eu
+          export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/26.3.11579264"
+          export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
+          cargo apk build --release -p sortlens-mobile
+      - name: sign
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          apk="$(find target -name '*.apk' | head -n 1)"
+          tools="$ANDROID_HOME/build-tools/34.0.0"
+          keytool -genkeypair -keystore sortlens.keystore -alias sortlens -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass sortlens-key -keypass sortlens-key -dname "CN=Sortlens"
+          "$tools/zipalign" -f -p 4 "$apk" aligned.apk
+          "$tools/apksigner" sign --ks sortlens.keystore --ks-pass pass:sortlens-key \
+            --key-pass pass:sortlens-key --out "sortlens-${version}-android.apk" aligned.apk
+          "$tools/apksigner" verify "sortlens-${version}-android.apk"
+          echo "The APK is signed with a keystore generated for this run; see docs/RELEASE.md."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: sortlens-*-android.apk
 
   build:
     name: ${{ matrix.target }}
@@ -42,8 +97,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.95.0"
           targets: ${{ matrix.target }}
       - name: build
         run: cargo build --release -p sortlens -p sortlens-cli --target ${{ matrix.target }}
@@ -77,7 +133,12 @@ jobs:
 
   publish:
     name: attach to the release
-    needs: build
+    needs:
+      - build
+      - android
+    # A manual run from `main` must not create a release: it stops here, its artefacts stay workflow
+    # artefacts, and a tag run is what attaches everything to the real release.
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -87,7 +148,7 @@ jobs:
       - name: checksums
         run: |
           cd dist
-          sha256sum *.tar.gz *.zip > SHA256SUMS
+          sha256sum *.tar.gz *.zip *.apk > SHA256SUMS
           while read -r sum file; do echo "$sum  $file" > "$file.sha256"; done < SHA256SUMS
           cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
@@ -95,9 +156,12 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.apk
             dist/*.sha256
             dist/SHA256SUMS
           generate_release_notes: false
           body: |
             See `docs/RELEASE.md` for what is in this build and what is deliberately absent — no bundled
-            models, no remote client, no localisation yet. A checksum for every artefact is attached.
+            models (Settings → AI installs them by consent), the phone is the native `apps/sortlens-mobile`
+            APK attached here, and the interface ships English, Arabic and Japanese. A checksum for every
+            artefact is attached.
