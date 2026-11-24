@@ -295,6 +295,24 @@ impl<T: Transport> Client<T> {
             })
     }
 
+    /// One photograph's thumbnail as PNG bytes: `GET /thumb/<id>/<edge>` under the paired
+    /// token's `read` scope. The server bounds the edge; a refusal here names its range.
+    /// The bytes are what a browser `<img>` or an egui `Image` decodes — a wasm page hands
+    /// them straight to the element, and nothing on the wire is a second format.
+    pub fn thumbnail(&mut self, id: sortlens_core::PhotoId, edge: u32) -> Result<Vec<u8>, ClientError> {
+        let token = self
+            .token
+            .clone()
+            .ok_or_else(|| ClientError::Connection("the client is not paired".into()))?;
+        let headers = [("Authorization".to_string(), format!("Bearer {token}"))];
+        let response = self.transport.request("GET", &format!("/thumb/{}/{}", id, edge), &headers, &[])?;
+        if response.status == 200 && response.body.starts_with(b"\x89PNG") {
+            return Ok(response.body);
+        }
+        // Every refusal the server answers is JSON, whatever the success body was.
+        Err(server_error(response.status, &response.json()?))
+    }
+
     /// Send one photograph, and apply the keep-or-remove decision on the ack.
     ///
     /// A file at or under the chunk size goes in one request; anything larger goes as
@@ -656,5 +674,49 @@ mod tests {
         client.pair("123456", "phone").expect("pair");
         assert_eq!(client.token(), Some("tok-1"));
         assert_eq!(client.device(), Some("phone"));
+    }
+
+    /// A thumbnail request is `GET /thumb/<id>/<edge>` carrying the paired token, and the
+    /// answer's PNG bytes come back untouched.
+    #[test]
+    fn a_thumbnail_request_carries_the_token_and_returns_the_png() {
+        let png: Vec<u8> = b"\x89PNG\r\n\x1a\nrest".to_vec();
+        let mut client = Client::new(Scripted::with(vec![Ok(Response {
+            status: 200,
+            body: png.clone(),
+        })]));
+        client.token = Some("tok-1".to_string());
+        let got = client.thumbnail(sortlens_core::PhotoId(7), 128).expect("thumbnail");
+        assert_eq!(got, png, "the bytes are not re-wrapped");
+        let (method, path, headers, body) = &client.transport.requests[0];
+        assert_eq!(method, "GET");
+        assert_eq!(path, "/thumb/7/128");
+        assert!(
+            headers
+                .iter()
+                .any(|(name, value)| name == "Authorization" && value == "Bearer tok-1"),
+            "the paired token rides on the request"
+        );
+        assert!(body.is_empty(), "a GET carries no body");
+    }
+
+    /// Nothing is fetched before the client is paired, and a JSON refusal is a typed error.
+    #[test]
+    fn an_unpaired_thumbnail_refuses_and_a_json_refusal_names_the_server() {
+        let mut client = Client::new(Scripted::with(Vec::new()));
+        let error = client.thumbnail(sortlens_core::PhotoId(1), 128).expect_err("not paired");
+        assert!(error.to_string().contains("not paired"), "the refusal says why: {error}");
+        assert!(client.transport.requests.is_empty(), "nothing reached the wire");
+
+        let mut client = Client::new(Scripted::with(vec![error_json(
+            404,
+            json!({ "ok": false, "error": "no such photo" }),
+        )]));
+        client.token = Some("t".to_string());
+        let error = client.thumbnail(sortlens_core::PhotoId(999), 128).expect_err("refused");
+        assert!(
+            error.to_string().contains("404") && error.to_string().contains("no such photo"),
+            "{error}"
+        );
     }
 }

@@ -1,5 +1,37 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-fourth) — Phase 4 item 3, thumbnails over the wire: the server's PNG route and the client's fetch
+
+- **What shipped:** the piece a browser page cannot do without — its grid has no file access, so the
+  pixels have to come over the wire. `GET /thumb/<photo-id>/<edge>` on `sortlens-server`: the photo is
+  looked up by its stable id, decoded through the desktop grid's own `sortlens-thumbs::decode_file` path
+  (so HEIC/RAW/JPEG behave exactly as they do locally), and answered as the export path's lossless PNG
+  (`craft_image_codecs`, the same encoder `sortlens-export` uses — no second encoder, no second format).
+  Under the paired token's `read` scope, like every other read.
+- The edge is bounded, and the bounds are the reasoning: **16** (below it a browser is upscaling a few
+  pixels over a grid cell, which it can do itself from a bigger answer) to `sortlens_thumbs::DETAIL` —
+  **1024** (above it a request means decoding a primary image to serve a grid cell). Out of range answers
+  400 naming the range; a photo the catalog does not hold answers 404; a photo whose file cannot be read
+  answers 404 too — a page paints a hole, not a lie, and no failure path answers 500.
+- `sortlens_remote::client::Client::thumbnail(PhotoId, edge)` fetches it: `GET /thumb/<id>/<edge>` with
+  the bearer token, PNG bytes returned untouched (they start with the PNG magic or the answer was a JSON
+  refusal, so nothing is re-wrapped), and an unpaired client refuses without talking. The wasm page and
+  any later device build cannot invent a second format — this is the method they call.
+- Server plumbing: `http::Response::bytes(status, type, body)` beside `json` (the hand-written HTTP
+  answer was JSON-only), the route in `handle`'s dispatch and `/`'s route list, `--help` updated; the
+  server gains `sortlens-thumbs` and `craft-image-codecs` — both already in the tree, attributed, and
+  behind the same licence review as the desktop and export paths.
+- Tests: two against the real server process in `apps/sortlens-server/tests/client.rs` —
+  `a_paired_device_reads_thumbnails_over_the_wire` (a PNG that decodes to the red fixture's own pixels
+  with no upscaling past the 48×32 file, edge bounds / unknown photo / missing file each refused with the
+  reason named, the file deleted under the answer so the 404 is real) and `a_token_without_read_cannot_pull_the_snapshot`
+  extended to prove the same narrow token cannot read pixels either; three unit tests in
+  `crates/remote/src/client.rs` (the request shape and token header, PNG bytes untouched, unpaired
+  refuses without talking and a JSON refusal is a typed error naming status and reason).
+- 809 tests; ci, wasm, deny, snapshot green. No UI change, so no screenshot baselines move.
+- **Not verified by hand**: a real browser fetching the route (no wasm entry yet — that is the next
+  slice); PNG size for a large photograph over a slow link.
+
 ## 2026-11-24 (fifty-third) — Phase 4 item 3, the client half: the device protocol, the snapshot on the wire, the engine in memory
 
 - **What shipped:** the paired device's side of the protocol, in one place beside the server's.
@@ -4091,9 +4123,10 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     server half, the harness and the desktop's start/stop surface are **done 2026-11-24** (fiftieth and
     fifty-first entries); the in-memory catalog path the wasm client needs is **done 2026-11-24**
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
-    keep-or-remove ack are **done 2026-11-24** (fifty-third entry). What remains of the row is the
-    browser shell itself: the eframe wasm entry (needs the wasm-bindgen CLI in `.toolchain`), the
-    shell's pairing/upload surface, and a server route serving thumbnails over the wire.
+    keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
+    the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry). What remains of the
+    row is the browser shell itself: the eframe wasm entry (needs the wasm-bindgen CLI in
+    `.toolchain`) and the shell's pairing/upload surface.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates.

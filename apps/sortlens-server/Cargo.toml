@@ -12,6 +12,10 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 sortlens-remote = { workspace = true }
+# Thumbnail route: the decode path the desktop's grid uses, plus the lossless PNG encoder
+# the export path uses, so the wire carries the same pixels as a local grid cell.
+sortlens-thumbs = { workspace = true }
+craft-image-codecs = { workspace = true }
 # Upload verification reuses the suite's own SHA-256 (already linked through the engine).
 sortlens-ai = { workspace = true }
 serde_json = { workspace = true }

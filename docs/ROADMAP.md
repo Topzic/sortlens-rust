@@ -1351,12 +1351,17 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     no new dependencies), binding loopback by default and `0.0.0.0` only under `--bind lan` (SL-J09);
     routes `GET /health` (the connection test, no token), `POST /pair`, `POST /api` (`{method, params}`
     through `Engine::run` behind the allow-list and the token's scopes — a method the wire does not
-    accept answers 403 without leaking whether it exists), and the resumable upload (SL-J04):
+    accept answers 403 without leaking whether it exists), the resumable upload (SL-J04):
     `Content-Range` chunks append to `<album>/.uploads/<id>.part` so the file length *is* the received
     count and a restart loses nothing, a chunk that does not start where the file ends answers 409 with
     `received`, the completing chunk is hashed against `X-Content-Sha256` *before* it is appended so a
     digest mismatch leaves the partial exactly where it was, and the published name never overwrites —
-    it takes ` (n)` beside the stem. Proved by the loopback harness `apps/sortlens-server/tests/loopback.rs`:
+    it takes ` (n)` beside the stem — and `GET /thumb/<photo-id>/<edge>` (shipped 2026-11-24): one
+    photograph's thumbnail as the export path's own lossless PNG, decoded through the same
+    `sortlens-thumbs` path the desktop grid uses, bounded to 16–1024 px (a smaller edge would be
+    upscaled nonsense; a larger one means decoding a primary image to serve a grid cell) under the
+    token's `read` scope, with a photo whose file cannot be read answering 404 — a page shows a hole,
+    not a lie. Proved by the loopback harness `apps/sortlens-server/tests/loopback.rs`:
     five tests, each a real server process (`CARGO_BIN_EXE_sortlens-server`) against a real scanned
     library — pair/read/annotate plus the scope refusals and the write read back from disk after the
     server exits, the five-wrong-codes lockout, `--allow read,annotate` being refused `cull.start`, an
@@ -1413,10 +1418,18 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     reopen; fresh-client round trip; broken and newer-schema JSON refused). The `wasm` gate
     now checks `sortlens-web`, `sortlens-remote` and `sortlens-engine` besides `sortlens-ui`
     and `sortlens-core`.
+  - **The thumbnails over the wire shipped 2026-11-24.** `GET /thumb/<photo-id>/<edge>` on the
+    server decodes through the desktop grid's own `sortlens-thumbs` path and answers the export
+    path's lossless PNG, bounded to 16–1024 px under the token's `read` scope, a photo whose file
+    cannot be read answering 404; `sortlens_remote::client::Client::thumbnail` fetches it, so the
+    wasm page and any later device build do not invent a second format. Proved by two client-harness
+    tests against the real server process (a paired device reads a PNG that decodes to the
+    fixture's own pixels without upscaling, edge bounds and unknown photo and missing file each
+    named in the refusal; a token without `read` refused the same as the snapshot) and unit tests
+    on the client (the request is `GET /thumb/<id>/<edge>` with the bearer token, PNG bytes return
+    untouched, unpaired refuses without talking).
   - **Still open here:** the browser shell itself — the eframe wasm entry (needs the
-    wasm-bindgen CLI in `.toolchain`), the Settings/pairing/upload surface in that shell, and
-    a route that serves thumbnails over the wire (the server has none yet; the grid on a page
-    that cannot read the photo files needs one).
+    wasm-bindgen CLI in `.toolchain`) and the Settings/pairing/upload surface in that shell.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

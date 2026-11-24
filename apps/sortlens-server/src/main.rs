@@ -43,6 +43,7 @@ Routes:
   POST /api             {method, params} with a bearer token -> the registry's answer
   POST /upload          a resumable chunk into the album folder
   GET  /upload/<id>     how much of an upload the host already holds
+  GET  /thumb/<id>/<n>  one photograph's thumbnail as PNG, edge n pixels (16 to 1024)
 ";
 
 fn main() -> std::process::ExitCode {

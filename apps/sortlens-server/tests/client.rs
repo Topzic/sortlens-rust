@@ -2,7 +2,8 @@
 //! device side speaking through `sortlens_remote::client` — the code a wasm page will build
 //! on, not a second protocol. Pairing, holding the library in memory from `library.snapshot`,
 //! annotating through `/api`, an upload that dies mid-transfer and resumes from the server's
-//! received count, and the keep-or-remove decision applied on the ack.
+//! received count, the keep-or-remove decision applied on the ack, and the thumbnails a page
+//! over the wire reads as PNG bytes.
 
 use serde_json::json;
 use sortlens_engine::{Engine, Filter, Sort};
@@ -182,6 +183,53 @@ fn a_token_without_read_cannot_pull_the_snapshot() {
     device.pair(&server.code, "phone").expect("pair");
     let error = device.snapshot().expect_err("no read scope");
     assert!(error.to_string().contains("read"), "the refusal names the missing scope: {error}");
+    // The same scope covers the thumbnails: without `read` there is no wire to the pixels either.
+    let error = device.thumbnail(sortlens_core::PhotoId(1), 64).expect_err("no read scope");
+    assert!(error.to_string().contains("read"), "the refusal names the missing scope: {error}");
+}
+
+/// A paired device reads thumbnails over the wire: PNG bytes that decode to the photograph's
+/// own pixels, the refusals named, and a hole where the file has gone.
+#[test]
+fn a_paired_device_reads_thumbnails_over_the_wire() {
+    let library = Library::build("client-thumbs");
+    let server = Server::spawn(&library, &["--code", "147147"]);
+    let mut device = server.device();
+    device.pair(&server.code, "phone").expect("pair");
+
+    // Photo 1 is the red 48×32 fixture; the answer is a PNG that decodes to its own pixels,
+    // never upscaled past the file.
+    let png = device.thumbnail(sortlens_core::PhotoId(1), 64).expect("thumbnail");
+    assert!(
+        png.starts_with(b"\x89PNG"),
+        "the wire carries a PNG, not a private format: {:02x?}",
+        &png[..8.min(png.len())]
+    );
+    let decoded = sortlens_thumbs::decode_image(&png, 4096).expect("the PNG decodes");
+    assert_eq!((decoded.width, decoded.height), (48, 32), "no upscaling past the file's own pixels");
+    for channel in 0..3 {
+        let got = decoded.rgba[channel] as i32;
+        let want = [210, 60, 40][channel];
+        assert!((got - want).abs() <= 2, "channel {channel}: {got} vs the fixture's {want}");
+    }
+
+    // The route bounds the edge, and says so.
+    let error = device.thumbnail(sortlens_core::PhotoId(1), 8).expect_err("edge below the floor");
+    assert!(error.to_string().contains("16"), "the floor is named: {error}");
+    let error = device
+        .thumbnail(sortlens_core::PhotoId(1), 4096)
+        .expect_err("edge above the ceiling");
+    assert!(error.to_string().contains("1024"), "the ceiling is named: {error}");
+
+    // A photo the catalog does not hold is a 404, not a panic.
+    let error = device.thumbnail(sortlens_core::PhotoId(999), 64).expect_err("unknown photo");
+    assert!(error.to_string().contains("no such photo"), "{error}");
+
+    // A photo whose file has gone is a hole the page can paint, not a 500.
+    let gone = library._fixture.root().join("Photos/a.jpg");
+    std::fs::remove_file(&gone).expect("the fixture is removed");
+    let error = device.thumbnail(sortlens_core::PhotoId(1), 64).expect_err("file gone");
+    assert!(error.to_string().contains("could not be read"), "a missing file is named: {error}");
 }
 
 /// An upload that dies mid-transfer resumes from the server's received count, and the

@@ -4905,12 +4905,14 @@ dependencies = [
 name = "sortlens-server"
 version = "0.1.0"
 dependencies = [
+ "craft-image-codecs",
  "serde_json",
  "sortlens-ai",
  "sortlens-core",
  "sortlens-engine",
  "sortlens-remote",
  "sortlens-testkit",
+ "sortlens-thumbs",
 ]
 
 [[package]]

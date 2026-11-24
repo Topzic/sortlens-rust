@@ -148,6 +148,16 @@ impl Response {
         }
     }
 
+    /// Raw bytes under an explicit type — the thumbnail route's PNG body.
+    #[must_use]
+    pub fn bytes(status: u16, content_type: &'static str, body: Vec<u8>) -> Self {
+        Self {
+            status,
+            body,
+            content_type,
+        }
+    }
+
     /// Write status line, headers, body — and close.
     pub fn write_to(&self, stream: &mut TcpStream) -> std::io::Result<()> {
         let reason = match self.status {

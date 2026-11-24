@@ -3,12 +3,20 @@
 use crate::http::{Request, Response};
 use crate::upload;
 use serde_json::{Value, json};
+use sortlens_core::PhotoId;
 use sortlens_engine::Engine;
 use sortlens_remote::allowlist;
 use sortlens_remote::pairing::{PairError, PairingGate};
 use sortlens_remote::tokens::{Permission, Permissions, TokenStore};
 use std::path::PathBuf;
 use std::sync::Mutex;
+
+/// The smallest edge a thumbnail request may ask for. Below it a browser is upscaling a
+/// few pixels over a grid cell, which the client can do itself from a bigger answer.
+const THUMB_MIN_EDGE: u32 = 16;
+/// The largest edge: the detail tier the desktop's own detail view decodes at. A larger
+/// request would mean decoding the primary image to serve a grid cell.
+const THUMB_MAX_EDGE: u32 = sortlens_thumbs::DETAIL;
 
 /// The whole server: one engine, one token store, one pairing gate.
 pub struct Server {
@@ -102,9 +110,10 @@ impl Server {
             ("POST", "/api") => self.api(request),
             ("POST", "/upload") => self.upload(request),
             ("GET", path) if path.starts_with("/upload/") => self.upload_status(request, &path["/upload/".len()..]),
+            ("GET", path) if path.starts_with("/thumb/") => self.thumb(request, &path["/thumb/".len()..]),
             ("GET", "/") => Response::json(
                 200,
-                json!({ "ok": true, "name": "sortlens-server", "version": sortlens_remote::VERSION, "routes": ["/health", "/pair", "/api", "/upload"] }),
+                json!({ "ok": true, "name": "sortlens-server", "version": sortlens_remote::VERSION, "routes": ["/health", "/pair", "/api", "/upload", "/thumb"] }),
             ),
             ("GET", _) | ("POST", _) => Response::json(404, json!({ "ok": false, "error": "no such route" })),
             _ => Response::json(405, json!({ "ok": false, "error": "method not allowed" })),
@@ -236,6 +245,63 @@ impl Server {
         }
         let outcome = upload::status(&self.album.clone(), id);
         Response::json(outcome.status, outcome.body)
+    }
+
+    /// One photograph's thumbnail as PNG bytes: `GET /thumb/<photo-id>/<edge>` under the
+    /// paired token's `read` scope. A page over the wire cannot read the photo files, so
+    /// the grid on a browser page needs this the way the desktop needs its cache. The edge
+    /// is bounded: below [`THUMB_MIN_EDGE`] the answer would be upscaled nonsense, above
+    /// [`THUMB_MAX_EDGE`] it would mean decoding a primary image to serve a grid cell.
+    /// The bytes are the same lossless PNG the export path writes, and a photo whose file
+    /// cannot be read answers 404 — a page must show a hole, not a lie.
+    fn thumb(&mut self, request: &Request, rest: &str) -> Response {
+        let device = match self.authorise(request, Permission::Read) {
+            Ok(device) => device,
+            Err(response) => return response,
+        };
+        let Some((id_text, edge_text)) = rest.split_once('/') else {
+            return Response::json(400, json!({ "ok": false, "error": "the path is /thumb/<photo-id>/<edge>" }));
+        };
+        let Ok(id_value) = id_text.parse::<u64>() else {
+            return Response::json(400, json!({ "ok": false, "error": "the photo id is not a number" }));
+        };
+        let Ok(edge) = edge_text.parse::<u32>() else {
+            return Response::json(400, json!({ "ok": false, "error": "the edge is not a number" }));
+        };
+        if !(THUMB_MIN_EDGE..=THUMB_MAX_EDGE).contains(&edge) {
+            return Response::json(
+                400,
+                json!({ "ok": false, "error": format!("the edge is {THUMB_MIN_EDGE} to {THUMB_MAX_EDGE} pixels") }),
+            );
+        }
+        let id = PhotoId(id_value);
+        let Some(photo) = self.engine.photo(id) else {
+            return Response::json(404, json!({ "ok": false, "error": "no such photo" }));
+        };
+        let path = std::path::Path::new(&photo.root).join(&photo.rel);
+        let decoded = match sortlens_thumbs::decode_file(&path, edge) {
+            Ok(decoded) => decoded,
+            Err(_) => {
+                return Response::json(404, json!({ "ok": false, "error": "the photo's file could not be read" }));
+            }
+        };
+        let Ok(image) =
+            craft_image_codecs::Image::from_u8(decoded.width, decoded.height, craft_image_codecs::ChannelLayout::Rgba, decoded.rgba)
+        else {
+            return Response::json(500, json!({ "ok": false, "error": "the decoded thumbnail could not be wrapped" }));
+        };
+        let png = match craft_image_codecs::encode(
+            &image,
+            craft_image_codecs::Format::Png,
+            &craft_image_codecs::EncodeOptions::default(),
+        ) {
+            Ok(png) => png,
+            Err(_) => {
+                return Response::json(500, json!({ "ok": false, "error": "the thumbnail could not be encoded" }));
+            }
+        };
+        println!("remote {} thumb {} {}px", device.device, id, edge);
+        Response::bytes(200, "image/png", png)
     }
 
     /// The device behind a bearer token with `permission` granted, or the reply to send.
