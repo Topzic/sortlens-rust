@@ -64,9 +64,10 @@ phases"), and the list shrinks as those rows are ticked.
   (`apps/sortlens-server`), a pairing code, scoped device tokens and resumable uploads ship, and
   Settings → Sync & devices spawns and follows that server. `apps/sortlens-mobile` is the native Rust
   app over the same engine and shell — it indexes the device's photographs, keeps its own settings in
-  `config.toml` beside the library, and `cargo xtask mobile` checks both targets — but no APK, AAB or
-  `.ipa` is published yet and the phone still paints the desktop's layout. See §10 of
-  `docs/ARCHITECTURE.md`.
+  `config.toml` beside the library, and `cargo xtask mobile` checks both targets — and the layout is a
+  phone's: one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the
+  screen. No APK, AAB or `.ipa` is published yet, and a device build waits for a machine with the NDK and
+  Xcode. See §10 of `docs/ARCHITECTURE.md`.
 - **No localisation.** The interface is English (Phase 4); the font stack and the keymap already handle the
   symbols the interface draws. Shortcuts *are* rebindable now: Settings → Shortcuts opens the `craft-keymap`
   editor (rebinding, conflict detection, named sets, craft-keymap JSON import and export), and the help and

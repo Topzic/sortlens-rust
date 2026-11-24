@@ -79,8 +79,15 @@ anything paints, so the bar, the docks and the canvas all answer to the same mea
 - **The read-only warning shrinks to its glyph.** The sentence moves into the hover instead of taking a
   third of the bar. It is still said: saying nothing would be the screen claiming the library is writable.
 
-What is still the desktop's at this width is named in the roadmap's 3b row: the canvas header, the filter
-strip and the bottom bar's control tray.
+- **The canvas is the phone's too.** The far-edge tool rail stands down while the inspector is put away —
+  its 30 points are the grid's — and stands beside the open sheet as the tab switcher. The canvas keeps its
+  10-point gutter, its header (name, count, sort, the two grid glyphs) and its filter strip as **two rows of
+  chips** with no second count, so the first photograph starts about 150 points down the screen. The bottom
+  bar keeps the collapsed destination menu and a tighter annotation pill whose every control is on screen; the
+  density slider yields to the header's own glyph.
+
+What the phone still lacks is named in the roadmap's 3b row: a device build, the trimmed font set, the iOS
+Photos library and send-to-desktop.
 
 ---
 

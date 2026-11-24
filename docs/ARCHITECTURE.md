@@ -632,10 +632,12 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   through `craft-settings` (`apps/sortlens-mobile/src/prefs.rs`): a debounced save, a damaged file moved
   aside with a notice, and an unknown id reading as its default — the desktop's exact rules. The shell
   answers a phone's width by itself, in `crates/ui`, so the phone app inherits it: under 600 points the
-  two docks become full-width sheets, one at a time, and the bar keeps the mark, one search field and five
-  glyphs (docs/UX.md §2). Not yet done: the canvas at that width — header, filter strip and bottom bar are
-  still laid out for a desktop — trimming the embedded font set for a phone binary, and the iOS Photos
-  library (until then iOS reads the Files-visible Documents folder).
+  two docks become full-width sheets, one at a time, the bar keeps the mark, one search field and five
+  glyphs, and the canvas is the phone's too — the far-edge rail stands down while the inspector is closed
+  and tab-switches beside its open sheet, the strip wraps into two rows without a second count, and the
+  bottom bar's tray keeps every control on screen (docs/UX.md §2). Not yet done: trimming the embedded font
+  set for a phone binary, and the iOS Photos library (until then iOS reads the Files-visible Documents
+  folder).
 - `Catalog::open_memory`, `Engine::open_memory` and `library.snapshot` (shipped 2026-11-24): a catalog
   opened from snapshot JSON alone — no directory, log or lock — with the same undo, redo and
   stale-revision rules as the disk catalog. The device protocol lives in `sortlens_remote::client`: pairing,

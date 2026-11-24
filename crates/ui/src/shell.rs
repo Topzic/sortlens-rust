@@ -1371,8 +1371,13 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if state.left_open {
         left_panel(ui, state, &t, engine, &mut actions);
     }
-    // The strip is the far-right edge and always there; the panel body sits inside it.
-    right_tools(ui, state, &t);
+    // The strip is the far-right edge and the panel body sits inside it — on a desktop. On a phone the
+    // strip stands down while the inspector is put away: 30 points of a 390-point screen is a tenth of
+    // the grid, spent on a tool the bar's own inspector glyph offers, and a rail beside no panel is
+    // decoration. While the sheet is open the rail keeps its post, because then it is the tab switcher.
+    if !state.narrow || state.right_open {
+        right_tools(ui, state, &t);
+    }
     if state.right_open {
         right_panel(ui, state, &t, engine);
     }
@@ -2411,9 +2416,11 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         {
                             state.detail_zoom = !state.detail_zoom;
                         }
-                    } else if state.view == View::Library {
+                    } else if state.view == View::Library && !state.narrow {
                         // The same three steps the canvas header cycles, on a control that shows where
                         // between them you are. One state, so the chip and the slider cannot disagree.
+                        // A phone does not get the slider: the header's density glyph is the same control,
+                        // and the tray cannot spare seventy points it does not have.
                         let mut step = state.density.index() as f32;
                         ui.spacing_mut().slider_width = 72.0;
                         let slider = ui.add(
@@ -2542,6 +2549,7 @@ fn view_menu(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
 /// Rating and flag are the same operations the number and letter keys run — [`rate_selection`] and
 /// [`flag_selection`] are the one implementation — so a click here and a press there cannot drift apart.
 fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
+    let narrow = state.narrow;
     let photo = state.selection.primary().and_then(|id| engine.photo(id).cloned());
     let rating = photo.as_ref().map_or(0, |photo| photo.rating);
     let flag = photo.as_ref().map(|photo| photo.flag);
@@ -2552,6 +2560,13 @@ fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         .inner_margin(Margin::symmetric(8, 2))
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
+                // A phone's tray is tighter: a desktop pill is a third wider than the room a collapsed
+                // tab row leaves it at 390 points, and the last flag button ran off the screen. The
+                // buttons keep their glyphs and their labels; what gives is the air between them.
+                if narrow {
+                    ui.spacing_mut().item_spacing.x = 3.0;
+                    ui.spacing_mut().button_padding = vec2(2.0, 5.0);
+                }
                 for stars in 1..=5u8 {
                     let lit = stars <= rating;
                     let colour = if lit { t.accent } else { t.text_faint };
@@ -2587,9 +2602,12 @@ fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
                     }
                 }
                 // How many keywords the primary carries: a fact the inspector also shows, but the bar is
-                // where a person checks "did the keyword land" without opening a panel.
+                // where a person checks "did the keyword land" without opening a panel. On a phone the
+                // pill cannot spare the room — the inspector's Tags tab is one tap away — so the count
+                // stays on the desktop only.
                 if let Some(photo) = &photo
                     && !photo.tags.is_empty()
+                    && !narrow
                 {
                     ui.add_space(2.0);
                     ui.add(crate::icons::image(crate::icons::Icon::Tag, 11.0).tint(t.text_faint))
@@ -2768,10 +2786,12 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     }
 }
 
-/// The width a dock takes on a phone: the screen, minus the far-edge rail this panel cannot cover, and never
-/// narrower than the narrowest dock — a sheet two words wide would be a dock again.
+/// The width a dock takes on a phone: the screen it opens over, and never narrower than the narrowest
+/// dock — a sheet two words wide would be a dock again. The far-edge rail is not subtracted: on a phone
+/// the rail stands down while a panel is closed, and the two docks never share a screen, so a sidebar
+/// sheet never has a rail beside it.
 fn left_sheet_width(ui: &Ui) -> f32 {
-    (ui.available_width() - TAB_STRIP_W).max(210.0)
+    ui.available_width().max(210.0)
 }
 
 fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
@@ -3443,8 +3463,11 @@ fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
 }
 
 fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
+    // A phone's margin is narrower: at 390 points a 14-point gutter on every side is 7% of the grid,
+    // and a photograph that spans eight more points is worth more than the air around it.
+    let gutter: i8 = if state.narrow { 10 } else { 14 };
     egui::CentralPanel::default()
-        .frame(Frame::NONE.fill(t.bg).inner_margin(Margin::same(14)))
+        .frame(Frame::NONE.fill(t.bg).inner_margin(Margin::same(gutter)))
         .show(ui, |ui| {
             let filter = state.filter();
             let total = engine.count(&filter);
@@ -4407,7 +4430,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.border))
         .corner_radius(t.corner())
-        .inner_margin(Margin::symmetric(8, 6))
+        .inner_margin(Margin::symmetric(if state.narrow { 6 } else { 8 }, 6))
         .show(ui, |ui| {
             // The count gets a measured column on the right rather than riding at the end of the wrapped
             // row. A wrapped layout hands its last child the whole row's width, so a right-aligned label
@@ -4422,9 +4445,11 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
             );
             let gap = 8.0;
             let reserve = galley.size().x + gap;
-            // Below this the count would be taking the room a chip needs, and a chip is a control where
-            // the count is a statement: the chips keep the width and the count steps aside.
-            let keep_count = inner.width() >= reserve + STRIP_CHIP_ROOM;
+            // On a phone the strip keeps no count at all: the canvas header's count is the same number
+            // on the same screen, so a second "6 shown" over a 340-point canvas is a column the chips
+            // could have had — the difference between two rows and three. Everywhere else the count
+            // keeps its measured column and the rule below it.
+            let keep_count = !state.narrow && inner.width() >= reserve + STRIP_CHIP_ROOM;
             let chips_width = if keep_count { inner.width() - reserve } else { inner.width() };
             // Wrapped, not one line: nine chips plus a five-star minimum are wider than the canvas at
             // 1200 points with both docks open, and a filter bar that pushes its own Clear button off
@@ -4432,6 +4457,11 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
             // missing control.
             ui.set_max_width(chips_width);
             let chips = ui.horizontal_wrapped(|ui| {
+                // A phone's chips sit closer: at 390 points the eight-point gaps between them are the
+                // difference between two rows and three, and a chip is still far wider than a finger.
+                if state.narrow {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                }
                 // One chip can be wider than the column it is handed — a long collection name — and the
                 // wrapped layout would let it spill sideways into the count's column. The column is a hard
                 // edge, so such a chip is clipped there rather than painted over the count.
@@ -13253,10 +13283,15 @@ mod tests {
         }
 
         let mut counted = 0;
+        let mut hidden = 0;
         let mut wrapped = false;
         let mut in_band = false;
         for step in 0..=440 {
             let width = 320.0 + step as f32;
+            // The sweep mirrors the shell: a window under 600 points is a phone, and the phone's strip
+            // keeps no count — the canvas header carries the number. Below the threshold the sweep
+            // asserts the absence; above it, that the painted count lands on no chip.
+            state.narrow = width < NARROW_BELOW;
             let ctx = egui::Context::default();
             crate::theme::apply(&ctx, ThemeKind::Charcoal);
             let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 300.0));
@@ -13273,6 +13308,13 @@ mod tests {
             );
             output.textures_delta.clear();
             let painted = texts(&output);
+            if state.narrow {
+                assert!(
+                    !painted.iter().any(|(text, _, _)| text.ends_with(" shown")),
+                    "at {width} points the phone strip kept a count the header already carries"
+                );
+                hidden += 1;
+            }
             let Some((text, rect, clip)) = painted
                 .iter()
                 .find(|(text, _, _)| text.ends_with(" shown"))
@@ -13311,7 +13353,8 @@ mod tests {
             let band = chips.iter().fold(Rect::NOTHING, |band, chip| band.union(*chip));
             in_band |= rect.center().y > band.top() && rect.center().y < band.bottom();
         }
-        assert!(counted >= 400, "the count is painted at only {counted} of the swept widths");
+        assert!(counted >= 150, "the count is painted at only {counted} of the swept desktop widths");
+        assert!(hidden >= 150, "the phone widths never hid the count: {hidden} of the sweep");
         assert!(wrapped, "the chips never wrapped, so the sweep never tested a tight row");
         assert!(in_band, "the count never sat inside the chips' band, so no collision was possible");
 
@@ -15696,6 +15739,229 @@ mod tests {
     /// A window that opens at that width opens on the grid: both docks put away, one glyph each in the bar to bring
     /// them back, and nothing painted off the side of the screen. Every screenshot baseline starts at 900 points, so
     /// this is the only place the narrow layout is asked to hold together.
+    /// The phone canvas is the point of the phone: at 390 points the chrome — the canvas header, the
+    /// filter strip and the bottom bar's tray — is compact enough that the grid gets the room, and
+    /// nothing the canvas paints runs off the screen. Phase 4 item 3b's remaining half.
+    #[test]
+    fn a_phone_canvas_spends_its_room_on_the_grid() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-phone-canvas-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("Photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-phone-canvas");
+        for index in 0..6 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [20 + index * 30, 90, 170], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open a library");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 6, "the canvas needs photographs to make room for");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let phone = vec2(390.0, 780.0);
+        let t = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let painted = paint_shell(&ctx, phone, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(state.narrow, "390 points is a phone");
+        assert!(state.filters_open, "the strip is open, which is where the rows are counted");
+        assert!(engine.stats().total > 0, "the strip needs a library");
+
+        // The far-edge rail stands down while the inspector is put away: four 14-point glyphs in a
+        // 30-point column were a tenth of the screen spent on a tool the bar's own inspector glyph
+        // offers. What is painted in the band above the grid is the shell's chrome, and none of it
+        // may sit in the rail's old column.
+        let band_top = t.top_bar_h;
+        let rail: Vec<Rect> = painted_pictures(&painted)
+            .into_iter()
+            .filter(|rect| rect.center().y > band_top && rect.center().y < band_top + 100.0 && rect.center().x > phone.x - TAB_STRIP_W)
+            .collect();
+        assert!(
+            rail.is_empty(),
+            "the far-edge rail is painted beside a closed panel at {} points: {rail:?}",
+            phone.x
+        );
+        // And the canvas uses the room: the strip's card spans the full canvas width, which the
+        // rail's 30 points used to keep it from, and its bottom edge is where the grid starts. Two
+        // chip rows put the first photograph at about 150 points instead of the ~190 the desktop
+        // chrome spent.
+        let cards: Vec<Rect> = all_shapes(&painted)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Rect(rect) if rect.fill == t.card => Some(rect.rect),
+                _ => None,
+            })
+            .filter(|rect| rect.top() > band_top && rect.bottom() < 200.0)
+            .collect();
+        let card = cards
+            .iter()
+            .max_by(|a, b| a.width().total_cmp(&b.width()))
+            .copied()
+            .expect("the strip's card is painted");
+
+        assert!(
+            card.right() >= phone.x - 20.0,
+            "the strip ends at {}, short of the room the rail gave back",
+            card.right()
+        );
+        assert!(
+            card.bottom() <= 152.0,
+            "the chrome before the grid ends at {}, still a layer deep",
+            card.bottom()
+        );
+
+        // The strip is two rows of chips on a phone, and it keeps no count: the canvas header's count
+        // is the same number on the same screen. Grouped by row, the eight chip words must be two
+        // rows — three is the desktop's wrap with a count column the phone does not have.
+        let chip_labels = ["+ keyword", "Rating", "Flags", "Colour", "All kinds", "Source", "Edited", "Missing"];
+        let mut chips: Vec<Rect> = chip_labels.iter().filter_map(|label| label_at(&painted, label)).collect();
+        assert_eq!(chips.len(), chip_labels.len(), "every chip is painted at phone width");
+        assert!(
+            label_at(&painted, "shown").is_none(),
+            "a second count sits under the header's own at phone width"
+        );
+        chips.sort_by(|a, b| a.center().y.total_cmp(&b.center().y));
+        let rows: Vec<f32> = {
+            let mut rows: Vec<f32> = Vec::new();
+            for rect in &chips {
+                let y = rect.center().y;
+                if rows.last().is_none_or(|last| (y - last).abs() > 6.0) {
+                    rows.push(y);
+                }
+            }
+            rows
+        };
+        assert_eq!(rows.len(), 2, "the strip wraps to {rows:?} rows of chips at 390 points");
+
+        // The bottom bar's tray fits: every picture it paints is on the screen, which the desktop pill
+        // broke by thirty points at 390 — the last flag button was half off the edge and could not be
+        // tapped.
+        let bar_top = phone.y - t.bottom_bar_h;
+        let tray: Vec<Rect> = painted_pictures(&painted)
+            .into_iter()
+            .filter(|rect| rect.top() >= bar_top)
+            .chain(
+                shapes_text(&painted)
+                    .into_iter()
+                    .map(|(_, rect)| rect)
+                    .filter(|rect| rect.top() >= bar_top),
+            )
+            .collect();
+        assert!(!tray.is_empty(), "the tray painted something to measure");
+        for rect in tray {
+            assert!(
+                rect.right() <= phone.x + 0.5,
+                "a bottom-bar control is clipped at {rect:?} in a {}-point window",
+                phone.x
+            );
+        }
+
+        // And the header keeps everything it has: name, count, sort and the two grid glyphs, all on
+        // the screen.
+        assert!(label_at(&painted, "Library").is_some(), "the view's name");
+        assert!(label_at(&painted, "6 photos").is_some(), "the canvas's one count");
+        assert!(label_at(&painted, "Added order").is_some(), "the sort combo");
+        let header_glyphs = painted_pictures(&painted)
+            .into_iter()
+            .filter(|rect| rect.center().y > t.top_bar_h && rect.center().y < t.top_bar_h + 40.0 && rect.left() < phone.x - TAB_STRIP_W)
+            .count();
+        assert!(header_glyphs >= 2, "the density and layout glyphs are still in the header");
+        assert!(actions.is_empty(), "painting the phone canvas asks the host for nothing");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The desktop keeps its far-edge rail, its strip summary and its pill: a phone's compaction is
+    /// the narrow branch's answer, not a change to every width.
+    #[test]
+    fn the_desktop_keeps_its_rail_its_summary_and_its_pill() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-desktop-rail-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("Photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-desktop-rail");
+        for index in 0..4 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [20 + index * 30, 90, 170], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open a library");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let desktop = vec2(900.0, 620.0);
+        let t = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let painted = paint_shell(&ctx, desktop, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(!state.narrow, "900 points is a desktop");
+        let rail: Vec<Rect> = painted_pictures(&painted)
+            .into_iter()
+            .filter(|rect| {
+                rect.center().y > t.top_bar_h && rect.center().y < t.top_bar_h + 140.0 && rect.center().x > desktop.x - TAB_STRIP_W
+            })
+            .collect();
+        assert_eq!(
+            rail.len(),
+            RightTab::ALL.len(),
+            "the rail stands at the far edge with one glyph per tool"
+        );
+        assert!(
+            label_at(&painted, "4 shown").is_some(),
+            "the strip's summary is the desktop's answer"
+        );
+        assert!(label_at(&painted, "photos").is_some(), "the header keeps its count");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The rail beside the inspector's sheet is the phone's tab switcher: a tap changes the tool
+    /// without closing and reopening the sheet.
+    #[test]
+    fn a_phone_switches_the_inspectors_tab_on_the_open_sheet() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-phone-tabs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let phone = vec2(390.0, 780.0);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.narrow = true;
+        state.left_open = false;
+        state.right_open = true;
+        let painted = paint_shell(&ctx, phone, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert_eq!(state.right_tab, RightTab::Details, "the sheet opens on the question it was left on");
+        let t = Tokens::CHARCOAL;
+        // The rail's glyphs, top to bottom, beside the sheet at the far edge.
+        let rail = glyphs_top_to_bottom(
+            &painted,
+            Rect::from_min_max(pos2(phone.x - TAB_STRIP_W, t.top_bar_h), pos2(phone.x, phone.y - t.bottom_bar_h)),
+        );
+        assert_eq!(rail.len(), RightTab::ALL.len(), "the rail stands beside the open sheet: {rail:?}");
+        let position = RightTab::ALL.iter().position(|tab| *tab == RightTab::Tags).expect("Tags is a tab");
+        let target = rail[position].center();
+        click_shell(&ctx, phone, target, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert_eq!(state.right_tab, RightTab::Tags, "the tap switched the tool");
+        assert!(state.right_open, "and the sheet stayed open");
+        let painted = paint_shell(&ctx, phone, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(label_at(&painted, "Keywords").is_some(), "the sheet names the tool it switched to");
+        assert!(actions.is_empty(), "switching a tab asks the host for nothing");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn a_phone_width_window_opens_on_the_grid_with_every_control_on_screen() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-phone-width-{}", std::process::id()));

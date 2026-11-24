@@ -1463,12 +1463,26 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     baseline moved — the check that 900 points and up are unchanged. Tests: a phone frame opens on the grid with
     every bar control on screen, each dock opens and closes from its own glyph one at a time, and a 900-point
     window keeps both docks and its wordmark.
+  - **Shipped 2026-11-24 (phone canvas):** the grid is now the point of the screen. The far-edge rail stands
+    down while the inspector is put away — a tenth of a 390-point screen spent on a tool the bar's own inspector
+    glyph offers — and keeps its post beside the open sheet, where it is the tab switcher: a tap changes the
+    tool without closing and reopening the sheet (the earlier "close-then-reopen" note was wrong; the test
+    drives the tap). The canvas's gutter narrows to 10 points. The filter strip keeps no count on a phone — the
+    canvas header's count is the same number on the same screen — and its chips sit closer, so eight chips plus
+    `Clear` wrap into two rows instead of three; the strip's bottom edge is at ~150 points, where the desktop
+    layout spent ~190 before the first photograph. The bottom bar's tray is the phone's: the pill's buttons sit
+    tighter, the keyword count steps aside (the inspector's Tags tab is one tap away), the density slider
+    yields to the header's own glyph, and every control it paints is on the screen — the desktop pill's last
+    flag button ran thirty points off the edge. Tests: a populated 390-point canvas proves the rail's column
+    empty, the strip's card at its full width and two chip rows, the tray unclipped and the header intact
+    (name, count, sort, both grid glyphs); a 900-point window keeps its rail, its strip summary and its pill;
+    the sweep that checks the count never lands on a chip now mirrors the shell (absent under 600, measured
+    above it). Both phone baselines regenerated and read: three photo columns, a two-row strip, the tray inside
+    the screen, the sidebar sheet the width of the screen.
   - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
-    `cargo xtask mobile` (this checkout has neither); the canvas at a phone's width (the header, the filter strip
-    and the bottom bar's control tray are still the desktop's, so a phone spends its first ~200 points on them);
-    switching the inspector's tab while its sheet is open (the rail sits behind the sheet, so it is close-then-
-    reopen today); trimming the embedded font set for a phone; the iOS Photos library; a send-to-desktop action
-    over the resumable upload; an APK/AAB and an `.ipa` in the release workflow.
+    `cargo xtask mobile` (this checkout has neither); trimming the embedded font set for a phone; the iOS
+    Photos library; a send-to-desktop action over the resumable upload; an APK/AAB and an `.ipa` in the
+    release workflow.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 
