@@ -20,11 +20,21 @@
   anchors it `CENTER_CENTER`: the window measures itself and is centred exactly, at 1440×900 and at
   900×620 alike, and stays centred. The cost is that a dialog cannot be dragged aside; for a surface that
   closes on Escape or its own button that is no loss, and it is stated in `docs/UX.md`.
+- **One more, on the next screen.** Insights draws its bars with the count right-aligned at the row's
+  end, which is *inside* the track: a full bar — all images, a rating everyone shares, `Images 7` —
+  carried its number on the accent colour in `text_faint`, the worst pairing the palette has. The track
+  now stops 26 points short and the number keeps that room, so every bar row (ratings, labels, kinds,
+  the breakdowns) reads its count against the background.
 - **Tests.** `cargo test -p sortlens-ui --lib` is 156 passed; `the_search_hint_shrinks_instead_of_being_cut`
   now expects the Windows spelling in the roomy case. `cargo xtask screenshots` is 21 scenes regenerated
-  and green — the twenty-one were all touched by the field's width, and the four dialog scenes
-  (`shortcuts`, `settings-short`, `settings-sync`, `shortcut-editor`) now paint centred. `cargo xtask ci`
-  and `cargo xtask wasm` are green.
+  and green — the twenty-one were all touched by the field's width, the four dialog scenes (`shortcuts`,
+  `settings-short`, `settings-sync`, `shortcut-editor`) now paint centred, and `insights-*` shows every
+  count clear of its bar. `cargo xtask ci` is green, and `cargo xtask wasm` was green too, hours before the
+  browser page and its task were removed.
+  One test changed shape: `clicking_the_detail_photograph_toggles_its_zoom` now waits for the full-size
+  decode, up to ten seconds, instead of counting three frames. On a loaded box the decode lost that
+  race and the view was still painting its thumbnail, so the gate would have called a slow machine a
+  defect. The wait is bounded and the assertion is unchanged.
 - **Verified live, after the rebuild.** At 1280×800 the field reads `Search photos or Ctrl+K` whole, with
   no overlap; Ctrl+K opens the palette under the field, `exp` narrows it to the two Export rows and Enter
   runs the first; About opens centred with its whole paragraph, and the palette and About are both clear

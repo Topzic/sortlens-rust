@@ -15748,9 +15748,28 @@ mod tests {
         let ctx = egui::Context::default();
         crate::icons::install(&ctx);
         let mut thumbs = Thumbnails::new(dir.join("cache"));
-        let mut last = egui::FullOutput::default();
-        for _ in 0..3 {
-            last = ctx.run_ui(
+        // The photograph is the largest textured rectangle above the bottom bar.
+        let canvas = |output: &egui::FullOutput| {
+            output
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                    egui::Shape::Rect(shape) => shape
+                        .brush
+                        .as_ref()
+                        .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
+                        .map(|_| shape.rect),
+                    _ => None,
+                })
+                .filter(|rect| rect.center().y < screen.y - Tokens::CHARCOAL.bottom_bar_h)
+                .max_by(|left, right| (left.width() * left.height()).total_cmp(&(right.width() * right.height())))
+        };
+        // The full-size decode lands on a worker thread, so a fixed frame count is a race: on a loaded
+        // box three frames end before the image arrives and the view still shows its thumbnail.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let photo = loop {
+            let mut last = ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
                     ..egui::RawInput::default()
@@ -15762,23 +15781,14 @@ mod tests {
                 },
             );
             last.textures_delta.clear();
-        }
-        // The photograph is the largest textured rectangle above the bottom bar.
-        let photo = last
-            .shapes
-            .iter()
-            .filter_map(|clipped| match &clipped.shape {
-                egui::Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
-                egui::Shape::Rect(shape) => shape
-                    .brush
-                    .as_ref()
-                    .filter(|brush| brush.fill_texture_id != egui::TextureId::default())
-                    .map(|_| shape.rect),
-                _ => None,
-            })
-            .filter(|rect| rect.center().y < screen.y - Tokens::CHARCOAL.bottom_bar_h)
-            .max_by(|left, right| (left.width() * left.height()).total_cmp(&(right.width() * right.height())))
-            .expect("the detail canvas painted the photograph");
+            match canvas(&last) {
+                Some(rect) if rect.width() > 200.0 => break rect,
+                other if std::time::Instant::now() >= deadline => {
+                    break other.expect("the detail canvas painted the photograph");
+                }
+                _ => std::thread::sleep(std::time::Duration::from_millis(10)),
+            }
+        };
         assert!(photo.width() > 200.0, "a full-size canvas, not a thumbnail");
 
         for input in press_and_release(photo.center()) {

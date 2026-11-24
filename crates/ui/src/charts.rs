@@ -194,6 +194,9 @@ pub(crate) fn bar_fill(t: &Tokens, highlight: bool) -> Color32 {
 ///
 /// `whole` is the denominator: the library total for a share of everything, the peak for a
 /// comparison of rows. Zero is refused rather than divided by.
+/// The room a bar row keeps at its right for the count, so the number never lands on the bar.
+const COUNT_ROOM: f32 = 26.0;
+
 pub fn share_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usize) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width().min(300.0), SHARE_HEIGHT), Sense::hover());
     let painter = ui.painter();
@@ -204,9 +207,12 @@ pub fn share_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usiz
         FontId::proportional(10.5),
         t.text_muted,
     );
+    // The count is painted after the track, not over it: a row whose bar is full (a library that
+    // is all images, a rating everyone shares, 7 of 7) used to carry its number on the accent
+    // colour, where a faint grey is at its worst.
     let track = Rect::from_min_max(
         pos2(rect.left() + 92.0, rect.center().y - 4.0),
-        pos2(rect.right(), rect.center().y + 4.0),
+        pos2(rect.right() - COUNT_ROOM, rect.center().y + 4.0),
     );
     painter.rect_filled(track, 2.0, t.thumb_bg);
     let share = share_of(count, whole);
