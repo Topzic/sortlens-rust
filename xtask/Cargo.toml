@@ -9,6 +9,7 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
+sortlens-icon.workspace = true
 
 [lints]
 workspace = true

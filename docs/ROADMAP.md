@@ -891,8 +891,9 @@ photos live; the UI renders correctly in Arabic and Japanese.
 **State:** the version contract, `--version`, the release workflow, the packaging notes, the measurements,
 the icon, the attribution gate and the first half of the accessibility audit are in. Signing, installers,
 the emitted accessibility tree, the operating system's own reduced-motion preference, theme import and the tag
-are not — each named with its unblocker in the table at the end of this milestone; the `.icns`/`.ico` files,
-the high-contrast preset and the opt-in `craft-update` toggle are re-opened as Phase 4 item 2.
+are not — each named with its unblocker in the table at the end of this milestone. The `.icns`/`.ico` files
+shipped in Phase 4 item 2a (`cargo xtask icons`); the high-contrast preset and the opt-in `craft-update`
+toggle are still open in Phase 4 items 2b and 2c.
 
 - [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
   cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
@@ -903,9 +904,10 @@ the high-contrast preset and the opt-in `craft-update` toggle are re-opened as P
   the window icon as RGBA through a build script, and `assets/icon.svg` as the committed, human-viewable
   copy — with the SVG held to the drawing by a test that fails when either changes and rewrites it only
   under `SORTLENS_UPDATE_ICON=1`; the app now sets `with_icon`, which it previously did not do at all, so
-  the SVG existed and nothing loaded it. Proved to bite by appending a line to the SVG. The full brand
-  pass (marketing assets, `.icns`/`.ico` packaging per platform) is in the table below, because a
-  plausible-looking icon in a window is not a brand (B) — SL-I11
+  the SVG existed and nothing loaded it. Proved to bite by appending a line to the SVG. The packaging
+  files (`.icns`/`.ico`) have since shipped through `cargo xtask icons` (Phase 4 item 2a); the rest of
+  the brand pass (marketing assets) and the installer work that consumes them remain in the table
+  below, because a plausible-looking icon in a window is not a brand (B) — SL-I11
 - [x] One version, declared once: `cargo xtask version` fails when a crate declares its own version or
   stops inheriting the workspace one, and `sortlens-cli --version` answers without opening (or creating)
   a library — both proved to bite, the second by a test that asserts the folder is still absent (E)
@@ -926,7 +928,8 @@ the high-contrast preset and the opt-in `craft-update` toggle are re-opened as P
 
 Rows that need something this repository genuinely does not have (an identity, a toolchain, a screen reader, a
 person's decision). Anything buildable lives in "Completion phases" below instead. The packaging icons
-(`.icns`/`.ico`), the high-contrast preset and the opt-in update check moved there.
+(`.icns`/`.ico`) shipped in Phase 4 item 2a; the high-contrast preset and the opt-in update check are
+still open there.
 
 | Not built | Because | What would unblock it |
 | --- | --- | --- |
@@ -1260,8 +1263,22 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   after OK and the host receives the override), the settings round trip
   `shortcut_sets_round_trip_and_an_older_file_reads_the_defaults`, and the `shortcut-editor-charcoal`/
   `-paper` baselines (31 now), all read.
-- [ ] 2. Packaging and accessibility: `.icns`/`.ico` from `crates/icon` in `xtask`, a High-Contrast preset
-  (SL-L09), `craft-update` behind an explicit opt-in (SL-I10), `craft-i18n` scaffolding (SL-L07) (B,E)
+- [ ] 2. Packaging and accessibility, in this order:
+  - [x] 2a. `.icns`/`.ico` generated from `crates/icon` by `cargo xtask icons` (B)
+    — shipped 2026-11-24: `sortlens-icon::ico()` packs PNG entries at 16/32/48/64/128/256 px into the
+    little-endian ICONDIR layout (0-as-256 honoured), `icns()` packs PNG chunks `ic11`/`ic12`/`ic07`/
+    `ic08`/`ic09` (32→512) into the big-endian container, both rendered fresh from the one geometry
+    (`render(size)`) rather than resampled, and the committed `assets/icon.ico` and `assets/icon.icns`
+    are held to the drawing by tests byte for byte — the same `SORTLENS_UPDATE_ICON=1` rewrite path the
+    SVG has, and `cargo xtask icons` (check; `--update` to rewrite) is the front door in `xtask` that
+    the ROADMAP row asked for. Proved by `the_ico_carries_one_png_per_desktop_size` (parses the
+    directory back, decodes every embedded PNG, checks offsets) and `the_icns_carries_the_mac_slots`
+    (walks the chunks, checks the container length) plus `the_committed_packaging_icons_are_the_drawing`.
+    Still open, unchanged: signed/notarised bundles that would consume these files (the M10 table).
+  - [ ] 2b. A High-Contrast preset (SL-L09)
+  - [ ] 2c. `craft-update` behind an explicit opt-in (SL-I10)
+  - [ ] 2d. `craft-i18n` scaffolding (SL-L07)
+  (B,E)
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and `sortlens-web` reusing `sortlens-ui` (SL-J01..J09), proved by a two-process loopback
   integration harness in CI (E)

@@ -3,7 +3,10 @@
 //! There was an `assets/icon.svg` and nothing loaded it — the kind of asset that looks finished in a file
 //! listing and is missing everywhere a user meets the app. This crate is the one place the mark is
 //! defined: `rgba` renders it to pixels for the window, `svg` renders the same geometry for the committed
-//! file, and a test holds the two together, so neither can drift into a description of something else.
+//! file, and `ico` and `icns` pack fresh renders of it into the committed Windows and macOS packaging
+//! files (`cargo xtask icons` rewrites those two; `cargo xtask icons` without `--update` checks them).
+//! A test holds all three committed files to the drawing, so neither can drift into a description of
+//! something else.
 //!
 //! No dependency and no compressor: the PNG writer emits stored deflate blocks, which is several hundred
 //! kilobytes for one 512 px image but is byte-identical on every machine and crate version. An icon is
@@ -45,15 +48,24 @@ pub const DESCRIPTION: &str = "Sortlens icon: dark rounded tile, three stacked p
 /// Render the mark to RGBA8, `SIZE × SIZE`, top row first.
 #[must_use]
 pub fn rgba() -> Vec<u8> {
+    render(SIZE)
+}
+
+/// Render the mark at any square edge length, RGBA8, top row first.
+///
+/// The geometry is defined in fractions of the tile, so there is one drawing and every size is a
+/// fresh render of it — not a resample of a larger raster, which is how a curve becomes a stair.
+#[must_use]
+pub fn render(size: usize) -> Vec<u8> {
     let shapes = mark();
-    let mut pixels = vec![0_u8; SIZE * SIZE * 4];
-    for y in 0..SIZE {
-        for x in 0..SIZE {
+    let mut pixels = vec![0_u8; size * size * 4];
+    for y in 0..size {
+        for x in 0..size {
             let mut sum = [0.0_f64; 4];
             for sy in 0..SAMPLES {
                 for sx in 0..SAMPLES {
-                    let px = (x as f64 + (sx as f64 + 0.5) / SAMPLES as f64) / SIZE as f64;
-                    let py = (y as f64 + (sy as f64 + 0.5) / SAMPLES as f64) / SIZE as f64;
+                    let px = (x as f64 + (sx as f64 + 0.5) / SAMPLES as f64) / size as f64;
+                    let py = (y as f64 + (sy as f64 + 0.5) / SAMPLES as f64) / size as f64;
                     if let Some(colour) = sample(px, py, &shapes) {
                         sum[0] += f64::from(colour[0]);
                         sum[1] += f64::from(colour[1]);
@@ -64,7 +76,7 @@ pub fn rgba() -> Vec<u8> {
             }
             let samples = (SAMPLES * SAMPLES) as f64;
             let coverage = sum[3] / (255.0 * samples);
-            let index = (y * SIZE + x) * 4;
+            let index = (y * size + x) * 4;
             if coverage > 0.0 {
                 // Average the colour over covered samples only, so a half-covered edge is not half dark.
                 for channel in 0..3 {
@@ -133,6 +145,70 @@ pub fn svg() -> String {
 #[must_use]
 pub fn png() -> Vec<u8> {
     png_of(SIZE as u32, SIZE as u32, &rgba())
+}
+
+/// A PNG of the mark at any square edge length, for the slots inside `.ico` and `.icns` files.
+#[must_use]
+pub fn png_at(size: u32) -> Vec<u8> {
+    png_of(size, size, &render(size as usize))
+}
+
+/// The square sizes a Windows `.ico` carries, smallest first.
+const ICO_SIZES: &[u32] = &[16, 32, 48, 64, 128, 256];
+
+/// The `.icns` chunks a macOS dock reads, PNG representations from 32 to 512.
+const ICNS_SIZES: &[(&str, u32)] = &[("ic11", 32), ("ic12", 64), ("ic07", 128), ("ic08", 256), ("ic09", 512)];
+
+/// A Windows `.ico`: PNG-encoded entries from 16 to 256 px, per the ICONDIR layout.
+///
+/// Every entry is PNG, which Windows Vista and every tool since reads directly; a full
+/// bitmap copy of each size would multiply the file several times over for nothing. Offsets and
+/// lengths are little-endian, the way the format was written in 1995.
+#[must_use]
+pub fn ico() -> Vec<u8> {
+    let pngs: Vec<Vec<u8>> = ICO_SIZES.iter().map(|&size| png_at(size)).collect();
+    let mut out = Vec::new();
+    out.extend(0_u16.to_le_bytes()); // reserved
+    out.extend(1_u16.to_le_bytes()); // type: an icon, not a cursor
+    out.extend(u16::try_from(pngs.len()).unwrap_or(0).to_le_bytes());
+    let mut offset = 6 + 16 * pngs.len();
+    for (size, png) in ICO_SIZES.iter().zip(&pngs) {
+        // 256 does not fit the one-byte edge field, and 0 is the spec's spelling of 256.
+        let edge = u8::try_from(*size).unwrap_or(0);
+        out.push(edge);
+        out.push(edge);
+        out.push(0); // colours in the palette: none
+        out.push(0); // reserved
+        out.extend(1_u16.to_le_bytes()); // planes
+        out.extend(32_u16.to_le_bytes()); // bits per pixel
+        out.extend(u32::try_from(png.len()).unwrap_or(0).to_le_bytes());
+        out.extend(u32::try_from(offset).unwrap_or(0).to_le_bytes());
+        offset += png.len();
+    }
+    for png in &pngs {
+        out.extend_from_slice(png);
+    }
+    out
+}
+
+/// A macOS `.icns`: the `icns` header, then one PNG per slot from 32 to 512 px.
+///
+/// The chunk names pick the representations the Dock and Finder actually ask for — 32 and 64 are
+/// the @2x slots for the 16 and 32 px list views, 128 and 256 the Finder icons, 512 the Get Info
+/// and preview slot — and the container is big-endian, the way everything Apple wrote is.
+#[must_use]
+pub fn icns() -> Vec<u8> {
+    let pngs: Vec<Vec<u8>> = ICNS_SIZES.iter().map(|&(_, size)| png_at(size)).collect();
+    let body: u32 = pngs.iter().map(|png| png.len() as u32 + 8).sum();
+    let mut out = Vec::new();
+    out.extend_from_slice(b"icns");
+    out.extend((body + 8).to_be_bytes());
+    for ((name, _), png) in ICNS_SIZES.iter().zip(&pngs) {
+        out.extend_from_slice(name.as_bytes());
+        out.extend((png.len() as u32 + 8).to_be_bytes());
+        out.extend_from_slice(png);
+    }
+    out
 }
 
 fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
@@ -242,11 +318,121 @@ mod tests {
         assert_eq!(pixel(lens, lens), [198, 46, 46, 255], "the lens");
     }
 
+    /// The committed packaging icons are this drawing too, not files someone dropped in once.
+    ///
+    /// `assets/icon.ico` and `assets/icon.icns` are generated bytes, exactly like the SVG; the same
+    /// env var rewrites them when the mark changes on purpose, and CI runs the test without it, so a
+    /// stale packaging file fails the suite instead of shipping a mark nobody drew.
+    #[test]
+    fn the_committed_packaging_icons_are_the_drawing() {
+        let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+        let update = std::env::var("SORTLENS_UPDATE_ICON").is_ok_and(|value| value == "1");
+        for (name, bytes) in [("icon.ico", ico()), ("icon.icns", icns())] {
+            let path = assets.join(name);
+            if update {
+                std::fs::write(&path, &bytes).unwrap_or_else(|error| panic!("rewrite {name}: {error}"));
+            } else {
+                let on_disk = std::fs::read(&path).unwrap_or_else(|error| panic!("read {name}: {error}"));
+                assert_eq!(
+                    on_disk, bytes,
+                    "assets/{name} no longer matches the drawing: SORTLENS_UPDATE_ICON=1 cargo test -p sortlens-icon"
+                );
+            }
+        }
+    }
+
+    /// The `.ico` parses as an ICONDIR whose entries are the sizes a Windows desktop asks for, and
+    /// every embedded PNG decodes to exactly that square of the drawing.
+    #[test]
+    fn the_ico_carries_one_png_per_desktop_size() {
+        let ico = ico();
+        let u16_at = |offset: usize| u16::from_le_bytes([ico[offset], ico[offset + 1]]);
+        assert_eq!(u16_at(0), 0, "reserved");
+        assert_eq!(u16_at(2), 1, "type: icon");
+        assert_eq!(u16_at(4), 6, "six entries");
+        let mut offset = 6 + 16 * ICO_SIZES.len();
+        for (entry, &size) in ICO_SIZES.iter().enumerate() {
+            let base = 6 + entry * 16;
+            let edge = ico[base];
+            assert_eq!(edge, if size == 256 { 0 } else { size as u8 }, "edge byte for {size}");
+            assert_eq!(ico[base + 1], edge, "square entry for {size}");
+            assert_eq!(ico[base + 2], 0, "no palette for {size}");
+            assert_eq!(ico[base + 3], 0, "reserved byte for {size}");
+            assert_eq!(u16_at(base + 4), 1, "planes for {size}");
+            assert_eq!(u16_at(base + 6), 32, "bits per pixel for {size}");
+            let length = u32::from_le_bytes(ico[base + 8..base + 12].try_into().unwrap()) as usize;
+            assert_eq!(
+                u32::from_le_bytes(ico[base + 12..base + 16].try_into().unwrap()) as usize,
+                offset,
+                "the {size} px entry sits where the directory said"
+            );
+            let embedded = &ico[offset..offset + length];
+            let thumbnail =
+                sortlens_thumbs::decode_image(embedded, size).unwrap_or_else(|error| panic!("decode the {size} px entry: {error}"));
+            assert_eq!(
+                (thumbnail.width, thumbnail.height),
+                (size, size),
+                "the {size} px entry is that square"
+            );
+            assert!(thumbnail.is_consistent(), "the {size} px entry is a real image");
+            // 40% of the tile is the front print at every size, clear of the lens (58%+) and of
+            // every corner radius, so this one pixel proves the entry is the drawing, not noise.
+            let at = (0.40 * f64::from(size)) as usize;
+            let index = (at * size as usize + at) * 4;
+            assert_eq!(
+                &thumbnail.rgba[index..index + 4],
+                &[242, 240, 235, 255],
+                "the {size} px entry is the front print at 40% of the tile"
+            );
+            offset += length;
+        }
+        assert_eq!(offset, ico.len(), "nothing after the last entry");
+    }
+
+    /// The `.icns` parses as a header plus PNG chunks that add up to exactly the file, and each
+    /// chunk decodes to the slot its name names.
+    #[test]
+    fn the_icns_carries_the_mac_slots() {
+        let icns = icns();
+        assert_eq!(&icns[0..4], b"icns");
+        let total = u32::from_be_bytes(icns[4..8].try_into().unwrap()) as usize;
+        assert_eq!(total, icns.len(), "the header's length is the file's length");
+        let mut offset = 8;
+        let mut seen = Vec::new();
+        while offset < total {
+            let name = std::str::from_utf8(&icns[offset..offset + 4]).unwrap();
+            let length = u32::from_be_bytes(icns[offset + 4..offset + 8].try_into().unwrap()) as usize;
+            assert!(length >= 8 && offset + length <= total, "{name} stays inside the file");
+            let png = &icns[offset + 8..offset + length];
+            let expected = ICNS_SIZES.iter().find(|(chunk, _)| *chunk == name).map(|&(_, size)| size).unwrap();
+            let thumbnail = sortlens_thumbs::decode_image(png, expected).unwrap_or_else(|error| panic!("decode {name}: {error}"));
+            assert_eq!(
+                (thumbnail.width, thumbnail.height),
+                (expected, expected),
+                "{name} is the {expected} px slot"
+            );
+            assert!(thumbnail.is_consistent(), "{name} is a real image");
+            let at = (0.40 * f64::from(expected)) as usize;
+            let index = (at * expected as usize + at) * 4;
+            assert_eq!(
+                &thumbnail.rgba[index..index + 4],
+                &[242, 240, 235, 255],
+                "{name} is the front print at 40% of the tile"
+            );
+            seen.push(name.to_string());
+            offset += length;
+        }
+        assert_eq!(seen, ICNS_SIZES.iter().map(|(name, _)| (*name).to_string()).collect::<Vec<_>>());
+    }
+
     /// Two renders agree byte for byte, which is what makes the build script's cache honest.
     #[test]
     fn the_same_bytes_every_time() {
         assert_eq!(png(), png());
         assert_eq!(rgba(), rgba());
+        assert_eq!(render(64), render(64), "a fresh size is as deterministic as the big one");
+        assert_eq!(ico(), ico());
+        assert_eq!(icns(), icns());
     }
 
     /// A square, opaque in the middle, transparent at the corners: the shape, not just a colour.

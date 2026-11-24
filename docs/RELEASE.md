@@ -88,6 +88,8 @@ way, because a checksum of something else is worse than no checksum.
 
 The mark is drawn in `crates/icon`: `rgba()` is rendered by `apps/sortlens/build.rs` into the window icon and
 `svg()` is the committed `assets/icon.svg`. A test holds the file to the drawing (`SORTLENS_UPDATE_ICON=1`
-rewrites it when the mark changes on purpose). Packaging wants `.icns` and `.ico` files, which do not exist
-yet — they are itemised as absent in `docs/ROADMAP.md` under M10, together with the installer work that
-would consume them.
+rewrites it when the mark changes on purpose). The packaging files are generated from the same drawing too:
+`assets/icon.ico` carries PNG entries at 16–256 px for Windows and `assets/icon.icns` carries the 32–512 px
+PNG slots macOS reads, both checked byte-for-byte by the `sortlens-icon` tests and regenerable with
+`cargo xtask icons --update`. What still does not exist is the installer and bundle work that would consume
+them, with signing — those remain in `docs/ROADMAP.md`'s M10 absence table, each with its unblocker.

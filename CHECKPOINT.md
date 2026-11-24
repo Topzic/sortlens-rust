@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-24 (forty-sixth) — Phase 4 item 2a: the packaging icons are renders of the one drawing
+
+- **What shipped:** `assets/icon.ico` and `assets/icon.icns`, generated — never dropped in — from the same
+  geometry in `crates/icon`, with `cargo xtask icons` as the check-and-rewrite front door. This was the
+  first clause of ROADMAP Phase 4 item 2; the item is now split (2a done, 2b High-Contrast, 2c craft-update,
+  2d craft-i18n still open).
+- **One drawing, four renderings.** `sortlens-icon::render(size)` is the resolution-independent render
+  (the geometry was already in fractions of the tile, so every size is a fresh raster, not a resample —
+  a curve stays a curve at 16 px), and `png_at(size)` is its PNG. `ico()` packs 16/32/48/64/128/256 px
+  entries into the little-endian ICONDIR (PNG entries throughout, the 0-as-256 edge byte honoured, planes
+  1 and 32 bpp declared), and `icns()` packs `ic11`/`ic12`/`ic07`/`ic08`/`ic09` — the 32/64 @2x list-view
+  slots, the 128 and 256 Finder icons and the 512 Get Info slot — into the big-endian container whose
+  header length is the file length. No new dependency, and the same stored-deflate PNG writer as the
+  window icon, so the bytes are deterministic on every machine (the crate's stated trade: size for
+  reproducibility — 359 KB and 1.4 MB committed).
+- **The front door lives in `xtask`, as the row asked.** `cargo xtask icons` generates both files in
+  memory and compares them to the committed bytes, failing with the rewrite command on a mismatch;
+  `cargo xtask icons --update` rewrites them (the `snapshot --update` pattern). The suite still gates
+  them: `the_committed_packaging_icons_are_the_drawing` compares byte for byte and shares the SVG's
+  `SORTLENS_UPDATE_ICON=1` rewrite path, so `cargo xtask ci` refuses a stale packaging file without
+  running xtask twice.
+- **Tests that fail when the behaviour is broken:** `the_ico_carries_one_png_per_desktop_size` parses the
+  ICONDIR back field by field, walks the offsets the directory declared, decodes every embedded PNG
+  through `sortlens_thumbs` and asserts the 40%-of-tile pixel is the front print at all six sizes (the
+  centre pixel was tried first and is honestly wrong at 16 px — the lens edge reaches it, so the test
+  samples a pixel that is the front print at every size); `the_icns_carries_the_mac_slots` walks the
+  chunk chain, asserts each length stays inside the header's total and decodes each slot to its named
+  square; `the_same_bytes_every_time` grew `render(64)`, `ico()` and `icns()` determinism. The committed
+  test failed on a missing file before generation, proving it bites.
+- Files: `crates/icon/src/lib.rs` (`render`, `png_at`, `ico`, `icns`, four tests), `xtask/Cargo.toml`
+  (`sortlens-icon`), `xtask/src/main.rs` (the `icons` task + help line), `assets/icon.ico`,
+  `assets/icon.icns`, `docs/ROADMAP.md` (Phase 4 item 2a shipped and item split; M10 state, icon row and
+  absent-table prose reconciled), `docs/RELEASE.md` (the icon section now describes what ships),
+  `docs/ARCHITECTURE.md` (§13 icon line and the layer-diagram row), `docs/ATTRIBUTION.md` (the two new
+  asset rows).
+- Gates: `ci` green (the 7 `sortlens-icon` tests among them), `snapshot`, `deny`, `icons` all green;
+  `wasm` and `screenshots` not run — no `crates/core`/`crates/ui`/wasm-facing or UI code changed.
+- **Next**: Phase 4 item 2b — the High-Contrast preset (SL-L09), then 2c the opt-in `craft-update`
+  (SL-I10), 2d the `craft-i18n` scaffold (SL-L07), then item 3 the server and web loopback harness.
+
 ## 2026-11-24 (forty-fifth) — Phase 4 item 1: the keymap is a machine now, not just a table
 
 - **What shipped (SL-I09):** the `craft-keymap` editor in Settings → Shortcuts — rebinding, conflict
@@ -3662,7 +3702,9 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts — **done 2026-11-24**, see the forty-fifth entry.
-17. `.icns`/`.ico` in `xtask`, High-Contrast preset, opt-in `craft-update`, `craft-i18n` scaffolding.
+17. Platform finishing, in this order — **2a `.icns`/`.ico` via `cargo xtask icons` done 2026-11-24**, see
+    the forty-sixth entry; then the High-Contrast preset (SL-L09), the opt-in `craft-update` (SL-I10) and
+    the `craft-i18n` scaffolding (SL-L07).
 18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI.
 
 **Phase 5 — autonomous GitHub maintenance**
