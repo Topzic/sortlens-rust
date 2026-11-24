@@ -8,8 +8,7 @@
 //! rules — including its local-build rule, so a build from source is never "downgraded" to a
 //! release it already contains.
 //!
-//! The wasm build compiles this crate without the module, the way the model downloader is gated:
-//! a browser build has no updater and never reaches for a socket.
+//! Nothing here runs without consent, and nothing else in the crate can reach a socket.
 
 use craft_update::http::Fetched;
 use serde::Serialize;

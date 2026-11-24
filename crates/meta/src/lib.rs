@@ -186,20 +186,10 @@ pub struct VideoInfo {
 /// scan. A file that is not ISO base media, or whose video track declares nothing usable, answers `None` rather
 /// than a zero-length clip.
 pub fn video_info(path: &Path) -> Option<VideoInfo> {
-    // Reading a container needs a seekable file, and the demuxer's file reader is native-only: a wasm build has
-    // no filesystem to open one from. A clip simply has no length there, which the UI already handles.
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        read_video_info(path)
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = path;
-        None
-    }
+    // Reading a container needs a seekable file; the demuxer opens one from the path.
+    read_video_info(path)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 fn read_video_info(path: &Path) -> Option<VideoInfo> {
     let file = craft_media::isobmff::open(craft_media::FileReader::open(path).ok()?).ok()?;
     let track = file

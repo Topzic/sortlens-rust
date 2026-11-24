@@ -17,8 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::sync::{Arc, Condvar, Mutex};
 
-// Poster decoding needs a seekable file reader, which wasm has no filesystem to open.
-#[cfg(not(target_arch = "wasm32"))]
+// Poster decoding needs a seekable file reader, which a path always offers here.
 mod poster;
 
 /// Preview sizes. The grid asks for 128, the filmstrip and large grid for 384, the detail view
@@ -196,7 +195,6 @@ pub fn decode_file(path: &Path, max_edge: u32) -> Result<Thumbnail> {
         }
         return decode_still(&bytes, max_edge);
     }
-    #[cfg(not(target_arch = "wasm32"))]
     if poster::header_is_video(path) {
         return poster::decode_video_poster(path, max_edge);
     }

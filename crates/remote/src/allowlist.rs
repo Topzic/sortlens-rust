@@ -33,7 +33,7 @@ pub const TABLE: &[(&str, Permission)] = &[
     ("memories.list", Permission::Read),
     ("library.audit", Permission::Read),
     // The snapshot is the state itself, so a client that cannot hold the op log can hold the
-    // library: the wasm client opens it through `Engine::open_memory` (SL-J02).
+    // library: a device opens it through `Engine::open_memory` (SL-J02).
     ("library.snapshot", Permission::Read),
     // Annotate: catalog writes that leave every file on disk alone.
     ("photo.rate", Permission::Annotate),

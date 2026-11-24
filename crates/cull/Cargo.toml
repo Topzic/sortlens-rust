@@ -14,8 +14,7 @@ sortlens-catalog = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# The operating system's trash is a desktop facility; the browser build keeps the tag-only path.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The operating system's trash; without it the tag-only path runs instead.
 trash = { workspace = true }
 
 [lints]

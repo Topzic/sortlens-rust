@@ -8278,17 +8278,12 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             }
             ui.add_space(8.0);
             ui.separator();
-            // The model downloader (SL-F02) is desktop-only; the wasm build compiles the shell
-            // without the section and without the engine methods it calls.
-            #[cfg(not(target_arch = "wasm32"))]
             ai_models_section(ui, t, engine, actions);
             ui.separator();
             // The update check (SL-I10) is desktop-only and consent-gated the same way.
-            #[cfg(not(target_arch = "wasm32"))]
             updates_section(ui, t, engine, actions);
             // Serving the library to paired devices is desktop-only: the shell paints what the
             // host feeds it, and the host owns the process (SL-J01/J09).
-            #[cfg(not(target_arch = "wasm32"))]
             sync_section(ui, state, t, actions);
             ui.separator();
             ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
@@ -8316,7 +8311,6 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 /// CLI or from an agent — the engine refuses, not just the button. With it on, each row offers
 /// install (a download, resumable, cancelled from here) and removal; nothing runs inference yet, so
 /// the hint says what a model is *for* before the panel promises anything.
-#[cfg(not(target_arch = "wasm32"))]
 fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("AI models (local)")).size(11.0).color(t.text_muted));
     let mut consent = engine.models_consent();
@@ -8419,7 +8413,6 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
 /// button. With it on, `Check now` asks the engine, which fetches on a worker; each frame picks
 /// the answer up here, so the dialog never blocks on the network and an answer that lands after
 /// the dialog closes is still kept for `update.status`.
-#[cfg(not(target_arch = "wasm32"))]
 fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("Updates")).size(11.0).color(t.text_muted));
     let mut consent = engine.update_consent();
@@ -8469,7 +8462,6 @@ fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut V
 /// the running server holds its own token store and would resurrect the row on its next
 /// write-through, so the row is only really gone after a stop. Serving beyond this machine is
 /// the CLI's `--bind lan`, not a checkbox here: the desktop's own surface stays loopback.
-#[cfg(not(target_arch = "wasm32"))]
 fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("Sync & devices")).size(11.0).color(t.text_muted));
     let server = state.server.clone();

@@ -2,8 +2,7 @@
 //!
 //! The manifest in `sortlens-ai` pins what a model must hash to; this module is the only thing that
 //! fetches one. It is deliberately **not** in `sortlens-ai`, whose `no_network` test keeps that
-//! crate unable to open a socket — and it is deliberately desktop-only: the wasm build compiles
-//! this crate without the module and without the two dependencies below.
+//! crate unable to open a socket.
 //!
 //! Three properties matter more than convenience:
 //!

@@ -1,9 +1,9 @@
 //! ONNX inference through tract — the runtime that answers questions with the pinned models.
 //!
 //! The store answers *is this file the model the manifest promised?*; this module answers *what does
-//! the model say about this picture?* — and nothing else. It is deliberately desktop-only (the wasm
-//! build compiles without it) and deliberately offline: the bytes come from a file path the store has
-//! already verified against the manifest's digest, tract runs them on the CPU in this process, and no
+//! the model say about this picture?* — and nothing else. It is deliberately offline: the bytes come
+//! from a file path the store already verified against the manifest's digest, tract runs them on the
+//! CPU in this process, and no
 //! code here can open a socket. The crate's `no_network` test still reads every source file, and this
 //! one passes it because there is nothing to find.
 //!

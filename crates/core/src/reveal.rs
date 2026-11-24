@@ -2,7 +2,7 @@
 //!
 //! This module **builds** commands; it never runs them. That split is deliberate:
 //!
-//! - the engine and the wasm client can both ask "what would I run?" without a process table,
+//! - the engine can ask "what would I run?" without a process table,
 //! - the decision is pure data, so the exact argv for each platform can be asserted in a test,
 //! - spawning stays in the two desktop hosts (the app and the CLI), which is the only place an OS
 //!   process belongs.
@@ -26,7 +26,7 @@ pub enum Desktop {
 }
 
 impl Desktop {
-    /// The desktop this binary was built for, or `None` when there is none (wasm, or an OS with no
+    /// The desktop this binary was built for, or `None` when there is none (an OS with no
     /// integration yet). A caller that gets `None` says so rather than guessing.
     pub const fn current() -> Option<Self> {
         if cfg!(target_os = "macos") {
@@ -207,12 +207,8 @@ mod tests {
 
     #[test]
     fn this_build_knows_which_desktop_it_is_on() {
-        // The desktop hosts are macOS, Windows and Linux; wasm has none.
-        if cfg!(target_arch = "wasm32") {
-            assert!(Desktop::current().is_none());
-        } else {
-            let desktop = Desktop::current().expect("a desktop build");
-            assert!(["macos", "windows", "linux"].contains(&desktop.id()));
-        }
+        // The desktop hosts are macOS, Windows and Linux.
+        let desktop = Desktop::current().expect("a desktop build");
+        assert!(["macos", "windows", "linux"].contains(&desktop.id()));
     }
 }

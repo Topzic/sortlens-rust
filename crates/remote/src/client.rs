@@ -3,10 +3,9 @@
 //! The rule is the same one `docs/ARCHITECTURE.md` §10 gives the server: one protocol, not a
 //! second one. Pairing, the `/api` registry calls, the resumable chunked `/upload`, and the
 //! keep-or-remove decision the client applies once the server acks (SL-J05) live here, so the
-//! wasm page and any later phone build cannot drift from what `apps/sortlens-server` answers.
-//! The HTTP face is a [`Transport`], so the native tests run the real server over TCP while a
-//! wasm build backs the same protocol with the browser's own fetch — the wire format is the
-//! crate's, not the transport's.
+//! phone app and the native tests cannot drift from what `apps/sortlens-server` answers. The HTTP
+//! face is a [`Transport`], so the tests run the real server over TCP while the app's own
+//! transport backs the same protocol — the wire format is the crate's, not the transport's.
 
 use serde_json::{Value, json};
 use std::fmt;
@@ -144,7 +143,7 @@ pub fn call_answer(response: Response) -> Result<Value, ClientError> {
     }
 }
 
-/// The snapshot string inside a `library.snapshot` result — the state a wasm client opens
+/// The snapshot string inside a `library.snapshot` result — the state a client opens
 /// with [`sortlens_engine::Engine::open_memory`] and saves back between sessions.
 pub fn snapshot_from_result(result: &Value) -> Result<String, ClientError> {
     result
@@ -196,13 +195,11 @@ impl Response {
 }
 
 /// The native transport: a blocking TCP connection per request, over `std::net` only.
-#[cfg(not(target_arch = "wasm32"))]
 pub struct TcpTransport {
     addr: String,
     timeout: std::time::Duration,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl TcpTransport {
     /// Speak to the server at `host:port` — the address its `listening` line announced.
     pub fn new(addr: impl Into<String>) -> Self {
@@ -213,7 +210,6 @@ impl TcpTransport {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Transport for TcpTransport {
     fn request(&mut self, method: &str, path: &str, headers: &[(String, String)], body: &[u8]) -> Result<Response, ClientError> {
         use std::io::{Read, Write};
@@ -240,7 +236,6 @@ impl Transport for TcpTransport {
 }
 
 /// Split a raw response into status and body, on the header terminator.
-#[cfg(not(target_arch = "wasm32"))]
 fn split_response(raw: &[u8]) -> Option<Response> {
     let head_end = raw.windows(4).position(|window| window == b"\r\n\r\n")?;
     let head = String::from_utf8_lossy(&raw[..head_end]).into_owned();
@@ -341,7 +336,7 @@ impl<T: Transport> Client<T> {
     }
 
     /// A client that is already paired: the token it saved from the session that paired it
-    /// (a wasm page keeps it in browser storage), carried straight back into the calls.
+    /// (the app keeps it on the device), carried straight back into the calls.
     pub fn paired(token: impl Into<String>, transport: T) -> Self {
         Self {
             transport,
@@ -394,7 +389,7 @@ impl<T: Transport> Client<T> {
         call_answer(response)
     }
 
-    /// The library as snapshot JSON — the state a wasm client opens with `Engine::open_memory`
+    /// The library as snapshot JSON — the state a client opens with `Engine::open_memory`
     /// and saves back between sessions.
     pub fn snapshot(&mut self) -> Result<String, ClientError> {
         snapshot_from_result(&self.call("library.snapshot", &json!({}))?)
@@ -402,8 +397,7 @@ impl<T: Transport> Client<T> {
 
     /// One photograph's thumbnail as PNG bytes: `GET /thumb/<id>/<edge>` under the paired
     /// token's `read` scope. The server bounds the edge; a refusal here names its range.
-    /// The bytes are what a browser `<img>` or an egui `Image` decodes — a wasm page hands
-    /// them straight to the element, and nothing on the wire is a second format.
+    /// The bytes are what an egui `Image` decodes, and nothing on the wire is a second format.
     pub fn thumbnail(&mut self, id: sortlens_core::PhotoId, edge: u32) -> Result<Vec<u8>, ClientError> {
         let token = self
             .token
@@ -421,8 +415,8 @@ impl<T: Transport> Client<T> {
     /// connection. The completing chunk carries `X-Content-Sha256`, and the server refuses
     /// the file if the bytes that arrived do not match, leaving the partial where it was.
     ///
-    /// Every answer is decoded through [`upload_step`], the one decision both this blocking
-    /// loop and the wasm page's async loop walk — the two cannot drift.
+    /// Every answer is decoded through [`upload_step`], the one decision the blocking loop
+    /// walks, so a second client cannot drift.
     pub fn upload(&mut self, item: &UploadItem) -> Result<UploadAck, ClientError> {
         let Some(token) = self.token.as_deref() else {
             return Err(ClientError::Connection("the client is not paired".into()));
@@ -555,7 +549,7 @@ pub(crate) fn upload_step(response: Response, start: u64) -> UploadStep {
 }
 
 /// Interpret the server's answer to a completed (one-shot) upload, with the client's
-/// keep-or-remove decision attached — the blocking client and the wasm page both use it.
+/// keep-or-remove decision attached — the blocking client uses it.
 pub(crate) fn finish_upload(response: Response, remove_after_upload: bool) -> Result<UploadAck, ClientError> {
     match upload_step(response, 0) {
         UploadStep::Saved { saved, sha256 } => Ok(UploadAck {
@@ -605,20 +599,12 @@ fn upload_id(name: &str, bytes: &[u8]) -> String {
     format!("u{}", &sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&entropy))[..24])
 }
 
-/// The clock part of the upload id's entropy. A browser page cannot call `SystemTime::now`
-/// — wasm32 has no clock, and it *panics* rather than answering — so the wasm build asks
-/// the browser's own clock, the same way the page already speaks to the browser.
-#[cfg(not(target_arch = "wasm32"))]
+/// The clock part of the upload id's entropy.
 fn clock_entropy() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|since| since.as_nanos() as u64)
         .unwrap_or(0)
-}
-
-#[cfg(target_arch = "wasm32")]
-fn clock_entropy() -> u64 {
-    js_sys::Date::now() as u64
 }
 
 /// The headers every chunk carries: the bearer token, the file name and transfer id, and the
@@ -704,8 +690,8 @@ mod tests {
         assert_eq!(snapshot, "{\"version\":3}");
     }
 
-    /// The wire builders are the protocol: what a wasm page builds is what the blocking
-    /// client builds, and the answers parse the same way. Pairing first.
+    /// The wire builders are the protocol: what the client builds is what the server
+    /// answers, and the answers parse the same way. Pairing first.
     #[test]
     fn the_pair_wire_builds_the_request_and_parses_the_answer() {
         let request = pair_request("369369", "tablet");

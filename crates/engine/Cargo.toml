@@ -27,9 +27,7 @@ sortlens-sidecar = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
 
-# The model downloader (Phase 2, SL-F02) is desktop-only: the wasm build compiles this crate
-# without it, and the module below is gated the same way.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The model downloader (Phase 2, SL-F02): the one audited place that fetches bytes.
 ureq = { workspace = true }
 craft-atomic = { workspace = true }
 # The update check (SL-I10). The workspace pin carries the `egui` feature for the dialog we do

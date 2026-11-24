@@ -7,7 +7,7 @@
 # Run: cargo xtask deny   (or `cargo deny check` directly)
 
 [graph]
-# Every target is checked, because a Windows-only or wasm-only dependency still ships.
+# Every target is checked, because a Windows-only dependency still ships.
 all-features = true
 
 [advisories]

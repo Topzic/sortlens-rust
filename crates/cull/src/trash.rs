@@ -340,15 +340,7 @@ pub fn apply(batch: &Batch) -> Report {
 
 /// Send a file to the operating system's trash.
 fn delete_to_trash(path: &Path) -> std::result::Result<(), String> {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        trash::delete(path).map_err(|error| error.to_string())
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = path;
-        Err("the trash is not available in the browser build".to_string())
-    }
+    trash::delete(path).map_err(|error| error.to_string())
 }
 
 fn move_into(candidate: &Candidate, folder: &Path) -> std::result::Result<PathBuf, String> {

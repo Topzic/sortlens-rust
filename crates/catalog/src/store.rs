@@ -156,7 +156,7 @@ pub struct Catalog {
     /// Held for the life of the catalog when this process is the writer. `None` when read-only,
     /// and always `None` for an in-memory catalog, which needs no lock to begin with.
     lock: Option<File>,
-    /// True when the catalog lives only in memory (wasm client): a snapshot JSON in, operations
+    /// True when the catalog lives only in memory: a snapshot JSON in, operations
     /// applied, no directory, no log, no lock. Nothing touches the filesystem.
     memory: bool,
     photos: BTreeMap<PhotoId, Photo>,
@@ -386,8 +386,8 @@ impl Catalog {
 
     /// Open a catalog that lives only in memory.
     ///
-    /// The wasm client's path: a browser page has no library directory to open, so it receives the
-    /// snapshot JSON the server holds (or nothing, for a fresh client), applies operations in
+    /// The snapshot path: a device has no library directory to open, so it receives the
+    /// snapshot JSON the server holds (or nothing, for a fresh device), applies operations in
     /// memory, and never touches the filesystem — no directory, no log, no lock. Undo works
     /// exactly as on disk because the snapshot carries the history; there is simply no replay
     /// after a page reload unless the client saves [`Self::snapshot_json`] somewhere and passes it
@@ -465,7 +465,7 @@ impl Catalog {
         !self.memory && self.lock.is_none()
     }
 
-    /// Whether this catalog lives only in memory (the wasm client's path).
+    /// Whether this catalog lives only in memory (opened from a snapshot).
     pub fn is_memory(&self) -> bool {
         self.memory
     }
@@ -1774,8 +1774,8 @@ impl Catalog {
     /// The current state as snapshot JSON, exactly the text [`Self::snapshot`] writes on disk and
     /// [`Self::open_memory`] reads back.
     ///
-    /// The wasm client's save: hand this to the browser's storage (or back to the server) and the
-    /// next page load opens where this one left off, undo history included.
+    /// The snapshot save: hand this back to the server and the next session opens where this one
+    /// left off, undo history included.
     pub fn snapshot_json(&self) -> Result<String> {
         let snapshot = Snapshot {
             schema: SCHEMA,
@@ -3695,7 +3695,7 @@ mod tests {
         assert!(value["photos"][0].get("added").is_none(), "absence is preserved, not filled");
     }
 
-    // --- the in-memory path (the wasm client's catalog) -------------------------------
+    // --- the in-memory path (a catalog opened from a snapshot) -------------------------
 
     /// A disk snapshot opens in memory and answers the same questions, and operating on it
     /// touches no file anywhere.

@@ -2,7 +2,7 @@
 //!
 //! Identifiers, rating/flag/label enums, byte and count formatting, and the one error type.
 //! No I/O, no UI, no filesystem: this crate must stay dependency-light so it can be used from
-//! the catalog, the engine and the wasm client alike.
+//! the catalog and the engine alike.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]

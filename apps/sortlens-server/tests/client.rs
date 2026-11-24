@@ -1,5 +1,5 @@
 //! The client half of the loopback harness (SL-J02, SL-J05): a real server process, and the
-//! device side speaking through `sortlens_remote::client` — the code a wasm page will build
+//! device side speaking through `sortlens_remote::client` — the code the phone app builds
 //! on, not a second protocol. Pairing, holding the library in memory from `library.snapshot`,
 //! annotating through `/api`, an upload that dies mid-transfer and resumes from the server's
 //! received count, the keep-or-remove decision applied on the ack, and the thumbnails a page
@@ -127,7 +127,7 @@ impl Server {
 // ---------------------------------------------------------------- the tests
 
 /// Pairing through the client, holding the library in memory from the wire's snapshot, and
-/// annotating through the same client — the wasm page's whole day, end to end.
+/// annotating through the same client — a device's whole day, end to end.
 #[test]
 fn a_device_pairs_holds_the_library_in_memory_and_annotates() {
     let library = Library::build("client-pair-hold");

@@ -870,9 +870,7 @@ impl Registry {
                     menu: "Sortlens > Quit Sortlens",
                     status: Status::Ready,
                 },
-                // The model downloader (SL-F02). Desktop only: the wasm build has no store, so the
-                // commands and their handlers are gated together.
-                #[cfg(not(target_arch = "wasm32"))]
+                // The model downloader (SL-F02): the one audited place that fetches bytes.
                 CommandSpec {
                     id: "model.status",
                     label: "AI Model Status",
@@ -881,7 +879,6 @@ impl Registry {
                     menu: "Sortlens > AI Model Status",
                     status: Status::Ready,
                 },
-                #[cfg(not(target_arch = "wasm32"))]
                 CommandSpec {
                     id: "model.install",
                     label: "Install Model",
@@ -890,7 +887,6 @@ impl Registry {
                     menu: "Sortlens > Install Model…",
                     status: Status::Ready,
                 },
-                #[cfg(not(target_arch = "wasm32"))]
                 CommandSpec {
                     id: "model.remove",
                     label: "Remove Model",
@@ -899,7 +895,6 @@ impl Registry {
                     menu: "Sortlens > Remove Model…",
                     status: Status::Ready,
                 },
-                #[cfg(not(target_arch = "wasm32"))]
                 CommandSpec {
                     id: "model.cancel",
                     label: "Stop Model Download",
@@ -908,7 +903,6 @@ impl Registry {
                     menu: "Sortlens > Stop Model Download",
                     status: Status::Ready,
                 },
-                #[cfg(not(target_arch = "wasm32"))]
                 CommandSpec {
                     id: "model.consent",
                     label: "Allow Model Downloads",
@@ -918,8 +912,7 @@ impl Registry {
                     status: Status::Ready,
                 },
                 // The update check (SL-I10). Desktop only, consent-gated like the downloader: the
-                // wasm build has no updater, so the commands and their handlers are gated together.
-                #[cfg(not(target_arch = "wasm32"))]
+                // The update check (SL-I10): consent-gated, and the commands ship with it.
                 CommandSpec {
                     id: "update.status",
                     label: "Update Status",
@@ -928,7 +921,6 @@ impl Registry {
                     menu: "Sortlens > Update Status",
                     status: Status::Ready,
                 },
-                #[cfg(not(target_arch = "wasm32"))]
                 CommandSpec {
                     id: "update.check",
                     label: "Check for Updates",
@@ -937,7 +929,6 @@ impl Registry {
                     menu: "Sortlens > Check for Updates…",
                     status: Status::Ready,
                 },
-                #[cfg(not(target_arch = "wasm32"))]
                 CommandSpec {
                     id: "update.consent",
                     label: "Allow Update Checks",

@@ -180,10 +180,12 @@ fn layers() -> Result<(), String> {
         }
         let deps = dependencies(&manifest)?;
 
-        // Only the ui crate may know that a window exists.
+        // Only the ui crate may know that a window exists. `craft-update` is not a window crate:
+        // the engine takes it with default features (no egui) for the update check, and the pin's
+        // egui feature is exactly what it must not enable.
         if *name != "ui" {
             for dep in &deps {
-                if UI_ONLY.contains(&dep.as_str()) {
+                if UI_ONLY.contains(&dep.as_str()) && !(*name == "engine" && dep == "craft-update") {
                     problems.push(format!("crates/{name} depends on {dep}; only crates/ui may"));
                 }
             }

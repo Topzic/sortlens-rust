@@ -13,9 +13,8 @@ sortlens-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# The inference runtime (SL-F03/F04) is desktop-only: the wasm build compiles this crate without it.
-# It stays offline — the bytes come from the verified store, and tract runs them on the CPU.
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The inference runtime (SL-F03/F04) stays offline — the bytes come from the verified store, and
+# tract runs them on the CPU.
 tract-onnx = { workspace = true }
 # The CLIP tokenizer's vocabulary ships gzip-compressed, exactly as upstream publishes it.
 flate2 = { workspace = true }

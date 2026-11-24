@@ -12,12 +12,9 @@ pub mod diagnostics;
 pub mod job;
 pub mod moves;
 
-// The model downloader (SL-F02) is desktop-only; the wasm build compiles the crate without it.
-#[cfg(not(target_arch = "wasm32"))]
 pub mod models;
 
 // The update check (SL-I10) is the other approved network call, consent-gated the same way.
-#[cfg(not(target_arch = "wasm32"))]
 pub mod update;
 
 pub use command::{CommandSpec, Group, Registry, Status};
@@ -115,14 +112,12 @@ struct PendingSharpness {
 }
 
 /// A model download in flight (SL-F02, desktop only).
-#[cfg(not(target_arch = "wasm32"))]
 struct PendingModel {
     job: u64,
     download: crate::models::Download,
 }
 
 /// An update check in flight (SL-I10, desktop only).
-#[cfg(not(target_arch = "wasm32"))]
 struct PendingUpdateCheck {
     job: u64,
     rx: Receiver<std::result::Result<crate::update::UpdateReport, String>>,
@@ -223,60 +218,45 @@ pub struct Engine {
     /// *added* keyword counts — removing one is not something you then want repeated.
     last_tag: Option<String>,
     /// A model download in flight (SL-F02, desktop only).
-    #[cfg(not(target_arch = "wasm32"))]
     pending_model: Option<PendingModel>,
     /// The owner's opt-in for the one approved network call. False every session until the
     /// setting is switched on, and checked before anything is fetched.
-    #[cfg(not(target_arch = "wasm32"))]
     models_consent: bool,
     /// Settings → AI rows, verified once per session and invalidated by install and remove: a
     /// verified status hashes every model file, which is not a per-frame cost.
-    #[cfg(not(target_arch = "wasm32"))]
     model_rows: Option<Vec<crate::models::ModelRow>>,
     /// The manifest the model verbs answer from. The shipped pins, unless a test swaps in a
     /// loopback one — the manifest is the contract, and the contract is data, not a constant.
-    #[cfg(not(target_arch = "wasm32"))]
     model_manifest: sortlens_ai::Manifest,
     /// An update check in flight (SL-I10, desktop only).
-    #[cfg(not(target_arch = "wasm32"))]
     pending_update: Option<PendingUpdateCheck>,
     /// A fetcher a test installed for `update.check`, standing in for the real HTTPS client.
-    #[cfg(not(target_arch = "wasm32"))]
     #[cfg(test)]
     update_fetcher_override: Option<std::sync::Arc<dyn crate::update::Fetcher>>,
     /// The owner's opt-in for the update check, the same per-session shape as the model
     /// downloader's consent: false every session until the setting is switched on, and checked
     /// before anything is fetched.
-    #[cfg(not(target_arch = "wasm32"))]
     update_consent: bool,
     /// The last finished check's answer, for `update.status` and the Settings row. Session
     /// memory: a check from yesterday is not this one's answer.
-    #[cfg(not(target_arch = "wasm32"))]
     last_update: Option<crate::update::UpdateReport>,
     /// The endpoint the check reads — the real GitHub releases URL, unless a test points it at
     /// a loopback server. The same seam the model manifest's URLs use.
-    #[cfg(not(target_arch = "wasm32"))]
     update_url: String,
     /// The loaded detector, when the pinned detector model is installed and verified. Loaded once
     /// per session and shared with the suggestion worker; a removed model is picked up on the next
     /// session, which is exactly how the settings rows behave.
-    #[cfg(not(target_arch = "wasm32"))]
     detector: Option<std::sync::Arc<sortlens_ai::Detector>>,
     /// Whether the detector has been looked for. `None` means "not yet", not "there is none".
-    #[cfg(not(target_arch = "wasm32"))]
     detector_tried: bool,
     /// The loaded CLIP pair (text embedder, tokenizer), when the pinned text embedder is
     /// installed and verified — the pair that builds the pack-embedding cache.
-    #[cfg(not(target_arch = "wasm32"))]
     embedders: Option<SessionEmbedders>,
     /// Whether the embedder pair has been looked for.
-    #[cfg(not(target_arch = "wasm32"))]
     embedder_tried: bool,
     /// The loaded image embedder, when the pinned vision model is installed and verified.
-    #[cfg(not(target_arch = "wasm32"))]
     image_embedder: Option<SessionImage>,
     /// Whether the image embedder has been looked for.
-    #[cfg(not(target_arch = "wasm32"))]
     image_embedder_tried: bool,
 }
 
@@ -311,35 +291,21 @@ impl Engine {
             write_sidecars: true,
             warnings: Vec::new(),
             last_tag: None,
-            #[cfg(not(target_arch = "wasm32"))]
             pending_model: None,
-            #[cfg(not(target_arch = "wasm32"))]
             models_consent: false,
-            #[cfg(not(target_arch = "wasm32"))]
             model_rows: None,
-            #[cfg(not(target_arch = "wasm32"))]
             model_manifest: sortlens_ai::Manifest::shipped(),
-            #[cfg(not(target_arch = "wasm32"))]
             pending_update: None,
-            #[cfg(all(not(target_arch = "wasm32"), test))]
+            #[cfg(test)]
             update_fetcher_override: None,
-            #[cfg(not(target_arch = "wasm32"))]
             update_consent: false,
-            #[cfg(not(target_arch = "wasm32"))]
             last_update: None,
-            #[cfg(not(target_arch = "wasm32"))]
             update_url: crate::update::releases_url(crate::update::REPO),
-            #[cfg(not(target_arch = "wasm32"))]
             detector: None,
-            #[cfg(not(target_arch = "wasm32"))]
             detector_tried: false,
-            #[cfg(not(target_arch = "wasm32"))]
             embedders: None,
-            #[cfg(not(target_arch = "wasm32"))]
             embedder_tried: false,
-            #[cfg(not(target_arch = "wasm32"))]
             image_embedder: None,
-            #[cfg(not(target_arch = "wasm32"))]
             image_embedder_tried: false,
         }
     }
@@ -362,7 +328,7 @@ impl Engine {
 
     /// Open the library in memory alone, from a snapshot the server holds.
     ///
-    /// The wasm client (SL-J02) has no directory to open: it receives `library.snapshot`'s JSON
+    /// A device (SL-J02) has no library directory to open: it receives `library.snapshot`'s JSON
     /// over the wire, applies operations in memory with the same undo, redo and stale-revision
     /// rules, and hands its own snapshot back when it saves. `None` opens a fresh client state.
     /// Nothing here touches the filesystem, so the disk-side sessions (the rejects bin, the move
@@ -379,7 +345,7 @@ impl Engine {
         Ok(engine)
     }
 
-    /// Whether the library lives in memory alone (the wasm client), with no directory behind it.
+    /// Whether the library lives in memory alone (opened from a snapshot), with no directory behind it.
     pub fn is_memory(&self) -> bool {
         self.dir.is_none() && self.catalog.as_ref().is_some_and(Catalog::is_memory)
     }
@@ -1823,7 +1789,7 @@ impl Engine {
     /// What the host should run to show a photo in the file manager or hand it to its application.
     ///
     /// The engine constructs the command and checks the file is still there; running it is the
-    /// host's job, because a library opened by the wasm client has no process table to run it in.
+    /// host's job: spawning belongs to the host, and a device-side library has no process table.
     pub fn reveal_target(&self, id: PhotoId, mode: RevealMode) -> Result<sortlens_core::reveal::Command> {
         let desktop =
             sortlens_core::Desktop::current().ok_or_else(|| Error::Invalid("this build has no desktop to show files in".into()))?;
@@ -2078,31 +2044,6 @@ impl Engine {
             ),
             None => Vec::new(),
         }
-    }
-
-    /// No inference on wasm: the stub keeps the suggestion paths one function instead of two.
-    #[cfg(target_arch = "wasm32")]
-    fn detector_session(&mut self) -> Option<SessionDetector> {
-        None
-    }
-
-    /// No inference on wasm: the stub keeps the suggestion paths one function instead of two.
-    #[cfg(target_arch = "wasm32")]
-    #[allow(dead_code)]
-    fn embedder_session(&mut self) -> Option<SessionEmbedders> {
-        None
-    }
-
-    /// No inference on wasm: the stub keeps the suggestion paths one function instead of two.
-    #[cfg(target_arch = "wasm32")]
-    fn image_embedder_session(&mut self) -> Option<SessionImage> {
-        None
-    }
-
-    /// No pack-embedding cache on wasm: there is no model to embed anything with.
-    #[cfg(target_arch = "wasm32")]
-    fn pack_keyword_embeddings(&mut self) -> std::collections::BTreeMap<String, Vec<f32>> {
-        std::collections::BTreeMap::new()
     }
 
     /// The rules of every switched-on pack, parsed and ready. Unreadable packs are simply absent here:
@@ -4059,12 +4000,10 @@ impl Engine {
                 self.last_effect = Effect::Quit;
                 Ok(json!({ "quitting": true }))
             }
-            #[cfg(not(target_arch = "wasm32"))]
             "model.status" => Ok(json!({
                 "consent": self.models_consent(),
                 "models": self.models_status()?,
             })),
-            #[cfg(not(target_arch = "wasm32"))]
             "model.install" => {
                 let id = args
                     .get("id")
@@ -4073,7 +4012,6 @@ impl Engine {
                 self.install_model(id)?;
                 Ok(json!({ "installing": id }))
             }
-            #[cfg(not(target_arch = "wasm32"))]
             "model.remove" => {
                 let id = args
                     .get("id")
@@ -4082,12 +4020,10 @@ impl Engine {
                 let reclaimed = self.remove_model(id)?;
                 Ok(json!({ "reclaimed": reclaimed }))
             }
-            #[cfg(not(target_arch = "wasm32"))]
             "model.cancel" => {
                 self.cancel_model_install();
                 Ok(json!({ "cancelled": true }))
             }
-            #[cfg(not(target_arch = "wasm32"))]
             "model.consent" => {
                 let on = args
                     .get("on")
@@ -4096,7 +4032,6 @@ impl Engine {
                 self.set_models_consent(on);
                 Ok(json!({ "consent": self.models_consent() }))
             }
-            #[cfg(not(target_arch = "wasm32"))]
             "update.status" => Ok(json!({
                 "consent": self.update_consent(),
                 "current": sortlens_core::VERSION,
@@ -4108,12 +4043,10 @@ impl Engine {
                     "headline": report.headline(),
                 })),
             })),
-            #[cfg(not(target_arch = "wasm32"))]
             "update.check" => {
                 self.start_update_check()?;
                 Ok(json!({ "checking": true }))
             }
-            #[cfg(not(target_arch = "wasm32"))]
             "update.consent" => {
                 let on = args
                     .get("on")
@@ -4139,9 +4072,6 @@ impl Engine {
 }
 
 // The model downloader (SL-F02): the engine's face for consent, install, progress and removal.
-// Desktop only — the wasm build compiles this crate without the module, and the UI gates the same
-// way, so a browser build never reaches for a socket.
-#[cfg(not(target_arch = "wasm32"))]
 impl Engine {
     /// Where models are stored: a `models` folder beside the catalog. One library's models are its
     /// own, the way its keyword packs are; there is no shared machine-wide store to agree on.
@@ -4305,7 +4235,6 @@ impl Engine {
     /// Drop the session caches for every model: what install, removal and the test manifest swap
     /// all call, so the next suggestion pass answers from what the store holds now.
     fn reset_model_sessions(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
         {
             self.detector = None;
             self.detector_tried = false;
@@ -4314,7 +4243,6 @@ impl Engine {
             self.image_embedder = None;
             self.image_embedder_tried = false;
         }
-        #[cfg_attr(target_arch = "wasm32", allow(unused_variables))]
         let _ = self;
     }
 
@@ -4684,7 +4612,7 @@ fn suggestions_for(
     caps: &sortlens_ai::Caps,
     detector: Option<&SessionDetector>,
     image_embedder: Option<&SessionImage>,
-    #[cfg_attr(target_arch = "wasm32", allow(unused_variables))] keyword_embeddings: &std::collections::BTreeMap<String, Vec<f32>>,
+    keyword_embeddings: &std::collections::BTreeMap<String, Vec<f32>>,
 ) -> Vec<Suggestion> {
     let hints = sortlens_ai::Hints::new(&photo.camera, &photo.lens, photo.iso, photo.shutter, photo.focal);
     let mut candidates = sortlens_ai::hints(&hints);
@@ -4702,20 +4630,13 @@ fn suggestions_for(
     }
     // The detector's guesses arrive in exactly the same shape: proposals with a score, a box and a
     // source, merged with everything else and accepted one at a time like any other suggestion.
-    #[cfg(not(target_arch = "wasm32"))]
     if let Some(detector) = detector {
         candidates.extend(detector_candidates(photo, detector));
     }
     // The pack keywords the photo resembles by meaning, from the image embedder and the cached
     // pack embeddings, proposed in exactly the same shape as the matcher's hits.
-    #[cfg(not(target_arch = "wasm32"))]
     if let Some(image_embedder) = image_embedder {
         candidates.extend(embedder_candidates(photo, image_embedder, keyword_embeddings));
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = detector;
-        let _ = image_embedder;
     }
     // A keyword this photo's owner dismissed is not proposed again. Filtered here, before the merge applies the cap,
     // so a dismissed proposal cannot occupy one of the eight slots a live one would otherwise have.
@@ -4729,7 +4650,6 @@ fn suggestions_for(
 /// A photo whose file is missing, undecodable or unrecognisable to the model simply has nothing to
 /// say — the pass continues. A guess that fails to name its class is dropped here; an unnamed class
 /// is the model speaking for a thing the label map does not know.
-#[cfg(not(target_arch = "wasm32"))]
 fn detector_candidates(photo: &Photo, detector: &sortlens_ai::Detector) -> Vec<sortlens_ai::Candidate> {
     let path = std::path::Path::new(&photo.root).join(&photo.rel);
     let Ok(thumbnail) = sortlens_thumbs::decode_file(&path, PREVIEW_EDGE) else {
@@ -4769,7 +4689,6 @@ fn detector_candidates(photo: &Photo, detector: &sortlens_ai::Detector) -> Vec<s
 /// the cosine *is* the score, so the panel's ordering and the merge's floor stay honest about how
 /// much the model actually agreed. A photo whose file is missing or undecodable simply has nothing
 /// to say — the pass continues.
-#[cfg(not(target_arch = "wasm32"))]
 fn embedder_candidates(
     photo: &Photo,
     image_embedder: &sortlens_ai::ImageEmbedder,
@@ -4833,38 +4752,22 @@ pub const EMBED_MIN_COSINE: f32 = 0.25;
 /// What the suggestion paths share as a loaded embedder: the text side and the tokenizer that
 /// turns pack keywords into the text side's input. The image side has its own session — they do
 /// different jobs, and the cache serves the text side while the image side must run per photo.
-#[cfg(not(target_arch = "wasm32"))]
 struct EmbedderPair {
     text: sortlens_ai::TextEmbedder,
     tokenizer: sortlens_ai::Tokenizer,
 }
 
-/// Desktop targets hold the real thing; the wasm build has no inference runtime, and its alias is
-/// a type that is never constructed, so the shared code stays one function instead of two.
-#[cfg(not(target_arch = "wasm32"))]
 type SessionEmbedders = std::sync::Arc<EmbedderPair>;
-#[cfg(target_arch = "wasm32")]
-#[allow(dead_code)]
-type SessionEmbedders = std::marker::PhantomData<()>;
 
 /// What the suggestion paths share as a loaded image embedder.
-#[cfg(not(target_arch = "wasm32"))]
 type SessionImage = std::sync::Arc<sortlens_ai::ImageEmbedder>;
-#[cfg(target_arch = "wasm32")]
-type SessionImage = std::marker::PhantomData<()>;
 
 /// The edge of the preview the detector sees. Small on purpose: inference on the CPU must stay far
 /// behind everything else the app does, and a 384 px preview is plenty for a tagger's guesses.
 pub const PREVIEW_EDGE: u32 = 384;
 
 /// What the suggestion paths share as a loaded detector.
-///
-/// Desktop targets hold the real thing; the wasm build has no inference runtime, and its alias is
-/// a type that is never constructed, so the shared code stays one function instead of two.
-#[cfg(not(target_arch = "wasm32"))]
 type SessionDetector = std::sync::Arc<sortlens_ai::Detector>;
-#[cfg(target_arch = "wasm32")]
-type SessionDetector = std::marker::PhantomData<()>;
 
 /// Every pack file in a library, read or refused.
 ///
@@ -8209,7 +8112,7 @@ mod tests {
         assert_eq!(engine.revision(), 0, "no writes, no revision");
     }
 
-    /// SL-J02, the engine half: the wasm client has no directory, so the engine opens the
+    /// SL-J02, the engine half: a snapshot has no directory, so the engine opens the
     /// library from `library.snapshot`'s JSON alone, operates in memory with the same undo
     /// rules, and touches no file anywhere while it does.
     #[test]

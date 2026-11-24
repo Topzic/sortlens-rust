@@ -1,5 +1,17 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-first) — the wasm shims are gone: no target, no gate, no dead branch
+
+- **Why.** With no wasm target installed, no task that builds one and a written non-goal, every
+  `cfg(target_arch = "wasm32")` branch and every doc comment about "the wasm client" was dead weight
+  that read as an invitation. A reader should not have to work out whether a browser path still runs.
+- **What changed.** The stubs, the paired `cfg(not(...))` attributes and the browser-only comments are
+  gone from core, catalog, cull, meta, thumbs, ai, engine, ui and remote; three manifests'
+  `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]` sections became ordinary `[dependencies]`
+  (the same crates, the same builds). The layer check now states the exception it always had: the
+  engine takes `craft-update` with default features — no `egui` — for the update check.
+- **Verified.** `cargo xtask ci`, `snapshot` and `deny` green; no source file contains `wasm`.
+
 ## 2026-11-24 (sixtieth) — the intake the agent wrote stays; the browser page it also wrote does not
 
 - **Why.** Phase 5's intake and playbook landed on `main` while this branch was removing the web
