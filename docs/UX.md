@@ -520,7 +520,7 @@ are stored in settings and exportable.
 
 ## 10. Themes and tokens
 
-Four presets, all contrast-checked:
+Five presets, all contrast-checked:
 
 | Preset | Use |
 | --- | --- |
@@ -528,6 +528,7 @@ Four presets, all contrast-checked:
 | **Midnight** (near black) | culling in a dark room |
 | **Silver** (light grey) | bright offices |
 | **Paper** (near white) | printing/colour review |
+| **High Contrast** (accessibility) | low vision, glare and washed-out panels: pure black and white with a yellow accent, chrome strokes at twice the width
 
 Tokens (colour): chrome, canvas, grid_bg, cell, cell_selected, skeleton, ring_active,
 ring_inner, ring_selected, divider, inset, field, field_border, button, button_border, hover,
@@ -568,8 +569,9 @@ re-checks its own contrast pairs after applying.
   M10's deliberately-absent table with its unblocker.
 - Zoom: UI scale 0.8–2.0, and the layout reflows rather than clipping (two-row filter bar,
   collapsed bottom bar, single-column inspector).
-- Contrast: enforced by theme tests; the high-contrast preset adds a pure black/white/yellow
-  scheme and stronger strokes.
+- Contrast: enforced by theme tests; the High Contrast preset is shipped — pure black/white/yellow,
+  chrome strokes doubled, text at AAA and muted text at AA against its black, with the same WCAG
+  measure as the other presets.
 - i18n: every label is an English key; RTL mirrors the shell (sidebar to the right, icons
   mirrored where directional); the photo is never mirrored.
 
@@ -603,7 +605,8 @@ Each component gets: a kittest snapshot in light/dark/RTL, an accessibility asse
 "used in" list. No component may read global state directly; it takes data + a command callback.
 
 The shell-level suite is real today: `cargo xtask screenshots` paints eight surfaces in Charcoal and
-Paper against committed baselines, and fails on a pixel difference beyond the tolerance in
+Paper — plus High Contrast for the grid and the empty welcome — against committed baselines, and fails
+on a pixel difference beyond the tolerance in
 `kittest.toml` (`docs/ARCHITECTURE.md` §12). Component-level and RTL snapshots land with the component
 work in 3B and the i18n scaffolding in Phase 4; until then the shell suite is the visual gate, and a
 baseline is the review of what a change looks like rather than a claim that the design is finished.

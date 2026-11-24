@@ -345,7 +345,7 @@ mod tests {
 
     /// A glyph is a stroke drawing with the conventions the preparation step rewrites, not a
     /// pre-coloured or pre-sized one: `currentColor` is what makes a tint possible, and a literal
-    /// colour would paint the same grey on all four presets.
+    /// colour would paint the same grey on all five presets.
     #[test]
     fn every_glyph_is_tinted_by_current_colour_at_the_catalogued_stroke() {
         for (name, bytes) in CATALOG {

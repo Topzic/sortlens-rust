@@ -169,6 +169,31 @@ mod tests {
         );
     }
 
+    /// Every preset — including High Contrast, whose id has a hyphen the enum's serde name would not
+    /// have produced — survives a trip through the settings file, and an unknown one reads as the default.
+    #[test]
+    fn every_theme_round_trips_and_a_future_one_falls_back() {
+        for kind in sortlens_ui::ThemeKind::ALL {
+            let mut prefs = Prefs::default();
+            prefs.appearance.theme = kind.id().to_owned();
+            let text = toml::to_string(&prefs).expect("serialise");
+            let read: Prefs = toml::from_str(&text).expect("parse");
+            assert_eq!(sortlens_ui::ThemeKind::from_id(&read.appearance.theme), kind);
+        }
+        let read: Prefs = toml::from_str("[appearance]\ntheme = \"high-contrast\"\n").expect("parse");
+        assert_eq!(
+            sortlens_ui::ThemeKind::from_id(&read.appearance.theme),
+            sortlens_ui::ThemeKind::HighContrast,
+            "the persisted id is the one the menus and logs use"
+        );
+        let read: Prefs = toml::from_str("[appearance]\ntheme = \"neon\"\n").expect("parse");
+        assert_eq!(
+            sortlens_ui::ThemeKind::from_id(&read.appearance.theme),
+            sortlens_ui::ThemeKind::Charcoal,
+            "a settings file from a later build must not stop this one opening"
+        );
+    }
+
     /// Every density the grid knows about survives a trip through the settings file, and an unknown one reads
     /// as the default rather than stopping the app from opening.
     #[test]

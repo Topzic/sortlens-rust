@@ -439,8 +439,9 @@ delete when the preflight plan and the executed count disagrees.
 
 ### 8.2 Theme tokens
 
-One `Tokens` struct (colours + metrics) with four presets — **Charcoal**, **Midnight**,
-**Silver**, **Paper** — plus accent and high-contrast variants. Mapping to egui via
+One `Tokens` struct (colours + metrics) with five presets — **Charcoal**, **Midnight**,
+**Silver**, **Paper** and the accessibility preset **High Contrast** (pure black/white/yellow,
+doubled chrome strokes). Mapping to egui via
 `craft_ui::theme::WidgetPalette` (the shared five-state operation), with app-specific
 exceptions applied afterwards. Label colours are theme functions (`label_color`), with
 contrast tests: text 4.5:1, control/selection 3:1, in every preset.

@@ -1,5 +1,50 @@
 # Checkpoint
 
+## 2026-11-24 (forty-seventh) — Phase 4 item 2b: the High-Contrast preset (SL-L09)
+
+- **What shipped:** the fifth theme preset — `ThemeKind::HighContrast`, persisted as
+  `theme = "high-contrast"` through the same `id()`/`from_id()` path as the other four, so no migration
+  is needed and an unknown id still falls back to Charcoal. Pure black canvas and thumb wells, pure white
+  text, a yellow accent (`#ffd23f`) that holds 4.5:1 against black with room to spare, muted text at AA
+  (`#cccccc`), a grey `#6b6b6b` hairline so a border reads as a boundary rather than as text, 2-point
+  corner radius, and a new `Tokens::stroke_w` metric that doubles every chrome stroke — window frames,
+  widget outlines, the selection ring and the press ring — while the four colour presets keep their
+  1-point hairlines.
+- **The one token, not five branches.** `stroke_w` is the metric `apply()` uses for every `Stroke::new`
+  it installs; no preset carries its own stroke-writing code, and a sixth preset would be a new constant,
+  as the file's doc comment already promised. The preset appears everywhere presets are named because
+  every menu iterates `ThemeKind::ALL` — the Appearance chip's cycle, its right-click list, and the
+  Settings radios — with no new drawing code.
+- **Tests that fail when the behaviour is broken:** `high_contrast_is_black_white_yellow_and_doubled`
+  (WCAG luminance ratios, not eyeballing: text at AAA ≥ 7:1, muted at ≥ 4.5:1, accent and accent-foreground
+  at ≥ 3/4.5:1, the accent actually yellow, all five presets' `stroke_w` correct, and `apply` really
+  installs the 2-point strokes and the token fills); the five preset-wide tests (`ids_round_trip`,
+  `light_presets_have_dark_text`, `the_widget_palette_is_the_token_set_and_apply_installs_it`,
+  `accents_are_visible_against_the_background`, `badge_and_flag_marks_hold_three_to_one_against_a_bad_cell`)
+  now run over all five — the badge test bit immediately: the first reject colour's white glyph measured
+  2.78:1, fixed to `#ff5252` before anything was committed.
+  `the_settings_dialog_offers_high_contrast_and_clicking_it_asks_the_host` drives the real radio widget
+  headlessly and asserts `Action::SetTheme(HighContrast)` reaches the host while the shell waits (the host
+  applies and persists it). The persistence layer is covered by `every_theme_round_trips_and_a_future_one_falls_back`
+  in the app's settings — the round-trip test the grid and density had and theme did not.
+- **Visual verification:** two new baselines, `library-justified-high-contrast` and
+  `welcome-high-contrast` (33 now), both read: black canvas, white words, yellow stars and selections,
+  the chip/badge marks clearly visible, borders that read as boundaries; the other 31 regenerated
+  byte-identical. `cargo xtask screenshots` green; the other presets' baselines did not move, which is
+  the proof the `stroke_w` change is exactly zero for them.
+- Files: `crates/ui/src/theme.rs` (the variant, `Tokens::HIGH_CONTRAST`, `stroke_w`, the test),
+  `crates/ui/src/shell.rs` (the Settings-dialog `run_ui` test), `crates/ui/src/lib.rs` and
+  `crates/ui/src/icons.rs` (doc counts), `crates/ui/tests/screenshots.rs` (`kind_id` arm, the new
+  baseline test, the THEMES comment), `apps/sortlens/src/settings.rs` (the theme round-trip test),
+  `docs/ROADMAP.md` (2b shipped with the proof named; M10 state and absent-table prose reconciled; the
+  item 1 baseline count marked historical), `docs/UX.md` (the five-preset table, the contrast bullet
+  now naming a shipped preset, the screenshot-suite prose), `docs/ARCHITECTURE.md` (§8.2 five presets).
+- Gates: `ci`, `snapshot`, `deny`, `wasm` (`crates/ui` changed), `screenshots` all green.
+- **Next**: Phase 4 item 2c — `craft-update` behind an explicit opt-in (SL-I10): a consent-gated update
+  check in Settings, the same shape as `model.install`'s gate (user-initiated network only), with the
+  engine or app host holding the consent flag and no call without it. Then 2d `craft-i18n` scaffolding
+  (SL-L07), then item 3 `sortlens-server` + `sortlens-web` with the two-process loopback harness.
+
 ## 2026-11-24 (forty-sixth) — Phase 4 item 2a: the packaging icons are renders of the one drawing
 
 - **What shipped:** `assets/icon.ico` and `assets/icon.icns`, generated — never dropped in — from the same
@@ -3703,8 +3748,8 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 **Phase 4 — platform, keymap, remote**
 16. `craft-keymap` editor in Settings → Shortcuts — **done 2026-11-24**, see the forty-fifth entry.
 17. Platform finishing, in this order — **2a `.icns`/`.ico` via `cargo xtask icons` done 2026-11-24**, see
-    the forty-sixth entry; then the High-Contrast preset (SL-L09), the opt-in `craft-update` (SL-I10) and
-    the `craft-i18n` scaffolding (SL-L07).
+    the forty-sixth entry; **2b the High-Contrast preset (SL-L09) done 2026-11-24**, see the forty-seventh
+    entry; then the opt-in `craft-update` (SL-I10) and the `craft-i18n` scaffolding (SL-L07).
 18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI.
 
 **Phase 5 — autonomous GitHub maintenance**

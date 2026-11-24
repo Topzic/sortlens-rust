@@ -1,6 +1,6 @@
 //! L5: the egui shell.
 //!
-//! M0 surface: colour tokens, the four presets, the five-surface shell and the dialogs that
+//! M0 surface: colour tokens, the five presets, the five-surface shell and the dialogs that
 //! M0 needs (settings, about). Grid, lightbox and the review surfaces land in later milestones.
 
 #![forbid(unsafe_code)]

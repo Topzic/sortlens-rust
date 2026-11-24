@@ -30,7 +30,10 @@ use sortlens_ui::{GridMode, ThemeKind, Thumbnails, UiState, View};
 const WIDTH: f32 = 1440.0;
 const HEIGHT: f32 = 900.0;
 
-/// Both ends of the range the four presets cover: the neutral dark default and the light one.
+/// Both ends of the range the colour presets cover: the neutral dark default and the light one.
+/// High Contrast is not in this pair; it has its own test below, because a preset that exists for
+/// low vision is checked on the surfaces a person with low vision actually uses, not sprinkled
+/// across every scene.
 const THEMES: [ThemeKind; 2] = [ThemeKind::Charcoal, ThemeKind::Paper];
 
 /// The shell, exactly as the app drives it: one state, one engine, one texture cache.
@@ -341,6 +344,23 @@ fn library_grid_paints_both_layouts_in_both_themes() {
     }
 }
 
+/// The accessibility preset on the two ends of the shell: the grid with its marks, and the empty
+/// welcome. Phase 4 item 2b's visual proof — pure black and white at doubled strokes, checked like
+/// any other preset rather than asserted to be readable in prose.
+#[test]
+fn high_contrast_paints_the_grid_and_the_welcome() {
+    let mut library = library();
+    let kind = ThemeKind::HighContrast;
+    let scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+    library.keep(shoot(kind, scene, &format!("library-justified-{}", kind_id(kind))));
+
+    let dir = library.fixture.root().join(format!("Empty-{}", kind_id(kind)));
+    let mut engine = Engine::open(&dir).expect("an empty library opens");
+    assert_eq!(engine.stats().total, 0);
+    let scene = new_scene(kind, engine, &library.cache());
+    drop(shoot(kind, scene, &format!("welcome-{}", kind_id(kind))));
+}
+
 /// The Missing scope: the one source that asks the filesystem rather than an annotation.
 ///
 /// One frame's file is removed from disk and the health check marks the record, so the sidebar's Missing
@@ -636,5 +656,6 @@ fn kind_id(kind: ThemeKind) -> &'static str {
         ThemeKind::Midnight => "midnight",
         ThemeKind::Silver => "silver",
         ThemeKind::Paper => "paper",
+        ThemeKind::HighContrast => "high-contrast",
     }
 }

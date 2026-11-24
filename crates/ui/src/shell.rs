@@ -13049,6 +13049,82 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// Settings → Appearance lists every preset — the four colour ones and High Contrast — and
+    /// clicking High Contrast asks the host for it, which is what persists `theme = "high-contrast"`
+    /// in `config.toml`. Driven through the real radio widgets, the way a person clicks them.
+    #[test]
+    fn the_settings_dialog_offers_high_contrast_and_clicking_it_asks_the_host() {
+        let engine_cell = std::cell::RefCell::new(Engine::open(std::env::temp_dir().join("sortlens-ui-theme-empty")).expect("open"));
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.settings_open = true;
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let frame = |state: &mut UiState, mut input: egui::RawInput| {
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0)));
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(ui, state, &tokens, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // The window positions itself on its first frame; read the claims on the second.
+        let _warm = frame(&mut state, egui::RawInput::default());
+        let output = frame(&mut state, egui::RawInput::default());
+        for kind in ThemeKind::ALL {
+            assert!(
+                output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                    if text.galley.text() == kind.label())),
+                "{} is offered in Settings",
+                kind.label()
+            );
+        }
+
+        // Click the High Contrast radio through its own label.
+        let label = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text() == ThemeKind::HighContrast.label() => {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .expect("the High Contrast radio painted its label");
+        let at = label.center();
+        let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        frame(&mut state, click(at, true));
+        frame(&mut state, click(at, false));
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|action| action == &Action::SetTheme(ThemeKind::HighContrast)),
+            "the click asked the host to switch and persist the preset"
+        );
+        assert_eq!(
+            state.theme,
+            ThemeKind::Charcoal,
+            "the shell waits for the host, as every SetTheme does"
+        );
+    }
+
     /// Phase 3 item 11: the palette is a front door to the command registry, not a second command list.
     ///
     /// Every id the palette can show has to be a `Ready` registry command — a row for something the

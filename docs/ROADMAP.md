@@ -892,8 +892,8 @@ photos live; the UI renders correctly in Arabic and Japanese.
 the icon, the attribution gate and the first half of the accessibility audit are in. Signing, installers,
 the emitted accessibility tree, the operating system's own reduced-motion preference, theme import and the tag
 are not — each named with its unblocker in the table at the end of this milestone. The `.icns`/`.ico` files
-shipped in Phase 4 item 2a (`cargo xtask icons`); the high-contrast preset and the opt-in `craft-update`
-toggle are still open in Phase 4 items 2b and 2c.
+shipped in Phase 4 item 2a (`cargo xtask icons`) and the High-Contrast preset in item 2b; the opt-in
+`craft-update` toggle is still open in Phase 4 item 2c.
 
 - [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
   cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
@@ -928,7 +928,7 @@ toggle are still open in Phase 4 items 2b and 2c.
 
 Rows that need something this repository genuinely does not have (an identity, a toolchain, a screen reader, a
 person's decision). Anything buildable lives in "Completion phases" below instead. The packaging icons
-(`.icns`/`.ico`) shipped in Phase 4 item 2a; the high-contrast preset and the opt-in update check are
+(`.icns`/`.ico`) shipped in Phase 4 item 2a; the opt-in update check is
 still open there.
 
 | Not built | Because | What would unblock it |
@@ -1262,7 +1262,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   `a_rebound_key_moves_the_action` and `the_shortcut_editor_opens_rebinds_and_saves` (Q flags as picked
   after OK and the host receives the override), the settings round trip
   `shortcut_sets_round_trip_and_an_older_file_reads_the_defaults`, and the `shortcut-editor-charcoal`/
-  `-paper` baselines (31 now), all read.
+  `-paper` baselines (31 at the time; 33 after item 2b), all read.
 - [ ] 2. Packaging and accessibility, in this order:
   - [x] 2a. `.icns`/`.ico` generated from `crates/icon` by `cargo xtask icons` (B)
     — shipped 2026-11-24: `sortlens-icon::ico()` packs PNG entries at 16/32/48/64/128/256 px into the
@@ -1275,7 +1275,20 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     directory back, decodes every embedded PNG, checks offsets) and `the_icns_carries_the_mac_slots`
     (walks the chunks, checks the container length) plus `the_committed_packaging_icons_are_the_drawing`.
     Still open, unchanged: signed/notarised bundles that would consume these files (the M10 table).
-  - [ ] 2b. A High-Contrast preset (SL-L09)
+  - [x] 2b. A High-Contrast preset (SL-L09)
+    — shipped 2026-11-24: `ThemeKind::HighContrast` (`theme = "high-contrast"` in `config.toml`, round-tripped
+    through the same `id()`/`from_id()` path as the other four, so a preset switch needs no migration) with
+    `Tokens::HIGH_CONTRAST` — pure black canvas and thumb wells, pure white text, a yellow accent that holds
+    4.5:1 against black with room to spare, muted text at AA, and a new `Tokens::stroke_w` token that doubles
+    every chrome stroke (window frames, widget outlines, the selection ring, the press ring) while the four
+    colour presets keep their hairlines. Proved by `high_contrast_is_black_white_yellow_and_doubled` (WCAG
+    luminance ratios, the accent is yellow, `apply` really installs the 2-point strokes and the token fills),
+    the existing preset-wide tests now running over five presets, `the_settings_dialog_offers_high_contrast_and_clicking_it_asks_the_host`
+    (the radio clicked through the real widget returns `SetTheme(HighContrast)` and every preset label paints),
+    and two new baselines `library-justified-high-contrast` and `welcome-high-contrast` (33 now), read: black
+    canvas, white words, yellow marks, borders that read as boundaries. It appears everywhere presets are
+    named because every menu iterates `ThemeKind::ALL` — the Appearance chip's right-click, its cycle, and
+    Settings — with no new drawing code.
   - [ ] 2c. `craft-update` behind an explicit opt-in (SL-I10)
   - [ ] 2d. `craft-i18n` scaffolding (SL-L07)
   (B,E)

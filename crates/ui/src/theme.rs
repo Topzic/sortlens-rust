@@ -1,7 +1,9 @@
 //! Colour tokens and theme presets.
 //!
-//! Four presets, matching the suite's naming: Charcoal and Midnight are dark, Silver and Paper
-//! are light. Every widget colour comes from [`Tokens`]; no panel hard-codes an `Rgba`.
+//! Five presets, matching the suite's naming: Charcoal and Midnight are dark, Silver and Paper
+//! are light, and High-Contrast is the accessibility preset — pure black and white with a yellow
+//! accent, at stroke widths that survive a bright window or a low-quality screen. Every widget
+//! colour comes from [`Tokens`]; no panel hard-codes an `Rgba`.
 //!
 //! The accent is the one place Sortlens differs from its siblings: a warm amber reads as
 //! "keep/select" next to photographic neutrals without competing with the images.
@@ -22,6 +24,9 @@ pub enum ThemeKind {
     Silver,
     /// Near-white, for bright rooms and projectors.
     Paper,
+    /// Pure black on pure white with a yellow accent: the accessibility preset for low vision,
+    /// glare and washed-out panels.
+    HighContrast,
 }
 
 /// How big a grid cell is, which is the only thing that decides how many photos fit.
@@ -224,7 +229,7 @@ impl Motion {
 
 impl ThemeKind {
     /// Every preset, in menu order.
-    pub const ALL: [Self; 4] = [Self::Charcoal, Self::Midnight, Self::Silver, Self::Paper];
+    pub const ALL: [Self; 5] = [Self::Charcoal, Self::Midnight, Self::Silver, Self::Paper, Self::HighContrast];
 
     /// Stable id used in settings, the command line and logs.
     pub const fn id(self) -> &'static str {
@@ -233,6 +238,7 @@ impl ThemeKind {
             Self::Midnight => "midnight",
             Self::Silver => "silver",
             Self::Paper => "paper",
+            Self::HighContrast => "high-contrast",
         }
     }
 
@@ -243,6 +249,7 @@ impl ThemeKind {
             Self::Midnight => "Midnight",
             Self::Silver => "Silver",
             Self::Paper => "Paper",
+            Self::HighContrast => "High Contrast",
         }
     }
 
@@ -268,6 +275,7 @@ impl ThemeKind {
             Self::Midnight => Tokens::MIDNIGHT,
             Self::Silver => Tokens::SILVER,
             Self::Paper => Tokens::PAPER,
+            Self::HighContrast => Tokens::HIGH_CONTRAST,
         }
     }
 }
@@ -327,6 +335,11 @@ pub struct Tokens {
     pub grid_gap: f32,
     /// Corner radius for panels and cards.
     pub radius: u8,
+    /// Width of every chrome stroke (window frames, widget outlines, separators).
+    ///
+    /// Four presets draw hairlines; High-Contrast doubles them, because a 1-point grey line on a
+    /// cheap panel at a steep angle is the first thing to disappear.
+    pub stroke_w: f32,
 }
 
 impl Tokens {
@@ -356,6 +369,7 @@ impl Tokens {
         right_w: 296.0,
         grid_gap: 4.0,
         radius: 6,
+        stroke_w: 1.0,
     };
 
     /// Blue-black, lower contrast floor than Charcoal.
@@ -401,6 +415,36 @@ impl Tokens {
         thumb_bg: Color32::from_rgb(0xdc, 0xd9, 0xd3),
         map_coast: Color32::from_rgb(0x9a, 0x95, 0x8c),
         shadow: Color32::from_black_alpha(40),
+        ..Self::CHARCOAL
+    };
+
+    /// Pure black and pure white with a yellow accent: the accessibility preset.
+    ///
+    /// Backgrounds go fully black so the photographs' own luminance is the only light on the
+    /// screen, text goes fully white, and the accent is a yellow that holds 4.5:1 against black
+    /// with a large margin. Hairlines are grey rather than white so a border still reads as a
+    /// boundary, not as text, but at twice the width of the other presets.
+    pub const HIGH_CONTRAST: Self = Self {
+        bg: Color32::from_rgb(0x00, 0x00, 0x00),
+        chrome: Color32::from_rgb(0x0a, 0x0a, 0x0a),
+        panel: Color32::from_rgb(0x0d, 0x0d, 0x0d),
+        card: Color32::from_rgb(0x16, 0x16, 0x16),
+        border: Color32::from_rgb(0x6b, 0x6b, 0x6b),
+        text: Color32::from_rgb(0xff, 0xff, 0xff),
+        text_muted: Color32::from_rgb(0xcc, 0xcc, 0xcc),
+        text_faint: Color32::from_rgb(0x8f, 0x8f, 0x8f),
+        accent: Color32::from_rgb(0xff, 0xd2, 0x3f),
+        accent_fg: Color32::from_rgb(0x00, 0x00, 0x00),
+        selection: Color32::from_rgb(0x3d, 0x33, 0x00),
+        hover: Color32::from_rgb(0x1c, 0x1c, 0x1c),
+        active: Color32::from_rgb(0x2a, 0x2a, 0x2a),
+        pick: Color32::from_rgb(0x4a, 0xde, 0x80),
+        reject: Color32::from_rgb(0xff, 0x52, 0x52),
+        thumb_bg: Color32::from_rgb(0x00, 0x00, 0x00),
+        map_coast: Color32::from_rgb(0x7a, 0x7a, 0x7a),
+        shadow: Color32::from_black_alpha(140),
+        radius: 2,
+        stroke_w: 2.0,
         ..Self::CHARCOAL
     };
 
@@ -497,9 +541,9 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
         style.visuals.extreme_bg_color = t.thumb_bg;
         style.visuals.faint_bg_color = t.card;
         style.visuals.override_text_color = Some(t.text);
-        style.visuals.window_stroke = Stroke::new(1.0, t.border);
+        style.visuals.window_stroke = Stroke::new(t.stroke_w, t.border);
         style.visuals.selection.bg_fill = t.selection;
-        style.visuals.selection.stroke = Stroke::new(1.0, t.accent);
+        style.visuals.selection.stroke = Stroke::new(t.stroke_w, t.accent);
         style.visuals.hyperlink_color = t.accent;
 
         for widget in [
@@ -509,14 +553,14 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
             &mut style.visuals.widgets.active,
             &mut style.visuals.widgets.open,
         ] {
-            widget.bg_stroke = Stroke::new(1.0, t.border);
+            widget.bg_stroke = Stroke::new(t.stroke_w, t.border);
         }
         // The five state fills come from the palette, not from five lines that could disagree with
         // `Tokens::palette`. `apply_to` keeps the borders and expansion set above; the accent ring on
         // the pressed state is the one exception, because a press is the only state that must shout.
         t.palette()
-            .apply_to(&mut style.visuals.widgets, t.corner(), Stroke::new(1.0, t.text));
-        style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, t.accent);
+            .apply_to(&mut style.visuals.widgets, t.corner(), Stroke::new(t.stroke_w, t.text));
+        style.visuals.widgets.active.bg_stroke = Stroke::new(t.stroke_w, t.accent);
 
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
         style.spacing.button_padding = egui::vec2(8.0, 4.0);
@@ -677,5 +721,43 @@ mod tests {
                 contrast(t.reject, t.thumb_bg)
             );
         }
+    }
+
+    /// The accessibility preset keeps its contract: pure black and white, a yellow accent that
+    /// holds 4.5:1 with room to spare, muted text still at AA, and strokes at twice the width of
+    /// the four colour presets — which is the point of the preset, and what `apply` must really
+    /// install rather than merely store.
+    #[test]
+    fn high_contrast_is_black_white_yellow_and_doubled() {
+        let t = ThemeKind::HighContrast.tokens();
+        assert_eq!(t.bg, Color32::BLACK, "the canvas is fully black");
+        assert_eq!(t.text, Color32::WHITE, "the text is fully white");
+        assert!(
+            t.accent.r() > 0xC0 && t.accent.g() > 0xC0 && t.accent.b() < 0x80,
+            "the accent is yellow"
+        );
+        assert!(contrast(t.text, t.bg) >= 7.0, "body text at AAA: {:.2}", contrast(t.text, t.bg));
+        assert!(
+            contrast(t.text_muted, t.bg) >= 4.5,
+            "muted text at AA: {:.2}",
+            contrast(t.text_muted, t.bg)
+        );
+        assert!(contrast(t.accent, t.bg) >= 3.0, "accent visible: {:.2}", contrast(t.accent, t.bg));
+        assert!(
+            contrast(t.accent_fg, t.accent) >= 4.5,
+            "words on the accent readable: {:.2}",
+            contrast(t.accent_fg, t.accent)
+        );
+        for kind in ThemeKind::ALL {
+            let expected = if kind == ThemeKind::HighContrast { 2.0 } else { 1.0 };
+            assert_eq!(kind.tokens().stroke_w, expected, "{} stroke width", kind.id());
+        }
+        let ctx = egui::Context::default();
+        apply(&ctx, ThemeKind::HighContrast);
+        let visuals = ctx.style_of(ThemeKind::HighContrast.egui_theme()).visuals.clone();
+        assert_eq!(visuals.window_stroke.width, 2.0, "window frames double");
+        assert_eq!(visuals.widgets.inactive.bg_stroke.width, 2.0, "widget outlines double");
+        assert_eq!(visuals.widgets.active.bg_stroke.color, t.accent, "the press ring stays the accent");
+        assert_eq!(visuals.panel_fill, t.panel, "panels are the token's own near-black");
     }
 }
