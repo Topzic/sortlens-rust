@@ -369,6 +369,25 @@ fn settings_sync_paints_in_both_themes() {
     }
 }
 
+/// Settings at a laptop's height: the dialog is longer than 800 points, and it used to run past the
+/// bottom of the screen, putting Updates, Sync and the keyword packs out of reach. The body scrolls
+/// inside the dialog now, so the frame ends above the docks and the body keeps its own scrollbar.
+#[test]
+fn a_short_window_scrolls_the_settings_dialog_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        scene.state.settings_open = true;
+        // Lenient for the language row's own scripts, as the 1700-point Settings baseline is.
+        library.keep(shoot_at_lenient(
+            kind,
+            scene,
+            &format!("settings-short-{}", kind_id(kind)),
+            egui::vec2(900.0, 620.0),
+        ));
+    }
+}
+
 /// The empty state a first launch shows: no folder, no photographs, the welcome copy.
 #[test]
 fn empty_welcome_paints_in_both_themes() {

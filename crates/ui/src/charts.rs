@@ -19,8 +19,18 @@ use crate::theme::Tokens;
 /// Height of a column chart, including its baseline.
 pub const COLUMN_HEIGHT: f32 = 74.0;
 
-/// Width of one column, including its gap.
+/// The narrowest a column may be, including its gap.
+///
+/// The month chart's single letters fit in this; a longer label — a four-digit year — widens the
+/// column instead of painting over its neighbour.
 pub const COLUMN_WIDTH: f32 = 16.0;
+
+/// The size of a column's label, shared by the measuring pass and the painting pass so the two
+/// cannot disagree about how much room a label needs.
+const LABEL_SIZE: f32 = 8.5;
+
+/// Room beside a label's glyphs, so two labels never touch even at the widest.
+const LABEL_PADDING: f32 = 6.0;
 
 /// Height of one proportional row.
 pub const SHARE_HEIGHT: f32 = 15.0;
@@ -101,7 +111,8 @@ pub fn columns(ui: &mut Ui, t: &Tokens, columns: &[Column], height: f32) -> f32 
         return 0.0;
     }
     let pixel_heights = heights(&columns.iter().map(|column| column.value).collect::<Vec<_>>(), height);
-    let width = (columns.len() as f32 * COLUMN_WIDTH).max(COLUMN_WIDTH);
+    let column_width = column_width(ui, columns);
+    let width = columns.len() as f32 * column_width;
     let (rect, _) = ui.allocate_exact_size(vec2(width, height + 14.0), Sense::hover());
     let baseline = rect.bottom() - 14.0;
     let painter = ui.painter();
@@ -111,23 +122,25 @@ pub fn columns(ui: &mut Ui, t: &Tokens, columns: &[Column], height: f32) -> f32 
     );
     let peak = columns.iter().map(|column| column.value).max().unwrap_or(0);
     for (index, (column, tall)) in columns.iter().zip(pixel_heights.iter()).enumerate() {
-        let left = rect.left() + index as f32 * COLUMN_WIDTH;
-        let bar = Rect::from_min_max(pos2(left + 2.0, baseline - tall), pos2(left + COLUMN_WIDTH - 2.0, baseline));
-        let fill = if column.highlight { t.accent } else { t.selection };
+        let left = rect.left() + index as f32 * column_width;
+        let bar = Rect::from_min_max(pos2(left + 2.0, baseline - tall), pos2(left + column_width - 2.0, baseline));
         if *tall > 0.0 {
-            painter.rect_filled(bar, 1.0, fill);
+            painter.rect_filled(bar, 1.0, bar_fill(t, column.highlight));
         }
         if !column.label.is_empty() {
+            // The highlighted column is named in full-strength text as well as painted in the full
+            // accent, so the one the chart is about is findable without relying on colour alone.
+            let label = if column.highlight { t.text } else { t.text_faint };
             painter.text(
                 pos2(bar.center().x, baseline + 2.0),
                 Align2::CENTER_TOP,
                 &column.label,
-                FontId::proportional(8.5),
-                t.text_faint,
+                FontId::proportional(LABEL_SIZE),
+                label,
             );
         }
         // The tooltip carries the numbers: a chart you cannot read a value off is decoration.
-        let hit = Rect::from_min_max(pos2(left, rect.top()), pos2(left + COLUMN_WIDTH, rect.bottom()));
+        let hit = Rect::from_min_max(pos2(left, rect.top()), pos2(left + column_width, rect.bottom()));
         let response = ui.interact(hit, ui.scope_id().with(("column", index)), Sense::hover());
         let share = if peak == 0 {
             String::new()
@@ -141,6 +154,40 @@ pub fn columns(ui: &mut Ui, t: &Tokens, columns: &[Column], height: f32) -> f32 
         ));
     }
     height
+}
+
+/// How wide one column has to be: enough for the widest label, and never under the minimum.
+fn column_width(ui: &Ui, columns: &[Column]) -> f32 {
+    let font = FontId::proportional(LABEL_SIZE);
+    columns
+        .iter()
+        .filter(|column| !column.label.is_empty())
+        .map(|column| {
+            ui.painter()
+                .layout_no_wrap(column.label.clone(), font.clone(), Color32::WHITE)
+                .size()
+                .x
+                + LABEL_PADDING
+        })
+        .fold(COLUMN_WIDTH, f32::max)
+}
+
+/// The fill of one column: the accent, softened when it is not the column the chart is about.
+///
+/// Unhighlighted bars used to borrow `selection`, the tint of a chosen row, which sat at 1.4:1
+/// against the panel — a bar of twelve photographs read as an empty chart. The accent is the colour
+/// that means data here; softened by a sixth it still clears 3:1 against every preset's panel, and
+/// the highlighted column keeps the full one.
+pub(crate) fn bar_fill(t: &Tokens, highlight: bool) -> Color32 {
+    if highlight {
+        return t.accent;
+    }
+    let soften = |accent: u8, panel: u8| (f32::from(accent) * 0.85 + f32::from(panel) * 0.15).round() as u8;
+    Color32::from_rgb(
+        soften(t.accent.r(), t.panel.r()),
+        soften(t.accent.g(), t.panel.g()),
+        soften(t.accent.b(), t.panel.b()),
+    )
 }
 
 /// A label, a proportional bar and a count.
@@ -165,7 +212,7 @@ pub fn share_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usiz
     let share = share_of(count, whole);
     if count > 0 {
         let filled = Rect::from_min_size(track.min, vec2(track.width() * share.clamp(0.02, 1.0), track.height()));
-        painter.rect_filled(filled, 2.0, t.selection);
+        painter.rect_filled(filled, 2.0, t.accent);
     }
     painter.text(
         pos2(rect.right(), rect.center().y),
@@ -276,6 +323,45 @@ mod tests {
         // A headless frame still produces texture uploads; epaint asserts if they are dropped unread.
         output.textures_delta.clear();
         assert_eq!(drawn, COLUMN_HEIGHT);
+    }
+
+    /// The years on a For You card are four digits wide, which a month's one letter is not. A fixed
+    /// 16-point column painted "2023 2024 2025" as one unreadable run; the column takes the width of
+    /// its own label instead, and this measures the painted labels rather than trusting the maths.
+    #[test]
+    fn a_four_digit_label_widens_the_column_instead_of_painting_over_its_neighbour() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let years = vec![Column::new("2023", 4), Column::new("2024", 10), Column::new("2025", 24)];
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                columns_of(ui, &tokens, &years);
+            });
+        });
+        output.textures_delta.clear();
+        let mut labels = Vec::new();
+        for clipped in &output.shapes {
+            collect_text(&clipped.shape, &mut labels);
+        }
+        assert_eq!(labels.len(), 3, "one label per year: {labels:?}");
+        labels.sort_by(|left, right| left.left().total_cmp(&right.left()));
+        for pair in labels.windows(2) {
+            let (left, right) = (pair[0], pair[1]);
+            assert!(left.right() < right.left(), "the year labels overlap: {left:?} and {right:?}");
+            assert!(
+                right.left() - left.right() >= 2.0,
+                "the labels need a gap, not just a shared edge: {left:?} and {right:?}"
+            );
+        }
+        assert!(labels[0].width() > 10.0, "the label is painted at a readable size");
+    }
+
+    fn collect_text(shape: &egui::Shape, sink: &mut Vec<Rect>) {
+        match shape {
+            egui::Shape::Text(text) => sink.push(text.visual_bounding_rect()),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| collect_text(shape, sink)),
+            _ => {}
+        }
     }
 
     fn columns_of(ui: &mut Ui, t: &Tokens, series: &[Column]) -> f32 {

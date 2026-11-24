@@ -639,6 +639,36 @@ mod tests {
         }
     }
 
+    /// A chart bar is a graphic, not text, so it is judged at 3:1: against the panel a column sits
+    /// on, and against the track a share row's bar runs along. The rows were filled with `selection`
+    /// (the tint of a chosen row) and read at 1.4:1 on Charcoal — a bar of twelve photographs made an
+    /// empty-looking chart. The accent is the data colour; the quiet bars soften it by a sixth.
+    #[test]
+    fn chart_bars_hold_three_to_one_against_the_surface_they_sit_on() {
+        for kind in ThemeKind::ALL {
+            let t = kind.tokens();
+            let quiet = crate::charts::bar_fill(&t, false);
+            assert!(
+                contrast(quiet, t.panel) >= 3.0,
+                "{} quiet chart bar against the panel: {:.2}",
+                kind.id(),
+                contrast(quiet, t.panel)
+            );
+            assert!(
+                contrast(t.accent, t.panel) >= 3.0,
+                "{} highlighted bar against the panel: {:.2}",
+                kind.id(),
+                contrast(t.accent, t.panel)
+            );
+            assert!(
+                contrast(t.accent, t.thumb_bg) >= 3.0,
+                "{} share-row bar against its track: {:.2}",
+                kind.id(),
+                contrast(t.accent, t.thumb_bg)
+            );
+        }
+    }
+
     #[test]
     fn accents_are_visible_against_the_background() {
         for kind in ThemeKind::ALL {

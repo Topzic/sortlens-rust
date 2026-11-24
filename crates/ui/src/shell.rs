@@ -753,6 +753,9 @@ pub struct UiState {
     pub title_inset: f32,
     /// Settings dialog visibility.
     pub settings_open: bool,
+    /// Height the Settings body painted at, measured each frame so a short window can cap its window
+    /// and scroll instead of running off the bottom of the screen.
+    pub settings_height: f32,
     /// About dialog visibility.
     pub about_open: bool,
     /// Shortcut overlay visibility.
@@ -959,6 +962,7 @@ impl UiState {
             right_tab: RightTab::Details,
             title_inset,
             settings_open: false,
+            settings_height: 0.0,
             about_open: false,
             shortcuts_open: false,
             shortcut_query: String::new(),
@@ -1476,6 +1480,92 @@ fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
     if state.rename_target.is_some() {
         rename_dialog(ui, state, t, engine);
     }
+}
+
+/// Escape closes the window painted last: the reverse of [`dialogs`]' order, so one press dismisses
+/// the dialog being read and a stack unwinds from its top. Each window has its own flag and none of
+/// them treats Escape as a close on its own, which is how three dialogs could stay open behind the
+/// Keyboard shortcuts overlay that promises "Esc Close the dialog, overlay or detail view".
+///
+/// The shortcut editor is deliberately absent: it owns the keyboard while it records (its own Escape
+/// cancels the rebind), and `keyboard` never reaches here while it is open.
+fn dismiss_top_window(state: &mut UiState) -> bool {
+    if state.rename_target.take().is_some() {
+        return true;
+    }
+    if state.move_receipt.take().is_some() {
+        return true;
+    }
+    if state.suggest_open {
+        state.suggest_open = false;
+        return true;
+    }
+    if state.similar_delete_open {
+        state.similar_delete_open = false;
+        return true;
+    }
+    if state.export_open || state.export_receipt.is_some() {
+        state.export_open = false;
+        state.export_receipt = None;
+        return true;
+    }
+    if state.history_open {
+        state.history_open = false;
+        return true;
+    }
+    if state.health_open {
+        state.health_open = false;
+        return true;
+    }
+    if state.empty_bin_open {
+        state.empty_bin_open = false;
+        return true;
+    }
+    if state.deleted_open {
+        state.deleted_open = false;
+        return true;
+    }
+    if state.apply_open {
+        state.apply_open = false;
+        return true;
+    }
+    if state.shortcuts_open {
+        // While the overlay has a query the field owns Escape, as it did before this list grew.
+        if !state.shortcut_query.is_empty() {
+            return false;
+        }
+        state.shortcuts_open = false;
+        return true;
+    }
+    if state.about_open {
+        state.about_open = false;
+        return true;
+    }
+    if state.settings_open {
+        state.settings_open = false;
+        return true;
+    }
+    if state.receipt_open {
+        state.receipt_open = false;
+        return true;
+    }
+    // The cull summary is a result rather than a question: while the session is complete the shell
+    // re-opens it every frame, so Escape leaves it to its own buttons and does not reach behind it.
+    if state.summary_open {
+        return false;
+    }
+    if state.quit_open {
+        state.quit_open = false;
+        return true;
+    }
+    if state.tag_edit.take().is_some() {
+        return true;
+    }
+    if state.bell_open {
+        state.bell_open = false;
+        return true;
+    }
+    false
 }
 
 fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
@@ -3935,6 +4025,10 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         return;
     }
     if command_keyboard(ui, state, engine, actions) {
+        return;
+    }
+    // A dialog is above everything behind it, so Escape goes to the top one before the keys do.
+    if ui.input(|input| input.key_pressed(Key::Escape) && !input.modifiers.command) && dismiss_top_window(state) {
         return;
     }
     if state.shortcuts_open {
@@ -6573,9 +6667,16 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
         });
         ui.add_space(14.0);
 
-        ui.horizontal_top(|ui| {
+        // Three columns while they fit. The widths come from the room the canvas has rather than
+        // from constants: a 1280-point window with both docks open has about 680 points of canvas,
+        // and a fixed 300 + breakdown + 240 painted the timeline and the month chart underneath the
+        // inspector. Below the minimum the row wraps into one column, which scrolls.
+        let gap = 18.0;
+        let column = ((ui.available_width() - gap * 2.0) / 3.0 - 2.0).clamp(200.0, 300.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
             ui.vertical(|ui| {
-                ui.set_width(300.0);
+                ui.set_width(column);
                 ui.label(RichText::new("Ratings").size(12.0).strong());
                 for stars in (0..=5).rev() {
                     let count = insights.by_rating[stars];
@@ -6598,17 +6699,16 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                     bar_row(ui, t, name, insights.by_kind[index], insights.stats.total);
                 }
             });
-            ui.add_space(18.0);
             ui.vertical(|ui| {
+                ui.set_width(column);
                 breakdown(ui, t, "Cameras", &insights.cameras, insights.unknown_camera);
                 ui.add_space(12.0);
                 breakdown(ui, t, "Lenses", &insights.lenses, 0);
                 ui.add_space(12.0);
                 breakdown(ui, t, "Keywords", &insights.keywords, 0);
             });
-            ui.add_space(18.0);
             ui.vertical(|ui| {
-                ui.set_width(240.0);
+                ui.set_width(column);
                 ui.label(RichText::new("Timeline").size(12.0).strong());
                 if insights.years.is_empty() {
                     ui.label(RichText::new("No capture dates yet").size(11.0).color(t.text_faint));
@@ -7188,7 +7288,7 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                 .map(|batch| (batch.id, batch.summary(), age_label(batch.applied_at), batch.mode.clone()))
                 .collect();
             if batches.is_empty() {
-                hint(ui, t, "Nothing has been applied yet.");
+                hint(ui, t, "Nothing has been deleted yet.");
                 ui.add_space(4.0);
 
                 ui.label(
@@ -8193,116 +8293,150 @@ fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
 
 fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.settings_open;
-    egui::Window::new(tl!("Settings"))
+    // Settings is longer than a laptop window, and a window that runs past the bottom of the screen
+    // hides the sections at its tail — Updates, Sync, the keyword packs — with no way to reach
+    // them. Past a ceiling the body scrolls inside the dialog instead, with the scrollbar always
+    // shown so the cut reads as a viewport and not as sections that are missing. The content is
+    // measured on the frame that paints it, so the decision is one frame old and exact: a screen
+    // tall enough for the whole dialog keeps the auto-sized window, and the 1700-point baseline is
+    // unchanged.
+    let ceiling = (ui.ctx().content_rect().height() - 96.0).max(280.0);
+    let scrolling = state.settings_height > ceiling;
+    let mut window = egui::Window::new(tl!("Settings"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
-        .default_width(360.0)
-        .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(tl!("Appearance")).size(11.0).color(t.text_muted));
-            for kind in ThemeKind::ALL {
-                if ui.radio(state.theme == kind, kind.label()).clicked() && state.theme != kind {
-                    actions.push(Action::SetTheme(kind));
-                }
-            }
-            ui.add_space(8.0);
-            ui.separator();
-            // The interface language (SL-L07): the switch is instant, the host persists the code.
-            // The radio row reads each language in itself, so the list is the proof of what changes.
-            ui.label(RichText::new(tl!("Language")).size(11.0).color(t.text_muted));
-            ui.horizontal(|ui| {
-                for lang in I18N.languages() {
-                    let code = I18N.code(lang).to_owned();
-                    if ui.radio(current() == lang, I18N.name(lang)).clicked() && current() != lang {
-                        set_current(lang);
-                        actions.push(Action::SetLanguage(code));
-                    }
-                }
-            });
-            ui.add_space(8.0);
-            ui.separator();
-            ui.label(RichText::new(tl!("Library")).size(11.0).color(t.text_muted));
-            let mut write_sidecars = engine.write_sidecars();
-            if ui.checkbox(&mut write_sidecars, tl!("Write XMP sidecars beside photos")).changed() {
-                engine.set_write_sidecars(write_sidecars);
-                actions.push(Action::SetSidecars(write_sidecars));
-            }
-            ui.label(
-                RichText::new("Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.")
-                    .size(10.5)
-                    .color(t.text_faint),
-            );
-            ui.add_space(8.0);
-            ui.label(RichText::new(tl!("Applying a cull batch")).size(11.0).color(t.text_muted));
-            for mode in DeleteMode::ALL {
-                if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
-                    state.delete_mode = mode;
-                }
-            }
-            ui.add_space(8.0);
-            ui.separator();
-            ui.label(RichText::new(tl!("Backup")).size(11.0).color(t.text_muted));
-            ui.horizontal(|ui| {
-                if ui
-                    .button(RichText::new(tl!("Back up library…")).size(12.0))
-                    .on_hover_text("One verified file holding the index and every decision")
-                    .clicked()
-                {
-                    actions.push(Action::Backup);
-                }
-                if ui
-                    .button(RichText::new(tl!("Restore into a folder…")).size(12.0))
-                    .on_hover_text("Unpack a backup as a separate library; the open one is untouched")
-                    .clicked()
-                {
-                    actions.push(Action::RestoreBackup);
-                }
-            });
-            ui.label(
-                RichText::new("Photos are never copied, so a backup holds the index and the review state, not pixels.")
-                    .size(10.5)
-                    .color(t.text_faint),
-            );
-            ui.add_space(8.0);
-            ui.separator();
-            ui.label(RichText::new(tl!("Shortcuts")).size(11.0).color(t.text_muted));
-            if ui
-                .button(RichText::new(tl!("Edit shortcuts…")).size(12.0))
-                .on_hover_text("Rebind keys, resolve conflicts, and import or export shortcut sets")
-                .clicked()
-            {
-                // One modal at a time, and the palette's keyboard must not reach the editor.
-                state.palette_open = false;
-                state.settings_open = false;
-                state.shortcut_editor = Some(DialogState::new());
-            }
-            ui.add_space(8.0);
-            ui.separator();
-            ai_models_section(ui, t, engine, actions);
-            ui.separator();
-            // The update check (SL-I10) is desktop-only and consent-gated the same way.
-            updates_section(ui, t, engine, actions);
-            // Serving the library to paired devices is desktop-only: the shell paints what the
-            // host feeds it, and the host owns the process (SL-J01/J09).
-            sync_section(ui, state, t, actions);
-            ui.separator();
-            ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
-            keyword_packs(ui, t, engine, actions);
-            if ui
-                .button(RichText::new("Suggest keywords for the library…").size(12.0))
-                .on_hover_text("Proposes keywords for every photo that has something to say; writes nothing until you accept")
-                .clicked()
-            {
-                state.suggest_open = true;
-            }
-            ui.add_space(8.0);
-            ui.label(
-                RichText::new(tl!("More settings arrive with the features they configure."))
-                    .size(11.0)
-                    .color(t.text_faint),
-            );
-        });
+        .default_width(360.0);
+    if scrolling {
+        window = window.max_height(ceiling);
+    }
+    window.show(ui.ctx(), |ui| {
+        // The height is read from the scroll area's own content size, not from the inner ui: a
+        // scrolled ui's min_rect is the viewport, which would turn the ceiling off on the next
+        // frame and leave the dialog clipped with no way to scroll.
+        let measured = if scrolling {
+            egui::ScrollArea::vertical()
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                .auto_shrink([false, false])
+                .show(ui, |ui| settings_body(ui, state, t, engine, actions))
+                .content_size
+                .y
+        } else {
+            settings_body(ui, state, t, engine, actions);
+            ui.min_rect().height()
+        };
+        // What the next frame measures the ceiling against. Read inside the window, so it is the
+        // dialog's own height and not the screen's.
+        state.settings_height = measured;
+    });
     state.settings_open = open;
+}
+
+/// Everything below the Settings title: appearance, language, the library rules, the cull batch,
+/// the AI and update gates, sync, and the keyword packs. Split out of the window so a short screen
+/// can scroll it.
+fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    ui.label(RichText::new(tl!("Appearance")).size(11.0).color(t.text_muted));
+    for kind in ThemeKind::ALL {
+        if ui.radio(state.theme == kind, kind.label()).clicked() && state.theme != kind {
+            actions.push(Action::SetTheme(kind));
+        }
+    }
+    ui.add_space(8.0);
+    ui.separator();
+    // The interface language (SL-L07): the switch is instant, the host persists the code.
+    // The radio row reads each language in itself, so the list is the proof of what changes.
+    ui.label(RichText::new(tl!("Language")).size(11.0).color(t.text_muted));
+    ui.horizontal(|ui| {
+        for lang in I18N.languages() {
+            let code = I18N.code(lang).to_owned();
+            if ui.radio(current() == lang, I18N.name(lang)).clicked() && current() != lang {
+                set_current(lang);
+                actions.push(Action::SetLanguage(code));
+            }
+        }
+    });
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(RichText::new(tl!("Library")).size(11.0).color(t.text_muted));
+    let mut write_sidecars = engine.write_sidecars();
+    if ui.checkbox(&mut write_sidecars, tl!("Write XMP sidecars beside photos")).changed() {
+        engine.set_write_sidecars(write_sidecars);
+        actions.push(Action::SetSidecars(write_sidecars));
+    }
+    ui.label(
+        RichText::new("Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.")
+            .size(10.5)
+            .color(t.text_faint),
+    );
+    ui.add_space(8.0);
+    ui.label(RichText::new(tl!("Applying a cull batch")).size(11.0).color(t.text_muted));
+    for mode in DeleteMode::ALL {
+        if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
+            state.delete_mode = mode;
+        }
+    }
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(RichText::new(tl!("Backup")).size(11.0).color(t.text_muted));
+    ui.horizontal(|ui| {
+        if ui
+            .button(RichText::new(tl!("Back up library…")).size(12.0))
+            .on_hover_text("One verified file holding the index and every decision")
+            .clicked()
+        {
+            actions.push(Action::Backup);
+        }
+        if ui
+            .button(RichText::new(tl!("Restore into a folder…")).size(12.0))
+            .on_hover_text("Unpack a backup as a separate library; the open one is untouched")
+            .clicked()
+        {
+            actions.push(Action::RestoreBackup);
+        }
+    });
+    ui.label(
+        RichText::new("Photos are never copied, so a backup holds the index and the review state, not pixels.")
+            .size(10.5)
+            .color(t.text_faint),
+    );
+    ui.add_space(8.0);
+    ui.separator();
+    ui.label(RichText::new(tl!("Shortcuts")).size(11.0).color(t.text_muted));
+    if ui
+        .button(RichText::new(tl!("Edit shortcuts…")).size(12.0))
+        .on_hover_text("Rebind keys, resolve conflicts, and import or export shortcut sets")
+        .clicked()
+    {
+        // One modal at a time, and the palette's keyboard must not reach the editor.
+        state.palette_open = false;
+        state.settings_open = false;
+        state.shortcut_editor = Some(DialogState::new());
+    }
+    ui.add_space(8.0);
+    ui.separator();
+    // The model downloader (SL-F02), the update check (SL-I10) and serving the library to paired
+    // devices (SL-J01/J09) were once desktop-only; with no browser target they are unconditional.
+    ai_models_section(ui, t, engine, actions);
+    ui.separator();
+    updates_section(ui, t, engine, actions);
+    sync_section(ui, state, t, actions);
+    ui.separator();
+    ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
+    keyword_packs(ui, t, engine, actions);
+    if ui
+        .button(RichText::new("Suggest keywords for the library…").size(12.0))
+        .on_hover_text("Proposes keywords for every photo that has something to say; writes nothing until you accept")
+        .clicked()
+    {
+        state.suggest_open = true;
+    }
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(tl!("More settings arrive with the features they configure."))
+            .size(11.0)
+            .color(t.text_faint),
+    );
 }
 
 /// Settings → AI: the consent switch and every pinned model, with what is on disk for it.
@@ -9085,7 +9219,13 @@ mod tests {
         // And back: English restores the left edge exactly.
         let mut english = UiState::new(ThemeKind::Charcoal, 0.0);
         english.settings_open = true;
-        let mut warm = ctx.run_ui(egui::RawInput::default(), |ctx| {
+        // The same tall screen the clicks below use: the dialog centres itself on the screen, and a
+        // frame with a different one would move the radios out from under the positions read here.
+        let tall = || egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0))),
+            ..egui::RawInput::default()
+        };
+        let mut warm = ctx.run_ui(tall(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 settings_dialog(
                     ui,
@@ -9097,7 +9237,7 @@ mod tests {
             });
         });
         warm.textures_delta.clear();
-        let output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+        let output = ctx.run_ui(tall(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 settings_dialog(
                     ui,
@@ -13367,8 +13507,11 @@ mod tests {
         state.settings_open = true;
         let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
         let frame = |state: &mut UiState, mut input: egui::RawInput| {
-            // The window needs a screen to land in; a bare RawInput has none.
-            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0)));
+            // The window needs a screen to land in; a bare RawInput has none. Tall, because the AI
+            // section is the dialog's middle and a short screen scrolls it out of the frame — the
+            // 1700-point baseline and `a_short_window_scrolls_the_settings_dialog_in_both_themes`
+            // are where the short case is read.
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0)));
             let mut output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     settings_dialog(ui, state, &tokens, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
@@ -13751,6 +13894,60 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// 1280 points with both docks open leaves about 680 points of canvas. The Insights columns were
+    /// fixed at 300 + breakdown + 240 (876), so the timeline and the seasonality chart were painted
+    /// underneath the inspector — the 1440 baseline recorded the same overflow as a clipped empty box.
+    /// The columns now take the room the canvas has, and stack when even that is not enough.
+    #[test]
+    fn the_insights_columns_fit_between_the_docks_at_any_window_width() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-insights-fit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+
+        for width in [1280.0_f32, 900.0] {
+            let screen = vec2(width, 800.0);
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            state.view = View::Insights;
+            assert!(state.left_open && state.right_open, "both docks are open, the tight case");
+            let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+            let canvas_right = width - TAB_STRIP_W - Tokens::CHARCOAL.right_w;
+            // The first two columns are the ones that fit even when the third has to wrap below them.
+            for heading in ["Ratings", "Cameras"] {
+                let rect = label_at(&painted, heading).unwrap_or_else(|| panic!("{heading} is painted at {width}"));
+                assert!(
+                    rect.right() <= canvas_right + 0.5,
+                    "{heading} ends at {} but the canvas ends at {canvas_right}",
+                    rect.right()
+                );
+            }
+            if width >= 1200.0 {
+                // Below about 1 100 points the timeline wraps under the first column and is a scroll
+                // away, which is the right answer: hiding it under the inspector is not.
+                for heading in ["Timeline", "Months"] {
+                    let rect = label_at(&painted, heading).unwrap_or_else(|| panic!("{heading} is painted at {width}"));
+                    assert!(
+                        rect.right() <= canvas_right + 0.5,
+                        "{heading} ends at {} but the canvas ends at {canvas_right}",
+                        rect.right()
+                    );
+                }
+                // The empty seasonality box is centred on its column, so its text is the witness
+                // for the chart itself: a box under the inspector puts this label past the edge.
+                let empty = label_at(&painted, "Nothing dated yet").expect("the empty month chart is painted");
+                assert!(
+                    empty.right() <= canvas_right + 0.5,
+                    "the month chart is painted under the inspector at {width}: {empty:?}"
+                );
+            }
+            assert!(actions.is_empty(), "painting asks the host for nothing");
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     /// ⌘K opens command mode, typing narrows it, Enter runs the highlighted row, and Esc goes back to
     /// photo search with the photographs' query untouched.
     ///
@@ -14557,6 +14754,87 @@ mod tests {
         }
     }
 
+    /// A key press and release, painting the whole shell in between: the keyboard's counterpart to
+    /// [`click_shell`].
+    fn key_shell(
+        ctx: &egui::Context,
+        screen: Vec2,
+        key: Key,
+        state: &mut UiState,
+        engine: &mut Engine,
+        thumbs: &mut Thumbnails,
+        actions: &mut Vec<Action>,
+    ) {
+        let event = |pressed| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        };
+        for events in [vec![event(true)], vec![event(false)]] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events,
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let asked = show(ui, state, engine, thumbs);
+                        actions.extend(asked);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+        }
+    }
+
+    /// The Keyboard shortcuts overlay has always promised "Esc Close the dialog", and only the
+    /// overlay itself kept the promise. A stack of dialogs now unwinds one press at a time, from the
+    /// one painted last, which is the one the reader is looking at.
+    #[test]
+    fn escape_dismisses_the_front_most_dialog_one_press_at_a_time() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-escape-dialog-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let screen = vec2(1280.0, 800.0);
+
+        state.history_open = true;
+        state.health_open = true;
+        state.export_open = true;
+        let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(label_at(&painted, "Recent changes").is_some(), "the bottom of the stack is drawn");
+        assert!(label_at(&painted, "Export").is_some(), "and the top");
+
+        // Export is painted last, so it is the first to go.
+        key_shell(&ctx, screen, Key::Escape, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(!state.export_open, "the front-most window closed");
+        assert!(state.health_open && state.history_open, "one press, one window");
+
+        let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(label_at(&painted, "Library health").is_some(), "the next one is still there");
+        // Recent changes was painted above Library health, so it goes next.
+        key_shell(&ctx, screen, Key::Escape, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(!state.history_open, "the window painted above the health one");
+        assert!(state.health_open, "leaving the one behind it untouched");
+
+        key_shell(&ctx, screen, Key::Escape, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(!state.health_open, "and the last one");
+
+        // Nothing left to dismiss: Escape now belongs to the view behind, which first drops the
+        // selection, so a press with no dialog open is not swallowed by this list.
+        state.selection.all(&[PhotoId(1)]);
+        key_shell(&ctx, screen, Key::Escape, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(state.selection.is_empty(), "the view still receives Escape");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     /// Phase 3B.4: a narrow window collapses the tab row into the current destination plus a menu, and the
     /// menu still holds every destination. Width is lost, not reach.
     #[test]

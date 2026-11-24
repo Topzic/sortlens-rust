@@ -500,6 +500,12 @@ command registry rather than a second list that could drift from it.
 Destructive dialogs follow one template: what will happen, how many, how big, a list, the
 irreversible warning only in permanent mode, and the safe action as the default button.
 
+Escape closes the dialog on top — the one painted last, one press and one window — and cancels the
+question rather than answering it; the safe action is still what Return runs. Two surfaces are
+exceptions because they are results rather than questions: the shortcut editor keeps its own Escape
+(it cancels the rebind being recorded), and the cull summary stays until one of its buttons answers
+it, because the shell re-opens it for as long as the session is complete.
+
 ---
 
 ## 9. Keyboard map (defaults)

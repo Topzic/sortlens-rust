@@ -1,5 +1,42 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-second) — the sweep found what a static baseline hides: bars you could not see, insights columns that did not fit, a Settings dialog taller than the window, and Esc that only sometimes closed it
+
+- **Why this came up.** The suite has baselines for every view, but a baseline proves a frame paints, not
+  that it can be read or reached. This pass opened the live app over the QA library at the size a laptop
+  actually gives it (1280×800) and read each view and dialog as a person would: For You, Insights,
+  Soft Focus, Compare, Places, the Settings and Recently Deleted dialogs, and the keyboard.
+- **The read.** Three defects a screenshot at 1440×900 could not state. (1) The Insights bars were
+  `#3A311E` on `#151515` — 1.4:1, effectively invisible: `columns()` filled with `t.selection`, the
+  selected-row tint, instead of the data colour. (2) The For You year labels collided once the filter row
+  reached four digits, because every column was a fixed 16 points wide. (3) Settings is ~1265 points
+  tall, so at 800 its tail — Updates, Sync & devices, the keyword packs — ran past the bottom of the
+  window with no scrollbar and no way to reach it. Plus two smaller ones: the receipt dialog stayed on
+  screen after its own close, and Recently Deleted's empty state said "Nothing has been applied yet".
+- **The paint.** Charts grew `bar_fill`: the accent at full strength for the highlighted column and an
+  85/15 accent-on-panel blend otherwise, so every preset clears 3:1 against the surface (Silver was the
+  tight case at 0.75 before the blend and clears it after); `share_row` uses the full accent, which clears
+  3:1 on every preset's `thumb_bg`. Columns widen to their label (`column_width` measures the galley), and
+  the label colour follows the highlight (`t.text` / `t.text_faint`). Insights lays its three columns out
+  with one `horizontal_wrapped` row instead of a fixed 3× layout that overflowed the canvas at 1280.
+  Settings now measures its own body on the frame that paints it (`UiState::settings_height`, read from
+  the scroll area's `content_size` and not from the scrolled `ui.min_rect()`, which reports the viewport
+  and would flip the ceiling on and off every frame) and, past a 96-point screen ceiling, caps the window
+  and scrolls the body with the bar always visible. A screen tall enough for the whole dialog keeps the
+  auto-sized window, so the 1700-point Settings baseline is untouched. Escape dismisses the front-most
+  window through `dismiss_top_window`, one press one window, in the reverse of the paint order.
+- **Tests.** `cargo test -p sortlens-ui --lib` is 152 passed, including new claims: the four-digit label
+  widens its column instead of painting over its neighbour, chart bars hold 3:1 against their surface on
+  all five presets, the Insights columns fit between the docks at any width the window can have, Escape
+  unwinds the dialogs one press at a time, and the settings section tests (AI, Updates, Sync, language)
+  read their sections on a screen tall enough to hold them — the short case is the new baseline.
+  `a_short_window_scrolls_the_settings_dialog_in_both_themes` shoots Settings at 900×620 in both themes
+  (lenient, for the language row's own scripts); `cargo xtask screenshots` is 21 scenes, green, and only
+  the two new `settings-short-*` files plus the four chart baselines changed.
+- **Verified live, after the rebuild.** At 1280×800 Settings opens capped, the wheel scrolls it to
+  Updates → Sync & devices → Keyword packs with the bar in sight, Esc closes it, and Recently Deleted
+  reads "Nothing has been deleted yet." with its cull-batch note.
+
 ## 2026-11-24 (sixty-first) — the wasm shims are gone: no target, no gate, no dead branch
 
 - **Why.** With no wasm target installed, no task that builds one and a written non-goal, every
