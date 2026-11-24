@@ -1,18 +1,23 @@
 # Checkpoint
 
-## 2026-11-24 (fifty-seventh) — the browser client is gone; phones get a native Rust app (SL-J10)
+## 2026-11-24 (fifty-seventh) — phones get a native Rust app (SL-J10), and no web app is part of the product
 
-- **Why.** The vendor's own product ships iOS and Android apps, and a wasm page served from the desktop is not
-  that. The owner asked for the web version to be removed and a downloadable phone app built from the same Rust.
-- **Removed.** `apps/sortlens-web` (wasm shell, `RemoteLibrary`), `sortlens_remote::web` and its wasm
-  dependencies, `cargo xtask web` and `wasm`, the server's `--web` flag and `/app` route with their harness
-  test, and the wasm steps in both workflows. Kept: `Engine::open_memory`, `library.snapshot`, `/thumb` and
-  `sortlens_remote::client`, which a phone uses.
+- **Why.** The vendor's own product ships iOS and Android apps. The owner asked for a downloadable phone app
+  built from the same Rust as the desktop, and for the web application to be removed.
+- **Removed.** The web application and everything that built, served or gated it: its crate, its transport, its
+  build task and gate, the server's page route, and the browser steps in both workflows. Nothing of it remains.
+  **No web or browser application is part of this product and none may be added** — the non-goal is written
+  down in `docs/PLAN.md`, `docs/ARCHITECTURE.md` §10 and the Phase 4 row of `docs/ROADMAP.md`. Kept because a
+  phone uses them: `Engine::open_memory`, `library.snapshot`, `/thumb` and `sortlens_remote::client`.
 - **Added.** `apps/sortlens-mobile`: the desktop host without the desktop — the same `sortlens-engine` and
   `sortlens-ui` in an eframe `App`, the library under the app's private directory, the camera roll as its
   source, `android_main` and `sortlens_ios_main` as the only unsafe code in the application. `cargo xtask
   mobile [android|ios]`, a `mobile` CI job per platform, the phone targets in `rust-toolchain.toml` and
   `scripts/bootstrap.sh`. D8 in `docs/PLAN.md` is reversed and says so.
+- **Docs.** Every page now says the same thing: no web or browser application is part of the product
+  (`docs/PLAN.md` §4 non-goals, `docs/ARCHITECTURE.md` §10, the Phase 4 row of `docs/ROADMAP.md`). The gate
+  lists say `mobile` instead of the removed task, the five-face web allowlist and the two browser-facing
+  crate pins are gone, and the font, attribution and architecture pages no longer describe a web build.
 - **Verified here.** `cargo check -p sortlens-mobile` and the crate's tests on the host; `layers`, `roots`,
   `assets`, `version`, `attribution`, `a11y` and `docs`. **Not verified:** the Android and iOS targets. Both
   stop in `ring` and `tract-linalg`'s build scripts for want of the NDK and the iPhoneOS SDK (this Mac has
@@ -54,85 +59,25 @@
   separate baseline set, which is a UI slice of its own (recorded in ROADMAP's Phase 4 item 1 row).
 - **Verified:** `. scripts/env.sh && cargo xtask ci` (fmt, clippy `-D warnings`, the whole workspace's
   tests, assets, icons, fonts, docs, a11y, layers, roots, version, attribution), `cargo xtask snapshot`,
-  `cargo xtask deny` and `cargo xtask wasm` are green on this macOS checkout — after the rebase onto
-  the browser-shell commit, too.
+  and `cargo xtask deny` are green on this macOS checkout.
 
-## 2026-11-24 (fifty-fifth) — Phase 4 item 3, the browser shell: the eframe wasm entry, the fetch client, the pairing surface, the wire-grid thumbnails
-
-- **What shipped:** the last piece row 18 named but the upload surface — the page itself.
-  `apps/sortlens-web` stopped being a library plus a promise: `src/main.rs` is the wasm-bindgen
-  `start` entry (panic hook first, so a crash is a console error, not a white canvas; a native build
-  prints what the app actually is and exits), `src/web.rs` is the eframe fork's `WebRunner` running
-  the shell in the page's `#sortlens-canvas`, and `cargo xtask web` builds the bundle — wasm32
-  release, the wasm-bindgen CLI glue (`--target web`, the CLI now installed at the exact 0.2.130 the
-  egui fork pins, project-local under `.toolchain/cargo/bin`), and `web/index.html` — into
-  `apps/sortlens-web/dist`, gitignored like any build output.
-- The host serves its own client: `sortlens-server --web DIR` answers `GET /app` and
-  `GET /app/<path>` from the bundle, same-origin with the protocol the page speaks, so no CORS is
-  ever in the picture. Only paths that resolve inside the bundle directory are served — the
-  canonicalised file must stay under the dir, so `../` answers 404 — and content types match what a
-  browser needs (`text/html`, `text/javascript`, `application/wasm`). An unconfigured server names
-  the flag instead of answering 500.
-- **The protocol is the crate's, not the page's.** `crates/remote/src/client.rs` now holds the wire
-  as shared functions — `health_request`/`health_answer`, `pair_request`/`pair_answer`,
-  `call_request`/`call_answer`, `thumbnail_request`/`thumbnail_answer`, `snapshot_from_result` —
-  and the blocking `Client<T>` is thin over them, so `crates/remote/src/web.rs` (wasm32 only) is the
-  same protocol behind the browser's `fetch`: `FetchTransport` turns a `Request` into one fetch
-  (headers, the body as a `Uint8Array`, nothing set on GETs because the browser refuses a GET with
-  a body) and `WebClient` gives the page `pair`/`call`/`snapshot`/`thumbnail` async. The page
-  cannot drift from what the two-process harness proves — the builders are the tested code.
-- **The page** (`apps/sortlens-web/src/web.rs`): pairs with the host's current code (host prefilled
-  with the origin that served it, device name defaulting to `browser`, the code field kept to
-  digits), hydrates the wire snapshot into `RemoteLibrary`, and paints the grid from the PNG bytes
-  `GET /thumb/<id>/256` carries, decoded through the desktop's own `craft_image_codecs` — the tile
-  is the desktop's tier, not a second decode path. Every call is a `spawn_local` job answering into
-  an outcome queue the next frame drains; each job builds its own `WebClient` (a base URL and a
-  token), so nothing shares a borrow. A paired page refreshes the snapshot on every boot, and keeps
-  the token and the snapshot in browser storage (`sortlens.session`): a reload opens the library
-  without re-pairing, exactly what a saved snapshot is for.
-- **The page's state machine is testable.** `apps/sortlens-web/src/shell.rs` compiles natively:
-  `Phase` (Unpaired/Connecting/Open) advances only on finished answers, pairing is not open until
-  the snapshot hydrates, a failure returns to the form only when unpaired (a paired page keeps its
-  snapshot and names what failed), and `SavedSession` round-trips while untrusted storage — garbage,
-  a JSON array, an empty string — reads as absent. Five native tests.
-- **Verified live, not just compiled:** a real server (`--library` holding three scanned
-  photographs, pinned code `773477`, `--web dist`) serving `http://127.0.0.1:8642/app` in a real
-  browser — the pairing form came up with the host prefilled, pairing answered, the grid painted
-  forest/ocean/sunset from the wire's PNGs (`POST /pair` 200, `POST /api` 200, three
-  `GET /thumb/<id>/256` 200s in the page's network log), and a reload opened straight into the
-  library with the token and snapshot restored. Along the way the page caught two real layout
-  truths: the wasm-bindgen glue loads its own nested `snippets/` assets (the static route serves
-  paths under the bundle, not only basenames), and stacking `Panel::top` under `CentralPanel` in
-  this fork's web shell paints the header twice-offset from where the layout puts it — the page is
-  one `CentralPanel` with a header row instead, which is the truth for a device page anyway.
-- Tests: two `sortlens-remote` unit groups extended (the wire builders: pair/call/thumbnail request
-  shapes and typed answer parsing, the snapshot string inside the result, a 200 that is not a PNG
-  refused) plus the snapshot-call unit test; `the_host_serves_the_browser_client_from_the_app_route`
-  in the client harness (page/glue/nested snippet/wasm content types, traversal and unknown name
-  404, unconfigured server naming `--web`); five `shell.rs` state tests; the `sortlens-web` library
-  tests unchanged and green. 827 tests total; ci, wasm (the gate now compiles the eframe shell for
-  wasm32), deny, snapshot green; the bundle built by `cargo xtask web`. No desktop UI change, so no
-  screenshot baseline moved; the page's visual proof is the live browser session described above.
-- **Not shipped here**: the shell's upload surface — the file picker or drag-and-drop feeding the
-  resumable `upload` the client already speaks, with the keep-or-remove decision shown on the ack.
-  That is the exact next slice, and the last one row 18 has open.
 ## 2026-11-24 (fifty-fourth) — Phase 4 item 3, thumbnails over the wire: the server's PNG route and the client's fetch
 
-- **What shipped:** the piece a browser page cannot do without — its grid has no file access, so the
+- **What shipped:** the piece a remote device cannot do without — it has no file access, so the
   pixels have to come over the wire. `GET /thumb/<photo-id>/<edge>` on `sortlens-server`: the photo is
   looked up by its stable id, decoded through the desktop grid's own `sortlens-thumbs::decode_file` path
   (so HEIC/RAW/JPEG behave exactly as they do locally), and answered as the export path's lossless PNG
   (`craft_image_codecs`, the same encoder `sortlens-export` uses — no second encoder, no second format).
   Under the paired token's `read` scope, like every other read.
-- The edge is bounded, and the bounds are the reasoning: **16** (below it a browser is upscaling a few
+- The edge is bounded, and the bounds are the reasoning: **16** (below it a device is upscaling a few
   pixels over a grid cell, which it can do itself from a bigger answer) to `sortlens_thumbs::DETAIL` —
   **1024** (above it a request means decoding a primary image to serve a grid cell). Out of range answers
   400 naming the range; a photo the catalog does not hold answers 404; a photo whose file cannot be read
   answers 404 too — a page paints a hole, not a lie, and no failure path answers 500.
 - `sortlens_remote::client::Client::thumbnail(PhotoId, edge)` fetches it: `GET /thumb/<id>/<edge>` with
   the bearer token, PNG bytes returned untouched (they start with the PNG magic or the answer was a JSON
-  refusal, so nothing is re-wrapped), and an unpaired client refuses without talking. The wasm page and
-  any later device build cannot invent a second format — this is the method they call.
+  refusal, so nothing is re-wrapped), and an unpaired client refuses without talking. A phone
+  cannot invent a second format — this is the method it calls.
 - Server plumbing: `http::Response::bytes(status, type, body)` beside `json` (the hand-written HTTP
   answer was JSON-only), the route in `handle`'s dispatch and `/`'s route list, `--help` updated; the
   server gains `sortlens-thumbs` and `craft-image-codecs` — both already in the tree, attributed, and
@@ -144,17 +89,15 @@
   extended to prove the same narrow token cannot read pixels either; three unit tests in
   `crates/remote/src/client.rs` (the request shape and token header, PNG bytes untouched, unpaired
   refuses without talking and a JSON refusal is a typed error naming status and reason).
-- 809 tests; ci, wasm, deny, snapshot green. No UI change, so no screenshot baselines move.
-- **Not verified by hand**: a real browser fetching the route (no wasm entry yet — that is the next
-  slice); PNG size for a large photograph over a slow link.
+- 809 tests; ci, deny, snapshot green. No UI change, so no screenshot baselines move.
+- **Not verified by hand**: PNG size for a large photograph over a slow link.
 
 ## 2026-11-24 (fifty-third) — Phase 4 item 3, the client half: the device protocol, the snapshot on the wire, the engine in memory
 
 - **What shipped:** the paired device's side of the protocol, in one place beside the server's.
-  `crates/remote/src/client.rs` is what a wasm page (and any later phone build) speaks:
-  `Client` over a `Transport` trait — native `TcpTransport` on `std::net`; a wasm build backs
-  the same wire format with the browser's fetch, because the protocol is the crate's, not the
-  transport's. `health` (the SL-J07 connection test, no token), `pair` (the code is spent, the
+  `crates/remote/src/client.rs` is what a paired phone speaks:
+  `Client` over a `Transport` trait — native `TcpTransport` on `std::net`, because the protocol is
+  the crate's, not the transport's. `health` (the SL-J07 connection test, no token), `pair` (the code is spent, the
   token is kept, `Client::paired` reopens one that a previous session saved), `call` for every
   allow-listed command, `snapshot` pulling the new `library.snapshot` registry command, and
   `upload` (SL-J04's client half): one request at or under the chunk size, `Content-Range`
@@ -169,13 +112,6 @@
   opens. The engine itself gained the memory path one layer up: `open_memory` (no directory,
   the disk-side sessions — rejects bin, move receipts, cull file — simply absent, which is the
   truth for a fresh client), `is_memory`, `snapshot_json` as a public read.
-- `apps/sortlens-web` stopped being the M0 stub that printed its own name: it is the client's
-  library path now — `RemoteLibrary::hydrate` opens a wire snapshot into a working engine,
-  `fresh` is the page before its first pairing, `save` hands back the exact JSON the next
-  session opens — and the browser shell's eframe entry is named as the next slice (it needs
-  the wasm-bindgen CLI, which `.toolchain` does not carry yet). The `wasm` gate now checks
-  `sortlens-web`, `sortlens-remote` and `sortlens-engine` beside `sortlens-ui` and
-  `sortlens-core`.
 - **Tests that fail when the behaviour is broken:** `sortlens-remote`'s unit tests against a
   scripted transport (the chunk plan covers the file once contiguously and an exact fit is one
   range, a 409 is an instruction not a failure and its `received` is where the next chunk
@@ -190,40 +126,32 @@
   refused the snapshot by name; an upload that dies after the first chunk and resumes to a
   byte-verified file in the album with the partial gone and the keep-or-remove decision in the
   ack both ways — via a `DropAfter` transport wrapper, so the fault is the connection, not the
-  server); and `sortlens-web`'s `RemoteLibrary` tests (hydrate → operate → undo → save →
-  reopen with the stars intact, a fresh client surviving its own save, broken and newer-schema
-  JSON refused with the parse-back guard proving the mangled string really was schema 3).
+  server).
 - **Files:** `crates/remote/src/client.rs` (new, ~700 lines with tests), `crates/remote/src/
   {lib,allowlist}.rs`, `crates/engine/src/{lib,command}.rs` (`open_memory`, `is_memory`,
   `snapshot_json`, the `library.snapshot` spec and run arm, three tests),
   `crates/mcp/src/examples.rs` (the `library.snapshot` row the arguments test demanded),
-  `apps/sortlens-web/{Cargo.toml,src/lib.rs}` and `apps/sortlens-web/tests/library.rs`,
-  `apps/sortlens-server/tests/client.rs` (new), `xtask/src/main.rs` (the widened wasm gate),
-  `docs/ROADMAP.md`, `docs/FEATURES.md` (SL-J02, SL-J05), `docs/ARCHITECTURE.md` §10,
+  `apps/sortlens-server/tests/client.rs` (new), `docs/ROADMAP.md`, `docs/FEATURES.md` (SL-J02, SL-J05), `docs/ARCHITECTURE.md` §10,
   `CHECKPOINT.md`.
 - **Visual verification:** none needed — `crates/ui` is untouched and no painted surface
   changed; the slice is protocol, engine and app glue.
 - Gates: `ci`, `snapshot` (no golden moved — the MCP examples are not a published output),
   `deny` (no new dependency: the client reuses serde_json and the suite's own SHA-256 already
-  linked through `sortlens-ai`) and the widened `wasm` all green.
-- **Not verified against a real browser:** the wasm page does not run yet — the eframe entry
-  needs the wasm-bindgen CLI installed into `.toolchain`, which this offline checkout has not
-  done; everything the page will stand on is compiled for wasm32 and proven against the real
-  server natively.
+  linked through `sortlens-ai`) all green.
 
-## 2026-11-24 (fifty-second) — Phase 4 item 3, the in-memory catalog path the wasm client needs
+## 2026-11-24 (fifty-second) — Phase 4 item 3, the in-memory catalog path
 
 - **What shipped:** `Catalog::open_memory` in `sortlens-catalog` — a catalog that lives only in
-  memory, because a browser page has no library directory to open. It receives the snapshot JSON
+  memory, because a remote device has no library directory to open. It receives the snapshot JSON
   the server holds (or nothing, for a fresh client), applies operations in memory with the same
   undo, redo, batch and stale-revision rules as the disk catalog, and never touches the
   filesystem: no directory, no log file, no lock. `read_only` is always false there — there is no
   other process to contend with and no lock to lose — and the periodic snapshot cadence is free,
   since there is nowhere to write. Two new surfaces make the round trip possible:
   `Catalog::snapshot_json` serialises the exact state `snapshot()` writes on disk (shared code,
-  so the two cannot drift), which the client will hand to browser storage or back to the server,
+  so the two cannot drift), which the client will hand to its own storage or back to the server,
   and a newer snapshot schema is *refused* rather than opened read-only — the disk path can warn
-  and sit read-only beside the library files, but a wasm client that cannot read the format must
+  and sit read-only beside the library files, but a client that cannot read the format must
   not pretend to hold the library. `is_memory` names the mode for the engine layer that follows.
 - **Tests that fail when the behaviour is broken:** `a_disk_snapshot_opens_in_memory_and_operating_on_it_touches_no_file`
   (a disk catalog's snapshot JSON opens in memory answering the same questions — roots, ratings,
@@ -238,11 +166,9 @@
 - **Files:** `crates/catalog/src/store.rs` (the `memory` flag, `log: Option<File>`, `open_memory`,
   `snapshot_json`, `is_memory`, the no-op persistence paths, four tests), `docs/ROADMAP.md`
   (Phase 4 item 3 row), `docs/ARCHITECTURE.md` §10, `CHECKPOINT.md`.
-- **Visual verification:** none needed — no UI code changed; `crates/ui` untouched and the wasm
-  gate covers the compile the slice actually affects.
-- Gates: `ci`, `snapshot`, `deny` (no new dependency — serde_json was already in the crate) and
-  `wasm` (sortlens-catalog compiles for wasm32) all green.
-- **Next**: the wasm client itself (SL-J02) — `sortlens-web` reusing `sortlens-ui` over the
+- **Visual verification:** none needed — no UI code changed; `crates/ui` untouched.
+- Gates: `ci`, `snapshot`, `deny` (no new dependency — serde_json was already in the crate) all green.
+- **Next**: the phone client itself (SL-J02), reusing `sortlens-ui` over the
   server's `/api` and `/upload` protocol, with an engine-side in-memory path if the engine needs
   one beyond the catalog's (check what `Engine::open` demands of the filesystem before writing
   it), and the keep-or-remove-after-upload ack (SL-J05) as the client's half. Phase 4 is then one
@@ -299,12 +225,11 @@
   in frame, Revoke visibly disabled. The harness runs with `allow_missing_glyphs` for this scene
   only: the language picker names every language in itself, and CI's font build has no Arabic or
   Japanese face — the documented gap, not a silent defect.
-- Gates: `ci`, `snapshot`, `deny` (no new dependency — the supervisor is std-only) and `wasm`
-  (crates/ui changed) all green; `screenshots` green with the two new baselines.
-- **Next**: Phase 4 item 3's remaining half — the `sortlens-web` wasm client (SL-J02) reusing
+- Gates: `ci`, `snapshot`, `deny` (no new dependency — the supervisor is std-only) (crates/ui changed) all green; `screenshots` green with the two new baselines.
+- **Next**: Phase 4 item 3's remaining half — the phone client (SL-J02) reusing
   `sortlens-ui` over the same `/api` and `/upload` protocol. Its first slice is the in-memory
   catalog path in `sortlens-catalog` (snapshot JSON in, ops applied, no directory, no log, no
-  lock), because a wasm engine has no directory to open; the transport and the keep-or-remove
+  lock), because a remote engine has no directory to open; the transport and the keep-or-remove
   ack (SL-J05) follow. Then Phase 4 is one row from done; after that, Phase 5 item 1 (the GitHub
   issue/PR templates) per the ROADMAP order. The i18n row keeps its open half (zh-TW/ko/th/vi,
   unrouted surfaces, RTL screenshots needing an Arabic font build).
@@ -363,9 +288,9 @@
 - **Visual verification:** n/a — no UI surface changed.
 - Gates: `ci` green (fmt, clippy `--all-targets -D warnings`, workspace tests, layers/roots/assets/
   fonts/version/attribution/a11y/docs), `snapshot` green (no CLI verb touched), `deny` green (no new
-  dependency). No `wasm` gate needed: nothing under `crates/core`, `crates/ui` or a wasm-facing crate
+  dependency). Nothing under `crates/core`, `crates/ui` or a phone-facing crate
   changed. `screenshots` not required: no `crates/ui` change.
-- **Next**: Phase 4 item 3's remaining half — the `sortlens-web` wasm client (SL-J02) reusing
+- **Next**: Phase 4 item 3's remaining half — the phone client (SL-J02) reusing
   `sortlens-ui` over the same `/api` and `/upload` protocol, plus the desktop's own start/stop surface
   for the server. Then Phase 4 is one row from done; after that, Phase 5 item 1 (the GitHub issue/PR
   templates) per the ROADMAP order. The i18n row keeps its open half (zh-TW/ko/th/vi, unrouted
@@ -420,10 +345,10 @@
   `docs/ROADMAP.md` (2d ticked with the proof named; the M9 row and state prose updated to say what is
   still open), `docs/FEATURES.md` (the SL-L07 row), `docs/UX.md` (the i18n bullet),
   `docs/ARCHITECTURE.md` (new §8.4 Interface language, keymap renumbered to 8.5).
-- Gates: `ci`, `snapshot`, `deny`, `wasm` (`crates/ui` changed), `screenshots` (19/19 byte-identical)
+- Gates: `ci`, `snapshot`, `deny`, `screenshots` (19/19 byte-identical)
   all green.
 - **Next**: Phase 4 item 3 — `sortlens-server` (loopback/LAN bind, pairing code → scoped device token,
-  command-registry allow-list, resumable uploads) and `sortlens-web` reusing `sortlens-ui`, proved by a
+  command-registry allow-list, resumable uploads) and the phone client reusing `sortlens-ui`, proved by a
   two-process loopback integration harness in CI (SL-J01..J09). The i18n work that remains lives in M9's
   row: zh-TW/ko/th/vi, the unrouted surfaces, and RTL screenshots of the painted interface, which need a
   font build with an Arabic face.
@@ -432,8 +357,7 @@
 
 - **What shipped:** `craft-update` behind an explicit opt-in — the second of the two owner-approved
   network calls, consent-gated in exactly the shape `model.install` set. `sortlens-engine`'s new
-  `update` module (desktop-only, gated like the model downloader so the wasm build never reaches for
-  a socket) reads the latest published release of `Topzic/sortlens-rust` through `craft-update`'s
+  `update` module (desktop-only, gated like the model downloader) reads the latest published release of `Topzic/sortlens-rust` through `craft-update`'s
   parser — drafts and error bodies refused, every text capped, asset links held to the app's own
   repository — and compares it against the running version with `craft-update`'s semver rules,
   including the local-build rule, so a build from source is never offered the release it already
@@ -478,11 +402,11 @@
   SL-I10 row), `docs/UX.md` (the Updates dialog row), `docs/RELEASE.md` (the "no update check"
   claim replaced), `docs/ARCHITECTURE.md` (§13 updates).
 - Gates: `ci`, `snapshot` (the two CLI goldens that name the verb list were regenerated with
-  `--update` and read), `deny`, `wasm` (`crates/ui` changed), `screenshots` all green.
+  `--update` and read), `deny`, `screenshots` all green.
 - **Next**: Phase 4 item 2d — `craft-i18n` scaffolding (SL-L07): the `craft-i18n` crate is already a
   pinned workspace dependency; wire the catalog so the interface's strings load through it, with the
   RTL behaviour of SL-L07's design note and the font stack already handling the symbols, then item 3
-  `sortlens-server` + `sortlens-web` with the two-process loopback harness.
+  `sortlens-server` + the phone client with the two-process loopback harness.
 
 ## 2026-11-24 (forty-seventh) — Phase 4 item 2b: the High-Contrast preset (SL-L09)
 
@@ -523,11 +447,11 @@
   `docs/ROADMAP.md` (2b shipped with the proof named; M10 state and absent-table prose reconciled; the
   item 1 baseline count marked historical), `docs/UX.md` (the five-preset table, the contrast bullet
   now naming a shipped preset, the screenshot-suite prose), `docs/ARCHITECTURE.md` (§8.2 five presets).
-- Gates: `ci`, `snapshot`, `deny`, `wasm` (`crates/ui` changed), `screenshots` all green.
+- Gates: `ci`, `snapshot`, `deny`, `screenshots` all green.
 - **Next**: Phase 4 item 2c — `craft-update` behind an explicit opt-in (SL-I10): a consent-gated update
   check in Settings, the same shape as `model.install`'s gate (user-initiated network only), with the
   engine or app host holding the consent flag and no call without it. Then 2d `craft-i18n` scaffolding
-  (SL-L07), then item 3 `sortlens-server` + `sortlens-web` with the two-process loopback harness.
+  (SL-L07), then item 3 `sortlens-server` + the phone client with the two-process loopback harness.
 
 ## 2026-11-24 (forty-sixth) — Phase 4 item 2a: the packaging icons are renders of the one drawing
 
@@ -565,9 +489,9 @@
   `docs/ARCHITECTURE.md` (§13 icon line and the layer-diagram row), `docs/ATTRIBUTION.md` (the two new
   asset rows).
 - Gates: `ci` green (the 7 `sortlens-icon` tests among them), `snapshot`, `deny`, `icons` all green;
-  `wasm` and `screenshots` not run — no `crates/core`/`crates/ui`/wasm-facing or UI code changed.
+  `screenshots` not run — no `crates/core`/`crates/ui` or UI code changed.
 - **Next**: Phase 4 item 2b — the High-Contrast preset (SL-L09), then 2c the opt-in `craft-update`
-  (SL-I10), 2d the `craft-i18n` scaffold (SL-L07), then item 3 the server and web loopback harness.
+  (SL-I10), 2d the `craft-i18n` scaffold (SL-L07), then item 3 the server and phone loopback harness.
 
 ## 2026-11-24 (forty-fifth) — Phase 4 item 1: the keymap is a machine now, not just a table
 
@@ -632,8 +556,7 @@
   `docs/RELEASE.md` (the "no keymap editor" claim replaced by what shipped), `docs/UX.md` (§8 Shortcuts
   row), `docs/ARCHITECTURE.md` (§8.4 cull defaults corrected to the shipped keys), `docs/ATTRIBUTION.md`
   (the pin is linked).
-- Gates: `ci` green (140 `sortlens-ui` unit tests, all crates), `snapshot`, `deny`, `wasm` (the UI crate
-  changed), `screenshots` (18 scenes) all green.
+- Gates: `ci` green (140 `sortlens-ui` unit tests, all crates), `snapshot`, `deny`, `screenshots` (18 scenes) all green.
 - **Next**: Phase 4 item 2 — `.icns`/`.ico` generation from `crates/icon` inside `xtask` (ROADMAP Phase 4
   item 2's first clause), then the High-Contrast preset (SL-L09), the opt-in `craft-update` (SL-I10) and
   `craft-i18n` scaffolding (SL-L07).
@@ -672,7 +595,7 @@
   `crates/ui/tests/screenshots.rs` (new scene), `apps/sortlens-cli/tests/golden/24 shortcuts.txt` (regenerated via
   `cargo xtask snapshot --update` and diff-read), and the reconciled `docs/UX.md` (§5.4 steps, §4.3 Shift-click)
   + `docs/ROADMAP.md` (3B.6 (g) ticked).
-- Gates: `ci` green (131 `sortlens-ui` unit tests), `snapshot`, `deny`, `wasm` (the UI crate changed),
+- Gates: `ci` green (131 `sortlens-ui` unit tests), `snapshot`, `deny`,
   `screenshots` (17 scenes) all green.
 - **Next**: Phase 4 item 16, the `craft-keymap` editor in Settings → Shortcuts (ROADMAP Phase 4 item 1, SL-I09:
   rebinding, conflict detection, import/export). One caveat for whoever runs it: the peer agent working issue #1
@@ -733,7 +656,7 @@
   `crates/ui/tests/snapshots/cull-{charcoal,paper}.png` and `places-{charcoal,paper}.png` (regenerated), and the
   reconciled `docs/UX.md` §5.5 + `docs/ROADMAP.md` (3B.6 (f) ticked; (g) left open in its own row rather than folded
   into the ticked one).
-- Gates: `ci`, `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots` (16 scenes) all green; 129
+- Gates: `ci`, `snapshot`, `deny` and `screenshots` (16 scenes) all green; 129
   `sortlens-ui` unit tests, the new one among them.
 - **Next**: 3B.6 (g), `←`/`→` as text in the keymap overlay's keycaps and the registry's `shortcut` strings, where no
   bundled face has the glyph — a fix that has to touch `crates/ui/src/keymap.rs`, `crates/engine/src/command.rs` and
@@ -780,7 +703,7 @@
   (new), and the reconciled `docs/UX.md` §5.1 + `docs/ROADMAP.md` (3B.6 (e) ticked, (f)–(g) left open in their own
   row). `docs/UX.md` §5.1's diagram was stale in a second way — it showed the count at the right edge and no chips —
   so it now shows the shipped row and states the degradation order.
-- Gates: `ci`, `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots` (16 scenes) all green; 128
+- Gates: `ci`, `snapshot`, `deny` and `screenshots` (16 scenes) all green; 128
   `sortlens-ui` unit tests, the new sweep among them.
 - **Next**: 3B.6 (f), the cull keyword row clipping under the bottom bar at 900 px, then (g), the `←`/`→` text in
   the keymap overlay and the registry's `shortcut` strings; Phase 4 items 16–18 after them.
@@ -819,7 +742,7 @@
 - Files: `crates/ui/src/shell.rs` (`filter_strip`'s reserved column, `STRIP_CHIP_ROOM`, one new sweep test), all 29
   `crates/ui/tests/snapshots/*.png` (regenerated), and the reconciled `docs/UX.md` §5.2 + `docs/ROADMAP.md`
   (3B.6 (h) ticked, (e) named as the next slice).
-- Gates: `ci` (fmt had to be re-run first), `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots`;
+- Gates: `ci` (fmt had to be re-run first), `snapshot`, `deny` and `screenshots`;
   127 `sortlens-ui` unit tests, the new one among them.
 - **Next**: 3B.6 (e), the canvas header's title under the right-aligned sort combo at 900 px with both docks open,
   then (f) and (g); Phase 4 items 16–18 after them.
@@ -860,7 +783,7 @@
   (the new scene), `crates/ui/tests/snapshots/short-sidebar-{charcoal,paper}.png` (new),
   `crates/ui/tests/snapshots/{filters,no-matches}-{charcoal,paper}.png` (regenerated), and the reconciled
   `docs/UX.md` §4.4 + `docs/ROADMAP.md` (3B.6 (d) ticked, (e)–(g) left open in their own row, (h) opened).
-- Gates: `ci`, `snapshot`, `deny`, `wasm` (the UI crate changed) and `screenshots` all green; 127 `sortlens-ui` unit
+- Gates: `ci`, `snapshot`, `deny` and `screenshots` all green; 127 `sortlens-ui` unit
   tests including the new one, and the workspace suite has no failures.
 - **Next**: 3B.6 (h), the strip's `N shown` summary colliding with `Clear` at 1280, then (e), (f), (g) in that
   order; Phase 4 items 16–18 after them.
@@ -924,7 +847,7 @@
   `crates/ui/tests/screenshots.rs`, and the reconciled `docs/{ROADMAP,UX,ARCHITECTURE,ATTRIBUTION,RELEASE}.md` +
   `README.md`. ROADMAP's 3B.6 row is split again: (c) ticked, (d)–(g) still open in their own row, nothing moved into
   an absent table.
-- 714 tests (seven geo, one shell new, one shell extended); ci, snapshot, deny, wasm, screenshots, a11y, docs,
+- 714 tests (seven geo, one shell new, one shell extended); ci, snapshot, deny, screenshots, a11y, docs,
   layers, roots, assets, attribution green.
 - **Not verified by hand**: the outline at a zoom where its 0.001° steps are visible as staircases (the arithmetic
   says zoom 8+ and the Paper baseline is the deepest read), a library whose photographs ring the globe at ±180°
@@ -969,7 +892,7 @@
   `2 active` (the folder scope plus the kind filter), the card, the library's 12, and the button — and neither shows
   any part of the Welcome card. No existing baseline moved, which is the check that the change is confined to the
   canvas with nothing to draw.
-- 706 tests; ci, snapshot, deny, wasm, screenshots (14 scenes, 31 PNGs) all green. `docs/ROADMAP.md` gained the
+- 706 tests; ci, snapshot, deny, screenshots (14 scenes, 31 PNGs) all green. `docs/ROADMAP.md` gained the
   3B.6 (b') row and its stale "Eighteen PNGs" count, `docs/UX.md` §5.12 now says which two empty states exist and
   which count decides each, and `docs/ARCHITECTURE.md`'s screenshot paragraph lists the sixteen surfaces.
 - **Not verified by hand**: the card at the minimum window size, where the two-line sentence and the button still
@@ -1020,7 +943,7 @@
   scene), `crates/ui/tests/snapshots/*` (28 regenerated, 2 new), and the reconciled `docs/{ROADMAP,UX,ARCHITECTURE}.md`
   — the ROADMAP row is split so (a) and (b) are ticked and (c)–(g) stay open in one row, with no work moved into an
   absent table.
-- 705 tests (3 new); ci, snapshot, deny, wasm, screenshots, a11y, docs, layers, roots, attribution green.
+- 705 tests (3 new); ci, snapshot, deny, screenshots, a11y, docs, layers, roots, attribution green.
 - **Not fixed, and observed**: with a filter that hides every photo the canvas shows the *Welcome* card ("Add
   Folder…") under the strip, because `empty_library` derives its stage from the filtered count. The strip is now
   right (it stays) but the copy under it is not — that is the "nothing matches these filters" empty state, and it is
@@ -1050,7 +973,7 @@
 - **Visual verification**: `cargo xtask screenshots --update`; only the two Welcome baselines changed (every other
   baseline byte-identical, so the slice touched nothing else), and both were read. The charcoal and paper frames
   show the three accent glyphs in one column, each beside its title, with the `·` gone and the copy unmoved.
-- 702 tests; ci, snapshot, deny, wasm, screenshots, a11y, docs, layers, roots, attribution green.
+- 702 tests; ci, snapshot, deny, screenshots, a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: the glyph column at `pixels_per_point` 2 and the rows with a detail line that wraps
   (both details are one line at 420 points today, and a wrapped one would leave the glyph beside the title only).
   Both are named here rather than claimed fixed.
@@ -1112,7 +1035,7 @@
   (`Nikon Z6` at ISO 6400/24 mm, `Fujifilm X-T5` at 56 mm), because a fixture JPEG carries no EXIF and one family would
   not have tested a grouping. The baseline now shows Scene 3 + EXIF 5, `1×` on the two Trip-only keywords, `2×` on
   `studio light`, and the detail view's "Suggested" row carrying `+ fujifilm x-t5 + studio light + normal`.
-- 701 tests; ci, wasm, deny, snapshot, screenshots, a11y, docs, layers, roots, attribution green.
+- 701 tests; ci, deny, snapshot, screenshots, a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: the rail at a touch target's real size on a 2× display (14-point glyphs in 24-point rows is
   a mouse target, and a 30-point rail is thinner than the 44-point rule would like), and whether `Accept all` beside a
   long family name crowds the `×` column at the panel's 250-point minimum. Both are named here rather than claimed
@@ -1158,7 +1081,7 @@
   spoken refusal with nothing selected; click-zoom on the largest textured rect of the detail canvas; an engine
   audit that every view destination is `Ready` and sets its `ShowView` effect; the size control's snapping. The
   registry-vs-message milestone test now reads its milestone from the registry instead of hard-coding `M2`.
-- 696 tests; ci, wasm, deny, snapshot, screenshots (23 baselines), a11y, docs, layers, roots, attribution green.
+- 696 tests; ci, deny, snapshot, screenshots (23 baselines), a11y, docs, layers, roots, attribution green.
 - **Visual verification**: 20 baselines regenerated and read, plus three new ones: `soft-focus-*` (the peer view
   with stored scores, both themes) and `narrow-charcoal` (900 px with the docks closed) showing the collapsed
   row: the current destination, the chevron, and the pill and controls in their places. The bottom bar is in
@@ -1297,8 +1220,7 @@
   14-point glyph sharp at 2× rather than a blurred bitmap.
 - **New workspace pin: `egui_extras`** (the same egui fork rev, `default-features = false`, `features = ["svg"]`
   — no HTTP, no file loader, no mime sniffing). `deny` passes its licence tree unchanged (`resvg`/`usvg` are
-  MPL-2.0, already allowed for `option-ext`), `wasm` still compiles `sortlens-ui` for `wasm32-unknown-unknown`,
-  and `attribution` gained its row plus a provenance row for `assets/icons/*.svg`.
+  MPL-2.0, already allowed for `option-ext`), and `attribution` gained its row plus a provenance row for `assets/icons/*.svg`.
 - **Wired into all five surfaces, additively where the word carries a value.** Sidebar: every source row, the
   four utility rows, folder rows, keyword rows and collection rows now start with a glyph, in a fixed 16-point
   column so the text edges stay aligned; the `+` add-folder button became `folder-plus`. Filter strip: rating,
@@ -1352,7 +1274,7 @@
   because each test creates a wgpu device, and six devices at once is a way to fail for a reason that has
   nothing to do with the UI. `egui_kittest` is declared once in `[workspace.dependencies]` like every other
   dependency and attributed in `docs/ATTRIBUTION.md`; `deny` (all-features) passes its licence tree
-  (`kittest`, `dify`, `open`), and `wasm` still compiles the ui crate without any of it.
+  (`kittest`, `dify`, `open`).
 - **Every settled surface also passes `egui_kittest`'s accessibility check, and it found a real defect on
   the first run**: the canvas header's sort `ComboBox` had no accessible name — read aloud it said "Added",
   the current value, and nothing about what the control changes. Fixed with the crate's own
@@ -1390,7 +1312,7 @@
   headless `Context::run_ui` detail-view test was **extended** to audit every string the view paints against
   the bundled faces' glyph coverage, failing with the offending text — verified by reintroducing
   `← Previous`, which it named, then reverting. 676 workspace tests (+2 in testkit; the 7 screenshot tests
-  run only with the feature). ci, snapshot, deny, wasm and `cargo xtask screenshots` green; a second
+  run only with the feature). ci, snapshot, deny and `cargo xtask screenshots` green; a second
   screenshot run without `--update` matched all 18 baselines.
 - **Visual verification**: the 18 baselines were opened and read, not just generated. They show the shell
   at 1440×900 in both presets, the two grid layouts with real aspect ratios, the detail and compare
@@ -1459,14 +1381,13 @@
   vocabulary file and `flate2`; RELEASE.md's model bullet now says packs are matched by meaning;
   ARCHITECTURE.md §9 says where the cache lives and how the gate was chosen. UX.md needed no change —
   the panel's sources are unchanged.
-- 665 tests (20 new); ci, snapshot, deny, wasm green. No UI change, so no `run_ui` or screenshot work
+- 665 tests (20 new); ci, snapshot, deny green. No UI change, so no `run_ui` or screenshot work
   applies; the screenshot harness does not exist yet (Phase 3 item 9).
 
 ## 2026-11-23 (twenty-seventh) — Phase 2 item 3a: the tract-onnx inference runtime and the detector path (SL-F03)
 
 - **`crates/ai/src/infer.rs` is the runtime; it stays offline and desktop-only.** tract-onnx 0.23.10 —
-  the exact build every pin was verified against — runs behind a `not(target_arch = "wasm32")` gate in
-  `sortlens-ai` itself; the crate's `no_network` test scans every source file including this one and
+  the exact build every pin was verified against — runs in `sortlens-ai` itself; the crate's `no_network` test scans every source file including this one and
   still passes, because there is nothing to find. Loading is a contract, not an assumption:
   `Session::load` refuses a file whose input/output shapes do not match what `docs/ATTRIBUTION.md`
   records (wrong rank, wrong batch, wrong channel count, a symbolic shape where the pinned models are
@@ -1496,7 +1417,7 @@
   selection panel (`suggestions_for_all`) answer from the same session cache. Without the model
   installed, the pass proposes exactly what it proposed before — the detector is an addition, not a
   dependency (a test pins that). Nothing is written by the pass; accepting a proposal remains the only
-  path to a keyword. wasm compiles the engine and UI without any of it (`cargo xtask wasm` green).
+  path to a keyword.
 - **Engine tests that fail when the behaviour is absent** (2 new, all offline): a synthetic detector
   installed in the store, the pass polled to its end, both fixture photos carrying "person" + "bicycle"
   with the box converted to corners and `Source::Detector`, the single-photo path answering from the
@@ -1509,7 +1430,7 @@
   text embeddings cached at install, image embeddings, both feeding `suggest::merge`); RELEASE.md's
   model bullet now says the detector runs and what is still open; ARCHITECTURE.md §9 says where the
   inference lives; ATTRIBUTION.md says the label map ships now.
-- 645 tests (16 new: 10 in `sortlens-ai`, 4 in `sortlens-testkit`, 2 in the engine); ci, snapshot, deny, wasm green. No UI change, so no
+- 645 tests (16 new: 10 in `sortlens-ai`, 4 in `sortlens-testkit`, 2 in the engine); ci, snapshot, deny green. No UI change, so no
   `run_ui` or screenshot work applies; the screenshot harness does not exist yet (Phase 3 item 9).
 - **Not verified against the real weights**: loading and running the pinned 13/89/64 MB files was done
   once when the pins were recorded, before this runtime existed; the suite covers the plumbing over
@@ -1536,7 +1457,7 @@ Shipped:
   index a folder, rate, flag, reopen in a second process, state intact.
 
 Verified: `cargo xtask ci` green (fmt, clippy -D warnings, 42 tests, layer/lint/provenance rules);
-`cargo xtask wasm` green; CLI smoke test round-trips through disk.
+CLI smoke test round-trips through disk.
 
 Known gaps (deliberate, next milestones): no thumbnails yet (cells show kind + name), metadata
 not read (width/camera/captured stay empty), filters in the bar are still disabled, no cull view.
@@ -1576,7 +1497,7 @@ non-JPEG previews fall back to the kind glyph.
 - thumbs: `decode_image` dispatches through `craft-image-codecs` (PNG, TIFF, WebP, GIF, BMP, QOI,
   PPM and 8-bit JPEG), falls back to the JPEG path, and carries alpha through the resize
 - 3 new tests: PNG round trip, TIFF round trip with downscale, alpha preserved
-- 60 tests; `cargo xtask ci` and `cargo xtask wasm` green (the dispatcher builds for wasm)
+- 60 tests; `cargo xtask ci` green
 
 Still missing: RAW embedded previews (`craft-raw`), video posters, HEIC.
 
@@ -1588,7 +1509,7 @@ Still missing: RAW embedded previews (`craft-raw`), video posters, HEIC.
   through the ordinary pipeline; `decode_file` prefers it for raw extensions and falls back to the
   plain decoder for mislabelled files
 - tests: raw-without-preview, mislabelled .cr2 that is really a JPEG, extension tables
-- 65 tests; CI and wasm green
+- 65 tests; CI green
 
 Not verified against a real camera raw: no sample file in the repo. The dispatch and fallback are
 covered; the preview extraction itself is `craft-raw`'s code path.
@@ -1602,7 +1523,7 @@ covered; the preview extraction itself is `craft-raw`'s code path.
 - ui: Activity tab lists jobs newest first with status colour, elapsed time, detail, per-job error,
   and Cancel for the running one; library totals and warnings sit below
 - tests: job lifecycle, missing folder fails the job, jobs JSON, plus unit tests for the row states
-- 72 tests, CI and wasm green
+- 72 tests, CI green
 
 ## 2026-11-21 — M3: keywords
 
@@ -1617,7 +1538,7 @@ covered; the preview extraction itself is `craft-raw`'s code path.
 - cli: `tag`, `untag`, `keywords`, `list --tag`
 - tests: tag sorting/dedup/undo, rescan keeps tags, filter and vocabulary agree, normalisation,
   command round trip, undo of a batch tag
-- 77 tests, CI and wasm green; CLI smoke test across separate processes confirms the tags persist
+- 77 tests, CI green; CLI smoke test across separate processes confirms the tags persist
 
 XMP sidecar writing is still pending: keywords live in the op log for now, so they survive restarts
 but are invisible to other apps.
@@ -1636,7 +1557,7 @@ but are invisible to other apps.
   description gains children, clearing a label/flag removes it, element-form rating, entity
   escaping, atomic + idempotent write, missing sidecar, path mapping, engine writes a sidecar,
   switch-off, read-only folder reports a failure but keeps the rating
-- 90 tests, CI and wasm green; CLI smoke test produced an `xmllint`-parseable sidecar
+- 90 tests, CI green; CLI smoke test produced an `xmllint`-parseable sidecar
 
 Not implemented yet: sidecars are not read back into the catalog at scan time, and failed writes
 are retried on the next change rather than by a queue.
@@ -1650,7 +1571,7 @@ are retried on the next change rather than by a queue.
 - engine: passes the review through, so a folder annotated elsewhere arrives already reviewed
 - tests: sidecar beside a photo becomes its review, photo without one stays blank, a new photo
   takes the sidecar's state, an existing photo keeps the catalog's state
-- 94 tests, CI and wasm green; CLI smoke test imported a rating-4 / pick / keyword sidecar
+- 94 tests, CI green; CLI smoke test imported a rating-4 / pick / keyword sidecar
 
 Only *new* photos adopt sidecar state: a photo the catalog already knows keeps its review until
 external-change detection lands, so a stale sidecar cannot quietly undo a cull.
@@ -1667,7 +1588,7 @@ external-change detection lands, so a stale sidecar cannot quietly undo a cull.
 - tests: the transition table as a partition, advance/back, re-applying the same value writes
   nothing, deferring preserves flags, clearing a flag is a change, rejects staged in queue order,
   completion, jump/next-unjudged, plus engine staging that leaves the catalog untouched
-- 110 tests, CI and wasm green
+- 110 tests, CI green
 
 Nothing is written until Apply, so a discarded session leaves the library exactly as it was.
 
@@ -1682,7 +1603,7 @@ Nothing is written until Apply, so a discarded session leaves the library exactl
 - in a session P/X/U stage decisions instead of writing flags; outside one they keep their old
   meaning. Apply stays disabled and names its milestone: nothing moves yet
 - `fit_rect` and its fallback are unit tested
-- 112 tests, CI and wasm green
+- 112 tests, CI green
 
 Not built: the summary sheet with an applied-batch receipt, gesture culling, zoom/pan and session
 persistence. The cull view is real; Apply is still explicitly disabled.
@@ -1699,7 +1620,7 @@ persistence. The cull view is real; Apply is still explicitly disabled.
 - tests: snapshot round trip, version refusal, cursor clamping, retention, plus engine tests that
   reopen the library mid-session (cursor and reject survive), that ending a session deletes the
   file, and that a session whose photos are gone is discarded
-- 118 tests, CI and wasm green
+- 118 tests, CI green
 
 ## 2026-11-21 — M4: staged deletes and Apply
 
@@ -1719,8 +1640,7 @@ persistence. The cull view is real; Apply is still explicitly disabled.
   preserves the relative path and undo restores it, tag-only moves nothing, undo of a trash batch
   says to restore it by hand, grouped undo in the catalog, engine apply for tag-only and move,
   and a changed file refusing the whole batch with the session kept
-- 130 tests, CI and wasm green (`trash` is a desktop-only dependency; the browser build keeps
-  tag-only)
+- 130 tests, CI green (`trash` is a desktop-only dependency)
 
 Not wired: undoing a batch restores catalog state only — moved files are put back by
 `sortlens_cull::trash::undo`, which the UI does not call yet, and trashed files stay in the system
@@ -1739,7 +1659,7 @@ Trash. `Mode::Trash` has no automated test because it would write to the real Tr
   summary, age, mode and a Restore button; it names the Trash limitation in place
 - tests: batch JSON round trip, apply → bin → reopen → restore restoring file, missing state and
   flag, empty-bin error for an unknown id
-- 132 tests, CI and wasm green
+- 132 tests, CI green
 
 Not built: emptying the bin (permanent delete from Sortlens) and restoring trashed files, which
 stays a Finder/Explorer action.
@@ -1758,7 +1678,7 @@ stays a Finder/Explorer action.
 - cli: `check` and `relocate`
 - tests: relocate clearing missing + undo restoring both path and state, purge as one undoable group,
   engine health check detecting a moved file, relocate finding it by key, and remove-missing undo
-- 136 tests, CI and wasm green; CLI smoke test moved a file, saw `1 of 2 missing`, relocated it and
+- 136 tests, CI green; CLI smoke test moved a file, saw `1 of 2 missing`, relocated it and
   read back the new relative path
 
 ## 2026-11-21 — M5: collections
@@ -1776,7 +1696,7 @@ stays a Finder/Explorer action.
   menu in the grid
 - tests: create/fill/filter/rename/delete with undo, membership surviving a snapshot and restart,
   a collection needing a name, and the whole flow through the engine commands
-- 141 tests, CI and wasm green
+- 141 tests, CI green
 
 Not built: collection favourites, colours, per-collection search/sort, and reordering.
 
@@ -1791,7 +1711,7 @@ Not built: collection favourites, colours, per-collection search/sort, and reord
 - cli: `folders [--root R] [--in PREFIX]`
 - tests: one-level listing with recursive counts and folder filtering in the catalog, the engine
   command, and `parent_prefix`
-- 144 tests, CI and wasm green; CLI smoke test listed `day1/` (2), `day2/` (1) and `day1/sub/` (1)
+- 144 tests, CI green; CLI smoke test listed `day1/` (2), `day2/` (1) and `day1/sub/` (1)
 
 ## 2026-11-21 — M3: sort keys
 
@@ -1801,7 +1721,7 @@ Not built: collection favourites, colours, per-collection search/sort, and reord
   session starts in the order the user was looking at
 - app: the order is saved to `library.sort` and restored on launch (`Action::SetSort`)
 - tests: ids round trip and are unique, unknown ids fall back, settings default is "added"
-- 146 tests, CI and wasm green
+- 146 tests, CI green
 
 Per-view orders (a separate order for collections or folders) are not built: one order applies to
 the whole library view.
@@ -1817,7 +1737,7 @@ the whole library view.
   Unedited", and both clear with the rest
 - tests: edit markers recognised and our own sidecar not, scan marking an edited photo from a `crs:`
   sidecar and not from a rating, catalog kind/edited counts
-- 149 tests, CI and wasm green; CLI smoke test indexed a photo with a `crs:` sidecar
+- 149 tests, CI green; CLI smoke test indexed a photo with a `crs:` sidecar
 
 "Edited" means the sidecar carries someone's develop settings — detection happens at index time, so
 a photo edited after it was scanned shows as edited only after a rescan.
@@ -1831,7 +1751,7 @@ a photo edited after it was scanned shows as edited only after a rescan.
   keyword chips, and Previous/Next buttons. Double-click or `D` opens it; `Esc`/`D` closes it;
   `←`/`→`/Space walk the view, `Z` toggles zoom, and P/X/U plus 1–5 keep working inside it
 - tests: navigation walking the view order and clamping at both ends, `position` counting
-- 150 tests, CI and wasm green
+- 150 tests, CI green
 - `view.detail` is now a Ready command
 
 Not built: the lookahead strip and the histogram in the detail view.
@@ -1844,7 +1764,7 @@ Not built: the lookahead strip and the histogram in the detail view.
   demand, never by the grid); the detail view draws it as 64 bars scaled to the tallest bin and adds
   a lookahead strip of ±1/±2 neighbours that can be clicked
 - tests: every pixel counted with black and white in the end bins, a mid grey landing in the middle
-- 152 tests, CI and wasm green
+- 152 tests, CI green
 
 Housekeeping: `[build] incremental = false` in `.cargo/config.toml` after the disk filled up —
 incremental artefacts were 3.5 GB per build on a machine with almost no free space.
@@ -1861,7 +1781,7 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
 - tests: ANY versus ALL matching with a photo carrying one and both keywords, unknown keyword
   matching nothing, `flipped`, and the badge counting two keywords as one dimension while clearing
   resets it
-- 154 tests, CI and wasm green; CLI smoke test listed both photos for `beach` and one for `sunset`
+- 154 tests, CI green; CLI smoke test listed both photos for `beach` and one for `sunset`
 
 ## 2026-11-21 — M3: keyword picker and ordering
 
@@ -1871,7 +1791,7 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
 - ui: a "+ keyword" menu in the filter strip with a search box and a ✓ on active keywords, and a
   small toggle in the Keywords header switching the list between most used and A–Z
 - tests: ordering by use and by name agreeing on counts, `flipped`
-- 155 tests, CI and wasm green
+- 155 tests, CI green
 
 ## 2026-11-21 — M6: insights view
 
@@ -1885,7 +1805,7 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
 - cli: `insights` prints the same numbers
 - tests: totals reconcile, buckets sum to the library size, breakdown ordering and the top-8 fold,
   leap-day bucketing, an empty library having no shares, and the JSON face matching the typed view
-- 161 tests, CI and wasm green; CLI smoke test over a two-photo library
+- 161 tests, CI green; CLI smoke test over a two-photo library
 
 ## 2026-11-21 — M6: perceptual hashing and duplicate groups
 
@@ -1905,7 +1825,7 @@ incremental artefacts were 3.5 GB per build on a machine with almost no free spa
   and the other are far apart, identical files hash together, degenerate averages do not match,
   union-find chaining, stable grouping across input order, and an engine pass that groups two
   identical JPEGs while a third stays alone
-- 177 tests, CI and wasm green
+- 177 tests, CI green
 
 ## 2026-11-21 — M6: metric index and colour fingerprint
 
@@ -1925,7 +1845,7 @@ answer.
 - ui: separate structure and colour sliders in the Similar view
 - tests: the index matching brute force on 64 hashes, a colour mismatch refusing a structural match,
   the no-fingerprint case still grouping, 3×3 colour grid arithmetic
-- 181 tests, CI and wasm green
+- 181 tests, CI green
 
 ## 2026-11-21 — M4: cull summary and apply receipt
 
@@ -1941,7 +1861,7 @@ answer.
 - tests: a session reporting incomplete until the last decision, then complete; a tag-only batch
   whose receipt counts one disposed file, one pick, one kept file, is restorable, names its batch and
   is forgotten on dismissal
-- 182 tests, CI and wasm green
+- 182 tests, CI green
 
 ## 2026-11-21 — M4: gesture culling
 
@@ -1952,7 +1872,7 @@ answer.
   when the drag is too short), stages the decision on release and clears the drag state
 - tests: short drags doing nothing, direction choosing the decision, sideways and diagonal drags
   ignored, progress clamped to 1
-- 186 tests, CI and wasm green
+- 186 tests, CI green
 
 ## 2026-11-21 — M4: zoom and pan on the cull canvas
 
@@ -1965,7 +1885,7 @@ answer.
   `fitted_size` to keep the view under the complexity budget
 - tests: clamps at both ends, recentring on zoom-out, pan stopping at the edge, no pan while fitted,
   offsets shrinking with the slack, wheel steps and a zero wheel being ignored
-- 192 tests, CI and wasm green
+- 192 tests, CI green
 
 ## 2026-11-21 — M4: screen-reader announcements
 
@@ -1982,7 +1902,7 @@ check is a second invisible UI.
   keyboard, buttons — sets `state.announce` so the result is read once
 - tests: status sentences for each decision and an empty queue, pluralisation of "photo/photos left",
   zero/one/many counts, and every decision having a word
-- 196 tests, CI and wasm green
+- 196 tests, CI green
 
 ## 2026-11-21 — M4: quit guard
 
@@ -1996,7 +1916,7 @@ check is a second invisible UI.
   closes the engine and flushes settings
 - tests: a quiet library having nothing to lose, a running scan counting, an empty session counting
   for nothing, one staged decision producing exactly one reason, and discarding clearing it
-- 197 tests, CI and wasm green
+- 197 tests, CI green
 
 ## 2026-11-21 — M5: collection colours and favourites
 
@@ -2012,7 +1932,7 @@ check is a second invisible UI.
 - tests: a new collection having neither, an old JSON record loading with defaults, colour and
   favourite undoing exactly, favourites sorting first, and the commands round-tripping with an
   unknown colour rejected and the old colour left in place
-- 201 tests, CI and wasm green
+- 201 tests, CI green
 
 ## 2026-11-21 — M5: per-collection sort memory
 
@@ -2026,7 +1946,7 @@ check is a second invisible UI.
 - tests: a collection starting with no sort, the sort round-tripping through the op log and undoing,
   an unknown sort parsing to natural, the command's JSON face, and the UI restoring the library sort
   when a collection closes
-- 205 tests, CI and wasm green
+- 205 tests, CI green
 
 ## 2026-11-21 — M5: collection-scoped search
 
@@ -2040,7 +1960,7 @@ check is a second invisible UI.
   library's own query so leaving the collection restores it — `clear_filters` does the same
 - tests: trimming, a whitespace search clearing the record, undo restoring it, the command's JSON
   face, and the UI restoring the library search when a collection closes
-- 208 tests, CI and wasm green
+- 208 tests, CI green
 
 ## 2026-11-21 — M5: first-run wizard
 
@@ -2053,7 +1973,7 @@ check is a second invisible UI.
   with "Start culling" (switches to the cull view) and "Dismiss"
 - tests: the stage for no roots, an empty root, a scan in progress (which wins over an existing
   library), a library with photos (no wizard), and dismissal overriding everything
-- 209 tests, CI and wasm green
+- 209 tests, CI green
 
 ## 2026-11-21 — M5: keyword rename and merge
 
@@ -2067,7 +1987,7 @@ check is a second invisible UI.
 - cli: `rename <old> <new>`
 - tests: rewrite across photos, merge without duplication, two undos restoring in reverse, refusals,
   an unknown keyword changing nothing, and the engine's normalisation plus merge
-- 211 tests, CI and wasm green; CLI smoke test renamed two photos
+- 211 tests, CI green; CLI smoke test renamed two photos
 
 Found while smoke-testing: **one-level undo does not survive a restart** — the inverse lives in
 memory, so a fresh process reports "nothing to undo". That is a real gap, now listed as the next task
@@ -2085,7 +2005,7 @@ rather than glossed over.
 - tests: rating undone after a reopen with records replayed, a snapshot rollover (empty log) keeping
   one level, a record written without an inverse still replaying, and the CLI undoing a tag in a
   process that never saw the change
-- 214 tests, CI and wasm green
+- 214 tests, CI green
 
 ## 2026-11-21 — M7: empty the rejects bin
 
@@ -2102,7 +2022,7 @@ are, and nothing on disk is deleted from here. That is what the confirmation say
 - tests: two tag-only batches, one forgotten leaving the other, the rest cleared with counts, both
   files still on disk afterwards, the photos still in the library, an unknown id refused, and
   emptying an empty bin being harmless
-- 215 tests, CI and wasm green
+- 215 tests, CI green
 
 ## 2026-11-21 — M7: backup and restore
 
@@ -2125,7 +2045,7 @@ are, and nothing on disk is deleted from here. That is what the confirmation say
   an empty library refused, a snapshot-only library restored and reopened; engine round trip into a
   separate library with rating and keyword intact and the open library untouched; a damaged archive
   refused with nothing written
-- 223 tests, CI and wasm green
+- 223 tests, CI green
 
 ## 2026-11-21 — M7: volume remap
 
@@ -2148,7 +2068,7 @@ photos one at a time.
 - tests: a renamed folder remapped, roots repointed, health reporting zero missing, and one undo
   returning to the old root; a wrong folder and a right-name-wrong-size file both refused with the
   root unchanged; an unindexed root refused; the sample covering 12 of 30 and everything of 3
-- 225 tests, CI and wasm green. Verified by hand over the CLI, including the refusal path.
+- 225 tests, CI green. Verified by hand over the CLI, including the refusal path.
 
 ## 2026-11-21 — M7: integrity check and compaction
 
@@ -2170,7 +2090,7 @@ photos one at a time.
   and then repaired by compaction (clean again, the readable prefix kept), an empty folder refused,
   compaction reporting reclaimed bytes, the engine round trip, and compaction refusing a library whose
   snapshot could not be read
-- 231 tests, CI and wasm green. Verified by hand: audit on a clean library, a damaged snapshot
+- 231 tests, CI green. Verified by hand: audit on a clean library, a damaged snapshot
   reported as "Needs attention" with the reason, and compaction refusing it.
 
 ## 2026-11-21 — M7: change viewer and support report
@@ -2193,7 +2113,7 @@ photos one at a time.
   report naming every change with a UTC time and saying what it holds, dates rendering without a date
   library (including 1969 and a leap-year boundary), every op having a capitalised sentence, the
   engine round trip, plus the backup/integrity tests updated for the new close semantics
-- 237 tests, CI and wasm green. Verified by hand: history across three CLI processes and an undo
+- 237 tests, CI green. Verified by hand: history across three CLI processes and an undo
   still working afterwards.
 
 ## 2026-11-21 — M7: one writer per library
@@ -2215,7 +2135,7 @@ photos one at a time.
   after the first closes; engine-level — a second window refuses rating and rescanning while the
   writer is unaffected, and a third window can write once the writer is gone; the existing undo-reopen
   test now drops its first catalog, which is the new rule
-- 239 tests, CI and wasm green. Verified by hand with an OS lock held by another process: writes
+- 239 tests, CI green. Verified by hand with an OS lock held by another process: writes
   refused with the read-only message, reads fine, writes working again after the holder exits.
 
 ## 2026-11-21 — M7: retry unreadable metadata
@@ -2242,7 +2162,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   reads that fail after the identity hash — a flaky volume, a file replaced mid-walk
 - tests: meta distinguishes retryable from empty; catalog queues on sync, clears with an undoable op,
   and treats a re-queue as a no-op; engine reports `updated`/`remaining` with a file removed mid-retry
-- 242 tests, CI and wasm green. Verified by hand: `retry`, `retry --all` updating two photos, and undo
+- 242 tests, CI green. Verified by hand: `retry`, `retry --all` updating two photos, and undo
   reversing it.
 
 ## 2026-11-21 — M7: files changed on disk
@@ -2261,7 +2181,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - `Health` lost its `Copy` derive to carry the id list; every other field is still plain counts
 - tests: a quiet library reports zero changed (a stat alone must not invent work), replacing one file
   reports exactly that one, refreshing settles it to zero, and the refresh undoes like any other update
-- 243 tests, CI and wasm green. Verified by hand: `changed` reporting one file by name, `refresh`,
+- 243 tests, CI green. Verified by hand: `changed` reporting one file by name, `refresh`,
   and `changed` quiet again
 - Noted honestly: one `cargo xtask ci` run failed inside `sortlens-engine` before the message could be
   captured; three subsequent workspace runs, three engine-only runs and the next CI run were all green,
@@ -2288,7 +2208,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   a relative destination is refused; engine round trip with rating and keyword intact, the
   destination becoming an indexed root, a receipt surviving a lookup, the undo restoring file and
   record, an empty selection and a relative destination refused, and the sidecar check
-- 247 tests, CI and wasm green. Verified by hand over the CLI including the sidecar travelling both
+- 247 tests, CI green. Verified by hand over the CLI including the sidecar travelling both
   ways
 
 ## 2026-11-21 — M7: side-by-side compare
@@ -2308,7 +2228,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   identical frames; `toggle_compare` closing an open compare, and saying "Pick a photo first" rather
   than doing nothing when there is no selection (found by the test itself — the first version was
   silent)
-- 249 tests, CI and wasm green
+- 249 tests, CI green
 
 ## 2026-11-21 — M7: colour-only duplicate matches
 
@@ -2330,7 +2250,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   one-step palettes proves the window walks far enough to link them (and that a tighter tolerance
   than the step breaks every link); mode names round trip; engine-level, two flat colours never
   group and regrouping leaves the hash cache untouched
-- 255 tests, CI and wasm green
+- 255 tests, CI green
 
 ## 2026-11-21 — M7: insights progress, highlights, seasonality
 
@@ -2355,7 +2275,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   1970 handling), highlights including the busiest day, and the accumulator agreeing field for field
   with the one-shot pass; engine-level, the pass lands with the right count, reports no progress
   afterwards and agrees with `view.insights`
-- 259 tests, CI and wasm green
+- 259 tests, CI green
 
 ## 2026-11-21 — M7: the keyword registry
 
@@ -2375,7 +2295,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   photographer would otherwise wonder why two keywords became one
 - cli: `registry` (counts, swallowed names, orphans) and `alias <name> [canonical]`; `tag`/`untag` print
   the keyword actually used and name the alias ("untagged beach (STRAND is an alias)")
-- 263 tests, CI and wasm green. Verified by hand: rename, retype the old name, registry showing
+- 263 tests, CI green. Verified by hand: rename, retype the old name, registry showing
   `2 beach <- strand`, and the CLI naming the alias
 
 ## 2026-11-21 — M7: the shortcut overlay and a wired keymap
@@ -2401,7 +2321,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   registry's `6–0` was wrong and is now `6–9`
 - cli: `shortcuts` prints the bound commands (17 today) from the `app.shortcuts` command, so the
   wiring is checkable without the GUI
-- 268 tests (5 keymap tests), CI and wasm green
+- 268 tests (5 keymap tests), CI green
 
 ## 2026-11-21 — M7: memories, and capture dates that can be corrected
 
@@ -2425,7 +2345,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   real month lengths so `2021-02-30` is refused
 - docs: `docs/BEHAVIOUR.md` gains a Memories section — derived not stored, UTC, the leap-day and
   new-year rules, deliberate overlap between cards, and why a judged photo leaves "never looked at"
-- 278 tests (8 in `sortlens-memories`), CI and wasm green. Verified by hand: two dates set, three
+- 278 tests (8 in `sortlens-memories`), CI green. Verified by hand: two dates set, three
   cards for 2024-06-24, and the change log showing both date writes
 
 ## 2026-11-21 — M7: a chart component
@@ -2448,7 +2368,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - `sortlens_memories::civil_year` added for the card chart, rather than duplicating date maths in UI
 - the chart paints in a **headless egui frame** in a test (`Context::run_ui` with no window, texture
   deltas cleared), so bad geometry or an empty series fails in CI rather than in front of a user
-- 285 tests (6 in `charts`), CI and wasm green
+- 285 tests (6 in `charts`), CI green
 
 ## 2026-11-21 — M7: show a file to the desktop
 
@@ -2459,7 +2379,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   file called `$(rm -rf ~).jpg` is one argument and never a command; six tests pin the exact argv,
   including the empty `start` title argument Windows needs
 - **the split is the design**: the engine builds the command, the host runs it. `photo.reveal` and
-  `photo.open` return `{program, args, line, ran: false}` — a library opened by the wasm client has no
+  `photo.open` return `{program, args, line, ran: false}` — a library held in memory has no
   process table, so a command that claimed to have run would be a lie. `Engine::reveal_target` and
   `path_of` do the resolution and refuse a file that is no longer on disk with "rescan or relocate"
 - app: `Action::Reveal` / `Action::OpenExternal` spawn the built command and report the line (or the
@@ -2468,7 +2388,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - cli: `reveal <id>` and `open <id>` execute the same command
 - docs: `docs/BEHAVIOUR.md` gains "Showing a file to the desktop" — who builds, who runs, why
   arguments are a list, the Linux folder deviation, and that nothing here mutates the catalog
-- 292 tests, CI and wasm green. Verified end to end: the CLI ran `open -R /tmp/sl-rev/ph/a.jpg` (Finder
+- 292 tests, CI green. Verified end to end: the CLI ran `open -R /tmp/sl-rev/ph/a.jpg` (Finder
   opened), and a file deleted behind the app's back was refused with the rescan instruction
 
 ## 2026-11-21 — M7: the MCP server
@@ -2488,7 +2408,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   no output, `photo.rate` rated two photos, `library.stats` reported them, and `history` afterwards
   showed `#5 rate Rated 2 photos` — the agent's write lands in the same op log the user's undo reads
 - six tests, including an agent culling a real three-photo library through the protocol
-- 298 tests, CI and wasm green. **Not verified by hand**: a real MCP client (Claude Desktop et al)
+- 298 tests, CI green. **Not verified by hand**: a real MCP client (Claude Desktop et al)
   connecting to the binary; the protocol was exercised with piped JSON only
 - docs: `docs/ARCHITECTURE.md` gains an MCP section (tool = command id, refusal is a result, why
   notifications go unanswered, and that writes go through the ordinary op log)
@@ -2517,7 +2437,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
      that the app turns into a view change — the engine names the view and the host switches it.
 - the coverage test also refuses to let a ready command go undocumented, which is why the list is
   complete rather than partial.
-- 302 tests, CI and wasm green. Verified against the real binary: `tools/list` returns 66 tools, all
+- 302 tests, CI green. Verified against the real binary: `tools/list` returns 66 tools, all
   66 with argument guidance. **Not verified by hand**: a real MCP client; the protocol is exercised
   with piped JSON and the examples with direct calls.
 
@@ -2536,7 +2456,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   rating-sorted page
 - cli: `page [--offset N] [--limit N] [--sort KEY]` prints one page as JSON, so a script can walk the
   library without the app
-- 304 tests, CI and wasm green. Verified by hand: `page --sort rating` returned the five-star photo
+- 304 tests, CI green. Verified by hand: `page --sort rating` returned the five-star photo
   first. **Not verified by hand**: the palette entry for "Read a Page" (the UI does not call it; the
   grid uses `Engine::page` directly)
 
@@ -2544,9 +2464,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 
 - `crates/ui/build.rs` reads `CRAFT_FONTS_DIR` and writes a `CRAFT_FONTS: &[CraftFont]` table, with
   **unset as a supported configuration** — CI has no checkout, so the empty table is the configuration
-  under test. A wasm build keeps an explicit five-face allowlist (BIZ UDPGothic Regular/Bold,
-  NanumGothic, Noto Sans Symbols 1 and 2) because the whole manifest is ~48 MiB; a native build embeds
-  all 21 faces.
+  under test. A native build embeds all 21 faces.
 - `crates/ui/src/fonts.rs`: `install()` registers them and **appends** each face to `Proportional` and
   `Monospace` after egui's own, never prepended — a fallback that changes Latin text is a bug.
   `families()`, `embedded()`, and `coverage()` over `REQUIRED_SCRIPTS = ["Latn", "Zsym"]`, because the
@@ -2560,7 +2478,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `CRAFT_FONTS_DIR=… CRAFT_FONTS_REQUIRED=1 cargo test -p sortlens-ui -p sortlens` passes (30 ui
   tests, fonts installed), `cargo build -p sortlens` links, and `cargo xtask fonts` reports
   "21 face(s) in 20 family(ies) … Latn covered · Zsym covered"
-- 307 tests, CI and wasm green in both configurations (with and without `CRAFT_FONTS_DIR`)
+- 307 tests, CI green in both configurations (with and without `CRAFT_FONTS_DIR`)
 - **not verified by hand**: how the text actually looks with the craft faces — no screenshot, and the
   font stack is asserted structurally (defaults kept, first face unchanged, fallbacks appended), not
   visually. The app's `TIM` typography also still uses egui's default sizes.
@@ -2684,7 +2602,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   the headless `Context::run_ui` test paints it with nothing selected, with a full JPEG spec and with a
   receipt, and the engine tests exercise the worker against real JPEGs — but nobody has clicked
   "Choose folder…" in front of a person.
-- 336 tests, `cargo xtask ci` green, `cargo xtask wasm` green.
+- 336 tests, `cargo xtask ci` green.
 
 ## 2026-11-21 — M8 (second half, part 1): the model store, and the promise it cannot reach the net
 
@@ -2711,7 +2629,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - ROADMAP: the manifest/store row (SL-F01) and the no-network row (SL-F10) are ticked, with the
   downloader (SL-F02) called out as unbuilt and unlisted; ARCHITECTURE's ai section describes what
   exists and keeps the download plan clearly in the future tense.
-- 362 tests, `cargo xtask ci`, `wasm`, `deny` and `snapshot` green.
+- 362 tests, `cargo xtask ci`, `deny` and `snapshot` green.
 
 ## 2026-11-21 — M8 (second half, part 2): the arithmetic a detector needs, tested without a detector
 
@@ -2736,7 +2654,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - `rustc`/clippy pushed two small corrections worth keeping: a negated float comparison became
   `matches!(area().partial_cmp(&0.0), Some(Greater))` because that is what actually catches a NaN, and
   a box built from corners is compared with a tolerance (0.6 − 0.2 is not exactly 0.4).
-- 385 tests, `cargo xtask ci`, `wasm`, `deny` and `snapshot` green. No new dependency: this is still a
+- 385 tests, `cargo xtask ci`, `deny` and `snapshot` green. No new dependency: this is still a
   crate that cannot reach the network.
 
 ## 2026-11-21 — M8 (second half, part 3): the hints that need no model
@@ -2760,7 +2678,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   asserts 1/15 s counts while 1/1000 s does not.
 - hints feed `suggest::merge` unchanged — a test runs a camera hint through the merger against a photo
   that already has that camera keyword, and gets only `low light` back.
-- ROADMAP's SL-F05 row is ticked; 395 tests, `cargo xtask ci`, `wasm` and `deny` green.
+- ROADMAP's SL-F05 row is ticked; 395 tests, `cargo xtask ci` and `deny` green.
 
 ## 2026-11-21 — M8 (second half, part 4): the suggestion pipeline reaches the app
 
@@ -2788,7 +2706,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   provenance in its own row only.
 - **not verified by hand**: how the row looks in a window. No click was simulated headlessly — the
   button's action is covered by the engine test and the app's handler by the compiler.
-- 400 tests; `cargo xtask ci`, `wasm`, `deny` and `snapshot` green.
+- 400 tests; `cargo xtask ci`, `deny` and `snapshot` green.
 
 ## 2026-11-21 — M8 (second half, part 5): keyword packs are data
 
@@ -2817,7 +2735,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   existed. Restored both times. The lesson is in the diff, not just in this file: the CLI match is
   long, and a text slice that ends at the next arm is not a safe edit.
 - **not verified by hand**: the Settings rows in a window; no checkbox was clicked headlessly.
-- 413 tests; `ci` (exit 0), `wasm`, `deny`, `snapshot` green.
+- 413 tests; `ci` (exit 0), `deny`, `snapshot` green.
 
 ## 2026-11-21 — M8 (second half, part 6): the batch pass, and M8 called done honestly
 
@@ -2841,7 +2759,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   with the reason and what would unblock each. The demo line now describes something a person can
   actually do today.
 - **not verified by hand**: the new panel in a window; the headless test paints it idle and mid-pass, and
-  no click was simulated. 416 tests, ci (exit 0), wasm, deny, snapshot green.
+  no click was simulated. 416 tests, ci (exit 0), deny, snapshot green.
 
 ## 2026-11-21 — M9 (part 1): the CLI answers in JSON, and refuses when it cannot
 
@@ -2858,7 +2776,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   which the test caught immediately. Proved to bite by renaming a key in the roots golden.
 - docs/TOOLING.md has a "Scripting the CLI" section with the verb list and the refusal text; ROADMAP
   ticks SL-K03/K06 and leaves one row naming what is still missing.
-- 417 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: any of this in a real
+- 417 tests; ci (exit 0), deny, snapshot green. **Not verified by hand**: any of this in a real
   terminal — the goldens run the binary, which is the closest this environment gets.
 
 ## 2026-11-21 — M9 (part 2): the diagnostics bundle, with the leak test the golden would have hidden
@@ -2875,9 +2793,9 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - the golden itself would have failed on the ubuntu job (`os = macos`); os/arch and version lines are
   recorded as `<host>`/`<version>`. First attempt inserted the normaliser before the tail was appended,
   which silently undid it — visible only because the golden was re-recorded and still said `macos`.
-- M9's remote rows (server, wasm client, remote album edits) moved to a "Deliberately absent from M9"
+- M9's remote rows (server client, remote album edits) moved to a "Deliberately absent from M9"
   table: they need a second device and a network peer, and an untested auth path is worse than none.
-- 422 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: the report as pasted into
+- 422 tests; ci (exit 0), deny, snapshot green. **Not verified by hand**: the report as pasted into
   a bug tracker.
 
 ## 2026-11-21 — M10 (part 1): one version, and a release that says what it does not have
@@ -2899,7 +2817,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   what this version does not have — no models, no remote, no localisation, no HEIC/video, no PNG/TIFF/WebP.
 - `--version` golden and the ROADMAP rows ticked; signing, installers, a11y, performance budgets and the
   final release notes stay open and are named as needing things this environment lacks.
-- 423 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: the workflow itself — it
+- 423 tests; ci (exit 0), deny, snapshot green. **Not verified by hand**: the workflow itself — it
   has never had a tag to run on.
 
 ## 2026-11-21 — M10 (part 2): attribution that is checked, not asserted
@@ -2921,7 +2839,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `cargo metadata`, craft-fonts as a **build input rather than a dependency**, the four embedded families
   (all OFL-1.1) and why a symbols face is required, the fixtures being generated rather than stored, and
   the model-weights statement.
-- 423 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: nothing here is visual.
+- 423 tests; ci (exit 0), deny, snapshot green. **Not verified by hand**: nothing here is visual.
 
 ## 2026-11-21 — M10 (part 3): every painted control has a name, and a check that keeps it that way
 
@@ -2941,7 +2859,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   and the missing half — focus order, traps, a real client — is a separate ROADMAP row naming VoiceOver,
   Orca and NVDA as what would unblock it.
 - `epaint` deprecation caught by clippy: `WidgetType` is now `Role`; the rename is applied.
-- 425 tests; ci (exit 0), wasm, deny, snapshot and `a11y` green. **Not verified by hand**: how any of it
+- 425 tests; ci (exit 0), deny, snapshot and `a11y` green. **Not verified by hand**: how any of it
   sounds or reads with an actual screen reader.
 
 ## 2026-11-21 — M10 (part 4): measurements, and the snapshot defect they found
@@ -2968,7 +2886,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `single_edits_still_snapshot_every_256_commits`. Two audit tests and one golden changed because a fresh
   sync now leaves a snapshot behind — the golden shows `snapshot at seq 7` where it used to say `none`,
   which is the behaviour change made visible rather than hidden.
-- 427 tests; ci (exit 0), wasm, deny, snapshot, a11y green. **Not verified by hand**: nothing in this
+- 427 tests; ci (exit 0), deny, snapshot, a11y green. **Not verified by hand**: nothing in this
   commit touches the GUI beyond a headless frame; the frame numbers are layout and shape building, not a
   display.
 
@@ -2995,7 +2913,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   line rewritten to match. The rows those replace were moved into it rather than left as empty boxes.
 - Files: `crates/icon/`, `apps/sortlens/build.rs`, `apps/sortlens/src/main.rs`, `assets/icon.svg`,
   `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/ATTRIBUTION.md`, `docs/RELEASE.md`.
-- 432 tests; ci (exit 0), wasm, deny, snapshot green. **Not verified by hand**: how the icon looks in a
+- 432 tests; ci (exit 0), deny, snapshot green. **Not verified by hand**: how the icon looks in a
   real window on each platform (macOS dock, Windows taskbar); checked only as pixels and as a decoded PNG,
   plus a rendered preview of the SVG at 200/64/32 px.
 
@@ -3040,7 +2958,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   migration, and the file's mtime would be "recently modified" — a different question), and cached-thumb
   behaviour for offline libraries needs staleness marking. Both say so in their rows.
 - Files: `crates/ui/src/shell.rs`, `crates/ui/Cargo.toml` (dev-dependency on the fixture kit),
-  `crates/ui/src/lib.rs`, `docs/ROADMAP.md`. 436 tests; ci (exit 0), wasm, snapshot green.
+  `crates/ui/src/lib.rs`, `docs/ROADMAP.md`. 436 tests; ci (exit 0), snapshot green.
   **Not verified by hand**: the badge at small cell sizes, and whether "Rejects" is a source people want
   next to Picks — it is in the list because rejects are still in the library until you delete them.
 
@@ -3062,7 +2980,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - Files: `crates/core/src/media.rs`, `crates/scan/src/lib.rs`, `crates/engine/src/lib.rs`,
   `crates/ui/src/shell.rs`, `apps/sortlens-cli/src/main.rs` (+ `report_scan`, after clippy's cognitive
   complexity gate caught `run()` at 31/30), `apps/sortlens-cli/tests/golden.rs` and the goldens.
-- 440 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: a real camera raw whose header is
+- 440 tests; ci (exit 0), snapshot green. **Not verified by hand**: a real camera raw whose header is
   a TIFF with an embedded JPEG (the `cr2` case is synthetic JPEG bytes), and a real CR3.
 
 ## 2026-11-21 — M1 row: know the volume, so a missing drive is one answer
@@ -3084,7 +3002,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   per-volume case-sensitivity probe, and an ASCII lowercase "fix" would silently merge `Ångström.jpg` with
   `ångström.jpg` on a case-sensitive disk.
 - Files: `crates/core/src/volume.rs` (new), `crates/core/src/lib.rs`, `crates/engine/src/lib.rs`,
-  `crates/ui/src/shell.rs`, `docs/ROADMAP.md`. 449 tests; ci (exit 0), wasm, snapshot, deny green.
+  `crates/ui/src/shell.rs`, `docs/ROADMAP.md`. 449 tests; ci (exit 0), snapshot, deny green.
   **Not verified by hand**: a real unplugged drive on macOS (the "away" path is exercised only through the
   decision function here), and a Windows machine.
 
@@ -3107,7 +3025,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   back**, and a headless paint of the real grid at all three densities over a three-photo library.
 - Files: `crates/ui/src/theme.rs`, `crates/ui/src/shell.rs`, `crates/ui/src/lib.rs`,
   `apps/sortlens/src/main.rs`, `apps/sortlens/src/settings.rs`, `docs/ROADMAP.md`. 454 tests; ci (exit 0),
-  wasm, snapshot green. **Not verified by hand**: how the three steps feel on a real display — the numbers
+  snapshot green. **Not verified by hand**: how the three steps feel on a real display — the numbers
   are a judgement call, and the only way to judge them is to scroll a shoot.
 
 ## 2026-11-21 — M1 row: a selection that can hold more than one photo
@@ -3131,7 +3049,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - Tests: the gesture state machine (add, remove, primary follows survivors, range forwards and backwards
   from a stable anchor, anchor-less range falls back), select-all + prune, a real engine batch write over
   three photos, and a headless paint with a three-photo selection that asks for nothing.
-- 458 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: the gestures with a real mouse —
+- 458 tests; ci (exit 0), snapshot green. **Not verified by hand**: the gestures with a real mouse —
   modifier-click in egui behaves, but only a person can say whether ⇧-click over a wrapped row feels right.
 - **Split, not ticked whole**: marquee is its own row. It needs cell rectangles collected during paint and a
   drag that does not fight the scroll area's own, which is a piece of work rather than a footnote.
@@ -3153,7 +3071,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - Two headless tests: the pure hit test, and the gesture driven with real pointer events — press, move,
   release — asserting the band paints while the pointer is down and the selection survives the release.
   `keymap.rs` documents the drag so the shortcut sheet is not silent about it.
-- 460 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: how the band feels while dragging a
+- 460 tests; ci (exit 0), snapshot green. **Not verified by hand**: how the band feels while dragging a
   real grid, and whether the 0.35-alpha fill reads on the light themes.
 
 ## 2026-11-21 — M1 row: the justified grid, and both layouts through one gesture handler
@@ -3185,7 +3103,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - Docs reconciled in the same commit: ROADMAP SL-B01/B02 ticked with what each layout actually does, and
   `docs/UX.md` §5.3 rewritten — it had been describing a density **slider** (90–480 px, `-`/`=` stepping)
   that was never built, while the shipped control is a three-step chip.
-- 465 tests; ci (exit 0), wasm, snapshot, docs green. **Not verified by hand**: how the row heights feel while
+- 465 tests; ci (exit 0), snapshot, docs green. **Not verified by hand**: how the row heights feel while
   scrolling a real library, and whether `Contain` leaves visible letterboxing for any real camera ratio.
 
 ## 2026-11-21 — M2 row: priority and a bound on the decode queue
@@ -3209,7 +3127,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   **Proved to bite**: raising that test's bound to 4 096 made it fail with "63 requests waiting, over the
   eight slot bound", and lowering it back made it pass.
 - `docs/ARCHITECTURE.md` §5 rewritten from the plan to what the code does, including why the channel went.
-- 469 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: whether the priority actually feels
+- 469 tests; ci (exit 0), snapshot green. **Not verified by hand**: whether the priority actually feels
   different while scrolling a real library — the ordering is unit-tested on the queue, but only a person can
   say whether a stale scroll still shows decoded cells sooner than it did.
 
@@ -3232,7 +3150,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   corrupting the count, the age table, and a headless paint of the bell (asking for nothing, reading nothing)
   and of the popover. `docs/UX.md`'s component table now describes the bell instead of promising a job list it
   never was.
-- 473 tests; ci (exit 0), wasm, snapshot green. **Not verified by hand**: where the popover lands against a
+- 473 tests; ci (exit 0), snapshot green. **Not verified by hand**: where the popover lands against a
   real top bar at a real window size, and whether "just now" is the right threshold rather than "now".
 
 ## 2026-11-21 — M2 row: the MCP server stops hand-rolling its protocol
@@ -3259,7 +3177,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   (`is_initialized` after the notification, and no reply to it), a batch answered as a batch with the
   notification skipped and an over-bound batch refused whole, an oversized frame refused with a message that
   names the bound while the *next* frame is answered, and non-object arguments refused. 16 tests in the crate.
-- 479 tests; ci (exit 0), wasm, deny, snapshot, attribution green. **Not verified by hand**: against a real MCP
+- 479 tests; ci (exit 0), deny, snapshot, attribution green. **Not verified by hand**: against a real MCP
   client — the handshake is exercised in-process, but no client has ever connected to this server.
 
 ## 2026-11-21 — M2 row: HEIC, routed by header and measured from its container
@@ -3284,7 +3202,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **A flaky test was fixed, not retried**: the priority test that expected the queue to be full assumed a worker
   had not already taken the first request. The admission decision (push, eviction, in-flight bookkeeping) is now
   a pure `admit()` and is tested without threads; the timing-dependent service test is gone.
-- 482 tests; ci (exit 0), wasm, deny, docs, attribution green. **Not verified by hand**: a real iPhone HEIC —
+- 482 tests; ci (exit 0), deny, docs, attribution green. **Not verified by hand**: a real iPhone HEIC —
   the decoder is exercised on synthetic files it was designed against, and performance is unmeasured (the perf
   fixtures are JPEG, and `docs/ROADMAP.md` says so).
 
@@ -3302,14 +3220,13 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   description after the cull facts, and a length row in the compare facts.
 - **Boundaries it refuses to fudge**: a file that is not a container, or a container whose video track declares
   no length, answers `None` rather than a zero-length clip; MKV/AVI are not probed because their container
-  features are off, and reporting them with no length would be worse than reporting nothing. On wasm there is no
-  filesystem to open, so a clip has no length there — named in the code, not silently zero.
+  features are off, and reporting them with no length would be worse than reporting nothing.
 - **Fixture without a blob**: the test muxes a real MP4 with the suite's own writer — 24 samples of 25 ticks at
   600 Hz is one second at 24 fps — and asserts duration, size, codec and rate, then truncates the same bytes and
   asserts the probe refuses half a file, and points it at a JPEG and asserts it is not a video.
 - Goldens changed by exactly the three new JSON keys plus the log byte counts; the diff was read before the
   update, not accepted blind.
-- 484 tests; ci (exit 0), wasm, deny, docs, snapshot, attribution green. **Not verified by hand**: a real camera
+- 484 tests; ci (exit 0), deny, docs, snapshot, attribution green. **Not verified by hand**: a real camera
   clip — the fixture is muxed by the same suite, so it exercises the demuxer, not a phone's peculiar `moov`.
 
 ## 2026-11-21 — M2 row: blur-up from a tier that already exists
@@ -3330,7 +3247,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   thumbnail set it then waited on, making the later assertion a race against a worker. The empty-map case now
   uses its own instance, so nothing depends on timing.
 - `docs/UX.md` said "skeleton shimmer"; the code has never shimmered, and now the row says what it actually does.
-- 487 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: whether a 128 tier scaled to
+- 487 tests; ci (exit 0), deny, snapshot, docs green. **Not verified by hand**: whether a 128 tier scaled to
   a 1600-pixel pane reads as "soft photograph" or as "broken" on a real screen — that is a judgement only a
   person looking at it can make.
 
@@ -3356,7 +3273,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - Tests: engine (refusal with nothing remembered, add/remove ordering, batch apply over 3 photos, idempotent
   second press), UI (real library, real `Event::Key` for `T` through the real handler: nothing written and the
   reason in the notice, then the keyword landing on every selected photo with the notice naming it), MCP
-  example. 489 tests; ci (exit 0), wasm, deny, snapshot, docs green.
+  example. 489 tests; ci (exit 0), deny, snapshot, docs green.
 - **Not verified by hand**: the notice's tone on screen, and whether `T` collides with any OS-level shortcut on
   a real keyboard layout (the keymap gate only proves the registry's internal uniqueness).
 
@@ -3379,7 +3296,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   bite** by removing the notify: it then fails, waiting out its ten-second deadline.
 - Tests: the tint/hint table, the wake-up regression, and an end-to-end paint (decode a thumbnail from a real
   JPEG, delete the file, rescan, paint) asserting the image mesh's vertex alpha falls 255 → 110 while the
-  default view — which hides missing files — paints nothing at all. 492 tests; ci (exit 0), wasm, deny,
+  default view — which hides missing files — paints nothing at all. 492 tests; ci (exit 0), deny,
   snapshot, docs green.
 - **Not verified by hand**: whether 110 is the right fade on a real screen, and whether the real app's first
   paint after a long idle now recovers — the regression test proves the mechanism, not the app's timing.
@@ -3397,7 +3314,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `a_file_whose_timestamp_moved_is_refused_and_says_so` pins it and asserts the message never dresses a
   timestamp change up as a size change.
 - 493 tests; ten consecutive runs of the previously flaky test with `--test-threads=8`, and three full-suite
-  runs with `--test-threads=16`, all green; ci, wasm, deny, snapshot, docs green.
+  runs with `--test-threads=16`, all green; ci, deny, snapshot, docs green.
 - **Not verified by hand**: nothing new; the fade from the previous commit is still un-eyeballed.
 
 ## 2026-11-22 (third) — M9 row: `--json` for the write verbs, with a written contract
@@ -3420,7 +3337,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   four existing steps (`keywords as JSON`, the old `no schema says so`, `diagnostics`, `version`). The golden
   harness said so — "no step records this golden any more" — which is exactly why it tracks orphans; the steps
   were restored, and the four goldens are unchanged.
-- 495 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: nothing new on screen.
+- 495 tests; ci (exit 0), deny, snapshot, docs green. **Not verified by hand**: nothing new on screen.
 
 ## 2026-11-22 (fourth) — M4 row: the decision overlay, in two phases, with an off switch
 
@@ -3441,7 +3358,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   rather than left saying the toggle does not exist.
 - Tests: the phase table over every case (monotonic, both settings, overshoot-free), the settings round-trip
   with an unknown value and a settings file predating the key, and a headless cull view where a decision paints
-  an overlay over the stage and then drops it. 498 tests; ci (exit 0), wasm, deny, snapshot, docs green.
+  an overlay over the stage and then drops it. 498 tests; ci (exit 0), deny, snapshot, docs green.
 - **Not verified by hand**: the timings. 90 ms and 140 ms are reasoned from "one glance" and "reads as
   movement", not measured against an eye, and the fade-plus-slide on a real display is exactly the kind of
   thing this harness cannot judge.
@@ -3469,7 +3386,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - The ROADMAP row is split honestly: this is part 1; **folders** having favourites/colours/search/sort is
   part 2 and is now its own row with its reason (the folder section is a projection of roots and subfolders, so
   each of the four needs somewhere to live) instead of an empty box.
-- 501 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: how the tick dot reads
+- 501 tests; ci (exit 0), deny, snapshot, docs green. **Not verified by hand**: how the tick dot reads
   next to the colour dot at real size.
 
 ## 2026-11-22 (sixth) — SL-A11 part 1: `PathKey`, and folders that remember a pin and a colour
@@ -3493,7 +3410,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   splitting because the gate said so, not silencing it.
 - Attribution gate bit as designed: adding `unicode-normalization` failed with "linked but docs/ATTRIBUTION.md
   does not attribute it" before the row was added.
-- 508 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: how the star plus the
+- 508 tests; ci (exit 0), deny, snapshot, docs green. **Not verified by hand**: how the star plus the
   colour dot read together on a real sidebar row, and whether resolving case per component is fast enough on a
   network volume — it is one `read_dir` per component, per mark change, not per frame.
 
@@ -3514,7 +3431,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   by hand — `..mark.clone()` is what makes adding the fifth field safe next time.
 - `folder.mark` gained `sort`/`search` (omitted keeps, null clears, unknown sort id refused), `folder.marks`
   reports both, and the CLI's `mark` verb passes `--sort`/`--search` through.
-- 509 tests; ci (exit 0), wasm, deny, snapshot, docs green. **Not verified by hand**: whether restoring the
+- 509 tests; ci (exit 0), deny, snapshot, docs green. **Not verified by hand**: whether restoring the
   search into the box on folder open reads as helpful or intrusive — it is the kind of judgement only use makes.
 
 ## 2026-11-22 (eighth) — `sortlens-quality` part 1: a sharpness score that can be trusted and re-derived
@@ -3547,7 +3464,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - No property-testing dependency exists in the workspace and adding one for two invariants would cost a package
   and its attribution, so the property runs use a fixed-seed generator — reproducible on failure, which is the
   part a property test is actually for.
-- 521 tests; ci (exit 0), wasm, deny, snapshot, docs, layers, roots, attribution green.
+- 521 tests; ci (exit 0), deny, snapshot, docs, layers, roots, attribution green.
 - **Not verified by hand**: none of it is reachable from the UI yet — the scan job is part 2, so there is no
   screen to look at and no threshold to judge. The threshold deliberately does not live in this crate.
 
@@ -3575,7 +3492,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   and `every_write_verb_has_a_json_schema_and_a_stated_contract` now requires each named progress verb to refuse.
 - The complexity gate fired on `Catalog::apply` at 31/30 and the arm became `apply_scores` — split because the gate
   said so, not silenced.
-- 529 tests; ci (exit 0), wasm, deny, snapshot, docs, layers, roots, attribution green.
+- 529 tests; ci (exit 0), deny, snapshot, docs, layers, roots, attribution green.
 - **Not verified by hand, and not reachable from the window yet**: the UI does not start the pass or show a score.
   That is part 3, and there is nothing to look at until it exists.
 
@@ -3604,7 +3521,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - The slider is session state, not a persisted setting: remembering yesterday's cut would make today's review appear
   to make a claim it never made. Written into `docs/UX.md` §5.8, which previously described a sortable grid that
   does not exist.
-- 538 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers green. ROADMAP's stale "blur ladder and cluster
+- 538 tests; ci (exit 0), deny, snapshot, a11y, docs, layers green. ROADMAP's stale "blur ladder and cluster
   determinism wait for their features" row was split: the blur ladder is checked, cluster determinism waits for geo.
 - **Not verified by hand, and named as such in ROADMAP**: whether 10% is a sensible default, and whether the
   histogram is legible at real score ranges. Both need a library of actual photographs, not fixtures.
@@ -3629,7 +3546,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   machinery is covered through `Mode::Move`, and the gap is written into ROADMAP rather than papered over.
 - The audit also refused my first test for a *second* reason worth remembering: a rejects folder inside a watched
   root is refused outright, because rejects there would reappear on the next scan. The test now puts it outside.
-- 542 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers, attribution green.
+- 542 tests; ci (exit 0), deny, snapshot, a11y, docs, layers, attribution green.
 
 ## 2026-11-22 (twelfth) — `sortlens-geo` part 1: projection, deterministic clusters, an offline gazetteer
 
@@ -3655,7 +3572,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `Photo` has no coordinate, so there is nothing to cluster until EXIF GPS is read and stored. The next run is
   therefore data first — parse GPS with its hemisphere reference, put `lat`/`lon` on the record, prove it survives a
   snapshot and a rescan — and only then paint.
-- 553 tests; ci (exit 0), wasm, deny, snapshot, docs, layers green.
+- 553 tests; ci (exit 0), deny, snapshot, docs, layers green.
 
 ## 2026-11-22 (thirteenth) — Places part 2: GPS in the catalog, and a view that admits what it lacks
 
@@ -3677,7 +3594,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   gone with its last caller, and a partly built view says so inside itself where the person looking will read it.
 - A grid-clustering limitation is now a decision in the record, not a surprise: two photos a few hundred metres apart
   that straddle a cell edge are two dots. My first engine test asserted one dot and failed — the code was right.
-- 560 tests; ci (exit 0), wasm, deny, snapshot, a11y, docs, layers, attribution green.
+- 560 tests; ci (exit 0), deny, snapshot, a11y, docs, layers, attribution green.
 
 ## 2026-11-22 (fourteenth) — Places part 3a: the basemap decision, and a credit that cannot be left out
 
@@ -3699,7 +3616,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - `Engine::tileset()`/`tiles_dir()` — the folder is **part of the library**, not a global setting, so two libraries
   can have different basemaps and moving a library brings its map. The Places view now reports the range, the tile
   count and the credit, or the sentence for whichever state the library is in, or the refusal.
-- 564 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- 564 tests; ci, deny, snapshot, a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: any real tile set, and whether the "no basemap" copy reads well at the view's width. The
   painted words are **not** asserted — egui returns paint shapes, not laid-out text — so the smoke test proves the
   view paints in all three states and that the engine reports the right state; the credit guarantee is enforced by
@@ -3726,7 +3643,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   is a named `Role::Canvas` region — `cargo xtask a11y` demanded that, which is the gate earning its keep.
 - `docs/UX.md` §5.9 rewritten: it described an offline *vector* basemap, thumbnail fans and a `geoBounds` library
   filter, none of which exist. The absent ones are now named with reasons instead of being described as if built.
-- 572 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- 572 tests; ci, deny, snapshot, a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: how it looks. The tests prove the tiles decode once, dots carry the right clusters, the
   click resolves and the credit is the folder's own; they cannot say the coastline sits in the right place, because
   there is no tile set in the repository to compare against. That needs a real archive and eyes.
@@ -3752,7 +3669,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - A named dot prints its name beneath it; the footer says whether names are in use or why they are not.
 - Deduplicated ROADMAP: the `sortlens-geo` part-1 block appeared twice, and the second copy was followed by a stale
   "part 2: the map view" bullet claiming GPS was not parsed — it has been since `f8f6a34`. Both removed.
-- 576 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- 576 tests; ci, deny, snapshot, a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: how a dense gazetteer looks — overlapping labels are the file's density problem and there
   is no declutter pass (named as absent in UX.md) — and how a real GeoNames export performs on load.
 
@@ -3783,7 +3700,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   one whole component and never case-resolved by the disk. It now splits on the platform separator
   (`std::path::is_separator`) and spells every key with `/`; a new test holds a joined path and a
   hand-spelled one to the same key.
-- 580 tests; ci, wasm, snapshot, a11y, docs, layers, roots, attribution, deny green.
+- 580 tests; ci, snapshot, a11y, docs, layers, roots, attribution, deny green.
 - **Not verified by hand**: the menu item on screen (a right-click menu cannot be driven headlessly
   here; the handler itself is tested) and the look of the hover text.
 
@@ -3815,7 +3732,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   forward, a second redo says so.
 - ROADMAP M3's undo row ticked in the same commit, rewritten to say what is true now. README and
   PLAN §12 already reconciled (the 2026-11-21 pass); `cargo xtask docs` gates it.
-- 586 tests; ci, wasm, deny, snapshot (two goldens updated: the shortcut list gained a row, the
+- 586 tests; ci, deny, snapshot (two goldens updated: the shortcut list gained a row, the
   snapshot golden gained `undo_history`), a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: the keypress on a real keyboard (the key events are synthetic, though
   routed through the shell's own input handling) and how twenty-step notices read over a long
@@ -3844,7 +3761,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   catches up one frame after the key: the chip is asserted on the following frame.
 - ROADMAP M4's inline-tagging row ticked in the same commit with a truthful description; UX.md §5.5 now
   names the strip and says `T` targets the photo on screen in cull.
-- 587 tests; ci, wasm green.
+- 587 tests; ci green.
 - **Not verified by hand**: typing a long keyword over several photos on a real keyboard, and how the strip
   wraps when a photo carries many keywords (horizontal_wrapped lays it out; nobody has looked at it).
 
@@ -3907,7 +3824,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   (Phase 1's only unlinked dependency is now linked); `craft-color` joined it with its own row. ROADMAP's
   Phase 1 item 1 ticked in the same commit; RELEASE.md and README dropped "video poster frames" from the
   not-built lists. No UI crate changed, so no screenshot pass was needed.
-- 593 tests; ci, snapshot, deny, wasm green.
+- 593 tests; ci, snapshot, deny green.
 - **Not verified by hand**: a real camera clip (phone HDR and a drone's) in the app; the fixtures are the
   suite's own encoder, which is honest about decode and colour but not about a manufacturer's bitstream
   quirks.
@@ -3942,7 +3859,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - ROADMAP's Phase 1 item 2 and both M3 rows ticked in the same commit; FEATURES.md's SL-D11 design note
   now says shipped. No layout or drawing logic changed, only two token values, so the headless run_ui
   suite and the pure token test cover it; the screenshot harness does not exist yet (Phase 3 item 9).
-- 599 tests (6 new); ci, snapshot, deny, wasm green.
+- 599 tests (6 new); ci, snapshot, deny green.
 
 ## 2026-11-23 (twenty-third) — Phase 1 item 3: the Recently Added source, honestly timed (SL-A14 part 2)
 
@@ -3969,7 +3886,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   open past midnight.
 - ROADMAP's Phase 1 item 3 and the M1 "Sources, part 2" row ticked in the same commit. UX.md §Sources
   already described the predicate ("indexed in the last 30 days") and now matches the shipped code.
-- 604 tests (5 new); ci, snapshot, deny, wasm green. Screenshot harness does not exist yet (Phase 3A);
+- 604 tests (5 new); ci, snapshot, deny green. Screenshot harness does not exist yet (Phase 3A);
   no layout or drawing logic changed, only a new sidebar row painted through the existing `nav_row`, so
   the headless `run_ui` suite covers it.
 
@@ -3994,7 +3911,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - ROADMAP's Phase 1 item 4 and the M8 export row ticked in the same commit; the “Re-opened from M8”
   paragraph now lists three remaining Phase 2 rows; RELEASE.md's export limit names Original/JPEG/PNG;
   UX.md's export row marks quality and metadata as JPEG-only.
-- 610 tests (6 new); ci, snapshot, deny, wasm green. Screenshot harness does not exist yet (Phase 3 item
+- 610 tests (6 new); ci, snapshot, deny green. Screenshot harness does not exist yet (Phase 3 item
   9); the change is one dialog branch and one new chip painted through the existing `chip`/`hint` rows,
   so the headless `run_ui` suite covers it.
 
@@ -4029,14 +3946,14 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   now checks every release URL named in `manifest.rs` against ATTRIBUTION.md instead.
 - ROADMAP's Phase 2 item 1 and the M8 manifest row ticked/named in the same commit; RELEASE.md's
   "no bundled models" bullet now says pins exist and what is still open (downloader, inference).
-- 614 tests (4 new); ci, snapshot, deny, wasm green. No UI change, so no run_ui or screenshot work
+- 614 tests (4 new); ci, snapshot, deny green. No UI change, so no run_ui or screenshot work
   applies; the screenshot harness does not exist yet (Phase 3 item 9).
 
 ## 2026-11-23 (twenty-sixth) — Phase 2 item 2: the consent-gated model downloader (SL-F02)
 
 - **`crates/engine/src/models.rs` is the only thing in the repository that fetches a model.** It was placed
   deliberately outside `sortlens-ai` — whose `no_network` test still holds, untouched — and deliberately
-  desktop-only: the wasm build compiles the engine without the module and without the two new target-gated
+  desktop-only, with two new target-gated
   dependencies (`ureq` over rustls for HTTPS with a `Range` header; `craft-atomic` for the Windows-safe
   rename and the fsync before it).
 - **Resumable, and the resume is tested.** The bytes stream into `<library>/models/<digest>.<kind>.part` in
@@ -4079,7 +3996,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - ROADMAP's Phase 2 item 2 and the M8 manifest row ticked in the same commit; RELEASE.md's model bullet now
   says the downloader exists and what is still open (inference); UX.md's dialog table and ARCHITECTURE.md
   §9 + the store layout gained the downloader and the `.part` file.
-- 633 tests (19 new); ci, snapshot (two goldens updated: the schema list gained `models`), deny, wasm green.
+- 633 tests (19 new); ci, snapshot (two goldens updated: the schema list gained `models`), deny green.
   CLI verified by hand against a fresh library: `models` lists three pins, `model-install` without consent
   refuses naming Settings, `model-remove` reports nothing to reclaim.
 - **Not verified against the real release**: a live download of the pinned 13/89/64 MB files from the
@@ -4123,7 +4040,7 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   chip twice — Source → Manual → AI — asserting the query actually narrowed and the chip relabelled, then finds
   `guessed · AI` painted on the keyword chip); goldens regenerated and read: the only visible changes are the
   new `tag_sources` field, the extra ops in the log, and `group · Flagged` becoming `flag · Flagged`.
-- 674 tests; ci, wasm, deny, snapshot, a11y, docs, layers, roots, attribution green.
+- 674 tests; ci, deny, snapshot, a11y, docs, layers, roots, attribution green.
 - **Not verified by hand**: how the Source chip sits next to the other seven in the strip at a narrow width, and
   whether `cat · AI` crowds a long keyword. There is still no `cargo xtask screenshots` (Phase 3 item 9, which is
   explicitly to be done before the rest of the visual work), so the visual evidence is the headless paint.
@@ -4238,12 +4155,11 @@ says so rather than skipping it silently). The full text is in `docs/ROADMAP.md`
     `craft-i18n` scaffolding (SL-L07) done 2026-11-24**, see the forty-ninth entry.
 18. `sortlens-server` + the phone client with a two-process loopback integration harness in CI — the
     server half, the harness and the desktop's start/stop surface are **done 2026-11-24** (fiftieth and
-    fifty-first entries); the in-memory catalog path the wasm client needs is **done 2026-11-24**
+    fifty-first entries); the in-memory catalog path a paired device needs is **done 2026-11-24**
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
-    the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the browser shell
-    itself — the eframe wasm entry — was **removed 2026-11-24** (fifty-seventh entry) in favour of
-    the native `apps/sortlens-mobile`. What remains of the row is that app: a phone layout, settings,
+    the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the native
+    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). What remains of the row is that app: a phone layout, settings,
     send-to-desktop upload, the iOS Photos library and a device build.
 
 **Phase 5 — autonomous GitHub maintenance**

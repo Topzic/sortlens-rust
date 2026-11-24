@@ -59,7 +59,8 @@ So the recreation is a **behavioural** port, not a code port:
 
 - RAW *development* (tone curves, masks, healing, export rendering) — that is LightCraft.
 - Cloud sync, accounts, telemetry, subscriptions.
-- A browser or wasm client. Phones get the native app (`apps/sortlens-mobile`), not a web page.
+- Any web or browser application, hosted or served, and any wasm build. Sortlens ships as native apps
+  only: desktop, CLI, and the phone app (`apps/sortlens-mobile`). Agents must not build one.
 - Windows/macOS code-signing infrastructure beyond a documented, scripted release.
 - Recreating the vendor's exact pixels or copy; clean-room behaviour only.
 - Network-drive libraries (SMB/NFS) as a supported target: they work read-only, badly, and we
@@ -88,7 +89,7 @@ not 60%, because the catalog and UI have hard sequencing.
 
 | M | Name | Weeks | Ships | Exit criteria (demo) |
 | --- | --- | ---: | --- | --- |
-| **M0** | Skeleton | 1.0 | Workspace, toolchain pin, CI, window, chrome, 4 themes, fonts, settings, empty state, About | `cargo run` opens an ArtCraft-looking window with working theme switch and a settings file on disk; CI green on 3 OSes + wasm check |
+| **M0** | Skeleton | 1.0 | Workspace, toolchain pin, CI, window, chrome, 4 themes, fonts, settings, empty state, About | `cargo run` opens an ArtCraft-looking window with working theme switch and a settings file on disk; CI green on 3 OSes + snapshot job |
 | **M1** | Index | 2.5 | Scan, folder model, catalog, grid (justified + square), sources, density, selection | Point at a 5,000-photo folder: grid fills progressively, counts are right, relaunch is instant, rescan adds only new files |
 | **M2** | Preview scales | 2.5 | Tiered cache, priority scheduler, activity stack, prefetch, offline/missing states, control channel, CLI `scan` | 50k library scrolls at 60 fps; cache budget respected; pulling the drive shows an offline badge instead of a freeze |
 | **M3** | Annotate | 2.0 | Rating/flag/label/tags, autocomplete, XMP read/write, filter bar + pickers, sort, lightbox + EXIF, context menus, undo, audit | Rate/tag 100 photos, quit, reopen: state is there; the same data is in the `.xmp`; filter by 4★+Pick+tag works in one keystroke |
@@ -126,14 +127,13 @@ Hard sequencing rules:
 ### 5.2 Milestone work breakdown
 
 > This is the plan as it was written, kept so the shape of each milestone stays visible. M0–M10 are
-> delivered — some rows landed differently (no wasm client: there is no remote server to talk to;
-> snapshots are one file plus a log; AI is the no-model half) — and `CHECKPOINT.md` records what each one
-> actually became. `docs/ROADMAP.md` says, per milestone, what was deliberately left out and what would
-> unblock it.
+> delivered — some rows landed differently (snapshots are one file plus a log; AI is the no-model half) —
+> and `CHECKPOINT.md` records what each one became. `docs/ROADMAP.md` says, per milestone, what was
+> deliberately left out and what would unblock it.
 
 **M0 — Skeleton (1.0 w)**
 - `rust-toolchain.toml`, workspace, 16 crate skeletons, `[lints]`, `xtask` (`ci --quick`,
-  `layers`, `roots`, `assets`, `fonts`, `wasm`).
+  `layers`, `roots`, `assets`, `fonts`).
 - Pin craft rev + egui fork; commit `Cargo.lock`; `cargo deny` allow-list.
 - App shell: `craft-window` title bar, top/bottom bars, left/right docked panels, protected
   canvas (via `craft_ui::docking`), four theme presets, `craft-ui` font stack + `assert_covers`.
@@ -141,7 +141,7 @@ Hard sequencing rules:
   `shortcuts`), damaged-file handling, migration scaffold.
 - Commands: `app.about`, `app.settings`, `app.shortcuts`, `view.theme`, `library.addFolder`.
 - Empty-library state with the three-sentence onboarding.
-- CI on macOS/Windows/Linux + `wasm32` check + snapshot job skeleton.
+- CI on macOS/Windows/Linux + snapshot job skeleton.
 
 **M1 — Index (2.5 w)**
 - `sortlens-core` ids/serialisation; `sortlens-scan` walker, volume probe, identity, delta;
@@ -374,7 +374,7 @@ What is **not** delivered is tracked, not excused. The owner's course-correction
 "Deliberately absent" tables: video poster frames, stale-revision rejection, `Recently Added`, PNG export,
 real local AI tagging with tag provenance, the Adobe/ArtCraft layout pass and a screenshot harness, the
 keymap editor, packaging icons, the opt-in update check, localisation scaffolding, the remote server and
-wasm client, and the GitHub intake that an autonomous agent will work from. They are unchecked rows under
+phone app, and the GitHub intake that an autonomous agent will work from. They are unchecked rows under
 "Completion phases" in `docs/ROADMAP.md`, in that order. The owner has approved two user-initiated network
 calls — `model.install` and an opt-in update check — and `crates/ai` stays offline. Licensing is confirmed
 as `MIT OR Apache-2.0`. What genuinely cannot be done from this repository (signing identities, a screen

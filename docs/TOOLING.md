@@ -20,7 +20,7 @@ Observed (site, 2026):
   DesignCraft, FigCraft, TextureCraft, MaterialCraft, SoundCraft, WordCraft, DeckCraft,
   CADCraft, GridCraft, Craft Anything.
 - Per-app pages with a one-line promise (LightCraft: "Your photos. Your pixels. Your machine."),
-  a screenshot, and platform matrix: **macOS · Windows · Linux · Web · free and open source**.
+  a screenshot, and platform matrix: **macOS · Windows · Linux · free and open source**.
 - Community: Discord, wiki, tutorials, news, FAQ, press kit, support.
 - Separate commercial product, ArtCraft Studio, for AI image/video — explicitly *not* part of
   the free suite.
@@ -84,7 +84,6 @@ and incomprehensible trait errors.
 | `craft-ipc` | Per-user local sockets, token auth, instance discovery, launch-on-demand, frame transfer | M4, M9 | Control channel and launcher hand-off |
 | `craft-jsonrpc` | JSON-RPC message parsing/batch dispatch | M4 | Pairs with `craft-ipc` and `craft-mcp` |
 | `craft-mcp` | MCP 2025-03-26 server init + tool result helpers | M9 | We own tools, transport and roots |
-| `craft-web-api` / `craft-web-host` | Browser-facing method/paging/reply layer and host | M9 | Remote + phone app |
 | `craft-ai-core` | AI connection/model/capability contract, `SecretRef`, no I/O | M8 (optional) | Only if we ever add BYO cloud AI; local inference does not need it |
 | `craft-sniff` / `craft-file-formats` | Format sniffing helpers | M1 | Double-check extension with magic bytes |
 | `craft-zip` | Bounded ZIP read/write | M7 | Backup archives, imports |
@@ -139,8 +138,6 @@ craft-fonts-build = { git = "https://github.com/storytold/craft-libs", rev = "<P
 craft-mcp       = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
 craft-ipc       = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
 craft-jsonrpc   = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
-craft-web-api   = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
-craft-web-host  = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
 craft-sniff     = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
 craft-zip       = { git = "https://github.com/storytold/craft-libs", rev = "<PIN>" }
 ```
@@ -181,8 +178,6 @@ not exist; `Cargo.lock` is committed and reviewed when the pin moves.
 - `crates/craft-fonts` + `craft-fonts-build`:
   - `Embed::new().subset_to(catalogs)` cuts CJK faces to the characters our catalogs use
     (~3 MB for five languages instead of tens of MB);
-  - `Embed::serve("web/fonts", "fonts/")` writes a table of served faces with SRI hashes and
-    code-point ranges for the wasm build;
   - `CRAFT_FONTS_DIR` points at a checkout; `CRAFT_FONTS_REQUIRED=1` makes a release fail
     without fonts.
 - `craft_ui::fonts::UiFonts` assembles the fallback chain: app face → UI-language script →
@@ -190,7 +185,7 @@ not exist; `Cargo.lock` is committed and reviewed when the pin moves.
 - `fonts::assert_covers` is the guard that prevents "boxes instead of Thai filenames".
 
 Our plan: Inter Regular/SemiBold as the app face (as LightCraft does), craft-fonts for every
-other script, system-font provider enabled on desktop, served faces on web, a coverage test per
+other script, system-font provider enabled on desktop, a coverage test per
 shipped language, and the credits list generated from the font manifest into
 `docs/ATTRIBUTION.md`.
 
@@ -207,7 +202,7 @@ signatures, catalogue client, revocation and the native host are not built.
 
 Two crates today:
 
-- `craft-ext-core` (pure, wasm-safe): package manifest, ids, paths, trust tiers, theme palette
+- `craft-ext-core` (pure): package manifest, ids, paths, trust tiers, theme palette
   with WCAG contrast validation, catalogue index schema. Denies panics; 27 deliberate breakages
   are caught by a mutation script.
 - `craft-ext-store` (native): bounded unpacking, atomic install, enable-per-app, read side.
@@ -328,7 +323,7 @@ Notes and gotchas:
 
 **In:** `serde`, `serde_json`, `thiserror`, `log`, `chrono`, `rayon`, `bytemuck`, `crc32fast`,
 `roaring`, `tract-onnx` (AI, optional), `jpeg-encoder`, `miniz_oxide`, `rfd` (only if
-`craft-dialogs` needs a fallback), `web-time`, `wasm-bindgen`/`web-sys` (web app),
+`craft-dialogs` needs a fallback), `web-time`,
 `egui`/`eframe`/`egui_kittest`/`egui_extras` (patched to the suite fork).
 
 **Out:** any GPL/AGPL/LGPL crate, any CC-BY-NC model or data, `image` (we use craft decoders),

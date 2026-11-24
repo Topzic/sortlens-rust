@@ -19,19 +19,6 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-/// The faces a wasm build keeps.
-///
-/// The whole manifest is roughly 48 MiB, which is past what a web build should carry, so the web
-/// list is explicit: Japanese UI faces plus the two symbol faces. Both symbol faces are needed —
-/// Symbols 1 lacks `✕` and `◀`, Symbols 2 supplies them, and the UI draws both.
-const WEB_FACES: &[(&str, &str)] = &[
-    ("BIZ UDPGothic", "Regular"),
-    ("BIZ UDPGothic", "Bold"),
-    ("NanumGothic", "Regular"),
-    ("Noto Sans Symbols", "Regular"),
-    ("Noto Sans Symbols 2", "Regular"),
-];
-
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-env-changed=CRAFT_FONTS_DIR");
@@ -77,8 +64,6 @@ fn faces(dir: &Path) -> Result<String, String> {
     let manifest = dir.join("fonts/manifest.txt");
     println!("cargo::rerun-if-changed={}", manifest.display());
     let text = std::fs::read_to_string(&manifest).map_err(|error| format!("{}: {error}", manifest.display()))?;
-    let wasm = std::env::var("CARGO_CFG_TARGET_ARCH").is_ok_and(|arch| arch == "wasm32");
-    let required = std::env::var_os("CRAFT_FONTS_REQUIRED").is_some();
 
     let mut out = String::new();
     let mut included: Vec<(&str, &str)> = Vec::new();
@@ -91,9 +76,6 @@ fn faces(dir: &Path) -> Result<String, String> {
         let [family, style, file, scripts, ..] = fields.as_slice() else {
             return Err(format!("malformed manifest line: {line}"));
         };
-        if wasm && !WEB_FACES.contains(&(*family, *style)) {
-            continue;
-        }
         let path = dir.join(file).canonicalize().map_err(|error| format!("{file}: {error}"))?;
         included.push((family, style));
         println!("cargo::rerun-if-changed={}", path.display());
@@ -104,13 +86,6 @@ fn faces(dir: &Path) -> Result<String, String> {
             scripts.join(", "),
             path.display().to_string(),
         );
-    }
-    if wasm && required {
-        for &(family, style) in WEB_FACES {
-            if !included.contains(&(family, style)) {
-                return Err(format!("required web face is missing: {family} {style}"));
-            }
-        }
     }
     if included.is_empty() {
         return Err("no face was selected".to_string());

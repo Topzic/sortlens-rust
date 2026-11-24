@@ -84,7 +84,7 @@ that depends on egui.
 | ai | 3,000 | model store, tract glue, NMS, packs |
 | engine | 5,000 | ~150 commands, jobs, safety rails |
 | ui | 18,000 | the largest surface, by nature |
-| cli, mcp, server, web | 3,000 | thin adapters |
+| cli, mcp, server, mobile | 3,000 | thin adapters |
 | **Total** | **~52,000** | excludes generated tables and `xtask` |
 
 For reference, LightCraft's UI crate alone is larger than this entire estimate; 52k lines is
@@ -463,15 +463,13 @@ token set, not a sweep through the UI.
 Implemented as `crates/ui/build.rs` + `crates/ui/src/fonts.rs`:
 
 - `build.rs` reads `CRAFT_FONTS_DIR` (unset is a supported configuration, and what CI uses) and writes
-  a `CRAFT_FONTS: &[CraftFont]` table. A wasm build keeps an explicit five-face allowlist.
+  a `CRAFT_FONTS: &[CraftFont]` table.
 - `fonts::install(ctx)` registers them and **appends** each face to `Proportional` and `Monospace`,
   after egui's own, so a fallback can never take over Latin text.
 - `fonts::coverage()` checks the scripts the interface itself draws (`Latn`, `Zsym`); the translated
   scripts are listed separately, ready for when translations land.
 - `cargo xtask fonts` reports the face and family count from the checkout and refuses a manifest with
   no Latin face. `fonts/embedded.txt` records what the last release shipped.
-- The web build embeds faces rather than serving them for now; `Embed::serve` stays the plan if the
-  wasm bundle grows past its budget.
 
 ### 8.4 Interface language (i18n)
 
@@ -771,14 +769,14 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 | Decision | Chosen | Rejected | Why |
 | --- | --- | --- | --- |
 | Storage | Op log + snapshot | SQLite, redb, sled | Undo/audit/replay for free; deterministic tests |
-| UI toolkit | egui 0.37 (storytold fork) | GTK, Qt, Slint, Tauri | ArtCraft suite consistency; one codebase to wasm |
+| UI toolkit | egui 0.37 (storytold fork) | GTK, Qt, Slint, Tauri | ArtCraft suite consistency; one codebase for desktop and phone |
 | Image decode | craft-libs decoders (`craft-jpeg`, `craft-image-codecs`, `craft-raw`, `craft-heif`) | `image` crate | Control, purity, bounded hostile input, RAW/HEIC |
 | HEIC | `craft-heif` (pure Rust `heic-rs`, panic-guarded, libheif colour) | libheif (C) | No C dependency; 16-bit samples so a 10-bit photo is not clipped |
 | AI runtime | `tract` (pure Rust ONNX) | `ort` (C++), Burn+Candle | Licence/portability; revisit only on a benchmark |
 | Map | Offline vector world, opt-in tiles | Online tiles by default | Privacy promise is the product |
 | Similarity | dHash + pHash | CNN embeddings only | Works before any model download, milliseconds per 100k |
 | Thumbnail format | JPEG | WebP/AVIF | Encoder maturity and speed; WebP optional later |
-| Phones | Native Rust app (`sortlens-mobile`) + optional Rust server | wasm web client, React Native, Swift/Kotlin UIs | The vendor ships native phone apps; the Rust engine and UI are reused, no handwritten UI code |
+| Phones | Native Rust app (`sortlens-mobile`) + optional Rust server | React Native, Swift/Kotlin UIs | The vendor ships native phone apps; the Rust engine and UI are reused, no handwritten UI code |
 | Deletion | Trash default, staged | Direct delete | Safety is a feature, not a preference |
 | Library identity | Volume serial + rel path | Absolute path | Removable media and moves are the normal case |
 

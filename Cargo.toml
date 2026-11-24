@@ -57,8 +57,6 @@ craft-color = { git = "https://github.com/storytold/craft-libs", rev = "23acc704
 craft-media = { git = "https://github.com/storytold/craft-libs", rev = "23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3", default-features = false }
 craft-jsonrpc = { git = "https://github.com/storytold/craft-libs", rev = "23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3" }
 craft-mcp = { git = "https://github.com/storytold/craft-libs", rev = "23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3" }
-craft-web-api = { git = "https://github.com/storytold/craft-libs", rev = "23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3" }
-craft-web-host = { git = "https://github.com/storytold/craft-libs", rev = "23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3" }
 
 # Foundation
 serde = { version = "1", features = ["derive"] }

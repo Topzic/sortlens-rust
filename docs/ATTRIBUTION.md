@@ -64,7 +64,7 @@ These are the crates a manifest actually asks for and the build links.
 | `prost` | MIT OR Apache-2.0 | ONNX protobuf assembly for the synthetic models the inference tests run; `sortlens-testkit` and test code only |
 
 `craft-tiff`, `craft-jpeg`, `craft-image-codecs` and `craft-raw` sit below the UI layer on purpose: they
-decode pixels and know nothing about a window, so the CLI and the wasm build can use them too.
+decode pixels and know nothing about a window, so the CLI and the phone app can use them too.
 
 ## Declared, not linked yet
 
@@ -80,8 +80,6 @@ promise nobody intends to keep.
 | `craft-keymap` | MIT OR Apache-2.0 | The rebinding editor, conflict detection and import/export | Phase 4 — **linked 2026-11-24**: `sortlens-ui` (the editor and dispatch) and `sortlens` (the persisted sets) |
 | `craft-update` | MIT OR Apache-2.0 | Opt-in update checks (a user-approved network call) | Phase 4 |
 | `craft-i18n` | MIT OR Apache-2.0 | Localisation scaffolding | Phase 4 |
-| `craft-web-api` | MIT OR Apache-2.0 | The remote client | Phase 4 |
-| `craft-web-host` | MIT OR Apache-2.0 | The remote host | Phase 4 |
 
 ## Fonts
 
@@ -90,9 +88,9 @@ and embeds what it finds, so a build with no clone is a supported configuration 
 faces. Nothing from that repository is vendored here, and `.fonts/` is gitignored.
 
 When a build embeds craft faces, they are appended to each family (never prepended — a fallback that
-changes Latin text is a bug). The web build keeps a five-face allowlist because the full manifest is about
-48 MiB. `fonts/embedded.txt` records what the last such build carried, and `cargo xtask fonts` reports the
-face set and refuses one that covers no Latin text.
+changes Latin text is a bug). The full manifest is about 48 MiB. `fonts/embedded.txt` records what the
+last such build carried, and `cargo xtask fonts` reports the face set and refuses one that covers no
+Latin text.
 
 Faces that appear in that record, all under the SIL Open Font License 1.1, with the licence text travelling
 in `craft-fonts` itself:

@@ -95,7 +95,7 @@ individual fields over the wire. This recreation keeps the behaviour and drops t
 ## Build on
 
 `craft-libs` (decoders, metadata, XMP, UI components, docking, fonts, settings, keymap, menus,
-dialogs, update, MCP, web host), `craft-fonts`, `craft-extensions`, and the ArtCraft engineering
+dialogs, update, MCP, remote host), `craft-fonts`, `craft-extensions`, and the ArtCraft engineering
 standards: layered crates, command-first UI, theme tokens, panic-free non-test code, bounded
 parsing of hostile input, and a clean-room rule that forbids copying another product's code or
 assets.
@@ -181,10 +181,8 @@ CRAFT_FONTS_DIR=$PWD/.fonts/craft-fonts cargo xtask fonts     # what is embedded
 ```
 
 Native builds embed all 21 faces of the craft-fonts manifest (Japanese, Korean, Simplified Chinese,
-Hebrew, Arabic, Thai, Georgian, nine Indian scripts and two symbol faces). A wasm build keeps five —
-`BIZ UDPGothic Regular/Bold`, `NanumGothic Regular`, `Noto Sans Symbols` and `Noto Sans Symbols 2` —
-because the whole manifest is about 48 MiB. `fonts/embedded.txt` records what ships so a release can
-diff it. Release builds set `CRAFT_FONTS_REQUIRED=1` so a missing checkout fails instead of silently
+Hebrew, Arabic, Thai, Georgian, nine Indian scripts and two symbol faces). `fonts/embedded.txt`
+records what ships so a release can diff it. Release builds set `CRAFT_FONTS_REQUIRED=1` so a missing checkout fails instead of silently
 shipping without them.
 
 Craft faces are **appended** to each family, never prepended: a fallback that changes Latin text is a

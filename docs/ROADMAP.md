@@ -33,9 +33,9 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 **State:** done — every row is checked, fonts and `cargo deny` included. The toolchain, the workspace,
 `xtask`, the shell and the settings store are what M1–M10 build on.
 
-- [x] `rust-toolchain.toml` (1.95.0, wasm target), `.cargo/config.toml` alias; egui + winit forks patched in `Cargo.toml`
+- [x] `rust-toolchain.toml` (1.95.0, phone targets), `.cargo/config.toml` alias; egui + winit forks patched in `Cargo.toml`
 - [x] Workspace: 19 library crates + 4 app crates; `[lints] workspace = true`; crate-root denies (A)
-- [x] `xtask`: `ci`, `fmt`, `clippy`, `test`, `layers`, `roots`, `assets`, `wasm` (E)
+- [x] `xtask`: `ci`, `fmt`, `clippy`, `test`, `layers`, `roots`, `assets`, `mobile` (E)
 - [x] `cargo deny` allow-list in `deny.toml` (licences, advisories, bans, sources), `cargo xtask deny`, its own CI job; `Cargo.lock` committed (E)
 - [x] App shell: top bar, bottom bar, left/right panels, canvas (B)
 - [x] `craft-window` title-bar policy; macOS traffic-light inset (B)
@@ -46,7 +46,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [x] Commands: `app.about`, `app.settings`, `app.quit`, `app.supportReport`; 17 planned commands carry their milestone (A,B)
 - [x] `app.shortcuts` — the keymap table, the searchable overlay, and every command shortcut wired (A,B)
 - [x] Empty-library state (B)
-- [x] CI: 3 OSes + wasm check + snapshot job (E) — `cargo xtask snapshot` diffs 30 recorded CLI outputs in its own job
+- [x] CI: 3 OSes + phone-target check + snapshot job (E) — `cargo xtask snapshot` diffs 30 recorded CLI outputs in its own job
 
 **Demo:** launch → switch theme → open settings → quit → relaunch with the theme preserved;
 `cargo xtask ci` green.
@@ -832,11 +832,9 @@ selection as originals and as JPEG and diff the metadata.
 **State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
 bundle. The remote server shipped 2026-11-24 (pairing, scoped tokens, the allow-listed command API,
 resumable uploads — see the Phase 4 item 3 row), the desktop's own server start/stop shipped the same
-day, and the wasm client's library path shipped 2026-11-24 with it (`sortlens_remote::client` +
-`Engine::open_memory` + `RemoteLibrary`, SL-J02's engine and protocol halves — see the Phase 4 item 3
-row) and the browser shell itself shipped 2026-11-24 (the eframe wasm entry, the fetch-backed client,
-the pairing surface and the wire-grid thumbnails — see the Phase 4 item 3 row) while the shell's
-upload surface stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
+day, and the device protocol shipped 2026-11-24 with it (`sortlens_remote::client` +
+`Engine::open_memory`, SL-J02's engine and protocol halves — see the Phase 4 item 3 row) while the
+native phone app (`apps/sortlens-mobile`) stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
 Arabic, Japanese and the direction plumbing — see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted
 surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
@@ -887,10 +885,9 @@ and none of M9 is closed until the remaining rows are ticked.
 
 `sortlens-server` (token auth, pairing, upload resume — SL-J01/J03/J04) and remote collection create and
 rescan (SL-J06/J08) shipped 2026-11-24, proved by the two-process loopback integration harness the old
-table's blocker asked for; the wasm client's library path (SL-J02's engine and protocol halves plus
-SL-J05's client-side ack) shipped 2026-11-24, and the browser shell itself shipped 2026-11-24 — the
-eframe wasm entry, the fetch-backed client over the same wire, the pairing surface and the wire-grid
-thumbnails — leaving the shell's upload surface as the remaining half of Phase 4 item 3.
+table's blocker asked for; the device protocol (SL-J02's engine and protocol halves plus
+SL-J05's client-side ack) shipped 2026-11-24, leaving the native phone app as the remaining half of
+Phase 4 item 3.
 `docs/ARCHITECTURE.md` §10 keeps the design; the command registry is already the API.
 
 **Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
@@ -977,9 +974,9 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
 - [x] `docs/RELEASE.md` no longer claims there are no HEIC thumbnails or no map; it lists the real gaps with their phase
 - [x] Workspace dependency audit: 13 unlinked pins with no planned consumer pruned from `Cargo.toml`
   (`craft-flags`, `craft-fonts-build`, `craft-menu`, `craft-quit`, `craft-dialogs`, `craft-gainmap`,
-  `craft-sniff`, `craft-zip`, `craft-crs`, `craft-webp`, `craft-ipc`, `chrono`, `log`); eight kept with a named
-  phase (`craft-video` P1, `craft-atomic` and `rayon` P2, `craft-keymap`, `craft-update`, `craft-i18n`,
-  `craft-web-api`, `craft-web-host` P4); four linked crates (`craft-heif`, `craft-media`, `craft-jsonrpc`,
+  `craft-sniff`, `craft-zip`, `craft-crs`, `craft-webp`, `craft-ipc`, `chrono`, `log`); six kept with a named
+  phase (`craft-video` P1, `craft-atomic` and `rayon` P2, `craft-keymap`, `craft-update`, `craft-i18n`
+  P4); four linked crates (`craft-heif`, `craft-media`, `craft-jsonrpc`,
   `craft-mcp`) moved to the "Linked today" table, where they belonged
 
 ### Phase 1 — Core engine and media gaps (M1–M3 / M8)
@@ -1011,8 +1008,7 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   resumes with `Range: bytes=<len>-` (a server that ignores the range is answered by a restart), verifies the
   finished part against the manifest before renaming it under its digest name, and reads the renamed file back
   once more; `sortlens-ai` gains only incremental SHA-256 and the streaming file check, and its `no_network`
-  test still holds (the fetcher — `ureq` over rustls — lives in the engine, desktop-only, wasm compiles without
-  the module). Consent is an engine state the app persists in Settings → AI (`ai.download_consent`), and the
+  test still holds (the fetcher — `ureq` over rustls — lives in the engine, desktop-only). Consent is an engine state the app persists in Settings → AI (`ai.download_consent`), and the
   `model.install` command refuses without it from every face: UI, CLI (`models`, `model-consent`,
   `model-install`, `model-remove`) and MCP. Progress and cancel sit in the Activity stack as a `Model` job.
 - [ ] 3. Pure-Rust inference with `tract-onnx` (SL-F03/F04):
@@ -1067,7 +1063,7 @@ domain) model weights and offline map data, or an opt-in downloader for them, at
   `apply` installs it through `WidgetPalette::apply_to` (the accent ring on the pressed state is the one
 documented exception), tested per preset against what `apply` actually put in `Visuals`. The icon set is 34
 project-owned SVGs in `assets/icons/`, embedded and tinted through `craft_ui::icons` + `egui_extras`' SVG
-loader (a new workspace pin; `deny`, `wasm` and `attribution` all green). Wired into all five surfaces: the
+loader (a new workspace pin; `deny` and `attribution` all green). Wired into all five surfaces: the
 sidebar's source/folder/keyword/collection rows, the filter strip's chips, every bottom-bar view tab, the
 right panel's three tabs, and the top bar's Settings, panel toggle and Add Folder buttons. Four tests hold it
 (`Icon::ALL` ↔ catalog ↔ folder, `currentColor` and stroke conventions, every glyph rasterised through the
@@ -1354,7 +1350,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     need an Arabic-capable font build (CI's has none).
   (B,E)
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
-  resumable uploads) and the phone client (SL-J01..J09; the browser client was dropped 2026-11-24 for the native `sortlens-mobile`, below), proved by a two-process loopback
+  resumable uploads) and the phone client (SL-J01..J09; the native `sortlens-mobile`, SL-J10, below), proved by a two-process loopback
   integration harness in CI (E)
   - **The server half shipped 2026-11-24.** `crates/remote` holds the three shared pieces: the scoped
     device tokens (`Permission::Read/Upload/Annotate/Cull`, persisted as
@@ -1407,9 +1403,8 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     snapshot JSON with the undo history intact and the snapshot cadence costing nothing, broken or
     newer-schema JSON refused, and `commit_expect` refusing a stale revision in memory.
   - **The client protocol and in-memory engine shipped 2026-11-24.** The device side of the same
-    protocol now lives beside the server's: `crates/remote/src/client.rs` is what a paired page
-    speaks — `Client` over a `Transport` (native `TcpTransport`; a wasm build backs the same
-    wire format with the browser's fetch), `health` (SL-J07), `pair` storing the token, `call`
+    protocol now lives beside the server's: `crates/remote/src/client.rs` is what a paired phone
+    speaks — `Client` over a `Transport` (native `TcpTransport`), `health` (SL-J07), `pair` storing the token, `call`
     for every allow-listed command, `snapshot` pulling `library.snapshot`, and `upload`
     (SL-J04's client half): one request under the chunk size, `Content-Range` chunks above it,
     a `409`'s `received` count moving the cursor instead of failing, the completing chunk
@@ -1417,10 +1412,7 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     item — the ack answers with `LocalCopy::Keep/Remove`, so the decision survives the resume
     because it lives on the item, not the connection. `library.snapshot` joined the registry
     and the allow-list under `read`, and `Engine::open_memory` mirrors `Catalog::open_memory`
-    one layer up (no directory, the disk-side sessions simply absent). `sortlens-web` stopped
-    being a stub: `RemoteLibrary` hydrates a wire snapshot into a working engine, saves the
-    state back as the exact JSON the next session opens, and refuses a snapshot it cannot read.
-    Proved by `sortlens-remote`'s unit tests (chunk plan covers the file once contiguously, a
+    one layer up (no directory, the disk-side sessions simply absent).     Proved by `sortlens-remote`'s unit tests (chunk plan covers the file once contiguously, a
     409 is an instruction not a failure, a 409 naming no progress fails instead of looping,
     nothing is sent unpaired, pairing stores token and device), three new loopback tests in
     `apps/sortlens-server/tests/client.rs` against the real server process (pair → hold the
@@ -1430,46 +1422,19 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     gone, with the keep-or-remove decision in the ack both ways), the engine's own memory tests
     (a memory engine operating while touching no file, the snapshot command serving exactly
     what the memory engine opens, the stale-revision guard holding in memory, a fresh client
-    round-tripping), and `sortlens-web`'s `RemoteLibrary` tests (hydrate, operate, undo, save,
-    reopen; fresh-client round trip; broken and newer-schema JSON refused). The `wasm` gate
-    now checks `sortlens-web`, `sortlens-remote` and `sortlens-engine` besides `sortlens-ui`
-    and `sortlens-core`.
+    round-tripping).
   - **The thumbnails over the wire shipped 2026-11-24.** `GET /thumb/<photo-id>/<edge>` on the
     server decodes through the desktop grid's own `sortlens-thumbs` path and answers the export
     path's lossless PNG, bounded to 16–1024 px under the token's `read` scope, a photo whose file
-    cannot be read answering 404; `sortlens_remote::client::Client::thumbnail` fetches it, so the
-    wasm page and any later device build do not invent a second format. Proved by two client-harness
+    cannot be read answering 404; `sortlens_remote::client::Client::thumbnail` fetches it, so a
+    phone does not invent a second format. Proved by two client-harness
     tests against the real server process (a paired device reads a PNG that decodes to the
     fixture's own pixels without upscaling, edge bounds and unknown photo and missing file each
     named in the refusal; a token without `read` refused the same as the snapshot) and unit tests
     on the client (the request is `GET /thumb/<id>/<edge>` with the bearer token, PNG bytes return
     untouched, unpaired refuses without talking).
-  - **The browser shell shipped 2026-11-24.** The page is the eframe fork's `WebRunner` running in
-    the browser's canvas (`cargo xtask web`: the wasm32 release build, the wasm-bindgen CLI glue —
-    pinned to the exact 0.2.130 the egui fork carries — and `apps/sortlens-web/web/index.html`, left
-    servable in `apps/sortlens-web/dist`). The host serves its own page: `--web DIR` answers `/app`
-    with the bundle, same-origin, so the page pairs and speaks to the host it was served by and no
-    CORS check is ever in the picture (paths resolve inside the bundle dir only; a traversal answers
-    404). The page's protocol is the crate's, not a second one: `crates/remote/src/web.rs` is the
-    async wasm client over the browser's `fetch`, built from the same wire functions the blocking
-    client and the native tests run (`health`/`pair`/`call`/`snapshot`/`thumbnail` request builders
-    and answer parsers, shared, so a browser cannot drift from what the two-process harness proves).
-    The page pairs with the host's code, hydrates the wire snapshot into `RemoteLibrary`, paints the
-    grid from the PNG thumbnails the wire carries (decoded through the desktop's own
-    `craft_image_codecs`), refreshes the snapshot on every boot, and keeps the token and the snapshot
-    in browser storage between sessions — a saved token opens the page straight into its library.
-    The page's state machine (`apps/sortlens-web/src/shell.rs`) is compiled natively too and tested
-    there: empty session starts unpaired, a saved token reopens, pairing is not open until the
-    snapshot arrives, a failure returns to the form only unpaired, the session round-trips and
-    untrusted storage reads as absent. Proved live: a real server (`--library` with three scanned
-    photographs, `--web dist`) serving `/app` in a real browser — pair with the pinned code, the
-    grid paints the three photographs from wire thumbnails, a reload opens the library without
-    re-pairing — and by the harness test that reads `/app`, `/app/sortlens-web.js`, the nested
-    `snippets/` asset and the wasm back with the content types a browser needs, a traversal and an
-    unknown name refused, an unconfigured server naming the `--web` flag.
-  - **The browser client was removed 2026-11-24.** Phones get a native app, as the vendor's product does, so
-    `sortlens-web`, `cargo xtask web`, `sortlens_remote::web` and the server's `--web`/`/app` route are gone;
-    `Engine::open_memory`, `library.snapshot`, `/thumb` and the device protocol stay, because a phone uses them.
+  - **Phones get a native app, not a web page.** The vendor's own product ships iOS and Android apps, so the
+    phone client is `apps/sortlens-mobile` (3b below). No web or browser application is built, and none is planned.
 - [ ] 3b. **`apps/sortlens-mobile` (SL-J10)** — the native Android and iOS app over the desktop's engine and shell.
   - **Shipped 2026-11-24:** the crate (`cdylib` + `staticlib` + `rlib`), the shared `App`, the Android
     (`android_main`) and iOS (`sortlens_ios_main`) entry points, where the library and the camera roll live,
