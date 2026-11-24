@@ -1,10 +1,17 @@
 //! Library pairing, capability tokens and the remote protocol binding.
 //!
-//! M0 scaffold. The public surface is specified in `docs/ARCHITECTURE.md` and lands in the
-//! milestone named there.
+//! The rule (`docs/ARCHITECTURE.md` §10): the remote API is the command registry with a
+//! restricted allow-list, not a second API. This crate holds the three pieces every remote
+//! surface shares — [`tokens`] (scoped device tokens and their store), [`pairing`] (the
+//! short-lived code that becomes a token) and [`allowlist`] (which registry commands the wire
+//! accepts, and the scope each needs). The HTTP face lives in `apps/sortlens-server`.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
+
+pub mod allowlist;
+pub mod pairing;
+pub mod tokens;
 
 /// Crate version, from `Cargo.toml`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

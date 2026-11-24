@@ -38,7 +38,7 @@ L3  sortlens-catalog     op log + snapshot + counters + undo/audit
     sortlens-insights    dashboard, review progress, charts
     sortlens-memories    deterministic "memories" from capture dates and places
     sortlens-similar     hashing + grouping
-    sortlens-remote      optional server API (feature-gated)
+    sortlens-remote      pairing, capability tokens, the command-registry allow-list
 L2  sortlens-thumbs      tiered preview cache + job scheduler
     sortlens-scan        walker, identity, delta, offline probes
 L1  sortlens-meta        craft-metadata → neutral PhotoMeta
@@ -614,13 +614,25 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
 ## 10. Remote and web
 
 - `apps/sortlens-web`: the same `sortlens-ui` compiled to wasm32, minus native file access.
-- `apps/sortlens-server` (feature `remote`): serves the wasm bundle plus a token-authenticated
-  JSON API (`craft-web-host`, `craft-web-api`). Binds loopback/LAN only; pairing code →
-  device token; per-token permissions (`read`, `upload`, `annotate`, `cull`).
-- The remote API is the command registry with a restricted allow-list, not a second API. A
-  phone culling session is the same `cull.*` commands with a remote actor and a device id in
-  the audit log.
-- Uploads are resumable, verified by size + hash, and land in a configured album folder.
+- `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
+  hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
+  default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five
+  wrong attempts lock it out) becomes a scoped device token stored as
+  `<library>/remote-tokens.json` with per-token permissions (`read`, `upload`, `annotate`, `cull`).
+  Routes: `GET /health` (the connection test, no token), `POST /pair`, `POST /api`
+  (`{method, params}` → the registry's answer), `POST /upload` and `GET /upload/<id>`.
+- The remote API is the command registry with a restricted allow-list, not a second API. `crates/remote`'s
+  table names every id the wire accepts with the scope it needs, is audited against `Registry::v0()` at
+  startup, and refuses a host-effect command (`app.quit`, `photo.reveal`, the model/update network
+  calls, library surgery) without leaking whether it exists. A phone culling session is the same
+  `cull.*` commands the window runs.
+- Uploads are resumable, verified by size + SHA-256 (the suite's own), and land in a configured album
+  folder. Chunks append to `<album>/.uploads/<id>.part`, so the file length is the received count and a
+  restart loses nothing; the completing chunk is hashed before it is appended, so a digest mismatch
+  leaves the partial exactly where it was; a published name never overwrites.
+- Proven by the two-process loopback harness in `apps/sortlens-server/tests/loopback.rs`: a real server
+  process against a real scanned library, pairing through `/pair`, reads and writes through `/api`, an
+  upload that dies mid-transfer and resumes, and a token that survives a server restart.
 - No cloud service, no account server, no telemetry. If a user wants to reach their desktop
   from outside, they use whatever VPN/overlay they already run; we document the requirement
   and never configure a third-party product.

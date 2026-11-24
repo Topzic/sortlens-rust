@@ -12,6 +12,12 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 sortlens-remote = { workspace = true }
+# Upload verification reuses the suite's own SHA-256 (already linked through the engine).
+sortlens-ai = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+sortlens-testkit = { workspace = true }
 
 [lints]
 workspace = true

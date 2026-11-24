@@ -830,11 +830,12 @@ selection as originals and as JPEG and diff the metadata.
 ## M9 — Remote + automation · 2.5 w · tracks E,B
 
 **State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
-bundle. The remote half (a server, a wasm client, remote album edits) is **open work in Phase 4**, as is
-the rest of i18n (the scaffolding shipped 2026-11-24 with Arabic, Japanese and the direction plumbing —
-see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted surfaces and the RTL screenshots stay open);
-the keymap editor shipped 2026-11-24 (see the Phase 4 row), and none of M9 is closed until the
-remaining rows are ticked.
+bundle. The remote server shipped 2026-11-24 (pairing, scoped tokens, the allow-listed command API,
+resumable uploads — see the Phase 4 item 3 row) while the wasm client (SL-J02) and the desktop's own
+server start/stop stay open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
+Arabic, Japanese and the direction plumbing — see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted
+surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
+and none of M9 is closed until the remaining rows are ticked.
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
 - [x] CLI parity and stable JSON schemas: `--json` on the read verbs (roots, keywords, stats, list,
@@ -880,10 +881,10 @@ remaining rows are ticked.
 
 ### Re-opened from M9
 
-`sortlens-server` (token auth, pairing, upload resume — SL-J01/J03/J04), the `sortlens-web` wasm client
-(SL-J02) and remote album/collection create and rescan (SL-J06/J08) are **Phase 4 item 3**. The blocker the
-old table named — nothing to test an auth path against — is answered by a two-process loopback integration
-harness in CI. `docs/ARCHITECTURE.md` §11 keeps the design; the command registry is already the API.
+`sortlens-server` (token auth, pairing, upload resume — SL-J01/J03/J04) and remote collection create and
+rescan (SL-J06/J08) shipped 2026-11-24, proved by the two-process loopback integration harness the old
+table's blocker asked for; the `sortlens-web` wasm client (SL-J02) is the remaining half of Phase 4 item 3.
+`docs/ARCHITECTURE.md` §10 keeps the design; the command registry is already the API.
 
 **Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
 `--json`; `sortlens-cli diagnostics` produces a bundle a maintainer can read without knowing where the
@@ -1335,6 +1336,31 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and `sortlens-web` reusing `sortlens-ui` (SL-J01..J09), proved by a two-process loopback
   integration harness in CI (E)
+  - **The server half shipped 2026-11-24.** `crates/remote` holds the three shared pieces: the scoped
+    device tokens (`Permission::Read/Upload/Annotate/Cull`, persisted as
+    `<library>/remote-tokens.json`, re-issue replaces the row, revoke is real), the pairing gate (a
+    six-digit code, ten minutes, five wrong attempts and it locks out; `--code` pins one), and the
+    allow-list — every registry id the wire accepts with the scope it needs, checked at startup against
+    `Registry::v0()` by `allowlist::audit`, with a test that also refuses to let a ready command vanish
+    silently between the table and an exclusion list naming why. `apps/sortlens-server` is the process:
+    a hand-written minimal HTTP/1.1 on `std::net` (Content-Length bodies only, `Connection: close`,
+    no new dependencies), binding loopback by default and `0.0.0.0` only under `--bind lan` (SL-J09);
+    routes `GET /health` (the connection test, no token), `POST /pair`, `POST /api` (`{method, params}`
+    through `Engine::run` behind the allow-list and the token's scopes — a method the wire does not
+    accept answers 403 without leaking whether it exists), and the resumable upload (SL-J04):
+    `Content-Range` chunks append to `<album>/.uploads/<id>.part` so the file length *is* the received
+    count and a restart loses nothing, a chunk that does not start where the file ends answers 409 with
+    `received`, the completing chunk is hashed against `X-Content-Sha256` *before* it is appended so a
+    digest mismatch leaves the partial exactly where it was, and the published name never overwrites —
+    it takes ` (n)` beside the stem. Proved by the loopback harness `apps/sortlens-server/tests/loopback.rs`:
+    five tests, each a real server process (`CARGO_BIN_EXE_sortlens-server`) against a real scanned
+    library — pair/read/annotate plus the scope refusals and the write read back from disk after the
+    server exits, the five-wrong-codes lockout, `--allow read,annotate` being refused `cull.start`, an
+    upload that dies mid-transfer, resumes from `GET /upload/<id>`, refuses a wrong digest and still
+    completes, then collides into `IMG_0001 (1).jpg`, and a restart keeping the token valid.
+  - **Still open here:** the wasm client (`sortlens-web` reusing `sortlens-ui`, SL-J02), the desktop's
+    own start/stop surface for the server, and a keep-or-remove-after-upload client behaviour (SL-J05),
+    which is the client's half of the ack.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

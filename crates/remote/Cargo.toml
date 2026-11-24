@@ -11,6 +11,13 @@ repository.workspace = true
 [dependencies]
 sortlens-core = { workspace = true }
 sortlens-catalog = { workspace = true }
+# The allow-list is checked against the command registry, the source of truth it restricts.
+sortlens-engine = { workspace = true }
+# Codes and tokens are drawn through the suite's own SHA-256 (80 lines, every specification
+# vector a test); no crypto dependency is added for a LAN pairing gate.
+sortlens-ai = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

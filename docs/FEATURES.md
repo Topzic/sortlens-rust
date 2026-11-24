@@ -369,15 +369,15 @@ folders/collections, creates albums, uploads photos, and can keep or remove the 
 
 | ID | Feature | Evidence | Behaviour | Rust approach | Pri | Phase |
 | --- | --- | --- | --- | --- | --- | --- |
-| SL-J01 | Local network server (opt-in) | [D] | Serve the library to a paired device | `craft-web-host` + a token-authenticated API | P2 | M9 |
+| SL-J01 | Local network server (opt-in) | [D] | Serve the library to a paired device | Server shipped 2026-11-24 (Phase 4 item 3): loopback by default, `--bind lan` explicit, `/health`, `/pair`, `/api`, `/upload` | P2 | M9 |
 | SL-J02 | Phone client | [D] | Browse, cull, albums, upload | The same egui UI compiled to wasm (`sortlens-web`) | P2 | M9 |
-| SL-J03 | Pairing + tokens | [D] | Connection test, saved address | Short-lived pairing code → device token, stored per profile | P2 | M9 |
-| SL-J04 | Upload into an album | [D] v0.11 | Phone → album folder on the host | Resumable upload, collision policy, verify size+hash | P2 | M9 |
+| SL-J03 | Pairing + tokens | [D] | Connection test, saved address | Shipped 2026-11-24 (Phase 4 item 3): six-digit code (10 min, 5 wrong attempts lock out) → scoped bearer token in `<library>/remote-tokens.json` | P2 | M9 |
+| SL-J04 | Upload into an album | [D] v0.11 | Phone → album folder on the host | Shipped 2026-11-24 (Phase 4 item 3): `Content-Range` chunks on disk, resume from the received count, size+SHA-256 verified before the final chunk lands, ` (n)` collisions | P2 | M9 |
 | SL-J05 | Keep or remove after upload | [D] | Toggle, including background refresh | Client-side after server ack | P2 | M9 |
-| SL-J06 | Remote album/collection create | [D] v0.11 | Create real folders and collections remotely | Same commands, scoped token permissions | P2 | M9 |
-| SL-J07 | Connection test | [D] v0.10 | In setup and settings | TCP + auth probe with a clear failure reason | P2 | M9 |
-| SL-J08 | Remote rescan | [I] | Host rescans on demand | `library.scan` over the API | P2 | M9 |
-| SL-J09 | No cloud, VPN-friendly | [D] | Works over an existing VPN | Bind localhost/LAN only by default, explicit allow-list | P2 | M9 |
+| SL-J06 | Remote album/collection create | [D] v0.11 | Create real folders and collections remotely | The `collection.*` commands are on the shipped allow-list under `annotate` (Phase 4 item 3, 2026-11-24); folder-on-disk creation is the album folder uploads land in | P2 | M9 |
+| SL-J07 | Connection test | [D] v0.10 | In setup and settings | `GET /health` (no token) plus the auth probes shipped 2026-11-24 (Phase 4 item 3); the settings screen is open with the client | P2 | M9 |
+| SL-J08 | Remote rescan | [I] | Host rescans on demand | `library.rescan` on the shipped allow-list under `annotate` (Phase 4 item 3, 2026-11-24) | P2 | M9 |
+| SL-J09 | No cloud, VPN-friendly | [D] | Works over an existing VPN | Loopback default, `--bind lan` explicit, allow-list over the registry — shipped 2026-11-24 (Phase 4 item 3) | P2 | M9 |
 
 Note: Sortlens integrates a specific VPN product. We implement "reachable over the network
 the user already has" (LAN, or any VPN/overlay they run) and never bundle or configure a

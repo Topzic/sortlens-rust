@@ -1,5 +1,67 @@
 # Checkpoint
 
+## 2026-11-24 (fiftieth) — Phase 4 item 3, server half: `sortlens-server`, the loopback harness
+
+- **What shipped:** the library is served to a paired device. `crates/remote` stops being a scaffold:
+  `tokens.rs` (the four scopes — `read`, `upload`, `annotate`, `cull` — as a `Permissions` set, a
+  `TokenStore` persisted as `<library>/remote-tokens.json` with atomic write-through on every change,
+  re-issue replacing the row and revoke reporting the truth), `pairing.rs` (a six-digit code with a
+  ten-minute life and a five-wrong-attempts lockout that survives even the right code; the code and the
+  64-hex token both draw from the suite's own SHA-256 over a local entropy mix — no crypto dependency),
+  and `allowlist.rs` (the table naming every registry id the wire accepts with the scope it needs,
+  audited against `Registry::v0()` at startup by `allowlist::audit`, plus the two-sided test: every row
+  must be a ready command, and every ready command must be either on the table or named in an exclusion
+  list with its reason). `apps/sortlens-server` is the process: a hand-written minimal HTTP/1.1 on
+  `std::net` (`http.rs` — Content-Length bodies only, `Transfer-Encoding: chunked` refused with a
+  reason, `Connection: close`, zero new dependencies), `api.rs` (routes `/health`, `/pair`, `/api`,
+  `/upload`, `/upload/<id>`; `/api` checks bearer token → allow-list scope → `Engine::run`, and a
+  method the wire does not accept answers 403 without revealing whether it exists), and `upload.rs`
+  (resumable chunks appending to `<album>/.uploads/<id>.part`, so the file length is the received
+  count and a restart loses nothing; a wrong-position chunk answers 409 with `received`; the completing
+  chunk is hashed against `X-Content-Sha256` *before* it is appended, so a digest mismatch leaves the
+  partial exactly where it was; the published name never overwrites — it takes ` (n)` beside the stem;
+  names are leaf-only and folder-safe). The server binds loopback by default and every interface only
+  under `--bind lan` (SL-J09), prints its port and pairing code on stdout, and pumps the engine's
+  finished scan work between connections.
+- **The two-process loopback harness** (`apps/sortlens-server/tests/loopback.rs`) is the proof the
+  old M9 table said was missing: five tests, each spawning the real server binary
+  (`CARGO_BIN_EXE_sortlens-server`) against a real library the test scans through the engine first and
+  then releases. `a_paired_phone_reads_annotates_and_is_scoped` pairs, reads two scanned photographs,
+  writes a 5-star rating through `/api`, is refused `/api` without a token and with a nonsense one,
+  is refused `app.quit` with a good one, and reads the rating back from disk after the server process
+  is killed; `the_pairing_code_locks_out_after_five_wrong_attempts` spends the code;
+  `a_narrow_token_cannot_cull_and_the_wide_one_can` proves `--allow read,annotate` grants exactly
+  that and `cull.start` answers 403 naming the missing scope;
+  `an_upload_resumes_after_a_dropped_connection_and_verifies_the_digest` uploads 300 KB in three
+  chunks, drops the connection mid-transfer, asks `GET /upload/<id>` where to continue, is refused a
+  wrong digest (the partial stays), completes with the right one, and finds `IMG_0001 (1).jpg` beside
+  the first when the same name uploads again; `a_server_restart_keeps_the_tokens_and_the_pairing_scope`
+  pairs, kills the server, restarts it, and the same token still works.
+- **Files:** `crates/remote/src/{lib,tokens,pairing,allowlist}.rs` (rewritten from the M0 scaffold),
+  `crates/remote/Cargo.toml` (`sortlens-engine`, `sortlens-ai`, `serde`, `serde_json`),
+  `apps/sortlens-server/src/{main,http,api,upload}.rs`, `apps/sortlens-server/Cargo.toml`,
+  `apps/sortlens-server/tests/loopback.rs` (new), `docs/ROADMAP.md` (the Phase 4 item 3 row split into
+  the shipped server half and the open client half; the M9 state prose and the "Re-opened from M9"
+  paragraph updated), `docs/FEATURES.md` (SL-J01/J03/J04/J06/J07/J08/J09 annotated),
+  `docs/ARCHITECTURE.md` (§10 rewritten to describe what runs; the layer diagram's remote line).
+- **Tests that fail when the behaviour is broken:** 11 in `crates/remote` (the allow-list audit, the
+  two-sided registry test, the lockout and TTL arithmetic, token generation, the store's persistence,
+  re-issue and revoke, scope parsing) and 3 unit + 5 loopback in `sortlens-server` (name sanitising,
+  range parsing, id alphabet; the five harness tests above). The lockout test fails against a gate
+  that forgets its attempts — the first version of the handler redeemed on a clone of the gate, and
+  the harness caught it before it shipped; the digest test fails against a server that appends the
+  final chunk before verifying it, because the resumed re-send answers 409 instead of 200.
+- **Visual verification:** n/a — no UI surface changed.
+- Gates: `ci` green (fmt, clippy `--all-targets -D warnings`, workspace tests, layers/roots/assets/
+  fonts/version/attribution/a11y/docs), `snapshot` green (no CLI verb touched), `deny` green (no new
+  dependency). No `wasm` gate needed: nothing under `crates/core`, `crates/ui` or a wasm-facing crate
+  changed. `screenshots` not required: no `crates/ui` change.
+- **Next**: Phase 4 item 3's remaining half — the `sortlens-web` wasm client (SL-J02) reusing
+  `sortlens-ui` over the same `/api` and `/upload` protocol, plus the desktop's own start/stop surface
+  for the server. Then Phase 4 is one row from done; after that, Phase 5 item 1 (the GitHub issue/PR
+  templates) per the ROADMAP order. The i18n row keeps its open half (zh-TW/ko/th/vi, unrouted
+  surfaces, RTL screenshots needing an Arabic font build).
+
 ## 2026-11-24 (forty-ninth) — Phase 4 item 2d: the `craft-i18n` scaffolding (SL-L07)
 
 - **What shipped:** the interface's strings begin to load through the suite's i18n. `crates/ui/src/i18n.rs`

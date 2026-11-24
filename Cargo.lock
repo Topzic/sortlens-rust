@@ -4883,8 +4883,12 @@ dependencies = [
 name = "sortlens-remote"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
+ "sortlens-ai",
  "sortlens-catalog",
  "sortlens-core",
+ "sortlens-engine",
 ]
 
 [[package]]
@@ -4900,9 +4904,12 @@ dependencies = [
 name = "sortlens-server"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
+ "sortlens-ai",
  "sortlens-core",
  "sortlens-engine",
  "sortlens-remote",
+ "sortlens-testkit",
 ]
 
 [[package]]
