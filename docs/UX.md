@@ -86,9 +86,11 @@ anything paints, so the bar, the docks and the canvas all answer to the same mea
   bar keeps the collapsed destination menu and a tighter annotation pill whose every control is on screen; the
   density slider yields to the header's own glyph.
 
-- **Send to desktop lives in Settings, not the bar.** Unpaired, the section is the three facts a pairing
-  needs — the address the desktop's Sync screen shows, the port, and the six-digit code; paired, it is one line
-  naming the desktop, Forget, the run's progress naming the photograph it is on, Stop, and Send the selection.
+- **Send to desktop lives in Settings, not the bar.** Unpaired, the section is the address the desktop's
+  Sync screen shows, the port, a **Test connection** step — `GET /health`, no token, run before any code is
+  spent, saying which address answered or why none did and storing nothing either way — and the six-digit
+  code; paired, it is one line naming the desktop, Forget, the run's progress naming the photograph it is
+  on, Stop, and Send the selection.
   The keep-or-remove switch rides on every queued photograph: **Remove** sends a verified photo to the phone's
   trash through the library's audited delete path (a file the catalog no longer matches is refused, not
   deleted) once the desktop holds the bytes; **Keep** leaves it. The desktop's Sync & devices section — the

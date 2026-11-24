@@ -38,6 +38,15 @@ struct PairAttempt {
     answer: Arc<Mutex<Option<PairResult>>>,
 }
 
+/// One connection test in flight (`GET /health`, no token, SL-J07): the address it asked and
+/// the worker's answer slot. It exists so a person can learn that the address is wrong before
+/// a pairing code is spent on it — the test stores nothing either way.
+struct Check {
+    host: String,
+    port: u16,
+    answer: Arc<Mutex<Option<Result<(), String>>>>,
+}
+
 /// The link: the paired desktop's address and token, the queue in flight, and the last run's
 /// sentence. Built from the settings document at launch, so a pairing survives the OS ending
 /// the process.
@@ -50,6 +59,10 @@ pub struct DesktopLink {
     queue: Option<SendQueue>,
     /// The pairing attempt in flight, if there is one.
     pairing: Option<PairAttempt>,
+    /// The connection test in flight, if there is one.
+    check: Option<Check>,
+    /// What the last connection test answered, as the one sentence the section paints.
+    check_last: Option<String>,
     /// What the last finished run produced, as the one sentence the section paints.
     last: Option<String>,
 }
@@ -65,6 +78,8 @@ impl DesktopLink {
             device: device.to_owned(),
             queue: None,
             pairing: None,
+            check: None,
+            check_last: None,
             last: None,
         }
     }
@@ -133,6 +148,9 @@ impl DesktopLink {
             self.token = Some(token.clone());
             self.device = device.clone();
             self.last = None;
+            // The pairing's own answer is now the truth about this address; the check's
+            // sentence would only contradict it.
+            self.check_last = None;
         }
         Some(answer)
     }
@@ -143,6 +161,62 @@ impl DesktopLink {
         self.pairing.is_some()
     }
 
+    /// Ask the desktop at `host:port` whether it is there: `GET /health`, no token, on the
+    /// worker thread. Run before a code is spent, because a wrong address fails the pairing
+    /// after it and says nothing better. Poll [`DesktopLink::poll_test`] for the sentence;
+    /// nothing is stored either way, and a pairing, a send or another test in flight
+    /// answers nothing rather than piling threads on the same server.
+    pub fn test(&mut self, host: &str, port: u16) {
+        if self.pairing.is_some() || self.queue.as_ref().is_some_and(|queue| queue.report().running) || self.check.is_some() {
+            return;
+        }
+        let answer: Arc<Mutex<Option<Result<(), String>>>> = Arc::new(Mutex::new(None));
+        let worker = answer.clone();
+        let addr = format!("{host}:{port}");
+        let spawned = std::thread::Builder::new().name("sortlens-check".into()).spawn(move || {
+            let mut client = Client::new(TcpTransport::new(addr));
+            let result = client.health().map(|_| ()).map_err(|error| error.to_string());
+            if let Ok(mut slot) = worker.lock() {
+                *slot = Some(result);
+            }
+        });
+        if let Err(error) = spawned {
+            // A thread that never starts still owes the caller an answer; the sentence the
+            // next poll reads is the reason.
+            if let Ok(mut slot) = answer.lock() {
+                *slot = Some(Err(format!("the test thread could not start: {error}")));
+            }
+        }
+        self.check = Some(Check {
+            host: host.to_owned(),
+            port,
+            answer,
+        });
+    }
+
+    /// Read the connection test's sentence, if it landed this frame. The sentence names the
+    /// address it tested — which need not be the paired one — and nothing is stored either
+    /// way: the pairing's own answer will be the truth about that.
+    pub fn poll_test(&mut self) -> Option<String> {
+        let check = self.check.as_ref()?;
+        let answer = check.answer.lock().ok()?.take()?;
+        let host = check.host.clone();
+        let port = check.port;
+        self.check = None;
+        let sentence = match answer {
+            Ok(()) => format!("The desktop at {host}:{port} answered"),
+            Err(reason) => format!("No answer from {host}:{port}: {reason}"),
+        };
+        self.check_last = Some(sentence.clone());
+        Some(sentence)
+    }
+
+    /// A connection test is still in flight.
+    #[must_use]
+    pub fn checking(&self) -> bool {
+        self.check.is_some()
+    }
+
     /// Forget the paired desktop: token, address and recorded name are dropped. A run already in
     /// flight is stopped rather than left uploading under a token this phone no longer keeps.
     pub fn forget(&mut self) {
@@ -150,6 +224,8 @@ impl DesktopLink {
             queue.cancel();
         }
         self.pairing = None;
+        self.check = None;
+        self.check_last = None;
         self.host.clear();
         self.port = 0;
         self.token = None;
@@ -194,6 +270,8 @@ impl DesktopLink {
             total: report.total,
             current: report.current,
             last: self.last.clone(),
+            checking: self.check.is_some(),
+            check: self.check_last.clone(),
         }
     }
 
@@ -570,6 +648,94 @@ mod tests {
         );
         assert_eq!(engine.all_photos().len(), 1, "the kept photo is untouched");
         engine.close().expect("library closes");
+    }
+
+    /// A server that answers `GET /health` with the ok shape, over real TCP. Returns the
+    /// address to dial and the thread to join.
+    fn fake_health_server() -> (std::net::SocketAddr, std::thread::JoinHandle<()>) {
+        use std::io::{Read as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the health port binds");
+        let addr = listener.local_addr().expect("local addr");
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("a health client connects");
+            let mut head = Vec::new();
+            let mut byte = [0u8; 1];
+            while !head.ends_with(b"\r\n\r\n") {
+                if stream.read(&mut byte).expect("the request head") == 0 {
+                    return;
+                }
+                head.push(byte[0]);
+            }
+            let answer = "{\"ok\":true}";
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{answer}", answer.len());
+            stream.write_all(response.as_bytes()).expect("the answer");
+        });
+        (addr, handle)
+    }
+
+    /// Poll until the connection test lands, then give back its sentence.
+    fn wait_test(link: &mut DesktopLink) -> Option<String> {
+        for _ in 0..20_000 {
+            if let Some(sentence) = link.poll_test() {
+                return Some(sentence);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        None
+    }
+
+    /// The connection test answers before any code is typed, and stores nothing either way:
+    /// the pairing's own answer stays the only truth about the address.
+    #[test]
+    fn a_connection_test_answers_before_any_code() {
+        let (addr, server) = fake_health_server();
+        let host = addr.ip().to_string();
+        let mut link = DesktopLink::open("", 0, "", "");
+        assert!(!link.surface().paired, "the test begins from an unpaired link");
+        link.test(&host, addr.port());
+        assert!(link.checking(), "the test is in flight");
+        let surface = link.surface();
+        assert!(surface.checking, "the surface says the test is running");
+        assert!(surface.check.is_none(), "nothing is painted before the answer");
+        let sentence = wait_test(&mut link).expect("the test answers");
+        server.join().expect("the fake server finishes");
+        assert_eq!(sentence, format!("The desktop at {host}:{port} answered", port = addr.port()));
+        assert!(link.surface().check.as_deref().is_some_and(|s| s.contains("answered")));
+        assert!(!link.checking(), "the answer ends the test");
+        assert!(!link.surface().paired, "the test pairs nothing");
+        assert_eq!(link.config(), ("", 0, "", ""), "nothing is stored either way");
+    }
+
+    /// An address that answers nothing earns its own sentence, naming the address and the
+    /// reason — the words a person reads before deciding to type a code at all.
+    #[test]
+    fn a_desktop_that_answers_nothing_says_so() {
+        // Port 1 on loopback is refused; nothing else may be listening there.
+        let mut link = DesktopLink::open("", 0, "", "");
+        link.test("127.0.0.1", 1);
+        let sentence = wait_test(&mut link).expect("the test answers");
+        assert!(sentence.starts_with("No answer from 127.0.0.1:1: "), "{sentence}");
+        assert!(link.surface().check.as_deref().is_some_and(|s| s.starts_with("No answer from")));
+        assert_eq!(link.config(), ("", 0, "", ""), "a failed test stores nothing");
+    }
+
+    /// A pairing already in flight answers a second test with nothing: one thread talks to
+    /// the server at a time, and the pairing's answer is the one that matters.
+    #[test]
+    fn a_test_does_not_pile_onto_a_pairing_in_flight() {
+        let (addr, _server) = fake_pair_server("tok-9", "Ian's phone");
+        let mut link = DesktopLink::open("", 0, "", "");
+        link.pair(&addr.ip().to_string(), addr.port(), "448821");
+        assert!(link.pairing(), "the pairing is in flight");
+        link.test("127.0.0.1", 1);
+        assert!(!link.checking(), "the test answers nothing while a pairing runs");
+        // The pairing itself still lands and is taken, so the fake server's thread finishes.
+        for _ in 0..20_000 {
+            if link.poll_pair().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
     }
 
     /// A store opened fresh keeps an empty desktop section, and a file from a build that never

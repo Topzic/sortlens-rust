@@ -1,5 +1,48 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-ninth) — the phone asks whether the desktop is there before a code is spent (SL-J07 from the app)
+
+- **Why this came up.** The sixty-eighth entry ended on the one thing the pairing flow still asked
+  a person to do blind: type the six-digit code into an address that may answer nothing, and learn
+  from the pairing's failure alone that the address was wrong — after spending the code, which
+  expires, on a mistake a `GET /health` would have named in one sentence.
+- **The test runs on the address alone.** Settings → Send to desktop gains **Test connection**, placed
+  between the port field and the code field, because it is what the code is for. The typed address and
+  port — nothing else — run it: `Client::health()`, no token, on its own `sortlens-check` thread, the
+  same pattern the pairing already uses, so no frame blocks. The sentence it earns names the address it
+  tested, which need not be the paired one (`The desktop at 192.168.1.10:52114 answered`, or `No answer
+  from …` with the reason), and it is painted in the section and said as a notice. Nothing is stored
+  either way — the pairing's own answer stays the only truth about the address — and a successful
+  pairing clears the sentence. While it waits the section says `Testing host:port…` and the button
+  stands down; a pairing or a send run in flight answers a test with nothing rather than piling threads
+  on the same server; Forget clears it with the rest.
+- **Files.** `apps/sortlens-mobile/src/send.rs` (`Check`, `DesktopLink::test`/`poll_test`/`checking`,
+  the surface's `checking`/`check`); `apps/sortlens-mobile/src/lib.rs` (`Action::SendTest` arm, the
+  poll); `crates/ui/src/shell.rs` (`SendSurface::checking`/`check`, `Action::SendTest`, the section's
+  button and its two sentences); `crates/ui/src/i18n/{ar,ja}.tsv` (`Test connection`);
+  `apps/sortlens/src/main.rs` (the desktop host's honest answer to a phone-only action);
+  `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/FEATURES.md` (SL-J07), `docs/RELEASE.md`.
+- **Tests that fail when the behaviour is absent** (4 new: three in the phone's link, the shell's send
+  test extended). Link, over real TCP: a fake `/health` server answers and the sentence says so while
+  `config()` stays empty and `paired` stays false; a refused port earns `No answer from …` with its
+  reason, and stores nothing; a pairing in flight means a second test is never spawned (and the pairing
+  still lands). Shell at 390 points: the test runs on the typed address and port with the code field
+  empty, hands over both trimmed; an addressless test answers nothing; a test in flight paints
+  `Testing 192.168.1.10:52114…` and is not re-run; the answered sentence is painted.
+- **Verified.** `cargo test -p sortlens-mobile` (20 passed), `-p sortlens-ui --lib` (163). `cargo xtask
+  ci` green through every gate (the desktop host's `Action` match needed the new arm — a phone-only
+  action is answered, never dropped — and clippy's fmt pass reformatted the test). `cargo xtask
+  snapshot` green, no golden moved. `cargo xtask screenshots` green with 23 scenes and no baseline
+  moved (the section paints only in the phone's unpaired Settings, which no committed baseline holds).
+  `cargo xtask deny` green. `cargo xtask mobile` still needs the NDK and Xcode.
+- **Reconciled.** ROADMAP 3b's shipped bullet names the connection test and its tests; UX §2's Send
+  rules name the Test connection step and what it stores; ARCHITECTURE §10 says the surface runs
+  `GET /health` before a code is spent; FEATURES SL-J07 moved the settings screen out of "open with the
+  client"; RELEASE's phone bullet says the address can be tested first.
+- **Next.** The iOS Photos library (iOS still reads the Files-visible Documents folder) and a device
+  build; both wait for a machine with the NDK, Xcode and the iOS Photos framework. The link itself is
+  now measured, paired and tested — nothing on it is blind any more.
+
 ## 2026-11-24 (sixty-eighth) — the phone sends its photographs (SL-J04/J05 from the app)
 
 - **Why this came up.** The sixty-seventh entry ended on the one thing the phone's own screen still

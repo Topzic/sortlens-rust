@@ -143,6 +143,10 @@ impl App {
                 self.link.pair(&host, port, &code);
                 self.ui.notice("Pairing with the desktop…");
             }
+            Action::SendTest { host, port } => {
+                self.link.test(&host, port);
+                self.ui.notice(format!("Testing {host}:{port}…"));
+            }
             Action::SendForget => {
                 self.link.forget();
                 self.save_link();
@@ -224,6 +228,10 @@ impl App {
                 }
                 Err(reason) => self.ui.notice(format!("Pairing failed: {reason}")),
             }
+            ctx.request_repaint();
+        }
+        if let Some(sentence) = self.link.poll_test() {
+            self.ui.notice(sentence);
             ctx.request_repaint();
         }
         if let Some(outcome) = self.link.take_outcome() {

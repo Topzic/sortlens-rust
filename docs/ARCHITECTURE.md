@@ -646,9 +646,11 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   desktop's library, through `sortlens_remote::send`: a run owns one worker thread, the shell polls its
   progress each frame and stops it between items, and the finished run hands the ids the ack cleared to
   `Engine::delete_photos(..., Trash)` — the desktop's audited delete path, so a file the catalog no longer
-  matches is refused rather than removed. The app's state around it is `apps/sortlens-mobile/src/send.rs`
-  (the token, the address it belongs to, the pairing attempt and the run) and the surface is Settings →
-  Send to desktop in `crates/ui`.
+  matches is refused rather than removed. Before a code is spent the same surface can run the connection test
+  (`GET /health`, no token, SL-J07) against the typed address on its own thread, saying which address answered
+  or why none did and storing nothing either way. The app's state around it is `apps/sortlens-mobile/src/send.rs`
+  (the token, the address it belongs to, the pairing attempt, the connection test and the run) and the surface
+  is Settings → Send to desktop in `crates/ui`.
 - `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
   hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
   default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five

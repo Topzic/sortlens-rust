@@ -280,6 +280,15 @@ pub enum Action {
         /// The six-digit code, read off the desktop's screen.
         code: String,
     },
+    /// Ask the desktop at the typed address whether it is there (`GET /health`, no token,
+    /// SL-J07), before a pairing code is spent on it. The host runs the test on its own
+    /// thread and says what the answer was; nothing is stored either way.
+    SendTest {
+        /// The address, as the person typed it.
+        host: String,
+        /// The port its server announced.
+        port: u16,
+    },
     /// Forget the paired desktop: the stored token is dropped and the link is unpaired.
     SendForget,
     /// Send the chosen photographs to the paired desktop over the resumable upload
@@ -346,6 +355,11 @@ pub struct SendSurface {
     /// What the last finished run produced, as the one sentence a notice would say. The host
     /// clears it the next time a run starts.
     pub last: Option<String>,
+    /// A connection test (`GET /health`) is in flight against the typed address.
+    pub checking: bool,
+    /// What the last connection test answered, as the one sentence the section paints. It
+    /// names the address it tested, which need not be the paired one.
+    pub check: Option<String>,
 }
 
 /// What Apply does with rejected photos.
@@ -9137,12 +9151,36 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
             ui.label(RichText::new(tl!("Port")).size(11.0));
             ui.add(TextEdit::singleline(&mut state.send_port).desired_width(70.0));
         });
+        // The connection test comes before the code field, because it is what the code is for:
+        // a person who cannot reach the desktop should learn it here, with nothing spent.
+        let port = state.send_port.trim().parse::<u16>().ok();
+        let address_ready = !state.send_host.trim().is_empty() && port.is_some_and(|p| p > 0);
+        let test = ui
+            .add_enabled(
+                address_ready && !send.checking,
+                Button::new(RichText::new(tl!("Test connection")).size(12.0)),
+            )
+            .on_hover_text("Asks the desktop at that address whether it is there, before a code is spent on it");
+        if address_ready && !send.checking && test.clicked() {
+            actions.push(Action::SendTest {
+                host: state.send_host.trim().to_owned(),
+                port: port.unwrap_or(0),
+            });
+        }
+        if send.checking {
+            ui.label(
+                RichText::new(format!("Testing {}:{}…", state.send_host.trim(), state.send_port.trim()))
+                    .size(11.0)
+                    .color(t.text_muted),
+            );
+        } else if let Some(sentence) = &send.check {
+            ui.label(RichText::new(sentence.clone()).size(11.0).color(t.text_muted));
+        }
         ui.horizontal(|ui| {
             ui.label(RichText::new(tl!("Pairing code")).size(11.0));
             ui.add(TextEdit::singleline(&mut state.send_code).desired_width(70.0));
         });
-        let port = state.send_port.trim().parse::<u16>().ok();
-        let ready = !state.send_host.trim().is_empty() && port.is_some_and(|p| p > 0) && !state.send_code.trim().is_empty();
+        let ready = address_ready && !state.send_code.trim().is_empty();
         let pair = ui
             .add_enabled(ready, Button::new(RichText::new(tl!("Pair")).size(12.0)))
             .on_hover_text("Trades the code for a scoped token; the code itself is never stored");
@@ -16964,6 +17002,70 @@ mod tests {
             "Pair hands over the typed address, port and code, trimmed"
         );
 
+        // The connection test is the step before the code: the address and port alone run it,
+        // an empty address answers nothing, and a typed code is never needed for it.
+        state.send_code.clear();
+        let output = frame(&mut state, egui::RawInput::default());
+        let at = button_rect(&output, "Test connection").center();
+        tap(&mut state, at);
+        assert!(
+            actions_cell.borrow().iter().any(|a| matches!(a, Action::SendTest { host, port }
+                if host == "192.168.1.10" && *port == 52_114)),
+            "the test runs on the typed address and port, no code spent"
+        );
+        state.send_host.clear();
+        let output = frame(&mut state, egui::RawInput::default());
+        let at = button_rect(&output, "Test connection").center();
+        let before = actions_cell
+            .borrow()
+            .iter()
+            .filter(|a| matches!(a, Action::SendTest { .. }))
+            .count();
+        tap(&mut state, at);
+        assert_eq!(
+            actions_cell
+                .borrow()
+                .iter()
+                .filter(|a| matches!(a, Action::SendTest { .. }))
+                .count(),
+            before,
+            "an addressless test answers nothing"
+        );
+        state.send_host = "192.168.1.10".into();
+
+        // In flight: the section names the address it is testing and the button stands down;
+        // answered: the sentence the test earned is what the person reads.
+        state.send.checking = true;
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "Testing 192.168.1.10:52114…").is_some(),
+            "the section names the address the test is asking"
+        );
+        let before = actions_cell
+            .borrow()
+            .iter()
+            .filter(|a| matches!(a, Action::SendTest { .. }))
+            .count();
+        let at = button_rect(&output, "Test connection").center();
+        tap(&mut state, at);
+        assert_eq!(
+            actions_cell
+                .borrow()
+                .iter()
+                .filter(|a| matches!(a, Action::SendTest { .. }))
+                .count(),
+            before,
+            "a test already in flight is not re-run"
+        );
+        state.send.checking = false;
+        state.send.check = Some("No answer from 192.168.1.10:52114: the connection was refused".into());
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "No answer from 192.168.1.10:52114: the connection was refused").is_some(),
+            "the answer names the address it tested and why"
+        );
+        state.send.check = None;
+
         // Paired: the link is named, Forget hands over nothing here, and Send refuses an empty
         // selection instead of queueing a library nobody chose.
         state.send = SendSurface {
@@ -17026,7 +17128,7 @@ mod tests {
             done: 2,
             total: 5,
             current: Some("IMG_0009.jpg".into()),
-            last: None,
+            ..SendSurface::default()
         };
         let output = frame(&mut state, egui::RawInput::default());
         assert!(

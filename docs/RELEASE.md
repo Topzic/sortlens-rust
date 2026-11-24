@@ -65,7 +65,8 @@ phases"), and the list shrinks as those rows are ticked.
   uploads ship, and Settings → Sync & devices spawns and follows that server. `apps/sortlens-mobile` is the
   native Rust app over the same engine and shell — it indexes the device's photographs, keeps its own settings
   in `config.toml` beside the library, and `cargo xtask mobile` checks both targets. Its Settings → Send to
-  desktop pairs with the code the desktop prints and sends the chosen photographs over the resumable upload
+  desktop pairs with the code the desktop prints — and can test the address first, `GET /health`, no code
+  spent — and sends the chosen photographs over the resumable upload
   with keep-or-remove; Remove carries the ack's decision out through the library's audited delete path to the
   phone's trash, and a file the catalog no longer matches is refused, not deleted. The layout is a phone's:
   one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the screen. No
