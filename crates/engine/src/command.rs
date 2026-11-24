@@ -149,6 +149,14 @@ impl Registry {
                     status: Status::Ready,
                 },
                 CommandSpec {
+                    id: "library.snapshot",
+                    label: "Library Snapshot",
+                    group: Group::Library,
+                    shortcut: None,
+                    menu: "Library > Library Snapshot",
+                    status: Status::Ready,
+                },
+                CommandSpec {
                     id: "photo.flag",
                     label: "Pick or Reject",
                     group: Group::Review,

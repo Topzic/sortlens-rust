@@ -277,6 +277,11 @@ pub const EXAMPLES: &[Example] = &[
         note: "Rewrites the log, refusing if the audit found damage.",
     },
     Example {
+        command: "library.snapshot",
+        args: "{}",
+        note: "The whole library as one snapshot JSON object, the exact state a paired client opens with Engine::open_memory and saves back between sessions.",
+    },
+    Example {
         command: "library.health",
         args: "{}",
         note: "Missing, restored and changed files.",

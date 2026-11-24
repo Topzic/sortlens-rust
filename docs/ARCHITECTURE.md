@@ -619,7 +619,13 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   same undo, redo and stale-revision rules as the disk catalog; `Catalog::snapshot_json` hands the
   state back for the client to persist. A snapshot schema newer than the build's is refused, not
   opened read-only, because a client that cannot read the format must not pretend to hold the
-  library.
+  library. `Engine::open_memory` mirrors that one layer up, and `library.snapshot` serves the
+  state over the wire under `read`, so `sortlens-web`'s `RemoteLibrary` can hydrate from a paired
+  server and save the state back between sessions. The device protocol lives in
+  `sortlens_remote::client` — pairing, `/api` calls, the resumable `/upload` with the
+  keep-or-remove decision applied on the ack — over a `Transport` the wasm build backs with the
+  browser's fetch. Still open: the eframe browser entry and the shell's own surface, and a
+  server route serving thumbnails over the wire.
 - `apps/sortlens-server` (shipped 2026-11-24, Phase 4 item 3): a token-authenticated JSON API on a
   hand-written minimal HTTP/1.1 over `std::net` — no HTTP dependency to audit. Binds loopback by
   default and every interface only under `--bind lan`; a six-digit pairing code (ten minutes, five

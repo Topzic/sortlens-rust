@@ -1,5 +1,68 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-third) — Phase 4 item 3, the client half: the device protocol, the snapshot on the wire, the engine in memory
+
+- **What shipped:** the paired device's side of the protocol, in one place beside the server's.
+  `crates/remote/src/client.rs` is what a wasm page (and any later phone build) speaks:
+  `Client` over a `Transport` trait — native `TcpTransport` on `std::net`; a wasm build backs
+  the same wire format with the browser's fetch, because the protocol is the crate's, not the
+  transport's. `health` (the SL-J07 connection test, no token), `pair` (the code is spent, the
+  token is kept, `Client::paired` reopens one that a previous session saved), `call` for every
+  allow-listed command, `snapshot` pulling the new `library.snapshot` registry command, and
+  `upload` (SL-J04's client half): one request at or under the chunk size, `Content-Range`
+  chunks above it, a `409`'s `received` count moving the cursor instead of failing the
+  transfer, the completing chunk carrying `X-Content-Sha256`, and the id minted when the item
+  is queued (`UploadItem::new`) so a retry after the app was backgrounded resumes the same
+  file. The keep-or-remove toggle (SL-J05) rides on the item too: the ack answers with
+  `LocalCopy::Keep`/`Remove`, decided client-side on the server's ack — which is what makes it
+  survive the resume, because it lives on the item, not on the connection.
+- The wire gained one command: `library.snapshot` (registry spec, `Engine::run` arm, the
+  allow-list under `read`, an MCP example) returning the exact JSON `Engine::open_memory`
+  opens. The engine itself gained the memory path one layer up: `open_memory` (no directory,
+  the disk-side sessions — rejects bin, move receipts, cull file — simply absent, which is the
+  truth for a fresh client), `is_memory`, `snapshot_json` as a public read.
+- `apps/sortlens-web` stopped being the M0 stub that printed its own name: it is the client's
+  library path now — `RemoteLibrary::hydrate` opens a wire snapshot into a working engine,
+  `fresh` is the page before its first pairing, `save` hands back the exact JSON the next
+  session opens — and the browser shell's eframe entry is named as the next slice (it needs
+  the wasm-bindgen CLI, which `.toolchain` does not carry yet). The `wasm` gate now checks
+  `sortlens-web`, `sortlens-remote` and `sortlens-engine` beside `sortlens-ui` and
+  `sortlens-core`.
+- **Tests that fail when the behaviour is broken:** `sortlens-remote`'s unit tests against a
+  scripted transport (the chunk plan covers the file once contiguously and an exact fit is one
+  range, a 409 is an instruction not a failure and its `received` is where the next chunk
+  starts, a 409 naming no progress fails instead of looping, nothing reaches the wire unpaired,
+  pairing stores token and device, the one-shot carries the digest and no span, and the ack
+  maps the toggle both ways); the engine's memory tests (a memory engine holding the library
+  and operating while touching no file, the snapshot command serving exactly what the memory
+  engine opens with the stale-revision guard holding in memory, a fresh client starting empty
+  and round-tripping); three loopback tests in `apps/sortlens-server/tests/client.rs` against
+  the real server process (pair → hold the library in memory from the snapshot → annotate
+  through the wire with the write visible in a re-pulled snapshot; a token without `read`
+  refused the snapshot by name; an upload that dies after the first chunk and resumes to a
+  byte-verified file in the album with the partial gone and the keep-or-remove decision in the
+  ack both ways — via a `DropAfter` transport wrapper, so the fault is the connection, not the
+  server); and `sortlens-web`'s `RemoteLibrary` tests (hydrate → operate → undo → save →
+  reopen with the stars intact, a fresh client surviving its own save, broken and newer-schema
+  JSON refused with the parse-back guard proving the mangled string really was schema 3).
+- **Files:** `crates/remote/src/client.rs` (new, ~700 lines with tests), `crates/remote/src/
+  {lib,allowlist}.rs`, `crates/engine/src/{lib,command}.rs` (`open_memory`, `is_memory`,
+  `snapshot_json`, the `library.snapshot` spec and run arm, three tests),
+  `crates/mcp/src/examples.rs` (the `library.snapshot` row the arguments test demanded),
+  `apps/sortlens-web/{Cargo.toml,src/lib.rs}` and `apps/sortlens-web/tests/library.rs`,
+  `apps/sortlens-server/tests/client.rs` (new), `xtask/src/main.rs` (the widened wasm gate),
+  `docs/ROADMAP.md`, `docs/FEATURES.md` (SL-J02, SL-J05), `docs/ARCHITECTURE.md` §10,
+  `CHECKPOINT.md`.
+- **Visual verification:** none needed — `crates/ui` is untouched and no painted surface
+  changed; the slice is protocol, engine and app glue.
+- Gates: `ci`, `snapshot` (no golden moved — the MCP examples are not a published output),
+  `deny` (no new dependency: the client reuses serde_json and the suite's own SHA-256 already
+  linked through `sortlens-ai`) and the widened `wasm` all green.
+- **Not verified against a real browser:** the wasm page does not run yet — the eframe entry
+  needs the wasm-bindgen CLI installed into `.toolchain`, which this offline checkout has not
+  done; everything the page will stand on is compiled for wasm32 and proven against the real
+  server natively.
+
 ## 2026-11-24 (fifty-second) — Phase 4 item 3, the in-memory catalog path the wasm client needs
 
 - **What shipped:** `Catalog::open_memory` in `sortlens-catalog` — a catalog that lives only in
@@ -4027,7 +4090,10 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI — the
     server half, the harness and the desktop's start/stop surface are **done 2026-11-24** (fiftieth and
     fifty-first entries); the in-memory catalog path the wasm client needs is **done 2026-11-24**
-    (fifty-second entry); the wasm client itself (SL-J02) and the keep-or-remove ack (SL-J05) remain.
+    (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
+    keep-or-remove ack are **done 2026-11-24** (fifty-third entry). What remains of the row is the
+    browser shell itself: the eframe wasm entry (needs the wasm-bindgen CLI in `.toolchain`), the
+    shell's pairing/upload surface, and a server route serving thumbnails over the wire.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates.

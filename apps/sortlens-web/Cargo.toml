@@ -1,6 +1,6 @@
 [package]
 name = "sortlens-web"
-description = "Sortlens wasm client shell"
+description = "Sortlens wasm client (SL-J02): the shell over the in-memory engine"
 version.workspace = true
 publish.workspace = true
 edition.workspace = true
@@ -10,7 +10,14 @@ repository.workspace = true
 
 [dependencies]
 sortlens-core = { workspace = true }
-sortlens-ui = { workspace = true }
+sortlens-engine = { workspace = true }
+# The device side of the remote protocol: pairing, /api calls, the resumable upload and the
+# keep-or-remove decision (SL-J05) the browser page speaks.
+sortlens-remote = { workspace = true }
+
+[dev-dependencies]
+sortlens-testkit = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

@@ -4983,8 +4983,11 @@ dependencies = [
 name = "sortlens-web"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "sortlens-core",
- "sortlens-ui",
+ "sortlens-engine",
+ "sortlens-remote",
+ "sortlens-testkit",
 ]
 
 [[package]]

@@ -360,6 +360,38 @@ impl Engine {
         Ok(engine)
     }
 
+    /// Open the library in memory alone, from a snapshot the server holds.
+    ///
+    /// The wasm client (SL-J02) has no directory to open: it receives `library.snapshot`'s JSON
+    /// over the wire, applies operations in memory with the same undo, redo and stale-revision
+    /// rules, and hands its own snapshot back when it saves. `None` opens a fresh client state.
+    /// Nothing here touches the filesystem, so the disk-side sessions (the rejects bin, the move
+    /// receipts, the cull session file) have nowhere to restore from and are simply absent — a
+    /// fresh client has no cull running and no moves in flight, which is the truth.
+    pub fn open_memory(snapshot: Option<&str>) -> Result<Self> {
+        let (catalog, report) = Catalog::open_memory(snapshot)?;
+        let engine = Self {
+            dir: None,
+            catalog: Some(catalog),
+            warnings: report.warnings,
+            ..Self::new()
+        };
+        Ok(engine)
+    }
+
+    /// Whether the library lives in memory alone (the wasm client), with no directory behind it.
+    pub fn is_memory(&self) -> bool {
+        self.dir.is_none() && self.catalog.as_ref().is_some_and(Catalog::is_memory)
+    }
+
+    /// The exact state snapshot the client opens from, as JSON.
+    pub fn snapshot_json(&self) -> Result<String> {
+        self.catalog
+            .as_ref()
+            .ok_or_else(|| Error::Invalid("no library is open".into()))?
+            .snapshot_json()
+    }
+
     /// Where the rejects bin is saved.
     fn deleted_path(&self) -> Option<PathBuf> {
         self.dir.as_ref().map(|dir| dir.join("deleted.json"))
@@ -3181,6 +3213,7 @@ impl Engine {
                     "photos": page.photos,
                 }))
             }
+            "library.snapshot" => Ok(json!({ "snapshot": self.snapshot_json()? })),
             "photo.rate" => {
                 let ids = ids_from(args)?;
                 let stars = args.get("stars").and_then(Value::as_u64).unwrap_or(0) as u8;
@@ -8174,6 +8207,114 @@ mod tests {
         }
         let engine = Engine::open(&temp.0).expect("reopen");
         assert_eq!(engine.revision(), 0, "no writes, no revision");
+    }
+
+    /// SL-J02, the engine half: the wasm client has no directory, so the engine opens the
+    /// library from `library.snapshot`'s JSON alone, operates in memory with the same undo
+    /// rules, and touches no file anywhere while it does.
+    #[test]
+    fn a_memory_engine_holds_the_library_and_touches_no_file() {
+        let (lib, _photos, mut engine) = library_with_images("memory-engine", 2);
+        let ids: Vec<u64> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id.0)
+            .collect();
+        engine.rate(&[sortlens_core::PhotoId(ids[0])], 4).expect("rate");
+        let json = engine.snapshot_json().expect("snapshot");
+        engine.close().expect("close");
+
+        // The client's directory: empty, and it stays empty through everything.
+        let client_dir = Temp::new("memory-engine-client");
+        let before = file_count(&client_dir.0);
+        let mut remote = Engine::open_memory(Some(&json)).expect("open memory");
+        assert!(remote.is_memory(), "the engine names its own mode");
+        assert_eq!(remote.page(&Filter::default(), Sort::Natural, 0, 10).total, 2);
+        assert_eq!(
+            remote.photo(sortlens_core::PhotoId(ids[0])).expect("photo").rating,
+            4,
+            "the stars crossed the round trip"
+        );
+
+        // Writes work, and the undo history the snapshot carried replays with them.
+        remote
+            .run("photo.rate", &json!({ "ids": [ids[1]], "stars": 5 }))
+            .expect("rate in memory");
+        assert_eq!(remote.photo(sortlens_core::PhotoId(ids[1])).expect("photo").rating, 5);
+        remote.run("edit.undo", &json!({})).expect("undo in memory");
+        assert_eq!(
+            remote.photo(sortlens_core::PhotoId(ids[1])).expect("photo").rating,
+            0,
+            "the undo replayed from the snapshot"
+        );
+
+        let after = file_count(&client_dir.0);
+        assert_eq!(before, after, "no file was created or touched");
+        let _ = lib; // the library's lock is the disk side's; the client never needed it
+    }
+
+    /// `library.snapshot` is a registry command, so a paired device can hold the library:
+    /// what it returns is exactly what `Engine::open_memory` opens, and the client's writes
+    /// still answer to the stale-revision guard the snapshot carried.
+    #[test]
+    fn the_snapshot_command_serves_what_the_memory_engine_opens() {
+        let (_lib, _photos, mut engine) = library_with_images("snapshot-command", 2);
+        let ids: Vec<u64> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id.0)
+            .collect();
+        engine.rate(&[sortlens_core::PhotoId(ids[0])], 3).expect("rate");
+
+        let answer = engine.run("library.snapshot", &json!({})).expect("snapshot");
+        let json = answer["snapshot"].as_str().expect("snapshot json");
+        let mut client = Engine::open_memory(Some(json)).expect("open memory");
+        assert_eq!(client.page(&Filter::default(), Sort::Natural, 0, 10).total, 2);
+        assert_eq!(client.photo(sortlens_core::PhotoId(ids[0])).expect("photo").rating, 3);
+
+        // The guard holds in memory: a stale `expect` is refused, not written over.
+        let rev = client.revision();
+        client
+            .run("photo.rate", &json!({ "ids": [ids[1]], "stars": 2, "expect": rev }))
+            .expect("current");
+        let stale = client
+            .run("photo.rate", &json!({ "ids": [ids[1]], "stars": 0, "expect": rev }))
+            .expect_err("stale");
+        assert!(matches!(stale, Error::StaleRevision { .. }), "the guard holds in memory: {stale:?}");
+    }
+
+    /// A fresh client — no snapshot yet — is an honest empty library, and its own snapshot
+    /// reopens to the same empty state.
+    #[test]
+    fn a_fresh_memory_engine_starts_empty_and_round_trips() {
+        let client = Engine::open_memory(None).expect("open empty");
+        assert!(client.is_memory());
+        assert_eq!(client.page(&Filter::default(), Sort::Natural, 0, 10).total, 0);
+        let json = client.snapshot_json().expect("snapshot");
+        let reopened = Engine::open_memory(Some(&json)).expect("reopen");
+        assert!(reopened.is_memory());
+        assert_eq!(reopened.page(&Filter::default(), Sort::Natural, 0, 10).total, 0);
+    }
+
+    /// Every file under `dir`, recursively, for the no-file-was-touched assertions.
+    fn file_count(dir: &std::path::Path) -> usize {
+        let mut count = 0;
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(path) = stack.pop() {
+            if let Ok(entries) = std::fs::read_dir(&path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        stack.push(path);
+                    } else {
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
     }
 
     // ---- The model downloader (SL-F02). The fetcher is a loopback HTTP server, so these tests

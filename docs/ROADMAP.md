@@ -831,8 +831,10 @@ selection as originals and as JPEG and diff the metadata.
 
 **State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
 bundle. The remote server shipped 2026-11-24 (pairing, scoped tokens, the allow-listed command API,
-resumable uploads — see the Phase 4 item 3 row) while the wasm client (SL-J02) and the desktop's own
-server start/stop stay open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
+resumable uploads — see the Phase 4 item 3 row), the desktop's own server start/stop shipped the same
+day, and the wasm client's library path shipped 2026-11-24 with it (`sortlens_remote::client` +
+`Engine::open_memory` + `RemoteLibrary`, SL-J02's engine and protocol halves — see the Phase 4 item 3
+row) while the browser shell itself stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
 Arabic, Japanese and the direction plumbing — see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted
 surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
@@ -883,7 +885,9 @@ and none of M9 is closed until the remaining rows are ticked.
 
 `sortlens-server` (token auth, pairing, upload resume — SL-J01/J03/J04) and remote collection create and
 rescan (SL-J06/J08) shipped 2026-11-24, proved by the two-process loopback integration harness the old
-table's blocker asked for; the `sortlens-web` wasm client (SL-J02) is the remaining half of Phase 4 item 3.
+table's blocker asked for; the wasm client's library path (SL-J02's engine and protocol halves plus
+SL-J05's client-side ack) shipped 2026-11-24, leaving the eframe browser entry and the shell's own
+surface as the remaining half of Phase 4 item 3.
 `docs/ARCHITECTURE.md` §10 keeps the design; the command registry is already the API.
 
 **Demo:** an agent runs a full cull and report through MCP in CI; a script reads every verb's answer with
@@ -1381,9 +1385,38 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     questions while operating on it touches no file, a fresh client round-tripping through its own
     snapshot JSON with the undo history intact and the snapshot cadence costing nothing, broken or
     newer-schema JSON refused, and `commit_expect` refusing a stale revision in memory.
-  - **Still open here:** the wasm client itself (`sortlens-web` reusing `sortlens-ui`, SL-J02) —
-    the transport over the server's `/api` and `/upload`, the UI on the in-memory engine — and a
-    keep-or-remove-after-upload client behaviour (SL-J05), which is the client's half of the ack.
+  - **The client protocol and in-memory engine shipped 2026-11-24.** The device side of the same
+    protocol now lives beside the server's: `crates/remote/src/client.rs` is what a paired page
+    speaks — `Client` over a `Transport` (native `TcpTransport`; a wasm build backs the same
+    wire format with the browser's fetch), `health` (SL-J07), `pair` storing the token, `call`
+    for every allow-listed command, `snapshot` pulling `library.snapshot`, and `upload`
+    (SL-J04's client half): one request under the chunk size, `Content-Range` chunks above it,
+    a `409`'s `received` count moving the cursor instead of failing, the completing chunk
+    carrying `X-Content-Sha256`, and the keep-or-remove toggle (SL-J05) riding on the queued
+    item — the ack answers with `LocalCopy::Keep/Remove`, so the decision survives the resume
+    because it lives on the item, not the connection. `library.snapshot` joined the registry
+    and the allow-list under `read`, and `Engine::open_memory` mirrors `Catalog::open_memory`
+    one layer up (no directory, the disk-side sessions simply absent). `sortlens-web` stopped
+    being a stub: `RemoteLibrary` hydrates a wire snapshot into a working engine, saves the
+    state back as the exact JSON the next session opens, and refuses a snapshot it cannot read.
+    Proved by `sortlens-remote`'s unit tests (chunk plan covers the file once contiguously, a
+    409 is an instruction not a failure, a 409 naming no progress fails instead of looping,
+    nothing is sent unpaired, pairing stores token and device), three new loopback tests in
+    `apps/sortlens-server/tests/client.rs` against the real server process (pair → hold the
+    library in memory from the snapshot → annotate through the wire with the write visible
+    from a re-pulled snapshot; a token without `read` refused the snapshot; an upload that
+    dies after the first chunk and resumes to a byte-verified file in the album, the partial
+    gone, with the keep-or-remove decision in the ack both ways), the engine's own memory tests
+    (a memory engine operating while touching no file, the snapshot command serving exactly
+    what the memory engine opens, the stale-revision guard holding in memory, a fresh client
+    round-tripping), and `sortlens-web`'s `RemoteLibrary` tests (hydrate, operate, undo, save,
+    reopen; fresh-client round trip; broken and newer-schema JSON refused). The `wasm` gate
+    now checks `sortlens-web`, `sortlens-remote` and `sortlens-engine` besides `sortlens-ui`
+    and `sortlens-core`.
+  - **Still open here:** the browser shell itself — the eframe wasm entry (needs the
+    wasm-bindgen CLI in `.toolchain`), the Settings/pairing/upload surface in that shell, and
+    a route that serves thumbnails over the wire (the server has none yet; the grid on a page
+    that cannot read the photo files needs one).
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 
