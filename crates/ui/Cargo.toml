@@ -21,7 +21,11 @@ egui = { workspace = true }
 # SVG rasterisation for the monochrome icon set: `craft_ui::icons` prepares the bytes, this loads them.
 egui_extras = { workspace = true }
 craft-ui = { workspace = true }
+# The shortcut editor (Settings → Shortcuts): rebinding, conflicts, sets, import/export.
+craft-keymap = { workspace = true }
 serde = { workspace = true }
+# The two flag rows bind one registry command with parameters, which the keymap spells as JSON.
+serde_json = { workspace = true }
 # The screenshot harness renders through the same egui fork the window uses, so a baseline is the
 # shell's own painting. Opt-in: it needs a GPU, which `cargo xtask ci` must not depend on.
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"], optional = true }

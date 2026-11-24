@@ -17,6 +17,7 @@ egui = { workspace = true }
 craft-ui = { workspace = true }
 craft-window = { workspace = true }
 craft-settings = { workspace = true }
+craft-keymap = { workspace = true }
 serde = { workspace = true }
 rfd = "0.15"
 

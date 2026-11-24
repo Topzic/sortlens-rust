@@ -1,5 +1,73 @@
 # Checkpoint
 
+## 2026-11-24 (forty-fifth) — Phase 4 item 1: the keymap is a machine now, not just a table
+
+- **What shipped (SL-I09):** the `craft-keymap` editor in Settings → Shortcuts — rebinding, conflict
+  detection, named sets, and craft-keymap JSON import/export — with dispatch genuinely reading it. The
+  crate was already pinned in `[workspace.dependencies]` and linked by nothing; it is linked by `sortlens-ui`
+  and `sortlens` now, which also closes the last unlinked Phase 4 pin.
+- **The runtime half lives beside the table it documents.** `crates/ui/src/keymap.rs` keeps `BINDINGS` as
+  the readable, registry-cross-checked table it was, and adds the machine built from it: `catalog()` turns
+  every single-chord command row into a `craft_keymap::Bindable` under `Scope::app()` (19 commands; the two
+  flag rows are one registry command as two parameterised refs, `photo.flag {"flag":"pick"}` and `"reject"`,
+  so a rebind of one leaves the other alone), `fixed_rows()` presents the unrebindable rows — the ranges
+  `0–5`/`6–9`, the mouse rows, `Esc`, the arrows — read-only in the editor, with a chord set only where it
+  does not sit on a catalog default. `build(overrides)` is the keymap the shell runs on `Platform::current()`.
+- **Dispatch is the keymap's now.** `plain_pressed(keymap, input, command)` is the runtime twin of the old
+  `key_pressed` calls (plain keys, repeats included, nothing consumed, the command modifier still gating);
+  `consume(keymap, input, command)` reads *exactly* through craft's layout and removes the press events that
+  ran — deliberately not `consume_shortcut`, whose "extra Shift and Alt are ignored" rule would have left a
+  rebound `Ctrl+Alt+O` still answering plain `Ctrl+O`. Every command-bound key check in the shell was
+  rerouted: `?`, `Ctrl+O`, `Ctrl+Shift+R`, `Ctrl+Shift+N`, `Ctrl+,`, `Ctrl+Q`, `Ctrl+Z`, `Ctrl+Shift+Z`,
+  `Ctrl+Enter`, `I`/`M`/`S`, `D`, `C`, `P`/`X`, `K`, `T` (library and cull), and the cull `◀`. The hardcoded
+  rows (`U`, `G`, `Esc`, `Space`, `Ctrl+A`, `Ctrl+K`, the zooms, the detail arrows) stay hardcoded and are
+  exactly the editor's fixed rows — a rebind the shell would never read does not exist. The redo-before-undo
+  consume-order note is gone: exact matching separates `Ctrl+Shift+Z` from `Ctrl+Z` by itself.
+- **The help cannot go stale.** The palette and the `?` overlay paint `painted()`/`row_keys()` — the current
+  bindings, triangles for arrows, joined ` / ` the way the registry spells two — falling back to the
+  registry's declared shortcut for commands outside the catalog. `Shift+P` still flags (the plain-key
+  semantics are unchanged for defaults); a rebind carrying Shift reads exactly.
+- **The editor itself.** Settings → Shortcuts opens craft-keymap's dialog over the app's catalog: recording
+  with the conflict bar (Ask/Steal/Keep Both), named sets (a built-in `Default`; a first save becomes the
+  user's `Custom` set and goes active), craft-keymap JSON import and export through the host's file dialogs,
+  per-set revert, undo/redo inside the dialog, and double-press recording refused through an `accept` rule —
+  the dispatch does not read doubles, so the editor must not record them. The dialog owns the keyboard while
+  it is open: `keyboard()` steps aside and ⌘K waits. `Outcome::Ok` hands `Profiles` to the host
+  (`Action::SaveShortcuts`), which persists them; `Import`/`Export` come back as actions the host answers
+  with `rfd`, the imported text landing in `pending_shortcut_import` for the next frame. Overrides live in
+  `Prefs::shortcuts` as craft-keymap `Profiles` (the `overrides_list` array form), so a deleted set stays
+  deleted after saving and a file written before the section existed reads as the factory bindings.
+- **Tests that fail when the behaviour is broken:** in `keymap.rs`, `the_catalog_is_the_rebindable_rows_of
+  _the_table` (every catalog command ready in the registry, every single-chord command row present, the
+  ranges and `Click` refused), `the_fixed_rows_are_the_rest_of_the_table_and_clash_with_no_catalog_default`,
+  `a_rebinding_moves_the_bindings` (and the second key on one command is additive),
+  `two_commands_on_one_chord_are_conflicts`, `dispatch_reads_the_keymap_not_the_handwritten_table` (headless
+  frames: `Ctrl+O` opens, the rebind moves the chord, `⌘P` is not a flag, `Q` becomes similar after a rebind),
+  and `painted_keys_follow_the_rebinds`. In the shell, `a_rebound_key_moves_the_action` (Q flags as picked,
+  P stops answering, X untouched) and `the_shortcut_editor_opens_rebinds_and_saves` (the editor paints the
+  catalog under the table's own sections, owns the keyboard, OK hands the host the override and Q still
+  flags after the save). In the app, `shortcut_sets_round_trip_and_an_older_file_reads_the_defaults`.
+- **Visual verification**: new `shortcut-editor-charcoal`/`shortcut-editor-paper` baselines (31 now), both
+  read at native scale — the dialog follows the theme, the table is grouped Anywhere/Library/Cull session
+  with the factory chords in keycaps, the set row carries New/Rename/Delete/Save/Revert/Export/Import, and
+  Cancel/OK sit at the foot. The other 29 baselines regenerated byte-identical: with factory bindings the
+  runtime text equals what the registry declared, so no surface moved. One honest rough edge, noted not
+  hidden: the editor spells `cull.back`'s arrow "Left" (craft's own display), while the overlay, the palette
+  and the table spell the triangle `◀` — the editor's spelling is craft's, ours is the triangles.
+- Files: `crates/ui/src/keymap.rs` (the runtime half + six tests), `crates/ui/src/shell.rs` (runtime state
+  in `UiState`, the editor dialog and its options, the Settings section, the key reroutes, the palette and
+  overlay painting, two shell tests), `crates/ui/Cargo.toml` (`craft-keymap`, `serde_json`),
+  `crates/ui/tests/screenshots.rs` (the new scene), `apps/sortlens/Cargo.toml` + `src/settings.rs`
+  (`Prefs::shortcuts` + round-trip test) + `src/main.rs` (startup load, the three host actions),
+  `docs/ROADMAP.md` (M9 keymap row and Phase 4 item 1 ticked, M9 state sentence reconciled),
+  `docs/RELEASE.md` (the "no keymap editor" claim replaced by what shipped), `docs/UX.md` (§8 Shortcuts
+  row), `docs/ARCHITECTURE.md` (§8.4 cull defaults corrected to the shipped keys), `docs/ATTRIBUTION.md`
+  (the pin is linked).
+- Gates: `ci` green (140 `sortlens-ui` unit tests, all crates), `snapshot`, `deny`, `wasm` (the UI crate
+  changed), `screenshots` (18 scenes) all green.
+- **Next**: Phase 4 item 2 — `.icns`/`.ico` generation from `crates/icon` inside `xtask` (ROADMAP Phase 4
+  item 2's first clause), then the High-Contrast preset (SL-L09), the opt-in `craft-update` (SL-I10) and
+  `craft-i18n` scaffolding (SL-L07).
 ## 2026-11-23 (forty-fourth) — Phase 3B.6 part 9: the arrows the faces lack are triangles now
 
 - **The defect was measured before it was fixed, and the measurement moved the slice.** A probe against the default
@@ -3593,7 +3661,7 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     and it is.
 
 **Phase 4 — platform, keymap, remote**
-16. `craft-keymap` editor in Settings → Shortcuts.
+16. `craft-keymap` editor in Settings → Shortcuts — **done 2026-11-24**, see the forty-fifth entry.
 17. `.icns`/`.ico` in `xtask`, High-Contrast preset, opt-in `craft-update`, `craft-i18n` scaffolding.
 18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI.
 

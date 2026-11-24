@@ -3,6 +3,7 @@
 //! Every section is `#[serde(default)]` so a key added in a later milestone reads as its default
 //! from an older `config.toml`, and a key this build does not know survives a round trip.
 
+use craft_keymap::Profiles;
 use craft_settings::Settings;
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,9 @@ pub struct Prefs {
     pub library: Library,
     pub ai: Ai,
     pub remote: Remote,
+    /// Shortcut sets; the active set is what the keymap loads. Stored as the array craft-settings
+    /// replaces whole, so a set the editor deleted stays deleted after saving.
+    pub shortcuts: Profiles,
 }
 
 /// Look and feel.
@@ -212,5 +216,28 @@ mod tests {
         let prefs: Prefs = toml::from_str(text).expect("parses");
         assert_eq!(prefs.appearance.theme, "paper");
         assert_eq!(prefs.review, Review::default());
+    }
+
+    /// The shortcut sets survive a settings round trip, and a file written before the section
+    /// existed opens with the factory bindings (SL-I09).
+    #[test]
+    fn shortcut_sets_round_trip_and_an_older_file_reads_the_defaults() {
+        let mut profiles = Profiles::default();
+        let mut rebound = craft_keymap::Overrides::new();
+        assert!(rebound.insert("view.detail", vec!["E".to_owned()]), "the override is stored");
+        profiles
+            .store(rebound, sortlens_ui::keymap::BUILTINS, "Custom")
+            .expect("stored as Custom");
+        let prefs = Prefs {
+            shortcuts: profiles,
+            ..Prefs::default()
+        };
+        let text = toml::to_string(&prefs).expect("serialise");
+        let read: Prefs = toml::from_str(&text).expect("parse");
+        let loaded = read.shortcuts.active_overrides(sortlens_ui::keymap::BUILTINS);
+        assert_eq!(loaded.get("view.detail"), Some(&["E".to_owned()][..]), "the rebind survives");
+
+        let older: Prefs = toml::from_str("[appearance]\ntheme = \"paper\"\n").expect("parse");
+        assert!(older.shortcuts.active_overrides(sortlens_ui::keymap::BUILTINS).is_empty());
     }
 }

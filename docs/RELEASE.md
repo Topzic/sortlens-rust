@@ -62,8 +62,10 @@ phases"), and the list shrinks as those rows are ticked.
   folder you supply, and names are a `places.txt` you supply; nothing is downloaded.
 - **No remote.** There is no server and no phone client (Phase 4); the design is in
   `docs/ARCHITECTURE.md` §11.
-- **No localisation and no keymap editor.** The interface is English and shortcuts cannot be rebound yet
-  (Phase 4); the font stack and the keymap already handle the symbols the interface draws.
+- **No localisation.** The interface is English (Phase 4); the font stack and the keymap already handle the
+  symbols the interface draws. Shortcuts *are* rebindable now: Settings → Shortcuts opens the `craft-keymap`
+  editor (rebinding, conflict detection, named sets, craft-keymap JSON import and export), and the help and
+  the palette paint the current chords.
 - **No installer, no signed builds, no update check.** See M10 in the roadmap.
 - **A prototype-grade layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` is Phase 3.
 

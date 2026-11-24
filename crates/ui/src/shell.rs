@@ -15,6 +15,8 @@ use crate::places;
 use crate::sharpness;
 use crate::theme::{Density, GridMode, Motion, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
+use craft_keymap::ui::{DialogState, English, Options as ShortcutOptions, Outcome as ShortcutOutcome, ShortcutsDialog};
+use craft_keymap::{CommandRef, Keymap, Overrides, Profiles};
 use egui::{
     Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
     Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
@@ -247,6 +249,12 @@ pub enum Action {
     CancelSuggest,
     /// Forget the proposals from the last pass.
     ClearSuggest,
+    /// The shortcut editor closed with OK: persist the sets and which one is active.
+    SaveShortcuts(Profiles),
+    /// The editor asked for a shortcut-set file to import.
+    ImportShortcuts,
+    /// The editor handed a set back to write out as craft-keymap JSON.
+    ExportShortcuts(String, String),
 }
 
 /// What Apply does with rejected photos.
@@ -872,6 +880,14 @@ pub struct UiState {
     pub focus_search: bool,
     /// Where the search field was drawn last frame, so the palette hangs under it.
     pub palette_anchor: Option<egui::Rect>,
+    /// The user's shortcut sets; the active one is what the runtime keymap loads.
+    pub profiles: Profiles,
+    /// The runtime keymap: the catalog under the active set's overrides, on this platform.
+    pub keys: Keymap,
+    /// The shortcut editor (Settings → Shortcuts) between frames, when it is open.
+    pub shortcut_editor: Option<DialogState>,
+    /// A shortcut-set file the host read, waiting to be imported into the editor.
+    pub pending_shortcut_import: Option<String>,
 }
 
 impl UiState {
@@ -964,6 +980,10 @@ impl UiState {
             palette_focus: false,
             focus_search: false,
             palette_anchor: None,
+            profiles: Profiles::default(),
+            keys: keymap::build(Overrides::new()),
+            shortcut_editor: None,
+            pending_shortcut_import: None,
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
             places_zoom_chosen: false,
@@ -976,6 +996,12 @@ impl UiState {
     /// Show a message in the bottom bar for a few seconds.
     pub fn notice(&mut self, text: impl Into<String>) {
         self.record(text.into(), NoticeKind::Info);
+    }
+
+    /// Load the persisted shortcut sets: the runtime keymap rebuilds from the active one.
+    pub fn set_profiles(&mut self, profiles: Profiles) {
+        self.keys = keymap::build(profiles.active_overrides(keymap::BUILTINS).clone());
+        self.profiles = profiles;
     }
 
     /// A notice for something that did not work. Same toast, but it takes an unread badge in the bell and is
@@ -1213,8 +1239,9 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
 
     // ⌘K is the palette's front door and its way out. Handled before any surface draws, because the
     // palette owns Enter and the caret keys while it is open and the search field's `TextEdit` would
-    // take them for itself; the same reason `command_palette` runs before the bar is laid out.
-    if ui.input_mut(|input| input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K))) {
+    // take them for itself; the same reason `command_palette` runs before the bar is laid out. The
+    // shortcut editor owns the keyboard while it is open, so ⌘K waits.
+    if state.shortcut_editor.is_none() && ui.input_mut(|input| input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K))) {
         if state.palette_open {
             close_palette(state);
         } else {
@@ -1363,6 +1390,9 @@ fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
     }
     if state.shortcuts_open {
         shortcuts_dialog(ui, state, t);
+    }
+    if state.shortcut_editor.is_some() {
+        shortcut_editor_dialog(ui, state, actions);
     }
     if state.apply_open {
         apply_dialog(ui, state, t, engine);
@@ -1949,7 +1979,11 @@ fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                                     .horizontal(|ui| {
                                         let response = ui.selectable_label(selected, RichText::new(spec.label).size(12.0));
                                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                            if let Some(keys) = spec.shortcut {
+                                            // The rebindable commands paint what the runtime keymap
+                                            // holds, so a rebind cannot leave the palette lying.
+                                            let keys = keymap::painted(&state.keys, command.id())
+                                                .unwrap_or_else(|| spec.shortcut.unwrap_or_default().to_owned());
+                                            if !keys.is_empty() {
                                                 ui.label(RichText::new(keys).size(10.5).color(t.text_faint));
                                             }
                                         });
@@ -3839,6 +3873,10 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     if state.palette_open {
         return;
     }
+    // The shortcut editor owns the keyboard while it records; nothing behind it reacts.
+    if state.shortcut_editor.is_some() {
+        return;
+    }
     if command_keyboard(ui, state, engine, actions) {
         return;
     }
@@ -3849,7 +3887,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         }
         return;
     }
-    if ui.input(|input| input.key_pressed(Key::Questionmark) && !input.modifiers.command) {
+    if ui.input(|input| keymap::plain_pressed(&state.keys, input, &CommandRef::new("app.shortcuts"))) {
         state.shortcuts_open = true;
         state.shortcut_query.clear();
         return;
@@ -3871,7 +3909,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     }
     // Starting a session works before anything is selected: the queue comes from the filters.
     // A session restored from a previous run is opened rather than replaced.
-    if ui.input(|input| input.key_pressed(Key::C) && !input.modifiers.command) && !state.view.is_detail() {
+    if !state.view.is_detail() && ui.input(|input| keymap::plain_pressed(&state.keys, input, &CommandRef::new("cull.start"))) {
         open_cull(state, engine);
         return;
     }
@@ -3934,25 +3972,26 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
             }
         }
         // In a cull session P/X/U belong to the session, which stages decisions instead of
-        // writing flags one photo at a time.
-        if !culling && input.key_pressed(Key::P) {
+        // writing flags one photo at a time. The keymap carries P and X as two parameterised
+        // rows of one command, so a rebind of one leaves the other alone.
+        if !culling && keymap::plain_pressed(&state.keys, input, &keymap::flag_pick()) {
             flag = Some(Flag::Pick);
         }
-        if !culling && input.key_pressed(Key::X) {
+        if !culling && keymap::plain_pressed(&state.keys, input, &keymap::flag_reject()) {
             flag = Some(Flag::Reject);
         }
         if !culling && input.key_pressed(Key::U) {
             flag = Some(Flag::None);
         }
-        if input.key_pressed(Key::K) && !input.modifiers.command {
+        if keymap::plain_pressed(&state.keys, input, &CommandRef::new("photo.keyword")) {
             keyword = true;
         }
-        if input.key_pressed(Key::T) && !input.modifiers.command {
+        if keymap::plain_pressed(&state.keys, input, &CommandRef::new("photo.tagFromPrev")) {
             from_prev = true;
         }
     });
 
-    if !state.view.is_detail() && ui.input(|input| input.key_pressed(Key::D) && !input.modifiers.command) {
+    if !state.view.is_detail() && ui.input(|input| keymap::plain_pressed(&state.keys, input, &CommandRef::new("view.detail"))) {
         activate_view(state, engine, View::Detail);
         return;
     }
@@ -4616,26 +4655,28 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
 fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) -> bool {
     let detail_open = state.view.is_detail();
     let (open, rescan, redo, undo, collection, settings, quit, apply, view) = ui.input_mut(|input| {
+        // Every command chord reads through the runtime keymap and is consumed, so no widget sees
+        // the same press. Exact matching separates redo from undo, so the order the old
+        // `consume_shortcut` calls needed no longer matters.
         (
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::R)),
-            // Most specific first: egui ignores extra Shift and Alt when matching, so Ctrl+Shift+Z
-            // must be consumed before Ctrl+Z sees the same press.
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::Z)),
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z)),
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::N)),
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma)),
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Q)),
-            input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Enter)),
-            // The view keys are only view keys when no modifier is held and no mode owns the letter:
-            // S swaps a compare and P/X judge a cull session, so those stay theirs.
-            if input.modifiers.command || detail_open || engine.cull().is_some() {
+            keymap::consume(&state.keys, input, &CommandRef::new("library.addFolder")),
+            keymap::consume(&state.keys, input, &CommandRef::new("library.rescan")),
+            keymap::consume(&state.keys, input, &CommandRef::new("edit.redo")),
+            keymap::consume(&state.keys, input, &CommandRef::new("edit.undo")),
+            keymap::consume(&state.keys, input, &CommandRef::new("collection.new")),
+            keymap::consume(&state.keys, input, &CommandRef::new("app.settings")),
+            keymap::consume(&state.keys, input, &CommandRef::new("app.quit")),
+            keymap::consume(&state.keys, input, &CommandRef::new("cull.apply")),
+            // The view keys are only view keys when no mode owns the letter: S swaps a compare and
+            // P/X judge a cull session, so those stay theirs. The keymap's own gates keep command
+            // chords and typing out; the view gate here is the shell's.
+            if detail_open || engine.cull().is_some() {
                 None
-            } else if input.key_pressed(Key::I) {
+            } else if keymap::plain_pressed(&state.keys, input, &CommandRef::new("view.insights")) {
                 Some(View::Insights)
-            } else if input.key_pressed(Key::M) {
+            } else if keymap::plain_pressed(&state.keys, input, &CommandRef::new("view.places")) {
                 Some(View::Places)
-            } else if input.key_pressed(Key::S) {
+            } else if keymap::plain_pressed(&state.keys, input, &CommandRef::new("view.similar")) {
                 Some(View::Similar)
             } else {
                 None
@@ -4653,8 +4694,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         }
         return true;
     }
-    // egui's shortcut matching ignores extra Shift and Alt, so the more specific binding is
-    // consumed first: Ctrl+Shift+Z is redo, and must not also fire Ctrl+Z's undo.
+    // The keymap reads exactly, so Ctrl+Shift+Z is redo and never also fires undo's Ctrl+Z.
     if redo {
         match engine.redo() {
             Ok(true) => state.notice("Redid the last undone change"),
@@ -5366,12 +5406,12 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
         if input.key_pressed(Key::U) && !input.modifiers.command {
             decision = Some(Decision::Unjudged);
         }
-        if input.key_pressed(Key::ArrowLeft) {
+        if keymap::plain_pressed(&state.keys, input, &CommandRef::new("cull.back")) {
             back = true;
         }
         // The same one-key repeat the grid has, aimed at the photo on screen: keyword one photo, decide,
         // press T on the next. The notice names the keyword, like everywhere else it is applied.
-        if input.key_pressed(Key::T) && !input.modifiers.command {
+        if keymap::plain_pressed(&state.keys, input, &CommandRef::new("photo.tagFromPrev")) {
             tag_prev = true;
         }
     });
@@ -8154,6 +8194,19 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             );
             ui.add_space(8.0);
             ui.separator();
+            ui.label(RichText::new("Shortcuts").size(11.0).color(t.text_muted));
+            if ui
+                .button(RichText::new("Edit shortcuts…").size(12.0))
+                .on_hover_text("Rebind keys, resolve conflicts, and import or export shortcut sets")
+                .clicked()
+            {
+                // One modal at a time, and the palette's keyboard must not reach the editor.
+                state.palette_open = false;
+                state.settings_open = false;
+                state.shortcut_editor = Some(DialogState::new());
+            }
+            ui.add_space(8.0);
+            ui.separator();
             // The model downloader (SL-F02) is desktop-only; the wasm build compiles the shell
             // without the section and without the engine methods it calls.
             #[cfg(not(target_arch = "wasm32"))]
@@ -8475,7 +8528,10 @@ fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
                     ui.label(RichText::new(context.label()).size(11.0).strong().color(t.text));
                     ui.label(RichText::new(context.note()).size(9.5).color(t.text_faint));
                     for binding in rows {
-                        keymap_row(ui, t, binding);
+                        // A rebindable row paints the command's current bindings, so the help
+                        // cannot go stale after the editor changes one.
+                        let keys = keymap::row_keys(&state.keys, binding);
+                        keymap_row(ui, t, &keys, binding);
                     }
                 }
             });
@@ -8484,13 +8540,13 @@ fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
 }
 
 /// One keycap and its action, aligned so the keys form a column.
-fn keymap_row(ui: &mut Ui, t: &Tokens, binding: &keymap::Binding) {
+fn keymap_row(ui: &mut Ui, t: &Tokens, keys: &str, binding: &keymap::Binding) {
     ui.horizontal(|ui| {
         ui.allocate_ui(vec2(96.0, 18.0), |ui| {
             let rect = ui.available_rect_before_wrap();
             let width = ui
                 .painter()
-                .layout_no_wrap(binding.keys.to_string(), FontId::monospace(10.5), t.text)
+                .layout_no_wrap(keys.to_string(), FontId::monospace(10.5), t.text)
                 .size()
                 .x;
             let key = Rect::from_min_size(rect.min, vec2(width + 10.0, 16.0));
@@ -8502,11 +8558,75 @@ fn keymap_row(ui: &mut Ui, t: &Tokens, binding: &keymap::Binding) {
                 egui::StrokeKind::Inside,
             );
             ui.painter()
-                .text(key.center(), Align2::CENTER_CENTER, binding.keys, FontId::monospace(10.5), t.text);
+                .text(key.center(), Align2::CENTER_CENTER, keys, FontId::monospace(10.5), t.text);
             ui.allocate_space(vec2(width + 10.0, 18.0));
         });
         ui.label(RichText::new(binding.action).size(11.5).color(t.text_muted));
     });
+}
+
+/// The shortcut editor's fixed options: the app's unrebindable rows shown read-only, craft-keymap
+/// JSON as the one file format, and no double-press bindings, which the shell's dispatch does not
+/// read.
+fn shortcut_editor_options() -> ShortcutOptions {
+    ShortcutOptions::default().with(|options| {
+        options.title = "Keyboard shortcuts";
+        options.summary = false;
+        options.keyboard = false;
+        options.fixed = keymap::fixed_rows();
+        options.import_formats = vec![craft_keymap::ui::Format {
+            id: craft_keymap::ui::JSON_FORMAT,
+            label: "craft-keymap set",
+            extensions: &["json"],
+        }];
+        options.accept = Some(Box::new(|_, binding| {
+            if binding.trigger.double {
+                Err("Double-press bindings are not read here; record a single chord".to_owned())
+            } else {
+                Ok(())
+            }
+        }));
+    })
+}
+
+/// The craft-keymap editor behind Settings → Shortcuts (SL-I09): rebinding with conflict
+/// detection, named sets, and craft-keymap JSON import and export. It owns the keyboard while it
+/// is open, which is why `keyboard` and the palette's ⌘K step aside for it; a rebind applies to
+/// the runtime keymap the same frame, and OK hands the sets to the host to persist.
+fn shortcut_editor_dialog(ui: &mut Ui, state: &mut UiState, actions: &mut Vec<Action>) {
+    let mut editor = state.shortcut_editor.take().unwrap_or_default();
+    // A file the host read lands before the frame draws, so the review opens on the set it read.
+    if let Some(text) = state.pending_shortcut_import.take() {
+        match ShortcutsDialog::new(&mut state.keys, &English).import_json(&mut editor, &text) {
+            Ok(name) => state.notice(format!("Imported shortcut set \u{201c}{name}\u{201d}")),
+            Err(error) => state.notice_problem(format!("Could not import the set: {error}")),
+        }
+    }
+    let options = shortcut_editor_options();
+    let outcome = ShortcutsDialog::new(&mut state.keys, &English)
+        .sets(&mut state.profiles, keymap::BUILTINS)
+        .options(&options)
+        .show(ui.ctx(), &mut editor);
+    match outcome {
+        // Still open: keep the dialog state for the next frame.
+        None | Some(ShortcutOutcome::Changed) => state.shortcut_editor = Some(editor),
+        // Cancel restores the keymap and the sets to how they were when it opened, in place.
+        Some(ShortcutOutcome::Cancel) => {}
+        Some(ShortcutOutcome::Ok) => {
+            actions.push(Action::SaveShortcuts(state.profiles.clone()));
+            state.notice("Shortcuts saved");
+        }
+        Some(ShortcutOutcome::Import { .. }) => {
+            state.shortcut_editor = Some(editor);
+            actions.push(Action::ImportShortcuts);
+        }
+        Some(ShortcutOutcome::Export { name, json }) => {
+            state.shortcut_editor = Some(editor);
+            actions.push(Action::ExportShortcuts(name, json));
+        }
+        // The summary is switched off, and a remembered-import answer has no host to keep it.
+        Some(_) => state.shortcut_editor = Some(editor),
+    }
 }
 
 fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
@@ -10869,6 +10989,237 @@ mod tests {
         assert_eq!(engine_cell.borrow().photo(id).expect("photo").rating, 4, "nothing changed");
         let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
         assert_eq!(told, "Nothing to redo");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A rebind through the runtime keymap moves the action: Q flags as picked, and P stops
+    /// answering. The keymap is the single reader of its commands, so a rebind cannot be a
+    /// promise the dispatch never reads (SL-I09).
+    #[test]
+    fn a_rebound_key_moves_the_action() {
+        use craft_keymap::{Binding as CraftBinding, Policy};
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-rebind-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-rebind");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [40, 90, 150], 48, 32), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .first()
+            .expect("photo")
+            .id;
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.replace(id);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        let press = |key: Key, modifiers: egui::Modifiers| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            }],
+            ..egui::RawInput::default()
+        };
+        let mut frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+        };
+        let flag = || engine_cell.borrow().photo(id).expect("photo").flag;
+
+        frame(&mut state, press(Key::P, egui::Modifiers::NONE));
+        assert_eq!(flag(), Flag::Pick, "P is flag as picked out of the box");
+
+        // The recorder's answer, as the editor would land it: the command's bindings become Q.
+        state
+            .keys
+            .set_bindings(&keymap::flag_pick(), vec![CraftBinding::parse("Q").unwrap()], Policy::Steal)
+            .expect("rebind flag pick");
+        frame(&mut state, press(Key::P, egui::Modifiers::NONE));
+        assert_eq!(flag(), Flag::Pick, "the old chord stops answering");
+        frame(&mut state, press(Key::Q, egui::Modifiers::NONE));
+        assert_eq!(flag(), Flag::Pick, "the new chord flags as picked");
+        // And the other half of the command is untouched by the rebind.
+        frame(&mut state, press(Key::X, egui::Modifiers::NONE));
+        assert_eq!(flag(), Flag::Reject, "X is still flag as rejected");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The editor opens from Settings, paints the catalog under the table's own sections, owns
+    /// the keyboard while it is open, and OK hands the sets to the host with the rebind in them.
+    #[test]
+    fn the_shortcut_editor_opens_rebinds_and_saves() {
+        use craft_keymap::{Binding as CraftBinding, Policy};
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-editor-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-editor");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [40, 90, 150], 48, 32), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .first()
+            .expect("photo")
+            .id;
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.replace(id);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        let press = |key: Key, modifiers: egui::Modifiers| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            }],
+            ..egui::RawInput::default()
+        };
+        let mut run = |state: &mut UiState, input: egui::RawInput| -> (egui::FullOutput, Vec<Action>) {
+            let mut actions = Vec::new();
+            let mut output = ctx.run_ui(input, |ctx| {
+                actions = egui::CentralPanel::default()
+                    .show(ctx, |ui| show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs))
+                    .inner;
+            });
+            output.textures_delta.clear();
+            (output, actions)
+        };
+        fn texts(output: &egui::FullOutput) -> Vec<String> {
+            fn walk(shape: &egui::Shape, sink: &mut Vec<String>) {
+                match shape {
+                    egui::Shape::Text(text) => sink.push(text.galley.job.text.clone()),
+                    egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, sink)),
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, &mut sink);
+            }
+            sink
+        }
+
+        // Open the way Settings does, and read what the editor paints.
+        state.shortcut_editor = Some(DialogState::new());
+        let (output, _) = run(
+            &mut state,
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0))),
+                ..egui::RawInput::default()
+            },
+        );
+        let painted = texts(&output);
+        assert!(
+            painted.iter().any(|text| text.contains("Keyboard shortcuts")),
+            "the editor is on screen"
+        );
+        assert!(
+            painted.iter().any(|text| text.contains("Flag as picked")),
+            "the catalog rows are the table's: {painted:?}"
+        );
+        assert!(
+            painted.iter().any(|text| text.contains("Library")),
+            "the table groups by the table's sections"
+        );
+        assert!(
+            painted.iter().any(|text| text.contains("Apply the staged rejections")),
+            "the table carries the whole catalog, cull section included"
+        );
+        assert!(
+            painted.iter().any(|text| text.contains("Ctrl+Shift+R")),
+            "the chords paint the way the table spells them"
+        );
+        assert!(painted.iter().any(|text| text.contains("Import\u{2026}")), "a set can be imported");
+        assert!(painted.iter().any(|text| text.contains("Export\u{2026}")), "a set can be exported");
+
+        // The editor owns the keyboard: P behind it changes nothing.
+        let (_, _) = run(&mut state, press(Key::P, egui::Modifiers::NONE));
+        assert_eq!(
+            engine_cell.borrow().photo(id).expect("photo").flag,
+            Flag::None,
+            "the shell's keys step aside"
+        );
+
+        // A rebind lands in the runtime keymap, OK commits it into the active set, and the next
+        // frame reports the save.
+        state
+            .keys
+            .set_bindings(&keymap::flag_pick(), vec![CraftBinding::parse("Q").unwrap()], Policy::Steal)
+            .expect("rebind flag pick");
+        let mut editor = state.shortcut_editor.take().expect("open");
+        ShortcutsDialog::new(&mut state.keys, &craft_keymap::ui::English)
+            .sets(&mut state.profiles, keymap::BUILTINS)
+            .ok(&mut editor);
+        // Back where the shell keeps it, closed: the next frame reports the Ok outcome and drops it.
+        state.shortcut_editor = Some(editor);
+        let (_, actions) = run(
+            &mut state,
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0))),
+                ..egui::RawInput::default()
+            },
+        );
+        assert!(state.shortcut_editor.is_none(), "the editor closed");
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Shortcuts saved");
+        let saved = actions
+            .iter()
+            .find_map(|action| match action {
+                Action::SaveShortcuts(profiles) => Some(profiles.clone()),
+                _ => None,
+            })
+            .expect("OK hands the sets to the host");
+        assert_eq!(
+            saved.active_overrides(keymap::BUILTINS).get(&keymap::flag_pick().key()),
+            Some(&["Q".to_owned()][..]),
+            "the host is handed the rebind"
+        );
+
+        // And what the keymap now runs is what was saved: Q flags as picked.
+        let (_, _) = run(
+            &mut state,
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0))),
+                ..egui::RawInput::default()
+            },
+        );
+        let (_, _) = run(&mut state, press(Key::Q, egui::Modifiers::NONE));
+        assert_eq!(
+            engine_cell.borrow().photo(id).expect("photo").flag,
+            Flag::Pick,
+            "Q is flag as picked after OK"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

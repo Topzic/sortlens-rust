@@ -475,14 +475,17 @@ Implemented as `crates/ui/build.rs` + `crates/ui/src/fonts.rs`:
 ### 8.4 Keymap and menus
 
 `craft-keymap` owns chords, scopes, conflicts, overrides and the editor. Our contribution is
-the catalog: ids, labels, menu paths, defaults. Defaults for culling:
+the catalog: ids, labels, menu paths, defaults — the rebindable rows of `crates/ui/src/keymap.rs`'s
+table, which is also what the editor, the palette and the `?` overlay read. Defaults for culling
+(the shipped ones, not a plan):
 
 | Action | Key |
 | --- | --- |
-| Keep / Reject / Skip | `→` `K` / `←` `X` / `↓` `S` |
-| Undo decision | `⌫` `U` |
-| Favourite | `F` |
-| Zoom 1:1, 2:1, 3:1, 4:1 | `1` `2` `3` `4` |
+| Keep / Reject / Skip / Undecide | `P` / `X` / `Space` / `U` |
+| Step back one photo | `◀` (`cull.back`, rebindable) |
+| Apply the last keyword | `T` (`photo.tagFromPrev`) |
+| Apply the staged rejections | `Ctrl+Enter` (`cull.apply`) |
+| Zoom to fit or 2× | `Z` · pan while zoomed `Alt+drag` |
 | Stars 0–5 | `0`–`5` |
 | Labels | `6`–`9` |
 | Pick / Unflag / Reject | `P` / `U` / `X` |

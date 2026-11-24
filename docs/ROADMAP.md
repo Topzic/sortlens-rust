@@ -830,8 +830,9 @@ selection as originals and as JPEG and diff the metadata.
 ## M9 — Remote + automation · 2.5 w · tracks E,B
 
 **State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
-bundle. The remote half (a server, a wasm client, remote album edits) is **open work in Phase 4**, as are
-i18n and the keymap editor; none of M9 is closed until those rows are ticked.
+bundle. The remote half (a server, a wasm client, remote album edits) is **open work in Phase 4**, as is
+i18n; the keymap editor shipped 2026-11-24 (see the Phase 4 row), and none of M9 is closed until the
+remaining rows are ticked.
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
 - [x] CLI parity and stable JSON schemas: `--json` on the read verbs (roots, keywords, stats, list,
@@ -860,7 +861,11 @@ i18n and the keymap editor; none of M9 is closed until those rows are ticked.
     the refusal).
 - [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07
 - [ ] Localised numbers/dates (B) — SL-L08
-- [ ] `craft-keymap` editor + import/export (B) — SL-I09
+- [x] `craft-keymap` editor + import/export (B) — SL-I09 — **done 2026-11-24**, see Phase 4 item 1: the
+  rebindable catalog is the single-chord command rows of `crates/ui/src/keymap.rs`'s own table (the two
+  flag rows are one command with two parameterised refs), Settings → Shortcuts opens craft-keymap's dialog
+  over it, overrides live in settings as named sets, and the palette and the `?` overlay paint the current
+  chords, so a rebind cannot leave the help lying
 - [x] Diagnostics bundle: `Engine::diagnostics` writes plain text with versions, library counts, the
   read-only health check, packs, the last 25 changes and the root list, with **every absolute path
   replaced** by `<library>`, `<root-N>` or `<home>` (longest match first, so a root under the library is
@@ -1237,7 +1242,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
 
 ### Phase 4 — Platform, keymap and remote polish (M9–M10)
 
-- [ ] 1. `craft-keymap` editor (SL-I09): rebinding, conflict detection, import/export in Settings → Shortcuts (B)
+- [x] 1. `craft-keymap` editor (SL-I09): rebinding, conflict detection, import/export in Settings → Shortcuts
+  (B) — **done 2026-11-24**. `crates/ui/src/keymap.rs` now has a runtime half: `catalog()` turns every
+  single-chord command row of the table into a `craft_keymap::Bindable` (`photo.flag` as two parameterised
+  refs, pick and reject), `fixed_rows()` shows the unrebindable rows (ranges, mouse rows, `Esc`, the arrows)
+  read-only, `plain_pressed`/`consume` are what the shell's key handlers read, and `painted()`/`row_keys()`
+  are what the palette and the `?` overlay paint — a rebind moves dispatch the same frame it is recorded.
+  Settings → Shortcuts opens craft-keymap's dialog with the catalog, rebinding with the conflict bar, named
+  sets (a built-in `Default` plus the user's), craft-keymap JSON import and export through the host's file
+  dialogs, and double-press recording refused (the dispatch does not read it). Overrides live in
+  `Prefs::shortcuts` as craft-keymap `Profiles`, so a deleted set stays deleted after saving. Gated by:
+  `the_catalog_is_the_rebindable_rows_of_the_table`,
+  `the_fixed_rows_are_the_rest_of_the_table_and_clash_with_no_catalog_default`,
+  `a_rebinding_moves_the_bindings`, `two_commands_on_one_chord_are_conflicts`,
+  `dispatch_reads_the_keymap_not_the_handwritten_table`, `painted_keys_follow_the_rebinds`, the shell's
+  `a_rebound_key_moves_the_action` and `the_shortcut_editor_opens_rebinds_and_saves` (Q flags as picked
+  after OK and the host receives the override), the settings round trip
+  `shortcut_sets_round_trip_and_an_older_file_reads_the_defaults`, and the `shortcut-editor-charcoal`/
+  `-paper` baselines (31 now), all read.
 - [ ] 2. Packaging and accessibility: `.icns`/`.ico` from `crates/icon` in `xtask`, a High-Contrast preset
   (SL-L09), `craft-update` behind an explicit opt-in (SL-I10), `craft-i18n` scaffolding (SL-L07) (B,E)
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,

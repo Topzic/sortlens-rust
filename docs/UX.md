@@ -487,7 +487,7 @@ command registry rather than a second list that could drift from it.
 | Dialog | Trigger | Contents |
 | --- | --- | --- |
 | Settings | `⌘,` | Left nav: General, Review, Appearance, Library, AI, Remote, Shortcuts, Updates, About |
-| Shortcuts | `?` | Searchable table, grouped by mode; rebinding and import/export arrive with `craft-keymap` (M7+) |
+| Shortcuts | `?` | Searchable table, grouped by mode; Settings → Shortcuts opens the `craft-keymap` editor over the same catalog: rebinding, conflict detection, named sets, import/export (SL-I09) |
 | Apply cull decisions | `Apply` | Mode, counts, size, file list, primary/secondary |
 | Delete permanently | second confirmation for the `Permanent` mode | Type-to-confirm, counts |
 | Export | selection | Format (original/JPEG/PNG), size, quality (JPEG only), metadata (JPEG only), destination, collision policy |

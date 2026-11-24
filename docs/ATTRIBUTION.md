@@ -77,7 +77,7 @@ promise nobody intends to keep.
 | Crate | Licence | Why it is declared | Linked by |
 |---|---|---|---|
 | `rayon` | MIT OR Apache-2.0 | The low-priority compute pool for local inference | Phase 2 |
-| `craft-keymap` | MIT OR Apache-2.0 | The rebinding editor, conflict detection and import/export | Phase 4 |
+| `craft-keymap` | MIT OR Apache-2.0 | The rebinding editor, conflict detection and import/export | Phase 4 — **linked 2026-11-24**: `sortlens-ui` (the editor and dispatch) and `sortlens` (the persisted sets) |
 | `craft-update` | MIT OR Apache-2.0 | Opt-in update checks (a user-approved network call) | Phase 4 |
 | `craft-i18n` | MIT OR Apache-2.0 | Localisation scaffolding | Phase 4 |
 | `craft-web-api` | MIT OR Apache-2.0 | The remote client | Phase 4 |

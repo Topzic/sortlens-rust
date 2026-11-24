@@ -467,6 +467,21 @@ fn shortcuts_paint_in_both_themes() {
     }
 }
 
+/// The shortcut editor (SL-I09): craft-keymap's dialog over the app's catalog, with the set row,
+/// the table grouped the way the overlay groups it, and the chords the runtime keymap holds.
+///
+/// The editor is the surface Settings → Shortcuts opens; the baseline is of its first screen, the
+/// factory bindings, so a rebind that left the overlay and palette stale would show here too.
+#[test]
+fn shortcut_editor_paints_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        scene.state.shortcut_editor = Some(craft_keymap::ui::DialogState::new());
+        library.keep(shoot(kind, scene, &format!("shortcut-editor-{}", kind_id(kind))));
+    }
+}
+
 /// Soft Focus: the relative sharpness review as its own destination, with stored scores.
 ///
 /// A library with measured scores shows the histogram and the cut it would select; this is the proof that

@@ -292,6 +292,36 @@ impl App {
                 self.engine.clear_batch();
                 self.ui.notice("Cleared the suggestions");
             }
+            Action::SaveShortcuts(profiles) => {
+                self.store.update(|prefs| prefs.shortcuts = profiles);
+            }
+            Action::ImportShortcuts => {
+                let Some(path) = rfd::FileDialog::new()
+                    .set_title("Import a shortcut set")
+                    .add_filter("Shortcut set", &["json"])
+                    .pick_file()
+                else {
+                    return;
+                };
+                match std::fs::read_to_string(&path) {
+                    Ok(text) => self.ui.pending_shortcut_import = Some(text),
+                    Err(error) => self.ui.notice(format!("The set could not be read: {error}")),
+                }
+            }
+            Action::ExportShortcuts(name, json) => {
+                let Some(path) = rfd::FileDialog::new()
+                    .set_title("Export a shortcut set")
+                    .set_file_name(format!("{name}.json"))
+                    .add_filter("Shortcut set", &["json"])
+                    .save_file()
+                else {
+                    return;
+                };
+                match std::fs::write(&path, json) {
+                    Ok(()) => self.ui.notice(format!("Wrote \u{201c}{name}\u{201d}")),
+                    Err(error) => self.ui.notice(format!("The set could not be written: {error}")),
+                }
+            }
             Action::SetPack(name, on) => match self.engine.set_pack(&name, on) {
                 Ok(true) => {
                     let verb = if on { "Switched on" } else { "Switched off" };
