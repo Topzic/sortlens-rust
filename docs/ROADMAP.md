@@ -1479,10 +1479,23 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     the sweep that checks the count never lands on a chip now mirrors the shell (absent under 600, measured
     above it). Both phone baselines regenerated and read: three photo columns, a two-row strip, the tray inside
     the screen, the sidebar sheet the width of the screen.
+  - **Shipped 2026-11-24 (send from the app):** Settings → Send to desktop is the phone's half of the
+    protocol. Unpaired, it is the three facts a pairing needs — the address the desktop's Sync screen shows,
+    the port, and the six-digit code; paired, it names the desktop and offers Forget, a progress line naming
+    the photograph it is on, Stop, and Send the selection with a keep-or-remove switch. The queue
+    (`sortlens_remote::send`) owns one worker thread, so no frame blocks; the shell polls its report and takes
+    the finished run's outcome once. The switch rides on each item: after the ack, the app hands the cleared
+    ids to `Engine::delete_photos(..., Trash)` — the same audited path the desktop applies a cull with — so an
+    unreachable desktop removes nothing, Stop removes only what already landed, and a file whose bytes moved
+    since the scan is refused rather than deleted. The desktop's Sync & devices section is not painted on the
+    phone (its host cannot serve) and this one is not painted on the desktop. Tests: a real-TCP fake upload
+    server proves both keep and remove, a missing file fails alone, cancel stops between items and an
+    unreachable desktop ends the run with one reason; the link pairs through a fake `/pair` server and keeps
+    the address with the token; the shell drives Pair, Send, Stop and Forget at phone width, and proves each
+    width paints only its own section.
   - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
     `cargo xtask mobile` (this checkout has neither); trimming the embedded font set for a phone; the iOS
-    Photos library; a send-to-desktop action over the resumable upload; an APK/AAB and an `.ipa` in the
-    release workflow.
+    Photos library; an APK/AAB and an `.ipa` in the release workflow.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

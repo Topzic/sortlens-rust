@@ -4863,8 +4863,11 @@ dependencies = [
  "eframe",
  "egui",
  "serde",
+ "serde_json",
  "sortlens-core",
+ "sortlens-cull",
  "sortlens-engine",
+ "sortlens-remote",
  "sortlens-testkit",
  "sortlens-ui",
 ]

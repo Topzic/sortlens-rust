@@ -467,6 +467,11 @@ impl App {
                     .notice("The device's token is removed; it cannot call this library any more"),
                 Err(error) => self.ui.notice(error),
             },
+            // The phone's section is gated on the phone width, so these cannot come from this
+            // host's interface; if one ever does, it is answered rather than silently dropped.
+            Action::SendPair { .. } | Action::SendForget | Action::SendToDesktop(..) | Action::SendCancel => {
+                self.ui.notice("Send to desktop is the phone app's; this library is the desktop")
+            }
         }
     }
 }

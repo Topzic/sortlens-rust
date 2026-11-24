@@ -60,14 +60,17 @@ phases"), and the list shrinks as those rows are ticked.
 - **The map is schematic until you supply tiles.** Places ships the public-domain Natural Earth 1:110m coastline,
   so there is geography with no setup, and it opens fitted to your photographs. A real basemap is a `tiles/`
   folder you supply, and names are a `places.txt` you supply; nothing is downloaded.
-- **The remote half exists; nothing is packaged for a phone yet.** A token-authenticated server
-  (`apps/sortlens-server`), a pairing code, scoped device tokens and resumable uploads ship, and
-  Settings → Sync & devices spawns and follows that server. `apps/sortlens-mobile` is the native Rust
-  app over the same engine and shell — it indexes the device's photographs, keeps its own settings in
-  `config.toml` beside the library, and `cargo xtask mobile` checks both targets — and the layout is a
-  phone's: one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the
-  screen. No APK, AAB or `.ipa` is published yet, and a device build waits for a machine with the NDK and
-  Xcode. See §10 of `docs/ARCHITECTURE.md`.
+- **The remote half exists and the phone can use it; nothing is packaged for a phone yet.** A
+  token-authenticated server (`apps/sortlens-server`), a pairing code, scoped device tokens and resumable
+  uploads ship, and Settings → Sync & devices spawns and follows that server. `apps/sortlens-mobile` is the
+  native Rust app over the same engine and shell — it indexes the device's photographs, keeps its own settings
+  in `config.toml` beside the library, and `cargo xtask mobile` checks both targets. Its Settings → Send to
+  desktop pairs with the code the desktop prints and sends the chosen photographs over the resumable upload
+  with keep-or-remove; Remove carries the ack's decision out through the library's audited delete path to the
+  phone's trash, and a file the catalog no longer matches is refused, not deleted. The layout is a phone's:
+  one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the screen. No
+  APK, AAB or `.ipa` is published yet, and a device build waits for a machine with the NDK and Xcode. See
+  §10 of `docs/ARCHITECTURE.md`.
 - **No localisation.** The interface is English (Phase 4); the font stack and the keymap already handle the
   symbols the interface draws. Shortcuts *are* rebindable now: Settings → Shortcuts opens the `craft-keymap`
   editor (rebinding, conflict detection, named sets, craft-keymap JSON import and export), and the help and
@@ -79,8 +82,10 @@ phases"), and the list shrinks as those rows are ticked.
 - **A phone-sized layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` shipped for the
   desktop (Phase 3), and a window under 600 points is now laid out as a phone: the docks become one
   full-width sheet at a time, the bar drops its words and keeps five glyphs, and the search field keeps
-  the room they leave. The canvas inside that frame is still the desktop's — its header, filter strip and
-  the bottom bar's control tray — which is the open part of the roadmap's 3b row.
+  the room they leave. The canvas inside that frame is the phone's too — the far-edge rail stands down while
+  the inspector is closed and tab-switches beside its open sheet, the filter strip wraps into two rows
+  without a second count, and the bottom bar's tray keeps every control on screen. What 3b still lacks is
+  the device build, the trimmed font set and the iOS Photos library.
 
 What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF
 thumbnails, RAW previews, the shipped coastline and the tile-folder map.

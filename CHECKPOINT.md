@@ -1,5 +1,70 @@
 # Checkpoint
 
+## 2026-11-24 (sixty-eighth) — the phone sends its photographs (SL-J04/J05 from the app)
+
+- **Why this came up.** The sixty-seventh entry ended on the one thing the phone's own screen still
+  could not do: the app could index a camera roll and paint a phone's canvas, but nothing on it could
+  hand a photograph to the desktop. The wire was already there (`sortlens_remote::client` and its
+  loopback harness), the desktop had its Sync screen, and the roadmap's "Still open" named exactly
+  "a send-to-desktop action over the resumable upload". A phone that indexes a camera roll but cannot get
+  a photograph off it is still not a remote.
+- **The queue is one thread the interface polls.** `sortlens_remote::send::SendQueue` spawns one worker
+  (`sortlens-send`) that health-checks once, reads each file, uploads it with `Client::upload`, and publishes
+  a `SendOutcome`: sent, kept and removed counts, per-file failures, cancelled, and the one connection error
+  that ends a run instead of failing every remaining item after its own timeout. `report()` is what a frame
+  paints; `cancel()` asks it to stop between photographs, leaving a half-sent chunk as a server-side partial
+  the next run resumes; `take_outcome()` hands the result over once. A thread that cannot start finishes the
+  run at once with the reason, rather than a queue that claims to be running forever with nothing behind it.
+- **The ack's remove is named, not guessed.** `SendOutcome::to_remove` lists the device ids whose ack said
+  `LocalCopy::Remove`. The queue deliberately does not delete: it holds a path, not the library that can audit
+  a file. On the phone the ids go to `Engine::delete_photos(..., Trash)` — the same audited path the desktop
+  applies a cull with — which re-checks each file's size and mtime, refuses the batch if one moved, flags the
+  photographs rejects, keeps the undo batch, and moves them to the phone's trash. "Remove" therefore means
+  what the checkbox says, and an unreachable desktop or a refused batch leaves the file where it is.
+- **The link keeps the address its token belongs to.** `apps/sortlens-mobile/src/send.rs`: `DesktopLink` holds
+  the address, token, recorded device and the run. `pair` runs the handshake on its own thread; `poll_pair`
+  peeks at the answer slot and takes the attempt only once an answer is there — the first frame after the tap
+  usually polls before the worker has connected, and an eager `take` drops the handle and loses the
+  answer forever. A successful answer writes the typed host and port together with the token, so the settings
+  document can never hold a token pointing at `:0`; a failed one leaves the previous pairing untouched.
+  Forget cancels a run in flight.
+- **The phone's and the desktop's sections never share a screen.** `send_section` had been painted above the
+  desktop's Sync & devices section on a phone, whose host answers every server action with "not available on
+  the phone yet". Sync is now desktop-only and Send is phone-only. Forget is disabled while a run is in
+  flight, because dropping the token mid-run would leave the worker sending under a pairing the phone no
+  longer keeps. The hint says what Remove actually does, and the sentence a finished run earns says what the
+  ack cleared (`… 1 to remove`), with the app appending what it could carry out (`; removed 1 from this
+  phone`, or the reason it could not).
+- **Files.** `crates/remote/src/send.rs` (new); `apps/sortlens-mobile/src/send.rs` (new), `Cargo.toml`
+  (`sortlens-cull`), `src/lib.rs`, `src/prefs.rs`; `crates/ui/src/shell.rs`, `crates/ui/src/lib.rs`,
+  `i18n/{ar,ja}.tsv`; `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/FEATURES.md`,
+  `docs/RELEASE.md`.
+- **Tests that fail when the behaviour is absent** (14 new: five in `sortlens_remote::send`, seven in the
+  phone's link, one in the phone's settings, one in the shell). Remote, over a real-TCP fake upload server:
+  both keep and remove land with `to_remove == [2]`, a missing file fails alone, progress counts items as
+  they finish, cancel stops between
+  items, and an unreachable desktop ends the run with one reason. Phone: a successful `/pair` through a real
+  socket keeps the address with the token (the old poll loses the attempt); a closed connection stores
+  nothing; the ack's remove choice reaches the library through `delete_photos` while a keep-only run touches
+  nothing; the items come from the catalog, missing files skipped; an older settings file opens unpaired.
+  Shell at 390 points: Pair is disabled until all three fields are full, Pair and Send hand over the typed
+  values and the selection with the toggle's answer, Send refuses an empty selection, Stop hands over a
+  cancel, Forget answers nothing during a run, and each width paints only its own section — the phone no
+  Sync & devices, the desktop no Send to desktop.
+- **Verified.** `cargo test -p sortlens-remote` (36 passed), `-p sortlens-mobile` (17), `-p sortlens-ui --lib`
+  (163). `cargo xtask ci` green through every gate; the first run failed clippy on a `needless_borrow` in a
+  test and on the desktop host's non-exhaustive `Action` match (both fixed here), and the shell test then
+  caught its own assertion matching the hint's "Sync & devices" wording, so it now compares section headings
+  exactly. `cargo xtask snapshot` green. `cargo xtask screenshots` green with 23 scenes and no baseline
+  moved. `cargo xtask deny` green. `cargo xtask mobile` still needs the NDK and Xcode, which this checkout
+  does not have.
+- **Reconciled.** ROADMAP 3b gained the shipped bullet and its "Still open" no longer names send-to-desktop.
+  UX §2 has the Send rules and no longer lists it among the lacks. ARCHITECTURE §10 says the phone drives
+  `sortlens_remote::send` and carries removals through the audited delete path. FEATURES SL-J02 dropped
+  "uploading from the app" from Still open; SL-J04 and SL-J05 name the app half. RELEASE says the phone can
+  use the remote half and describes the phone's canvas as its own.
+- **Next.** The iOS Photos library (iOS still reads the Files-visible Documents folder) and a device build; on
+  the link itself, a connection test (`/health`) before the code is typed.
 ## 2026-11-24 (sixty-seventh) — the canvas is the phone's (SL-J10, Phase 4 item 3b)
 
 - **Why this came up.** The sixty-sixth entry gave the phone a frame — docks put away, a wordless bar — and

@@ -270,6 +270,25 @@ pub enum Action {
     /// Revoke a paired device by its token. The host refuses while the server is running, so
     /// the store's write-through cannot resurrect the row a moment later.
     ServerRevoke(String),
+    /// Pair this phone with a desktop: trade the six-digit code its Sync screen prints for a
+    /// scoped token at `host:port` (SL-J02). The host stores the token, not the code.
+    SendPair {
+        /// The desktop's address, as the person typed it.
+        host: String,
+        /// The port its server announced.
+        port: u16,
+        /// The six-digit code, read off the desktop's screen.
+        code: String,
+    },
+    /// Forget the paired desktop: the stored token is dropped and the link is unpaired.
+    SendForget,
+    /// Send the chosen photographs to the paired desktop over the resumable upload
+    /// (SL-J04); `remove` is the keep-or-remove choice (SL-J05), carried out per photograph
+    /// only when the server's ack confirms it holds the bytes.
+    SendToDesktop(Vec<PhotoId>, bool),
+    /// Stop the in-flight send run. The photograph it is on finishes or stays a server-side
+    /// partial; the rest are never attempted.
+    SendCancel,
 }
 
 /// What the host knows about the library's sync server, fed every frame the Settings dialog is
@@ -300,6 +319,33 @@ pub struct DeviceRow {
     pub scopes: String,
     /// When the token was issued, `YYYY-MM-DD`.
     pub since: String,
+}
+
+/// What the host knows about the phone's link to a paired desktop, fed every frame the Settings
+/// dialog is open (SL-J04/J05 from the app). The phone holds the token and drives the send queue;
+/// the shell only paints what it is told.
+///
+/// Default is the unpaired state: an honest "no desktop yet" rather than a placeholder that asks
+/// to be filled in.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SendSurface {
+    /// A desktop is paired: the phone holds a token from a code the desktop printed.
+    pub paired: bool,
+    /// The host the link is bound to, as the person typed it (empty when unpaired).
+    pub host: String,
+    /// The port the link is bound to (0 when unpaired).
+    pub port: u16,
+    /// A send run is in flight.
+    pub sending: bool,
+    /// Photographs finished this run — landed or failed, both count as finished.
+    pub done: usize,
+    /// Photographs queued this run.
+    pub total: usize,
+    /// The photograph the run is on right now, by name.
+    pub current: Option<String>,
+    /// What the last finished run produced, as the one sentence a notice would say. The host
+    /// clears it the next time a run starts.
+    pub last: Option<String>,
 }
 
 /// What Apply does with rejected photos.
@@ -958,6 +1004,17 @@ pub struct UiState {
     /// The library's sync server, fed by the host every frame the Settings dialog is open.
     /// Default is the stopped state, so a headless frame paints an honest "not serving".
     pub server: ServerSurface,
+    /// The phone's link to a paired desktop, fed by the host every frame the Settings dialog
+    /// is open. Default is the unpaired state.
+    pub send: SendSurface,
+    /// What the person typed into the send section's host field, between frames.
+    pub send_host: String,
+    /// What the person typed into the send section's port field, between frames.
+    pub send_port: String,
+    /// What the person typed into the send section's code field, between frames.
+    pub send_code: String,
+    /// The keep-or-remove toggle (SL-J05) the send section's checkbox holds between frames.
+    pub send_remove: bool,
 }
 
 impl UiState {
@@ -1058,6 +1115,11 @@ impl UiState {
             shortcut_editor: None,
             pending_shortcut_import: None,
             server: ServerSurface::default(),
+            send: SendSurface::default(),
+            send_host: String::new(),
+            send_port: String::new(),
+            send_code: String::new(),
+            send_remove: false,
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
             places_zoom_chosen: false,
@@ -8771,12 +8833,18 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     }
     ui.add_space(8.0);
     ui.separator();
-    // The model downloader (SL-F02), the update check (SL-I10) and serving the library to paired
-    // devices (SL-J01/J09) were once desktop-only; with no browser target they are unconditional.
+    // The model downloader (SL-F02) and the update check (SL-I10) are the same on both screens.
+    // Serving the library (SL-J01/J09) is the desktop's half of the phone link; the phone's half is
+    // to pair and send, and its host does not serve, so each width gets only its own section.
     ai_models_section(ui, t, engine, actions);
     ui.separator();
     updates_section(ui, t, engine, actions);
-    sync_section(ui, state, t, actions);
+    if state.narrow {
+        ui.separator();
+        send_section(ui, state, t, actions);
+    } else {
+        sync_section(ui, state, t, actions);
+    }
     ui.separator();
     ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
     keyword_packs(ui, t, engine, actions);
@@ -8943,7 +9011,7 @@ fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut V
     ui.add_space(8.0);
 }
 
-/// Settings → Sync & devices: start or stop the server that pairs a phone or tablet to this
+/// Settings → Sync & devices (desktop only): start or stop the server that pairs a phone to this
 /// library, and see what is paired.
 ///
 /// The shell owns none of it: the host spawns `sortlens-server` beside itself, feeds
@@ -9026,6 +9094,109 @@ fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
         )
         .size(10.5)
         .color(t.text_faint),
+    );
+    ui.add_space(8.0);
+}
+
+/// Settings → Send to desktop: the phone's half of the same protocol (SL-J04/J05 from the app).
+///
+/// The desktop's Sync & devices section serves; this is the phone's counterpart, and the two never
+/// share a screen: a phone pairs with the six-digit code the desktop prints, then queues the chosen
+/// photographs over the resumable upload, with the keep-or-remove choice riding on every photograph
+/// (SL-J05). Painted only under [`NARROW_BELOW`], because a desktop sending to a desktop is not a
+/// question the shell answers.
+fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+    ui.label(RichText::new(tl!("Send to desktop")).size(11.0).color(t.text_muted));
+    let send = state.send.clone();
+    if send.paired {
+        ui.label(
+            RichText::new(format!("Paired with {}:{}", send.host, send.port))
+                .size(12.0)
+                .strong(),
+        );
+        let forget = ui.add_enabled(!send.sending, Button::new(RichText::new(tl!("Forget this desktop")).size(12.0)));
+        let forget = if send.sending {
+            forget.on_hover_text("Stop the run before forgetting the desktop it is sending to")
+        } else {
+            forget.on_hover_text("The stored token is dropped; pairing again needs a fresh code")
+        };
+        if forget.clicked() {
+            actions.push(Action::SendForget);
+        }
+    } else {
+        ui.label(
+            RichText::new("Type the address the desktop's Sync & devices screen shows, and the code it prints.")
+                .size(10.5)
+                .color(t.text_faint),
+        );
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tl!("Desktop address")).size(11.0));
+            ui.add(TextEdit::singleline(&mut state.send_host).desired_width(140.0));
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tl!("Port")).size(11.0));
+            ui.add(TextEdit::singleline(&mut state.send_port).desired_width(70.0));
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tl!("Pairing code")).size(11.0));
+            ui.add(TextEdit::singleline(&mut state.send_code).desired_width(70.0));
+        });
+        let port = state.send_port.trim().parse::<u16>().ok();
+        let ready = !state.send_host.trim().is_empty() && port.is_some_and(|p| p > 0) && !state.send_code.trim().is_empty();
+        let pair = ui
+            .add_enabled(ready, Button::new(RichText::new(tl!("Pair")).size(12.0)))
+            .on_hover_text("Trades the code for a scoped token; the code itself is never stored");
+        if ready && pair.clicked() {
+            actions.push(Action::SendPair {
+                host: state.send_host.trim().to_owned(),
+                port: port.unwrap_or(0),
+                code: state.send_code.trim().to_owned(),
+            });
+        }
+    }
+    if send.sending {
+        let progress = match (&send.current, send.total) {
+            (Some(name), total) if total > 0 => format!("Sending {} — {} of {} finished", name, send.done + 1, total),
+            _ => format!("Sending… {} of {} finished", send.done, send.total),
+        };
+        ui.label(RichText::new(progress).size(12.0));
+        if ui
+            .button(RichText::new(tl!("Stop sending")).size(12.0))
+            .on_hover_text("The photograph it is on finishes or stays a server-side partial; the rest are not attempted")
+            .clicked()
+        {
+            actions.push(Action::SendCancel);
+        }
+    }
+    if let Some(last) = &send.last {
+        ui.label(RichText::new(last.clone()).size(11.0).color(t.text_muted));
+    }
+    let chosen = state.selection.len();
+    let label = if send.sending {
+        tl!("Sending…").to_owned()
+    } else {
+        format!("{} ({})", tl!("Send the selection"), chosen)
+    };
+    let enabled = send.paired && chosen > 0 && !send.sending;
+    let send_button = ui.add_enabled(enabled, Button::new(RichText::new(label).size(12.0)));
+    let hover = if !send.paired {
+        "Pair with the desktop first"
+    } else if chosen == 0 {
+        "Choose photographs to send first"
+    } else if send.sending {
+        "A run is already in flight; stop it before queuing another"
+    } else {
+        "Sends over the resumable upload, one photograph at a time"
+    };
+    let send_button = send_button.on_hover_text(hover);
+    if enabled && send_button.clicked() {
+        actions.push(Action::SendToDesktop(state.selection.ids(), state.send_remove));
+    }
+    ui.checkbox(&mut state.send_remove, tl!("Remove from this phone once the desktop holds them"));
+    ui.label(
+        RichText::new("Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.")
+            .size(10.5)
+            .color(t.text_faint),
     );
     ui.add_space(8.0);
 }
@@ -16652,6 +16823,237 @@ mod tests {
                 .iter()
                 .any(|a| matches!(a, Action::ServerRevoke(token) if token == "a1b2c3d4")),
             "the exact token goes to the host, so the exact row goes"
+        );
+    }
+
+    /// Settings → Send to desktop: the phone's half of the protocol (SL-J04/J05 from the app).
+    /// Unpaired, the section is a form and Pair is disabled until every field says something;
+    /// paired, it is a Forget, a progress line and a Send that refuses an empty selection and
+    /// hands the host the selection's ids with the keep-or-remove choice; sending, it names the
+    /// photograph it is on and Stop hands over a cancel. Desktop widths paint none of it.
+    #[test]
+    fn the_send_section_pairs_sends_and_forgets() {
+        let t = ThemeKind::Charcoal.tokens();
+        let engine_cell = std::cell::RefCell::new(Engine::new());
+        let ctx = egui::Context::default();
+        crate::theme::apply(&ctx, ThemeKind::Charcoal);
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(390.0, 2400.0));
+        let one_frame = |state: &mut UiState, input: egui::RawInput| {
+            state.settings_open = true;
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(ui, state, &t, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let frame = |state: &mut UiState, input: egui::RawInput| {
+            let _ = one_frame(state, input.clone());
+            let _ = one_frame(state, input.clone());
+            one_frame(state, input)
+        };
+        let click = |at: egui::Pos2| egui::RawInput {
+            screen_rect: Some(screen),
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        let release = |at: egui::Pos2| egui::RawInput {
+            screen_rect: Some(screen),
+            events: vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..egui::RawInput::default()
+        };
+        let button_rect = |output: &egui::FullOutput, label: &str| {
+            output
+                .shapes
+                .iter()
+                .find_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) if text.galley.text() == label => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{label} is painted"))
+        };
+        let text_rect = |output: &egui::FullOutput, needle: &str| {
+            output.shapes.iter().find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text().contains(needle) => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                _ => None,
+            })
+        };
+        // A section's own heading, not a hint that names the other section's screen.
+        let exact_rect = |output: &egui::FullOutput, label: &str| {
+            output.shapes.iter().find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text() == label => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                _ => None,
+            })
+        };
+        // Press and release, the way a tap lands; a press alone never clicks.
+        let tap = |state: &mut UiState, at: egui::Pos2| {
+            let _ = one_frame(state, click(at));
+            let _ = one_frame(state, release(at));
+        };
+
+        // A phone paints the section; a desktop width paints none of it — the desktop's own
+        // section is the one beside it.
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.narrow = true;
+        let output = frame(
+            &mut state,
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            },
+        );
+        assert!(
+            exact_rect(&output, "Send to desktop").is_some(),
+            "a phone is offered the send section"
+        );
+        assert!(
+            exact_rect(&output, "Sync & devices").is_none(),
+            "and not the server section its host cannot run"
+        );
+        let mut desktop = state.clone();
+        desktop.narrow = false;
+        let output = frame(&mut desktop, egui::RawInput::default());
+        assert!(
+            exact_rect(&output, "Send to desktop").is_none(),
+            "a desktop is not offered the send section"
+        );
+        assert!(
+            exact_rect(&output, "Sync & devices").is_some(),
+            "a desktop is offered the section that serves the library"
+        );
+
+        // Unpaired: the form is the three facts a pairing needs, and Pair answers nothing until
+        // every one of them says something.
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(text_rect(&output, "Desktop address").is_some());
+        assert!(text_rect(&output, "Port").is_some());
+        assert!(text_rect(&output, "Pairing code").is_some());
+        let at = button_rect(&output, "Pair").center();
+        tap(&mut state, at);
+        assert!(
+            !actions_cell.borrow().iter().any(|a| matches!(a, Action::SendPair { .. })),
+            "Pair answers nothing while a field is empty"
+        );
+        state.send_host = " 192.168.1.10 ".into();
+        state.send_port = "52114".into();
+        state.send_code = "448821".into();
+        let output = frame(&mut state, egui::RawInput::default());
+        let at = button_rect(&output, "Pair").center();
+        tap(&mut state, at);
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|a| matches!(a, Action::SendPair { host, port, code }
+                    if host == "192.168.1.10" && *port == 52_114 && code == "448821")),
+            "Pair hands over the typed address, port and code, trimmed"
+        );
+
+        // Paired: the link is named, Forget hands over nothing here, and Send refuses an empty
+        // selection instead of queueing a library nobody chose.
+        state.send = SendSurface {
+            paired: true,
+            host: "192.168.1.10".into(),
+            port: 52_114,
+            ..SendSurface::default()
+        };
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(text_rect(&output, "Paired with 192.168.1.10:52114").is_some(), "the link is named");
+        assert!(
+            text_rect(&output, "Send the selection (0)").is_some(),
+            "the count is the selection's own"
+        );
+        let at = button_rect(&output, "Send the selection (0)").center();
+        tap(&mut state, at);
+        assert!(
+            !actions_cell.borrow().iter().any(|a| matches!(a, Action::SendToDesktop(_, _))),
+            "an empty selection sends nothing"
+        );
+        let at = button_rect(&output, "Forget this desktop").center();
+        tap(&mut state, at);
+        assert!(actions_cell.borrow().iter().any(|a| matches!(a, Action::SendForget)));
+
+        // A chosen selection: Send hands the ids over, with the toggle's answer riding along.
+        state.send_remove = false;
+        state.selection.select_many(&[PhotoId(1), PhotoId(2)]);
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "Send the selection (2)").is_some(),
+            "the count is the selection's own"
+        );
+        let at = button_rect(&output, "Send the selection (2)").center();
+        tap(&mut state, at);
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|a| matches!(a, Action::SendToDesktop(ids, remove) if ids.clone() == vec![PhotoId(1), PhotoId(2)] && !*remove)),
+            "Send hands over the selection's ids and the keep choice"
+        );
+        state.send_remove = true;
+        let output = frame(&mut state, egui::RawInput::default());
+        let at = button_rect(&output, "Send the selection (2)").center();
+        tap(&mut state, at);
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|a| matches!(a, Action::SendToDesktop(_, remove) if *remove)),
+            "the toggle's answer rides on the action"
+        );
+
+        // In flight: the run names the photograph it is on and Stop hands over a cancel.
+        state.send = SendSurface {
+            paired: true,
+            host: "192.168.1.10".into(),
+            port: 52_114,
+            sending: true,
+            done: 2,
+            total: 5,
+            current: Some("IMG_0009.jpg".into()),
+            last: None,
+        };
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "Sending IMG_0009.jpg — 3 of 5 finished").is_some(),
+            "the run names the photograph it is on and its place"
+        );
+        let at = button_rect(&output, "Stop sending").center();
+        tap(&mut state, at);
+        assert!(actions_cell.borrow().iter().any(|a| matches!(a, Action::SendCancel)));
+        // Forget is disabled while the run is in flight: dropping the token mid-run would leave
+        // the worker sending under a pairing this phone no longer keeps.
+        let forgets = actions_cell.borrow().iter().filter(|a| matches!(a, Action::SendForget)).count();
+        let at = button_rect(&output, "Forget this desktop").center();
+        tap(&mut state, at);
+        assert_eq!(
+            actions_cell.borrow().iter().filter(|a| matches!(a, Action::SendForget)).count(),
+            forgets,
+            "Forget answers nothing while a run is in flight"
+        );
+
+        // What the last run produced is the sentence the person reads.
+        state.send.sending = false;
+        state.send.last = Some("Sent 4 photos: 3 kept, 1 to remove".into());
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "Sent 4 photos").is_some(),
+            "the finished run's own sentence is painted"
         );
     }
 }

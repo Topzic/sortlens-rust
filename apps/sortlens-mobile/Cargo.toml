@@ -16,7 +16,12 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 [dependencies]
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
+# The ack's remove decision is carried out through the engine's audited delete path (SL-J05), and
+# that path names its mode in this crate's type.
+sortlens-cull = { workspace = true }
 sortlens-ui = { workspace = true }
+# The link to a paired desktop speaks the suite's one protocol (SL-J02), never a second one.
+sortlens-remote = { workspace = true }
 # The choices the shell offers, kept in the suite's own settings document (the phone's only
 # configuration folder is the app's data directory, so the store is opened there explicitly).
 craft-settings = { workspace = true }
@@ -31,6 +36,7 @@ eframe = { workspace = true, features = ["android-native-activity"] }
 
 [dev-dependencies]
 sortlens-testkit = { workspace = true }
+serde_json = { workspace = true }
 
 # The workspace forbids unsafe code. The two C entry points a phone host calls are the only
 # exception, and they live in `entry.rs`, which says so; everything else stays forbidden by

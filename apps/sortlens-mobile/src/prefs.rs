@@ -26,6 +26,8 @@ pub struct PhonePrefs {
     pub appearance: Appearance,
     /// The library grid.
     pub library: Library,
+    /// The link to a paired desktop, if there is one.
+    pub desktop: DesktopPrefs,
 }
 
 /// Look and feel: the same four ids the desktop stores, with the same defaults.
@@ -67,6 +69,24 @@ impl Default for Library {
             sort: Sort::Natural.id().into(),
         }
     }
+}
+
+/// The phone's link to a paired desktop (SL-J04/J05 from the app): where it is, and the token a
+/// successful pairing left behind.
+///
+/// The code is never stored — it is a human carrier, not a credential — and an empty token means
+/// unpaired, so a file from before a pairing opens unpaired and stays honest.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DesktopPrefs {
+    /// The desktop's address, as the person typed it (its `listening` line's host).
+    pub host: String,
+    /// The port the desktop's server announced.
+    pub port: u16,
+    /// The scoped bearer token pairing produced; empty until then.
+    pub token: String,
+    /// The device name the server recorded for this phone.
+    pub device: String,
 }
 
 impl Settings for PhonePrefs {

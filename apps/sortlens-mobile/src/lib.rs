@@ -3,15 +3,16 @@
 //! One engine, one shell, one catalog format: this crate is the desktop application's host with the
 //! desktop removed — no title bar, no file dialogs, no reveal-in-folder, no sync server. What the
 //! phone adds is where it looks for photographs ([`places`]), where it keeps the choices the shell
-//! offers ([`prefs`]), and the two entry points a phone host calls ([`entry`]). Everything that
-//! decides, ranks, culls or paints is `sortlens-engine` and `sortlens-ui`, the same code the
-//! desktop runs.
+//! offers ([`prefs`]), its link to a paired desktop ([`send`]), and the two entry points a phone
+//! host calls ([`entry`]). Everything that decides, ranks, culls or paints is `sortlens-engine`
+//! and `sortlens-ui`, the same code the desktop runs.
 
 #![deny(unsafe_code)]
 
 pub mod entry;
 pub mod places;
 pub mod prefs;
+pub mod send;
 
 use std::path::PathBuf;
 
@@ -20,6 +21,7 @@ use sortlens_engine::Engine;
 use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 
 use crate::prefs::PhonePrefs;
+use crate::send::DesktopLink;
 
 /// The application: one engine, one shell, one settings file.
 pub struct App {
@@ -30,6 +32,8 @@ pub struct App {
     thumbs: Thumbnails,
     /// The theme the context currently carries.
     applied_theme: ThemeKind,
+    /// The link to a paired desktop, built from the settings document the file reopens.
+    link: DesktopLink,
 }
 
 impl App {
@@ -56,12 +60,14 @@ impl App {
                 Engine::new()
             }
         };
+        let desktop = store.get().desktop.clone();
         Self {
             engine,
             ui,
             store,
             thumbs: Thumbnails::new(places::cache_dir(&data_dir)),
             applied_theme: kind,
+            link: DesktopLink::open(&desktop.host, desktop.port, &desktop.token, &desktop.device),
         }
     }
 
@@ -133,6 +139,28 @@ impl App {
                 }
                 Err(error) => self.ui.notice(error.to_string()),
             },
+            Action::SendPair { host, port, code } => {
+                self.link.pair(&host, port, &code);
+                self.ui.notice("Pairing with the desktop…");
+            }
+            Action::SendForget => {
+                self.link.forget();
+                self.save_link();
+                self.ui.notice("The desktop is forgotten; pairing again needs a fresh code");
+            }
+            Action::SendToDesktop(ids, remove) => {
+                let items = send::items_for(&ids, &self.engine, remove);
+                if items.is_empty() {
+                    self.ui.notice("Nothing to send: the chosen photos have no readable files");
+                } else {
+                    self.ui.notice(format!("Sending {} photo(s) to the desktop…", items.len()));
+                    self.link.send(items);
+                }
+            }
+            Action::SendCancel => {
+                self.link.cancel();
+                self.ui.notice("Stopping the send…");
+            }
             // The desktop's file dialogs, its sync server and its settings file have no phone
             // counterpart yet; each is named so a tap is never silent.
             _ => self.ui.notice("That is not available on the phone yet"),
@@ -156,6 +184,7 @@ impl eframe::App for App {
         if self.engine.batch_progress().is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
+        self.poll_link(&ctx);
         let actions = sortlens_ui::show(ui, &mut self.ui, &mut self.engine, &mut self.thumbs);
         for action in actions {
             self.apply(&ctx, action);
@@ -167,6 +196,50 @@ impl eframe::App for App {
     fn on_exit(&mut self) {
         let _ = self.engine.close();
         let _ = self.store.flush();
+    }
+}
+
+impl App {
+    /// Write the link's current pairing into the settings document, the one place the token
+    /// survives the OS ending the process.
+    fn save_link(&mut self) {
+        let (host, port, token, device) = self.link.config();
+        let host = host.to_owned();
+        let token = token.to_owned();
+        let device = device.to_owned();
+        self.store.update(move |prefs| {
+            prefs.desktop = crate::prefs::DesktopPrefs { host, port, token, device };
+        });
+    }
+
+    /// The link's own answers between frames: a pairing that landed (its token is kept on the
+    /// device, its reason is said), a finished run (its remove decisions handed to the library's
+    /// audited delete path), and the surface the Settings section paints.
+    fn poll_link(&mut self, ctx: &egui::Context) {
+        if let Some(answer) = self.link.poll_pair() {
+            match answer {
+                Ok((_, device)) => {
+                    self.save_link();
+                    self.ui.notice(format!("Paired with the desktop as {device}"));
+                }
+                Err(reason) => self.ui.notice(format!("Pairing failed: {reason}")),
+            }
+            ctx.request_repaint();
+        }
+        if let Some(outcome) = self.link.take_outcome() {
+            let removal = send::remove_from_phone(&mut self.engine, &outcome, sortlens_cull::trash::Mode::Trash);
+            let mut text = send::sentence(&outcome);
+            text.push_str(&removal.coda);
+            self.link.set_last(text);
+            if let Some(notice) = removal.notice {
+                self.ui.notice(notice);
+            }
+            ctx.request_repaint();
+        }
+        self.ui.send = self.link.surface();
+        if self.ui.send.sending {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
     }
 }
 
