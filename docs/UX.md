@@ -573,8 +573,12 @@ re-checks its own contrast pairs after applying.
 - Contrast: enforced by theme tests; the High Contrast preset is shipped — pure black/white/yellow,
   chrome strokes doubled, text at AAA and muted text at AA against its black, with the same WCAG
   measure as the other presets.
-- i18n: every label is an English key; RTL mirrors the shell (sidebar to the right, icons
-  mirrored where directional); the photo is never mirrored.
+- i18n: every label is an English key; a missing translation is the English itself. The scaffold
+  ships Arabic and Japanese (Settings → Language, persisted) with the direction plumbing: RTL
+  mirrors the shell's chrome — the sidebar sits at the reading start, the tool strip and right
+  panel at the reading end, rows read from their reading start — and the photo is never mirrored.
+  The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
+  are the proof a left-to-right interface is unchanged.
 
 ---
 

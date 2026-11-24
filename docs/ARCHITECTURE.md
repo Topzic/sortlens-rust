@@ -473,7 +473,25 @@ Implemented as `crates/ui/build.rs` + `crates/ui/src/fonts.rs`:
 - The web build embeds faces rather than serving them for now; `Embed::serve` stays the plan if the
   wasm bundle grows past its budget.
 
-### 8.4 Keymap and menus
+### 8.4 Interface language (i18n)
+
+`crates/ui/src/i18n.rs` routes the interface's strings through `craft-i18n`: the English text is
+the lookup key, a missing row is the English itself, and the catalogue a translation has not
+reached yet never breaks the interface. The scaffold (SL-L07, Phase 4 item 2d) embeds Arabic and
+Japanese rows for the strings routed so far — the sidebar's sources and sections, the foot's
+registry labels and the Settings dialog — and offers the picker (Settings → Language) that names
+every language in itself. `Appearance.language` persists the code and an unknown code reads as
+English.
+
+The direction plumbing is `craft-ui`'s: `i18n::apply_direction` resolves the interface direction
+from the chosen language (overridable with `CRAFT_UI_DIRECTION` for checking a mirrored layout
+before a right-to-left catalogue exists) and installs it on the context every frame — egui's own
+chrome mirrors through the fork's `Style::right_to_left`, the sidebar sits at the reading start
+and the tool strip and right panel at the reading end, and `nav_row` paints its glyph, label and
+count from the reading start. A left-to-right interface paints byte for byte what it painted
+before the scaffold existed — the screenshot baselines are the proof, all 19 unchanged.
+
+### 8.5 Keymap and menus
 
 `craft-keymap` owns chords, scopes, conflicts, overrides and the editor. Our contribution is
 the catalog: ids, labels, menu paths, defaults — the rebindable rows of `crates/ui/src/keymap.rs`'s

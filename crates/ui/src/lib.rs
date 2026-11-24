@@ -9,6 +9,7 @@
 pub mod a11y;
 pub mod charts;
 pub mod fonts;
+pub mod i18n;
 pub mod icons;
 pub mod keymap;
 pub mod places;

@@ -831,7 +831,9 @@ selection as originals and as JPEG and diff the metadata.
 
 **State:** the automation half is in — the MCP server, `--json` on the read verbs and the diagnostics
 bundle. The remote half (a server, a wasm client, remote album edits) is **open work in Phase 4**, as is
-i18n; the keymap editor shipped 2026-11-24 (see the Phase 4 row), and none of M9 is closed until the
+the rest of i18n (the scaffolding shipped 2026-11-24 with Arabic, Japanese and the direction plumbing —
+see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted surfaces and the RTL screenshots stay open);
+the keymap editor shipped 2026-11-24 (see the Phase 4 row), and none of M9 is closed until the
 remaining rows are ticked.
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
@@ -859,7 +861,10 @@ remaining rows are ticked.
     instead of refusing, that every note is a sentence rather than a placeholder, and that the table marks
     writes as writes — **proved to bite** by renaming `pack` in the table (it fails naming the verb and quoting
     the refusal).
-- [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07
+- [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07 — the scaffolding is in:
+  embedded ar/ja catalogues, Settings → Language, the reading-start/end panels and the mirrored rows
+  (see the Phase 4 item 2d row). Open: the other four languages, the unrouted surfaces, and RTL
+  screenshots, which need a font build with an Arabic face
 - [ ] Localised numbers/dates (B) — SL-L08
 - [x] `craft-keymap` editor + import/export (B) — SL-I09 — **done 2026-11-24**, see Phase 4 item 1: the
   rebindable catalog is the single-chord command rows of `crates/ui/src/keymap.rs`'s own table (the two
@@ -1306,7 +1311,26 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     `the_updates_settings_section_gates_the_check_behind_consent` (the checkbox clicked through the real
     widget, `Check now` appearing and disappearing with the consent). No baseline moved: no settings scene
     exists, and the section is desktop-only.
-  - [ ] 2d. `craft-i18n` scaffolding (SL-L07)
+  - [x] 2d. `craft-i18n` scaffolding (SL-L07) — **done 2026-11-24**: `crates/ui/src/i18n.rs` builds the
+    suite's `I18n` once from the embedded Arabic and Japanese catalogues (`crates/ui/src/i18n/ar.tsv`,
+    `ja.tsv`) and routes the first batch of strings through it — the sidebar's six sources and five
+    sections, the foot's four registry labels, the right-panel tab labels, the delete modes and the
+    Settings dialog — a missing row is the English text, so partial coverage shows English rather
+    than breaking. Settings → Language offers each language named in itself; the choice persists as
+    `Appearance.language` and is restored at launch. Direction: `i18n::apply_direction` resolves it
+    from the language (overridable with `CRAFT_UI_DIRECTION`) and applies it every frame; the sidebar
+    sits at the reading start, the tool strip and right panel at the reading end, `nav_row` mirrors
+    its glyph/label/count, and section titles align to the reading start. Proved by the catalogue
+    audit (`catalogs_load_and_routed_keys_have_rows` reads the routed keys out of the sources and
+    fails on a key with no row in either language), `the_picker_names_every_language_and_directions_follow_the_script`,
+    the settings round-trip `the_language_setting_round_trips_and_an_unknown_one_is_english`, and the
+    headless `the_language_switch_moves_the_sidebar_to_the_reading_start` (the radio clicked through
+    the real Settings widget, `SetLanguage` asked of the host, the sources header measured in the
+    right half in Arabic and the left half again in English). All 19 screenshot baselines regenerated
+    byte-identical — the proof a left-to-right interface paints exactly what it painted before. Not
+    shipped here, still open under the M9 row: the other four languages the design names (zh-TW, ko,
+    th, vi), the remaining unrouted surfaces, and RTL screenshots of the painted interface, which
+    need an Arabic-capable font build (CI's has none).
   (B,E)
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and `sortlens-web` reusing `sortlens-ui` (SL-J01..J09), proved by a two-process loopback

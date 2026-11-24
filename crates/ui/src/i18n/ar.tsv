@@ -1,0 +1,40 @@
+# Arabic (ar) catalogue for Sortlens' interface — Phase 4 item 2d scaffolding (SL-L07).
+# Format: context<TAB>source<TAB>translation; the shared column of the embedded table is empty,
+# so these are all Sortlens' own rows. A missing row is the English text, never an error.
+@id	language.name	العربية
+	All Photos	كل الصور
+	Recently Added	المضافة حديثًا
+	Picks	المختارات
+	Rated	مقيّمة
+	Missing	مفقودة
+	Rejects	المستبعدات
+	Sources	المصادر
+	Folders	المجلدات
+	Subfolders	المجلدات الفرعية
+	Keywords	الكلمات المفتاحية
+	Collections	المجموعات
+	Library	المكتبة
+	Details	التفاصيل
+	Tags	الوسوم
+	Suggestions	الاقتراحات
+	Activity	النشاط
+	Move to the Trash	انقل إلى المهملات
+	Tag only, move nothing	وسم فقط دون نقل
+	Settings	الإعدادات
+	Appearance	المظهر
+	Backup	النسخ الاحتياطي
+	Shortcuts	الاختصارات
+	Keyword packs	حزم الكلمات المفتاحية
+	Language	اللغة
+	Back up library…	نسخ المكتبة احتياطيًا…
+	Restore into a folder…	استعادة إلى مجلد…
+	Edit shortcuts…	تحرير الاختصارات…
+	Write XMP sidecars beside photos	اكتب ملفات XMP بجوار الصور
+	AI models (local)	نماذج الذكاء الاصطناعي (محليًا)
+	Updates	التحديثات
+	More settings arrive with the features they configure.	الإعدادات الإضافية تصل مع الميزات التي تضبطها.
+	Check Library	فحص المكتبة
+	Recently Deleted	المحذوفة حديثًا
+	Recent Changes	التغييرات الأخيرة
+	Keyboard Shortcuts	اختصارات لوحة المفاتيح
+	Applying a cull batch	تطبيق دفعة التنقية

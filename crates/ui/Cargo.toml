@@ -21,6 +21,10 @@ egui = { workspace = true }
 # SVG rasterisation for the monochrome icon set: `craft_ui::icons` prepares the bytes, this loads them.
 egui_extras = { workspace = true }
 craft-ui = { workspace = true }
+# Interface strings through the suite's i18n (SL-L07): catalogues, plurals, direction.
+craft-i18n = { workspace = true }
+# Catalogue problems are logged, the way craft-i18n's apps log them.
+log = "0.4"
 # The shortcut editor (Settings → Shortcuts): rebinding, conflicts, sets, import/export.
 craft-keymap = { workspace = true }
 serde = { workspace = true }

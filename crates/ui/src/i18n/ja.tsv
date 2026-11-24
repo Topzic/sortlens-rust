@@ -1,0 +1,40 @@
+# Japanese (ja) catalogue for Sortlens' interface — Phase 4 item 2d scaffolding (SL-L07).
+# Format: context<TAB>source<TAB>translation; the shared column of the embedded table is empty,
+# so these are all Sortlens' own rows. A missing row is the English text, never an error.
+@id	language.name	日本語
+	All Photos	すべての写真
+	Recently Added	最近追加
+	Picks	ピック
+	Rated	評価済み
+	Missing	不在
+	Rejects	却下
+	Sources	ソース
+	Folders	フォルダー
+	Subfolders	サブフォルダー
+	Keywords	キーワード
+	Collections	コレクション
+	Library	ライブラリ
+	Details	詳細
+	Tags	タグ
+	Suggestions	提案
+	Activity	アクティビティ
+	Move to the Trash	ゴミ箱へ移動
+	Tag only, move nothing	タグのみで移動しない
+	Settings	設定
+	Appearance	外観
+	Backup	バックアップ
+	Shortcuts	ショートカット
+	Keyword packs	キーワードパック
+	Language	言語
+	Back up library…	ライブラリをバックアップ…
+	Restore into a folder…	フォルダーへ復元…
+	Edit shortcuts…	ショートカットを編集…
+	Write XMP sidecars beside photos	写真の隣にXMPサイドカーを書き込む
+	AI models (local)	AIモデル（ローカル）
+	Updates	アップデート
+	More settings arrive with the features they configure.	他の設定は、その機能とともに追加されます。
+	Check Library	ライブラリをチェック
+	Recently Deleted	最近削除
+	Recent Changes	最近の変更
+	Keyboard Shortcuts	キーボードショートカット
+	Applying a cull batch	選別を適用

@@ -134,6 +134,12 @@ impl App {
         ui.motion = sortlens_ui::Motion::from_id(&store.get().appearance.motion);
         ui.sort = saved_sort;
         ui.library_sort = saved_sort;
+        // The interface language is a setting, not a session default (SL-L07): it was chosen
+        // deliberately once, and it stays until it is changed. An unknown code reads as English.
+        if let Some(lang) = sortlens_ui::i18n::from_code(&store.get().appearance.language) {
+            sortlens_ui::i18n::set_current(lang);
+            sortlens_ui::i18n::apply_direction(&cc.egui_ctx);
+        }
         if report.has_problems() {
             ui.notice("Settings could not be read in full; defaults are in use");
         }
@@ -216,6 +222,9 @@ impl App {
             }
             Action::SetMotion(motion) => {
                 self.store.update(|prefs| prefs.appearance.motion = motion.id().to_owned());
+            }
+            Action::SetLanguage(code) => {
+                self.store.update(|prefs| prefs.appearance.language = code);
             }
             Action::SetTheme(kind) => {
                 if kind != self.applied_theme {

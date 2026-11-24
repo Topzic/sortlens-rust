@@ -4950,12 +4950,14 @@ dependencies = [
 name = "sortlens-ui"
 version = "0.1.0"
 dependencies = [
+ "craft-i18n",
  "craft-keymap",
  "craft-ui",
  "eframe",
  "egui",
  "egui_extras",
  "egui_kittest",
+ "log",
  "serde",
  "serde_json",
  "sortlens-core",

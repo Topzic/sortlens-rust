@@ -10,6 +10,7 @@
 
 use crate::a11y;
 use crate::charts::{self, Column};
+use crate::i18n::{I18N, current, set_current, tl};
 use crate::keymap::{self, Context};
 use crate::places;
 use crate::sharpness;
@@ -17,6 +18,7 @@ use crate::theme::{Density, GridMode, Motion, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
 use craft_keymap::ui::{DialogState, English, Options as ShortcutOptions, Outcome as ShortcutOutcome, ShortcutsDialog};
 use craft_keymap::{CommandRef, Keymap, Overrides, Profiles};
+use craft_ui::direction::{align2, end_panel, end_x, forward, start_align, start_panel, start_x};
 use egui::{
     Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
     Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
@@ -134,13 +136,14 @@ impl RightTab {
     /// Tabs in order, which is also the order the far-edge tool strip paints them.
     pub const ALL: [Self; 4] = [Self::Details, Self::Tags, Self::Suggestions, Self::Activity];
 
-    /// Tab label.
-    pub const fn label(self) -> &'static str {
+    /// Tab label, through the interface language (SL-L07); a missing row is the English.
+    #[must_use]
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Details => "Details",
-            Self::Tags => "Tags",
-            Self::Suggestions => "Suggestions",
-            Self::Activity => "Activity",
+            Self::Details => tl!("Details"),
+            Self::Tags => tl!("Tags"),
+            Self::Suggestions => tl!("Suggestions"),
+            Self::Activity => tl!("Activity"),
         }
     }
 
@@ -232,6 +235,9 @@ pub enum Action {
     SetGrid(GridMode),
     /// Reduce motion: no slide, no fade in the cull overlay.
     SetMotion(Motion),
+    /// The interface language was switched (SL-L07): the shell has already switched its own
+    /// strings and direction; the host persists the code.
+    SetLanguage(String),
     MovePicks(Vec<PhotoId>),
     /// Put a moved batch back.
     UndoMove(u64),
@@ -273,11 +279,12 @@ impl DeleteMode {
     /// Every mode the UI can choose. Moving files arrives with the move feature.
     pub const ALL: [Self; 2] = [Self::Trash, Self::TagOnly];
 
-    /// Label for the radio and the confirmation.
-    pub const fn label(self) -> &'static str {
+    /// Label for the radio and the confirmation, through the interface language (SL-L07).
+    #[must_use]
+    pub fn label(self) -> &'static str {
         match self {
-            Self::Trash => "Move to the Trash",
-            Self::TagOnly => "Tag only, move nothing",
+            Self::Trash => tl!("Move to the Trash"),
+            Self::TagOnly => tl!("Tag only, move nothing"),
         }
     }
 
@@ -564,16 +571,16 @@ impl Source {
         Source::Rejects,
     ];
 
-    /// The row's label.
+    /// The row's label, through the interface language (SL-L07): a missing row is the English.
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            Source::All => "All Photos",
-            Source::Added => "Recently Added",
-            Source::Picks => "Picks",
-            Source::Rated => "Rated",
-            Source::Missing => "Missing",
-            Source::Rejects => "Rejects",
+            Source::All => tl!("All Photos"),
+            Source::Added => tl!("Recently Added"),
+            Source::Picks => tl!("Picks"),
+            Source::Rated => tl!("Rated"),
+            Source::Missing => tl!("Missing"),
+            Source::Rejects => tl!("Rejects"),
         }
     }
 
@@ -1193,6 +1200,10 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     // The icon set's SVG loader, installed before anything paints: the first frame a glyph appears on
     // is the frame it must be there, or the chrome flashes a row of empty boxes on every launch.
     crate::icons::install(ui.ctx());
+
+    // The interface direction follows the chosen language (SL-L07). Applied every frame: it is
+    // cheap, and a theme change installs a whole new Style, which resets the field.
+    crate::i18n::apply_direction(ui.ctx());
 
     // A photo can vanish under the selection — a delete, an emptied bin, a rescan that found the file gone.
     // Dropping it here, once, keeps the inspector from showing a photo that is no longer in the library.
@@ -2333,7 +2344,7 @@ fn folder_scope(mark: &sortlens_engine::FolderMark, library_sort: Sort) -> (Sort
 /// Its own function because the sidebar had grown past the point where one closure could hold every section and
 /// stay readable — the complexity gate said so, which is the right time to split rather than to silence it.
 fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
-    nav_section(ui, t, "Folders");
+    nav_section(ui, t, tl!("Folders"));
     // Volumes once per root, not once per photo: an unplugged drive holding ten thousand photos is
     // one missing volume, and the sidebar says so beside the folder instead of after scrolling.
     let volumes = engine.root_volumes();
@@ -2360,8 +2371,8 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         let response = nav_row(ui, t, crate::icons::Icon::Folder, &name, &count_text, selected);
         if let Some(colour) = mark.colour {
             // The same dot a collection uses, in the same place: a colour means one thing in this
-            // sidebar, whichever kind of row carries it.
-            let dot = pos2(response.rect.left() + 3.0, response.rect.center().y);
+            // sidebar, whichever kind of row carries it. At the reading start edge, like the glyph.
+            let dot = pos2(start_x(ui, response.rect) + forward(ui) * 3.0, response.rect.center().y);
             ui.painter().circle_filled(dot, 3.0, t.label(colour));
         }
         if offline {
@@ -2436,7 +2447,9 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
 }
 
 fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
-    egui::Panel::left("left_panel")
+    // The sidebar sits at the reading start: left in a left-to-right interface, right in a
+    // right-to-left one (SL-L07).
+    start_panel(ui, "left_panel")
         .resizable(true)
         .default_size(state.left_w)
         .size_range(210.0..=380.0)
@@ -2448,7 +2461,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
             // "always there" is the whole reason it left the middle of the sidebar.
             sidebar_foot(ui, state, t, engine, actions);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Library").size(12.0).strong());
+                ui.label(RichText::new(tl!("Library")).size(12.0).strong());
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if glyph_button(ui, t, crate::icons::Icon::FolderPlus, "Add a folder to index", false).clicked() {
                         actions.push(Action::PickFolder);
@@ -2468,7 +2481,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 .id_salt("sidebar_sections")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    nav_section(ui, t, "Sources");
+                    nav_section(ui, t, tl!("Sources"));
                     let now = sortlens_engine::now_epoch();
                     for source in Source::ALL {
                         // Each row's count is what that row would show, not the library total: a Picks row reading
@@ -2503,7 +2516,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                     if let Some(root) = state.root.clone() {
                         let folders = engine.subfolders(&root, &state.folder);
                         if !folders.is_empty() {
-                            nav_section(ui, t, "Subfolders");
+                            nav_section(ui, t, tl!("Subfolders"));
                         }
                         for (name, count) in folders {
                             let prefix = format!("{}{name}/", state.folder);
@@ -2517,7 +2530,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                     folders_section(ui, t, state, engine, actions);
 
                     ui.horizontal(|ui| {
-                        nav_section(ui, t, "Keywords");
+                        nav_section(ui, t, tl!("Keywords"));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if ui
                                 .add(Button::new(RichText::new(state.tag_order.label()).size(9.5)).frame(false))
@@ -2660,7 +2673,7 @@ fn sidebar_foot(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
                     PaletteCommand::Deleted => format_count(engine.deleted_batches().len() as u64),
                     _ => spec.shortcut.unwrap_or_default().to_string(),
                 };
-                let row = nav_row(ui, t, icon, spec.label, &trailing, false);
+                let row = nav_row(ui, t, icon, tl!(spec.label), &trailing, false);
                 let row = if command == PaletteCommand::Shortcuts {
                     row.on_hover_text("Every binding, searchable")
                 } else {
@@ -2699,7 +2712,8 @@ fn delete_keyword_everywhere(state: &mut UiState, engine: &mut Engine, tag: &str
 /// “Switching tools” here never hides the panel — that is the whole point of the ArtCraft pattern — so the only thing
 /// a click can do besides switching is close the body deliberately.
 fn right_tools(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
-    egui::Panel::right("right_tools")
+    // The strip sits at the reading end, opposite the sidebar (SL-L07).
+    end_panel(ui, "right_tools")
         .exact_size(TAB_STRIP_W)
         .frame(Frame::NONE.fill(t.panel).inner_margin(Margin::symmetric(3, 8)))
         .show(ui, |ui| {
@@ -2726,7 +2740,7 @@ fn right_tools(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
 }
 
 fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
-    egui::Panel::right("right_panel")
+    end_panel(ui, "right_panel")
         .resizable(true)
         .default_size(t.right_w)
         .size_range(250.0..=420.0)
@@ -6821,7 +6835,7 @@ fn remember_search(state: &mut UiState, engine: &mut Engine) {
 
 /// Collections: favourites first, each with its colour, and the actions that change both.
 fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
-    nav_section(ui, t, "Collections");
+    nav_section(ui, t, tl!("Collections"));
     let collections = engine.collections();
     if collections.is_empty() {
         hint(ui, t, "Collect photos into named sets without moving them.");
@@ -8138,13 +8152,13 @@ fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
 
 fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.settings_open;
-    egui::Window::new("Settings")
+    egui::Window::new(tl!("Settings"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(360.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new("Appearance").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Appearance")).size(11.0).color(t.text_muted));
             for kind in ThemeKind::ALL {
                 if ui.radio(state.theme == kind, kind.label()).clicked() && state.theme != kind {
                     actions.push(Action::SetTheme(kind));
@@ -8152,9 +8166,23 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             }
             ui.add_space(8.0);
             ui.separator();
-            ui.label(RichText::new("Library").size(11.0).color(t.text_muted));
+            // The interface language (SL-L07): the switch is instant, the host persists the code.
+            // The radio row reads each language in itself, so the list is the proof of what changes.
+            ui.label(RichText::new(tl!("Language")).size(11.0).color(t.text_muted));
+            ui.horizontal(|ui| {
+                for lang in I18N.languages() {
+                    let code = I18N.code(lang).to_owned();
+                    if ui.radio(current() == lang, I18N.name(lang)).clicked() && current() != lang {
+                        set_current(lang);
+                        actions.push(Action::SetLanguage(code));
+                    }
+                }
+            });
+            ui.add_space(8.0);
+            ui.separator();
+            ui.label(RichText::new(tl!("Library")).size(11.0).color(t.text_muted));
             let mut write_sidecars = engine.write_sidecars();
-            if ui.checkbox(&mut write_sidecars, "Write XMP sidecars beside photos").changed() {
+            if ui.checkbox(&mut write_sidecars, tl!("Write XMP sidecars beside photos")).changed() {
                 engine.set_write_sidecars(write_sidecars);
                 actions.push(Action::SetSidecars(write_sidecars));
             }
@@ -8164,7 +8192,7 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                     .color(t.text_faint),
             );
             ui.add_space(8.0);
-            ui.label(RichText::new("Applying a cull batch").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Applying a cull batch")).size(11.0).color(t.text_muted));
             for mode in DeleteMode::ALL {
                 if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
                     state.delete_mode = mode;
@@ -8172,17 +8200,17 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             }
             ui.add_space(8.0);
             ui.separator();
-            ui.label(RichText::new("Backup").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Backup")).size(11.0).color(t.text_muted));
             ui.horizontal(|ui| {
                 if ui
-                    .button(RichText::new("Back up library…").size(12.0))
+                    .button(RichText::new(tl!("Back up library…")).size(12.0))
                     .on_hover_text("One verified file holding the index and every decision")
                     .clicked()
                 {
                     actions.push(Action::Backup);
                 }
                 if ui
-                    .button(RichText::new("Restore into a folder…").size(12.0))
+                    .button(RichText::new(tl!("Restore into a folder…")).size(12.0))
                     .on_hover_text("Unpack a backup as a separate library; the open one is untouched")
                     .clicked()
                 {
@@ -8196,9 +8224,9 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             );
             ui.add_space(8.0);
             ui.separator();
-            ui.label(RichText::new("Shortcuts").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Shortcuts")).size(11.0).color(t.text_muted));
             if ui
-                .button(RichText::new("Edit shortcuts…").size(12.0))
+                .button(RichText::new(tl!("Edit shortcuts…")).size(12.0))
                 .on_hover_text("Rebind keys, resolve conflicts, and import or export shortcut sets")
                 .clicked()
             {
@@ -8218,7 +8246,7 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             #[cfg(not(target_arch = "wasm32"))]
             updates_section(ui, t, engine, actions);
             ui.separator();
-            ui.label(RichText::new("Keyword packs").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
             keyword_packs(ui, t, engine, actions);
             if ui
                 .button(RichText::new("Suggest keywords for the library…").size(12.0))
@@ -8229,7 +8257,7 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             }
             ui.add_space(8.0);
             ui.label(
-                RichText::new("More settings arrive with the features they configure.")
+                RichText::new(tl!("More settings arrive with the features they configure."))
                     .size(11.0)
                     .color(t.text_faint),
             );
@@ -8245,7 +8273,7 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 /// the hint says what a model is *for* before the panel promises anything.
 #[cfg(not(target_arch = "wasm32"))]
 fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
-    ui.label(RichText::new("AI models (local)").size(11.0).color(t.text_muted));
+    ui.label(RichText::new(tl!("AI models (local)")).size(11.0).color(t.text_muted));
     let mut consent = engine.models_consent();
     let response = ui.checkbox(&mut consent, "Allow downloading models (network)");
     if response.changed() {
@@ -8348,7 +8376,7 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
 /// the dialog closes is still kept for `update.status`.
 #[cfg(not(target_arch = "wasm32"))]
 fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
-    ui.label(RichText::new("Updates").size(11.0).color(t.text_muted));
+    ui.label(RichText::new(tl!("Updates")).size(11.0).color(t.text_muted));
     let mut consent = engine.update_consent();
     if ui.checkbox(&mut consent, "Check for updates (network)").changed() {
         engine.set_update_consent(consent);
@@ -8685,7 +8713,17 @@ fn shortcut_editor_dialog(ui: &mut Ui, state: &mut UiState, actions: &mut Vec<Ac
 
 fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
     ui.add_space(10.0);
-    ui.label(RichText::new(title.to_uppercase()).size(9.5).color(t.text_faint));
+    // Against the reading start, whatever direction the interface runs (SL-L07). The wrap is
+    // behind an RTL check on purpose: at Align::Min a `with_layout` rounds the label's origin
+    // differently from a bare `ui.label`, and a left-to-right interface must paint byte for byte
+    // what it painted before the scaffold existed.
+    if craft_ui::direction::is_rtl(ui) {
+        ui.with_layout(Layout::top_down(start_align(ui)), |ui| {
+            ui.label(RichText::new(title.to_uppercase()).size(9.5).color(t.text_faint));
+        });
+    } else {
+        ui.label(RichText::new(title.to_uppercase()).size(9.5).color(t.text_faint));
+    }
     ui.add_space(2.0);
 }
 
@@ -8702,22 +8740,23 @@ fn nav_row(ui: &mut Ui, t: &Tokens, icon: crate::icons::Icon, label: &str, count
         ui.painter()
             .rect_filled(rect, t.corner(), if selected { t.selection } else { t.hover });
     }
-    // The glyph sits in its own 16-point column so every row's text starts at the same x whether or
-    // not the row has a picture — a list that goes ragged around the icons is harder to scan than one
-    // with no icons at all.
-    let glyph = Rect::from_center_size(pos2(rect.left() + 14.0, rect.center().y), Vec2::splat(14.0));
+    // The glyph sits in its own 16-point column at the reading start, so every row's text begins
+    // at the same x whether or not the row has a picture — a list that goes ragged around the
+    // icons is harder to scan than one with no icons at all. Right to left, the row mirrors:
+    // glyph at the reading start, label after it, count at the far end (SL-L07).
+    let glyph = Rect::from_center_size(pos2(start_x(ui, rect) + forward(ui) * 14.0, rect.center().y), Vec2::splat(14.0));
     crate::icons::paint(ui, icon, glyph, if selected { t.text } else { t.text_muted });
     let width = rect.width() - 34.0;
     ui.painter().text(
-        rect.left_center() + vec2(26.0, 0.0),
-        Align2::LEFT_CENTER,
+        pos2(start_x(ui, rect) + forward(ui) * 26.0, rect.center().y),
+        align2(ui, Align2::LEFT_CENTER),
         truncate(label, (width / 6.4) as usize),
         t.font(12.0),
         t.text,
     );
     ui.painter().text(
-        rect.right_center() - vec2(6.0, 0.0),
-        Align2::RIGHT_CENTER,
+        pos2(end_x(ui, rect) - forward(ui) * 6.0, rect.center().y),
+        align2(ui, Align2::RIGHT_CENTER),
         count,
         t.font(11.0),
         t.text_faint,
@@ -8807,6 +8846,187 @@ fn cell_size(width: f32, columns: usize, gap: f32) -> Vec2 {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The interface language (SL-L07 scaffolding): switching it in Settings is instant, asks the
+    /// host to persist the code, and the sidebar's rows move to the reading start — right, in an
+    /// Arabic interface — with the row's own label in Arabic and its count at the far end.
+    /// Switching back to English restores the left-to-right layout exactly. Headless on purpose:
+    /// the CI fonts have no Arabic face, so this proves the geometry, not the glyphs.
+    #[test]
+    fn the_language_switch_moves_the_sidebar_to_the_reading_start() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-language-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine_cell = std::cell::RefCell::new(Engine::new());
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        assert_eq!(crate::i18n::I18N.code(crate::i18n::current()), "en", "English until it is switched");
+
+        let mut frame = |state: &mut UiState, mut input: egui::RawInput| {
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0)));
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // English, left to right: the sources section starts at the left edge.
+        let text_rect = |output: &egui::FullOutput, needle: &str| {
+            output.shapes.iter().find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text().contains(needle) => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                _ => None,
+            })
+        };
+        let output = frame(&mut state, egui::RawInput::default());
+        let sources = text_rect(&output, "SOURCES").expect("the sources section is painted in English");
+        assert!(sources.right() < 640.0, "the sidebar is at the left edge, got {sources:?}");
+        assert!(text_rect(&output, "المصادر").is_none(), "English shows no Arabic");
+
+        // Switch through the real Settings dialog: the radio row reads every language in itself.
+        let mut settings = UiState::new(ThemeKind::Charcoal, 0.0);
+        settings.settings_open = true;
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let mut settings_frame = |mut input: egui::RawInput| {
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0)));
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(
+                        ui,
+                        &mut settings,
+                        &tokens,
+                        &mut engine_cell.borrow_mut(),
+                        &mut actions_cell.borrow_mut(),
+                    );
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let _warm = settings_frame(egui::RawInput::default());
+        let output = settings_frame(egui::RawInput::default());
+        let radio = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text() == "العربية" => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                _ => None,
+            })
+            .expect("the language row is painted, each language named in itself");
+        let at = radio.center();
+        let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0))),
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        settings_frame(click(pos2(at.x, radio.center().y), true));
+        settings_frame(click(pos2(at.x, radio.center().y), false));
+        assert_eq!(
+            crate::i18n::I18N.code(crate::i18n::current()),
+            "ar",
+            "the click switched the language"
+        );
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|action| matches!(action, Action::SetLanguage(code) if code == "ar")),
+            "and asked the host to persist it"
+        );
+
+        // Arabic: the sidebar now starts at the right edge, its labels in Arabic.
+        let output = frame(&mut state, egui::RawInput::default());
+        let sources = text_rect(&output, "المصادر").expect("the sources section is painted in Arabic");
+        assert!(
+            sources.left() > 640.0,
+            "the sidebar sits at the reading start, right, got {sources:?}"
+        );
+        assert!(
+            text_rect(&output, "كل الصور").is_some(),
+            "the All Photos row reads in the interface language"
+        );
+
+        // And back: English restores the left edge exactly.
+        let mut english = UiState::new(ThemeKind::Charcoal, 0.0);
+        english.settings_open = true;
+        let mut warm = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                settings_dialog(
+                    ui,
+                    &mut english,
+                    &tokens,
+                    &mut engine_cell.borrow_mut(),
+                    &mut actions_cell.borrow_mut(),
+                );
+            });
+        });
+        warm.textures_delta.clear();
+        let output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                settings_dialog(
+                    ui,
+                    &mut english,
+                    &tokens,
+                    &mut engine_cell.borrow_mut(),
+                    &mut actions_cell.borrow_mut(),
+                );
+            });
+        });
+        let radio = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text() == "English" => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                _ => None,
+            })
+            .expect("the English radio is back");
+        let at = radio.center();
+        for pressed in [true, false] {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0))),
+                    events: vec![
+                        egui::Event::PointerMoved(at),
+                        egui::Event::PointerButton {
+                            pos: at,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        settings_dialog(
+                            ui,
+                            &mut english,
+                            &tokens,
+                            &mut engine_cell.borrow_mut(),
+                            &mut actions_cell.borrow_mut(),
+                        );
+                    });
+                },
+            );
+            out.textures_delta.clear();
+        }
+        assert_eq!(crate::i18n::I18N.code(crate::i18n::current()), "en", "switched back");
+        let output = frame(&mut state, egui::RawInput::default());
+        let sources = text_rect(&output, "SOURCES").expect("English again");
+        assert!(sources.right() < 640.0, "the sidebar is back at the left edge, got {sources:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn fit_rect_keeps_the_aspect_and_stays_inside() {

@@ -36,6 +36,10 @@ pub struct Appearance {
     /// Motion id: `full` or `reduced`. Reduced turns off the cull overlay's slide and fade; unknown reads as
     /// the default, same rule as the others.
     pub motion: String,
+    /// Interface language code (BCP 47, lowercase): `en`, or an offered embedded language. An
+    /// unknown code reads as English, so a settings file written by a later build cannot stop
+    /// this one from opening.
+    pub language: String,
     /// Interface scale, 1.0 is 100%.
     pub ui_scale: f32,
 }
@@ -47,6 +51,7 @@ impl Default for Appearance {
             density: "comfortable".into(),
             grid: "justified".into(),
             motion: "full".into(),
+            language: "en".into(),
             ui_scale: 1.0,
         }
     }
@@ -240,6 +245,27 @@ mod tests {
         // And a settings file written before this setting existed still opens, with motion at its default.
         let old: Prefs = toml::from_str("[appearance]\ntheme = \"paper\"\n").expect("parse");
         assert_eq!(old.appearance.motion, "full");
+    }
+
+    /// The interface language persists the same way, and an unknown code reads as English rather
+    /// than stopping the app from opening (SL-L07).
+    #[test]
+    fn the_language_setting_round_trips_and_an_unknown_one_is_english() {
+        for language in sortlens_ui::i18n::LANGUAGES {
+            let mut prefs = Prefs::default();
+            prefs.appearance.language = (*language).to_owned();
+            let text = toml::to_string(&prefs).expect("serialise");
+            let read: Prefs = toml::from_str(&text).expect("parse");
+            assert_eq!(read.appearance.language, *language);
+            // Every persisted code is one the interface offers.
+            assert!(sortlens_ui::i18n::from_code(&read.appearance.language).is_some(), "{language}");
+        }
+        // A code the interface does not know falls back to English at restore, not to an error.
+        let read: Prefs = toml::from_str("[appearance]\nlanguage = \"tlh\"\n").expect("parse");
+        assert!(sortlens_ui::i18n::from_code(&read.appearance.language).is_none());
+        // And a settings file written before this setting existed still opens, in English.
+        let old: Prefs = toml::from_str("[appearance]\ntheme = \"paper\"\n").expect("parse");
+        assert_eq!(old.appearance.language, "en");
     }
 
     #[test]
