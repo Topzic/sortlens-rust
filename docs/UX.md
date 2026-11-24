@@ -369,9 +369,11 @@ Full-canvas map centred on the **middle of the library's own photographs' spread
 that still shows all of them, with dots over it. (The mean of the latitudes is not the middle: Brighton and Lima
 average 19°N, 1,400 km north of the box's centre, and a view centred there pushes the northern dot towards the edge of
 its own fit. The zoom is fitted on every frame until the person picks one with `+`/`−`, after which it is theirs.) A
-dot's radius grows with the square root of its photo count — area tracks the count, so a dot standing for four hundred
-photographs is twice the width of one rather than a hundred times — and a dot for more than one photo has its count
-printed in it.
+library at one inland point fits at the deepest allowed zoom, where a 1:110m outline can have no coast within a screen;
+the fitted view therefore widens one level at a time until a shoreline is on screen, because a blank rectangle with a
+dot on it reads as a map that failed to load rather than as a map of somewhere inland. A dot's radius grows with the
+square root of its photo count — area tracks the count, so a dot standing for four hundred photographs is twice the
+width of one rather than a hundred times — and a dot for more than one photo has its count printed in it.
 
 Clicking a dot **selects those photos** and names where they are ("Selected 42 photo(s) at 50.82N 0.14W"); clicking
 the sea selects nothing and clears nothing. `+` and `−` sit over the map's top-right corner and stop at the ends of

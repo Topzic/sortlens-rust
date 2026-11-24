@@ -6178,17 +6178,24 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     let centres: Vec<sortlens_geo::LatLon> = located_photos.iter().map(|(_, at)| *at).collect();
     // A tileset's top zoom is the deepest that can be drawn; with the shipped coastline the fit's own ceiling applies.
     let highest = range.map_or(sortlens_geo::coastline::MAX_FIT_ZOOM, |(_, high)| high);
+    // The middle of the spread, not the mean of the latitudes: the mean of Brighton and Lima is 1,400 km north of the
+    // box's middle, so a view centred on it pushes one dot towards the edge of its own fit. The fallback cannot be
+    // reached with an empty list because `located == 0` returned above.
+    let centre = sortlens_geo::coastline::bounds_centre(&centres).unwrap_or(located_photos[0].1);
     if !state.places_zoom_chosen {
-        state.places_zoom = sortlens_geo::coastline::fit_zoom(&centres, f64::from(map_size.x), f64::from(map_size.y), highest);
+        // With the shipped outline the fitted view can be so deep that an inland library has no coast on screen, which
+        // is a blank rectangle with a dot on it rather than a map. The outline fit widens the view until a shoreline
+        // is in it; a person's own tiles are already geography at any zoom, so they keep the plain fit.
+        state.places_zoom = if range.is_none() {
+            sortlens_geo::coastline::fit_zoom_with_outline(&centres, f64::from(map_size.x), f64::from(map_size.y), highest)
+        } else {
+            sortlens_geo::coastline::fit_zoom(&centres, f64::from(map_size.x), f64::from(map_size.y), highest)
+        };
     }
     if let Some(range) = range {
         state.places_zoom = places::clamp_zoom(state.places_zoom, range);
     }
     let zoom = state.places_zoom;
-    // The middle of the spread, not the mean of the latitudes: the mean of Brighton and Lima is 1,400 km north of the
-    // box's middle, so a view centred on it pushes one dot towards the edge of its own fit. The fallback cannot be
-    // reached with an empty list because `located == 0` returned above.
-    let centre = sortlens_geo::coastline::bounds_centre(&centres).unwrap_or(located_photos[0].1);
 
     let (rect, response) = ui.allocate_exact_size(map_size, Sense::click());
     // A clickable region that a screen reader can land on and name: the map, and how many dots it holds.
@@ -9589,6 +9596,100 @@ mod tests {
         paint(&mut state, &engine);
         assert_eq!(state.places_tiles.decodes(), decoded, "a second frame decodes nothing new");
         assert_eq!(state.places_tiles.len(), held);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An inland library opens with the outline on screen instead of a dot on a blank rectangle.
+    ///
+    /// The reported defect: one photograph in Paris fitted at [`sortlens_geo::coastline::MAX_FIT_ZOOM`], where the
+    /// 1:110m outline has no coast within a screen of the city, so Places painted an empty map. The control below is
+    /// that fitted zoom and its empty view; the assertion after the frame is that the view widened itself until the
+    /// outline is geography. A coastal photograph keeps the fitted zoom (the geo test holds that half).
+    #[test]
+    fn places_opens_with_the_outline_when_the_library_is_inland() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-inland-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-inland");
+        std::fs::copy(
+            fixture.jpeg_with_location("PARIS.jpg", [40, 90, 160], 48, 32, 48.8566, 2.3522),
+            root.join("PARIS.jpg"),
+        )
+        .expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.geotagged(), 1);
+
+        let tokens = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0));
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    places_view(ui, &tokens, &mut state, &engine);
+                });
+            },
+        );
+        output.textures_delta.clear();
+
+        let map = all_shapes(&output)
+            .into_iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect) if rect.fill == tokens.thumb_bg && rect.rect.width() > 100.0 => Some(rect.rect),
+                _ => None,
+            })
+            .expect("the map painted");
+        assert!(!state.places_zoom_chosen, "the view fits; nobody has chosen a zoom yet");
+        let fitted = sortlens_geo::coastline::fit_zoom(
+            &[engine.located()[0].1],
+            f64::from(map.width()),
+            f64::from(map.height()),
+            sortlens_geo::coastline::MAX_FIT_ZOOM,
+        );
+        assert_eq!(fitted, sortlens_geo::coastline::MAX_FIT_ZOOM, "one photograph has no spread");
+        let centre = sortlens_geo::coastline::bounds_centre(&[engine.located()[0].1]).expect("a centre");
+        let origin = sortlens_geo::viewport_origin(fitted, centre, f64::from(map.width()), f64::from(map.height())).expect("an origin");
+        assert!(
+            !sortlens_geo::coastline::Coastline::shipped().has_screen_lines(
+                fitted,
+                origin,
+                f64::from(map.width()),
+                f64::from(map.height())
+            ),
+            "the defect: the fitted view has no coast in it"
+        );
+
+        assert!(
+            state.places_zoom < fitted,
+            "the map did not widen to reach the outline: {}",
+            state.places_zoom
+        );
+        let runs = coastline_runs(&output, &tokens);
+        assert!(!runs.is_empty(), "the inland map painted no coastline");
+        assert!(runs.iter().any(|run| run.points.len() >= 2), "the outline is a line, not a dot");
+        let dots: Vec<_> = painted_circles(&output)
+            .into_iter()
+            .filter(|circle| (circle.radius - places::dot_radius(1)).abs() < 0.5 && circle.fill.a() > 0)
+            .collect();
+        assert_eq!(dots.len(), 1, "the photograph still has its dot");
+        assert!(
+            map.contains(dots[0].center),
+            "the dot at {:?} is outside the map {map:?}",
+            dots[0].center
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

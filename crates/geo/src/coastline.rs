@@ -191,6 +191,26 @@ impl Coastline {
         }
         lines
     }
+
+    /// Whether any shoreline crosses a viewport, without building the polylines.
+    ///
+    /// The view asks this before it chooses an opening zoom: the fitted view can be so deep that an inland library has
+    /// no coast within a screen of it, and a map with nothing on it reads as a map that did not load. This answers the
+    /// question with the first visible segment rather than allocating every run, because it is asked once per candidate
+    /// zoom while the view is still fitting.
+    pub fn has_screen_lines(&self, zoom: u8, origin: Point, width: f64, height: f64) -> bool {
+        if !origin.x.is_finite() || !origin.y.is_finite() || width <= 0.0 || height <= 0.0 {
+            return false;
+        }
+        let scale = 2.0_f64.powi(i32::from(zoom));
+        self.outlines.iter().any(|outline| {
+            outline.world.windows(2).any(|pair| {
+                let a = on_screen(pair[0], scale, origin);
+                let b = on_screen(pair[1], scale, origin);
+                segment_touches(a, b, width, height)
+            })
+        })
+    }
 }
 
 /// The embedded coastline out of the binary.
@@ -305,6 +325,32 @@ pub fn fit_zoom(points: &[LatLon], width: f64, height: f64, highest: u8) -> u8 {
     }
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let zoom = zoom as u8;
+    zoom
+}
+
+/// The deepest zoom that both fits the photographs and leaves some of the shipped outline on screen.
+///
+/// [`fit_zoom`] answers "where do these photographs fit"; for a single inland photograph it answers [`MAX_FIT_ZOOM`],
+/// where a 1:110m outline has no coast within a screen of Paris or Denver. The first frame of Places was then a blank
+/// rectangle with one dot on it, which is the reported "the map itself does not load". This lowers the opening zoom a
+/// level at a time until a shoreline crosses the viewport, so the fitted view is still a map. A photograph on the
+/// coast keeps the fitted zoom, a spread that already fits keeps it, and a chosen zoom is never touched because this
+/// is only called while the view is choosing its own.
+pub fn fit_zoom_with_outline(points: &[LatLon], width: f64, height: f64, highest: u8) -> u8 {
+    let mut zoom = fit_zoom(points, width, height, highest);
+    let Some(centre) = bounds_centre(points) else {
+        return zoom;
+    };
+    let coastline = Coastline::shipped();
+    while zoom > 0 {
+        let Some(origin) = crate::viewport_origin(zoom, centre, width, height) else {
+            return zoom;
+        };
+        if coastline.has_screen_lines(zoom, origin, width, height) {
+            break;
+        }
+        zoom -= 1;
+    }
     zoom
 }
 
@@ -510,6 +556,53 @@ mod tests {
             MAX_FIT_ZOOM,
             "a polar photograph is refused by the projection, not by the fit"
         );
+    }
+
+    /// An inland library opens shallow enough that the outline is still geography, not a blank rectangle.
+    ///
+    /// The reported defect: one photograph's fitted zoom is the ceiling, and at zoom 10 the 1:110m outline has no
+    /// shoreline within a screen of Paris, so Places painted a dot on an empty rectangle. The first assertion is the
+    /// defect kept as the control; the second is the fix. A coastal photograph and a spread that already fits must keep
+    /// the plain answer, or every map would open wider than it needs to.
+    #[test]
+    fn an_inland_library_opens_shallow_enough_to_show_the_outline() {
+        let width = 1100.0;
+        let height = 700.0;
+        let paris = at(48.8566, 2.3522);
+
+        let fitted = fit_zoom(&[paris], width, height, MAX_FIT_ZOOM);
+        assert_eq!(fitted, MAX_FIT_ZOOM, "one photograph has no spread, so the ceiling answers");
+        let centre = bounds_centre(&[paris]).expect("a centre");
+        let origin = crate::viewport_origin(fitted, centre, width, height).expect("an origin");
+        assert!(
+            !Coastline::shipped().has_screen_lines(fitted, origin, width, height),
+            "the defect: an inland photograph at the fitted zoom has no coast on screen"
+        );
+
+        let zoom = fit_zoom_with_outline(&[paris], width, height, MAX_FIT_ZOOM);
+        assert!(zoom < fitted, "the outline fit must widen the view, got {zoom}");
+        let origin = crate::viewport_origin(zoom, centre, width, height).expect("an origin");
+        assert!(
+            Coastline::shipped().has_screen_lines(zoom, origin, width, height),
+            "the widened view still has no coast at zoom {zoom}"
+        );
+
+        // A coast at the ceiling needs no widening, and a spread that fits already shows its coast: the fit is only
+        // changed when the fitted view would have been blank.
+        let brighton = at(50.8225, -0.1372);
+        assert_eq!(
+            fit_zoom_with_outline(&[brighton], width, height, MAX_FIT_ZOOM),
+            MAX_FIT_ZOOM,
+            "a coastal photograph keeps the fitted zoom"
+        );
+        let spread = [at(50.8225, -0.1372), at(-33.8688, 151.2093)];
+        assert_eq!(
+            fit_zoom_with_outline(&spread, width, height, MAX_FIT_ZOOM),
+            fit_zoom(&spread, width, height, MAX_FIT_ZOOM),
+            "a spread that already fits is not widened"
+        );
+        assert_eq!(fit_zoom_with_outline(&[], width, height, 18), MAX_FIT_ZOOM);
+        assert_eq!(fit_zoom_with_outline(&[paris], 10.0, height, MAX_FIT_ZOOM), 0);
     }
 
     /// The centre is the middle of the box, which is not the mean of the latitudes.
