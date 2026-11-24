@@ -4678,6 +4678,7 @@ dependencies = [
  "sortlens-core",
  "sortlens-engine",
  "sortlens-icon",
+ "sortlens-remote",
  "sortlens-ui",
  "toml 0.9.12+spec-1.1.0",
 ]

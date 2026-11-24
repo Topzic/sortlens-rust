@@ -263,6 +263,43 @@ pub enum Action {
     ImportShortcuts,
     /// The editor handed a set back to write out as craft-keymap JSON.
     ExportShortcuts(String, String),
+    /// Start serving the library to paired devices (`sortlens-server`, spawned beside the app).
+    ServerStart,
+    /// Stop that server process; the library's write lock is free when the host reports back.
+    ServerStop,
+    /// Revoke a paired device by its token. The host refuses while the server is running, so
+    /// the store's write-through cannot resurrect the row a moment later.
+    ServerRevoke(String),
+}
+
+/// What the host knows about the library's sync server, fed every frame the Settings dialog is
+/// open. The desktop owns the process; the shell only paints what it is told.
+///
+/// Default is the stopped state: an honest "not serving" rather than a placeholder that asks to
+/// be filled in.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerSurface {
+    /// The server process is alive.
+    pub running: bool,
+    /// The port it is serving on, once its startup line arrived.
+    pub port: Option<u16>,
+    /// The pairing code that is live right now (it is reprinted when one expires).
+    pub code: Option<String>,
+    /// The paired devices, as read from the library's token file.
+    pub devices: Vec<DeviceRow>,
+}
+
+/// One paired device, for the Settings → Sync row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceRow {
+    /// The bearer token itself; revoking needs the exact row, and the token is the exact row.
+    pub token: String,
+    /// The name the device chose when it paired.
+    pub device: String,
+    /// The scopes the token carries, as their ids (`read,annotate`).
+    pub scopes: String,
+    /// When the token was issued, `YYYY-MM-DD`.
+    pub since: String,
 }
 
 /// What Apply does with rejected photos.
@@ -897,6 +934,9 @@ pub struct UiState {
     pub shortcut_editor: Option<DialogState>,
     /// A shortcut-set file the host read, waiting to be imported into the editor.
     pub pending_shortcut_import: Option<String>,
+    /// The library's sync server, fed by the host every frame the Settings dialog is open.
+    /// Default is the stopped state, so a headless frame paints an honest "not serving".
+    pub server: ServerSurface,
 }
 
 impl UiState {
@@ -993,6 +1033,7 @@ impl UiState {
             keys: keymap::build(Overrides::new()),
             shortcut_editor: None,
             pending_shortcut_import: None,
+            server: ServerSurface::default(),
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
             places_zoom_chosen: false,
@@ -8245,6 +8286,10 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             // The update check (SL-I10) is desktop-only and consent-gated the same way.
             #[cfg(not(target_arch = "wasm32"))]
             updates_section(ui, t, engine, actions);
+            // Serving the library to paired devices is desktop-only: the shell paints what the
+            // host feeds it, and the host owns the process (SL-J01/J09).
+            #[cfg(not(target_arch = "wasm32"))]
+            sync_section(ui, state, t, actions);
             ui.separator();
             ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
             keyword_packs(ui, t, engine, actions);
@@ -8412,6 +8457,94 @@ fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut V
                 .color(if report.offered { t.text } else { t.text_muted }),
         );
     }
+    ui.add_space(8.0);
+}
+
+/// Settings → Sync & devices: start or stop the server that pairs a phone or tablet to this
+/// library, and see what is paired.
+///
+/// The shell owns none of it: the host spawns `sortlens-server` beside itself, feeds
+/// [`UiState::server`] every frame this dialog is open, and answers the three actions with
+/// process and file work the shell cannot do. Revoking is disabled while the server runs —
+/// the running server holds its own token store and would resurrect the row on its next
+/// write-through, so the row is only really gone after a stop. Serving beyond this machine is
+/// the CLI's `--bind lan`, not a checkbox here: the desktop's own surface stays loopback.
+#[cfg(not(target_arch = "wasm32"))]
+fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<Action>) {
+    ui.label(RichText::new(tl!("Sync & devices")).size(11.0).color(t.text_muted));
+    let server = state.server.clone();
+    if server.running {
+        match (server.port, server.code.as_deref()) {
+            (Some(port), Some(code)) => {
+                ui.label(RichText::new(format!("Serving on 127.0.0.1:{port}")).size(12.0).strong());
+                ui.label(RichText::new(format!("Pairing code  {code}")).size(13.0).strong());
+                ui.label(
+                    RichText::new("The code lives ten minutes; a fresh one is printed here when it does.")
+                        .size(10.5)
+                        .color(t.text_faint),
+                );
+            }
+            _ => {
+                ui.label(RichText::new("Starting the server…").size(12.0).color(t.text_muted));
+            }
+        }
+        if ui
+            .button(RichText::new(tl!("Stop serving")).size(12.0))
+            .on_hover_text("Stops the process and frees the library's write lock")
+            .clicked()
+        {
+            actions.push(Action::ServerStop);
+        }
+    } else {
+        ui.label(RichText::new("The library is not being served.").size(12.0).color(t.text_muted));
+        ui.label(
+            RichText::new("A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.")
+                .size(10.5)
+                .color(t.text_faint),
+        );
+        if ui
+            .button(RichText::new(tl!("Start serving")).size(12.0))
+            .on_hover_text("Runs sortlens-server beside this app against the open library")
+            .clicked()
+        {
+            actions.push(Action::ServerStart);
+        }
+    }
+    ui.add_space(8.0);
+    if server.devices.is_empty() {
+        ui.label(
+            RichText::new("No devices are paired yet; pairing starts from the code above.")
+                .size(11.0)
+                .color(t.text_faint),
+        );
+    } else {
+        for row in &server.devices {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(&row.device).size(12.0).strong());
+                ui.label(RichText::new(row.scopes.clone()).size(11.0).color(t.text_muted));
+                ui.label(RichText::new(row.since.clone()).size(11.0).color(t.text_faint));
+                let enabled = !server.running;
+                let revoke = ui.add_enabled(enabled, Button::new(RichText::new(tl!("Revoke")).size(11.0)));
+                let hover = if enabled {
+                    "The device's token is removed from the library's token file"
+                } else {
+                    "Stop the server first: a running server holds its own token store and would bring the row back"
+                };
+                let revoke = revoke.on_hover_text(hover);
+                if enabled && revoke.clicked() {
+                    actions.push(Action::ServerRevoke(row.token.clone()));
+                }
+            });
+        }
+    }
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(
+            "The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.",
+        )
+        .size(10.5)
+        .color(t.text_faint),
+    );
     ui.add_space(8.0);
 }
 
@@ -8891,7 +9024,7 @@ mod tests {
         settings.settings_open = true;
         let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
         let mut settings_frame = |mut input: egui::RawInput| {
-            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0)));
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0)));
             let mut output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     settings_dialog(
@@ -8918,7 +9051,7 @@ mod tests {
             .expect("the language row is painted, each language named in itself");
         let at = radio.center();
         let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0))),
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0))),
             events: vec![
                 egui::Event::PointerMoved(at),
                 egui::Event::PointerButton {
@@ -8995,7 +9128,7 @@ mod tests {
         for pressed in [true, false] {
             let mut out = ctx.run_ui(
                 egui::RawInput {
-                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0))),
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0))),
                     events: vec![
                         egui::Event::PointerMoved(at),
                         egui::Event::PointerButton {
@@ -13341,7 +13474,7 @@ mod tests {
         state.settings_open = true;
         let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
         let frame = |state: &mut UiState, mut input: egui::RawInput| {
-            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0)));
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0)));
             let mut output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     settings_dialog(ui, state, &tokens, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
@@ -13385,7 +13518,7 @@ mod tests {
             .expect("the consent checkbox painted its label");
         let at = label.center();
         let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0))),
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0))),
             events: vec![
                 egui::Event::PointerMoved(at),
                 egui::Event::PointerButton {
@@ -15017,5 +15150,143 @@ mod tests {
         assert!(chip_widths.contains(&1300.0), "the chips must be offered on a wide canvas");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Settings → Sync & devices: the stopped state offers Start; the running state names the
+    /// port and the live pairing code and refuses revoke while the process holds its own token
+    /// store; once stopped, a paired device's Revoke hands the exact token to the host. The
+    /// refusal is the point of the slice: a revoke the running server could resurrect is not a
+    /// revoke.
+    #[test]
+    fn the_sync_section_starts_stops_and_revokes_only_when_stopped() {
+        let t = ThemeKind::Charcoal.tokens();
+        let engine_cell = std::cell::RefCell::new(Engine::new());
+        let ctx = egui::Context::default();
+        crate::theme::apply(&ctx, ThemeKind::Charcoal);
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let screen = || Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0));
+        let one_frame = |state: &mut UiState, input: egui::RawInput| {
+            state.settings_open = true;
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(ui, state, &t, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        // The dialog is auto-sized: a pass lays the content out, the next paints it at the size
+        // the previous pass reported, so a state change is painted fully one pass later. Three
+        // passes settle any transition, and every painted read below takes the last.
+        let frame = |state: &mut UiState, input: egui::RawInput| {
+            let _ = one_frame(state, input.clone());
+            let _ = one_frame(state, input.clone());
+            one_frame(state, input)
+        };
+        let click = |at: egui::Pos2| egui::RawInput {
+            screen_rect: Some(screen()),
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        let release = |at: egui::Pos2| egui::RawInput {
+            screen_rect: Some(screen()),
+            events: vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..egui::RawInput::default()
+        };
+        let button_rect = |output: &egui::FullOutput, label: &str| {
+            output
+                .shapes
+                .iter()
+                .find_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) if text.galley.text() == label => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{label} is painted"))
+        };
+        let text_rect = |output: &egui::FullOutput, needle: &str| {
+            output.shapes.iter().find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text().contains(needle) => Some(text.galley.rect.translate(text.pos.to_vec2())),
+                _ => None,
+            })
+        };
+
+        // Stopped: the row names its state and Start asks the host to spawn the process.
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "The library is not being served.").is_some(),
+            "the stopped state says so"
+        );
+        let at = button_rect(&output, "Start serving").center();
+        let _ = one_frame(&mut state, click(at));
+        let _ = one_frame(&mut state, release(at));
+        assert!(
+            text_rect(&output, "The library is not being served.").is_some(),
+            "the stopped state says so"
+        );
+        let at = button_rect(&output, "Start serving").center();
+        frame(&mut state, click(at));
+        assert!(
+            actions_cell.borrow().iter().any(|a| matches!(a, Action::ServerStart)),
+            "Start asks the host to spawn sortlens-server"
+        );
+
+        // Running: the port and the live code are the two facts a pairing phone needs, and the
+        // device row's Revoke is a button that answers nothing.
+        state.server = ServerSurface {
+            running: true,
+            port: Some(52_114),
+            code: Some("448821".to_owned()),
+            devices: vec![DeviceRow {
+                token: "a1b2c3d4".to_owned(),
+                device: "Ian's phone".to_owned(),
+                scopes: "read,annotate".to_owned(),
+                since: "2026-11-24".to_owned(),
+            }],
+        };
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(text_rect(&output, "Serving on 127.0.0.1:52114").is_some(), "the port is named");
+        assert!(text_rect(&output, "Pairing code  448821").is_some(), "the live code is named");
+        assert!(text_rect(&output, "Ian's phone").is_some(), "the device row is painted");
+        let at = button_rect(&output, "Revoke").center();
+        let _ = one_frame(&mut state, click(at));
+        let _ = one_frame(&mut state, release(at));
+        assert!(
+            !actions_cell.borrow().iter().any(|a| matches!(a, Action::ServerRevoke(_))),
+            "revoke answers nothing while the server holds its own token store"
+        );
+
+        // Stopped with the device still paired: the same button now hands over the token.
+        let devices = state.server.devices.clone();
+        state.server = ServerSurface {
+            running: false,
+            port: None,
+            code: None,
+            devices,
+        };
+        let output = frame(&mut state, egui::RawInput::default());
+        let at = button_rect(&output, "Revoke").center();
+        let _ = one_frame(&mut state, click(at));
+        let _ = one_frame(&mut state, release(at));
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|a| matches!(a, Action::ServerRevoke(token) if token == "a1b2c3d4")),
+            "the exact token goes to the host, so the exact row goes"
+        );
     }
 }

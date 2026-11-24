@@ -12,6 +12,8 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 sortlens-engine = { workspace = true }
 sortlens-ui = { workspace = true }
+# The desktop's own sync surface: spawning the server binary, its startup lines, the token file.
+sortlens-remote = { workspace = true }
 eframe = { workspace = true }
 egui = { workspace = true }
 craft-ui = { workspace = true }

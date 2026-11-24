@@ -11,6 +11,7 @@
 
 pub mod allowlist;
 pub mod pairing;
+pub mod supervise;
 pub mod tokens;
 
 /// Crate version, from `Cargo.toml`.

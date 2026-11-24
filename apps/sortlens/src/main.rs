@@ -7,12 +7,15 @@
 
 mod settings;
 
+mod sync;
+
 use craft_settings::{Location, store::SettingsStore};
 use craft_window::Prefix;
 use craft_window::policy::{Backend, Frame, TitleBarPref, apply as apply_titlebar, decide_for};
 use settings::Prefs;
 use sortlens_engine::{Engine, Sort};
 use sortlens_ui::{Action, Density, ThemeKind, Thumbnails, UiState, apply as apply_theme};
+use sync::Sync;
 
 /// Left inset that clears the traffic lights in an integrated title bar.
 const MAC_TRAFFIC_LIGHTS: f32 = 78.0;
@@ -109,6 +112,8 @@ struct App {
     thumbs: Thumbnails,
     /// The quit guard has been answered, so the next close goes through.
     confirmed_close: bool,
+    /// The library's sync server, spawned on demand and stopped with the window.
+    sync: Sync,
 }
 
 impl App {
@@ -166,6 +171,7 @@ impl App {
             applied_theme: kind,
             thumbs: Thumbnails::new(cache_dir()),
             confirmed_close: false,
+            sync: Sync::new(),
         }
     }
 
@@ -445,6 +451,22 @@ impl App {
                 Ok(count) => self.ui.notice(format!("Removed {count} photos from {}", folder_name(&root))),
                 Err(error) => self.ui.notice(error.to_string()),
             },
+            Action::ServerStart => match self.sync.start(&library_dir()) {
+                Ok(()) => self
+                    .ui
+                    .notice("Serving the library — the pairing code is in Settings → Sync & devices"),
+                Err(error) => self.ui.notice(error),
+            },
+            Action::ServerStop => {
+                self.sync.stop();
+                self.ui.notice("The server is stopped; the library's write lock is free again");
+            }
+            Action::ServerRevoke(token) => match self.sync.revoke(&library_dir(), &token) {
+                Ok(()) => self
+                    .ui
+                    .notice("The device's token is removed; it cannot call this library any more"),
+                Err(error) => self.ui.notice(error),
+            },
         }
     }
 }
@@ -466,6 +488,13 @@ impl eframe::App for App {
                 self.ui.export_receipt = Some(format!("{} → {}", report.headline(), report.dest.display()));
             }
             ctx.request_repaint();
+        }
+
+        // The sync server is the host's to feed: its state is process and file knowledge the
+        // shell cannot reach, read only while the Settings dialog can show it. A device that
+        // pairs mid-dialog is on the next frame's list.
+        if self.ui.settings_open {
+            self.ui.server = self.sync.surface(&library_dir(), true);
         }
 
         // The suggestion pass reports on its own thread; notice it finished where the export is noticed.
@@ -491,6 +520,8 @@ impl eframe::App for App {
                 let _ = self.engine.close();
                 let _ = self.store.flush();
             }
+            // The server holds the library's write lock; it stops with the window either way.
+            self.sync.stop();
         }
 
         if let sortlens_engine::Effect::ShowView(view) = self.engine.last_effect() {

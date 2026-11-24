@@ -232,6 +232,13 @@ impl TokenStore {
         self.tokens.len()
     }
 
+    /// Every paired device, oldest last, for the owner's device list. The tokens themselves
+    /// are the caller's to keep local: they are the rows, not secrets to publish.
+    #[must_use]
+    pub fn all(&self) -> &[DeviceToken] {
+        &self.tokens
+    }
+
     /// Whether anything is paired.
     #[must_use]
     pub fn is_empty(&self) -> bool {

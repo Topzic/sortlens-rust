@@ -1,5 +1,64 @@
 # Checkpoint
 
+## 2026-11-24 (fifty-first) — Phase 4 item 3, the desktop's own start/stop surface
+
+- **What shipped:** the owner's window on the server process, in Settings → Sync & devices. Start
+  spawns the `sortlens-server` binary that sits beside the app (`apps/sortlens/src/sync.rs`
+  locates it beside `current_exe`, so `cargo run` and a packaged bundle both work) against the
+  open library — loopback, ephemeral port — and the process's stdout is followed through the new
+  `sortlens-remote::supervise`: `listening http://host:port` and `pairing NNNNNN` are parsed into
+  a `ServerState`, the code a reprint replaces the expired one rather than growing a history, and
+  an exit is visible on the next repaint. Stop kills the child and waits, so the library's write
+  lock is free when the notice lands; dropping the supervisor kills it too, so a window that
+  closes without tidying up cannot leave a server holding the lock.
+- The shell's half (`crates/ui`): `UiState::server` is a `ServerSurface { running, port, code,
+  devices }` the host feeds every frame the Settings dialog is open (default: the stopped state,
+  so a headless frame paints an honest "not serving"), and the section paints the port, the live
+  code, the device rows (name, scopes as ids, issue date through the same civil-date arithmetic
+  the change report uses) and three new `Action`s — `ServerStart`, `ServerStop`,
+  `ServerRevoke(token)`. Revoke is disabled while the server runs, with the reason on hover: a
+  running server holds its own token store and would resurrect the row on its next write-through.
+  The host refuses it too, so the rule survives a click on a stale frame; a stopped server revokes
+  the exact row by exact token through `TokenStore::revoke`.
+- Serving beyond loopback stays the CLI's `--bind lan`; the desktop's own surface does not offer a
+  checkbox for it (SL-J09's default is the safe one).
+- **Tests that fail when the behaviour is broken:** `crates/ui`'s
+  `the_sync_section_starts_stops_and_revokes_only_when_stopped` (Start emits the action; the
+  running surface names port and code; a click on the disabled Revoke answers nothing; once
+  stopped the same button hands over the exact token) — the disabled button is the point: a
+  revoke the running server could resurrect is not a revoke. `apps/sortlens`'s
+  `the_device_list_is_the_token_file_and_revoke_needs_a_stopped_server` (the list is the token
+  file, mapped; revocation rewrites it; an unknown token says so) and
+  `revoke_while_the_server_runs_is_refused_by_name`. `crates/remote`'s
+  `the_startup_lines_parse_and_nothing_else_does` and
+  `a_reprinted_code_replaces_the_old_one` (a stub child, so the state-folding is proved without a
+  real server). And in the loopback harness,
+  `the_desktop_supervisor_starts_a_real_server_and_reads_the_token_file`: the supervisor spawns
+  the real server binary, the port and code arrive from its own stdout, the desktop pairs through
+  that port, and the row it would show is read back from the token file after the stop.
+- **Files:** `crates/remote/src/supervise.rs` (new), `crates/remote/src/{lib,tokens}.rs` (the
+  module and a public `TokenStore::all`), `crates/ui/src/shell.rs` (the section, the surface
+  types, the three actions), `crates/ui/src/i18n/{ar,ja}.tsv` (four routed rows each),
+  `crates/ui/src/lib.rs` (the exports), `crates/ui/tests/screenshots.rs` (the lenient harness and
+  the scene), `apps/sortlens/src/sync.rs` (new), `apps/sortlens/src/main.rs`,
+  `apps/sortlens/Cargo.toml`, `apps/sortlens-server/tests/loopback.rs`, `docs/ROADMAP.md`,
+  `docs/FEATURES.md` (SL-J03), `docs/ARCHITECTURE.md` §10.
+- **Visual verification:** two new baselines, `settings-sync-charcoal` and `settings-sync-paper`,
+  painted at 900×1700 because the Settings dialog is longer than one screen and a baseline that
+  clips its subject proves nothing. Read: the port, the code, the hint and the device row are all
+  in frame, Revoke visibly disabled. The harness runs with `allow_missing_glyphs` for this scene
+  only: the language picker names every language in itself, and CI's font build has no Arabic or
+  Japanese face — the documented gap, not a silent defect.
+- Gates: `ci`, `snapshot`, `deny` (no new dependency — the supervisor is std-only) and `wasm`
+  (crates/ui changed) all green; `screenshots` green with the two new baselines.
+- **Next**: Phase 4 item 3's remaining half — the `sortlens-web` wasm client (SL-J02) reusing
+  `sortlens-ui` over the same `/api` and `/upload` protocol. Its first slice is the in-memory
+  catalog path in `sortlens-catalog` (snapshot JSON in, ops applied, no directory, no log, no
+  lock), because a wasm engine has no directory to open; the transport and the keep-or-remove
+  ack (SL-J05) follow. Then Phase 4 is one row from done; after that, Phase 5 item 1 (the GitHub
+  issue/PR templates) per the ROADMAP order. The i18n row keeps its open half (zh-TW/ko/th/vi,
+  unrouted surfaces, RTL screenshots needing an Arabic font build).
+
 ## 2026-11-24 (fiftieth) — Phase 4 item 3, server half: `sortlens-server`, the loopback harness
 
 - **What shipped:** the library is served to a paired device. `crates/remote` stops being a scaffold:
@@ -3926,7 +3985,9 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
     the forty-sixth entry; **2b the High-Contrast preset (SL-L09) done 2026-11-24**, see the forty-seventh
     entry; **2c the opt-in `craft-update` (SL-I10) done 2026-11-24**, see the forty-eighth entry; **2d the
     `craft-i18n` scaffolding (SL-L07) done 2026-11-24**, see the forty-ninth entry.
-18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI.
+18. `sortlens-server` + `sortlens-web` with a two-process loopback integration harness in CI — the
+    server half, the harness and the desktop's start/stop surface are **done 2026-11-24** (fiftieth and
+    fifty-first entries); the wasm client (SL-J02) and the keep-or-remove ack (SL-J05) remain.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates.

@@ -1358,9 +1358,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     server exits, the five-wrong-codes lockout, `--allow read,annotate` being refused `cull.start`, an
     upload that dies mid-transfer, resumes from `GET /upload/<id>`, refuses a wrong digest and still
     completes, then collides into `IMG_0001 (1).jpg`, and a restart keeping the token valid.
-  - **Still open here:** the wasm client (`sortlens-web` reusing `sortlens-ui`, SL-J02), the desktop's
-    own start/stop surface for the server, and a keep-or-remove-after-upload client behaviour (SL-J05),
-    which is the client's half of the ack.
+  - **The desktop's start/stop surface shipped 2026-11-24.** Settings → Sync & devices is the
+    owner's window on the process: Start spawns the `sortlens-server` binary that sits beside the
+    app against the open library (loopback, ephemeral port), reads the startup lines through
+    `sortlens-remote::supervise` — the same line contract the loopback harness reads, so a
+    reprinted pairing code replaces the expired one instead of growing a history — and Stop kills
+    the process and waits, so the library's write lock is free when the notice lands. The paired
+    devices are read from the token file while the dialog is open, each row naming its scopes and
+    issue date, and Revoke is disabled while the server runs (a running server holds its own token
+    store and would resurrect the row on its next write-through); the refusal is also enforced in
+    the host, not just greyed out. Revoking by exact token lands only after a stop. Proved by the
+    headless test (Start emits `Action::ServerStart`; a running surface paints port and code and a
+    Revoke that answers nothing; stopped, the same button hands over the exact token), the
+    supervisor's line tests, and a new harness test that drives the real server through the
+    supervisor and reads the paired row back from the token file.
+  - **Still open here:** the wasm client (`sortlens-web` reusing `sortlens-ui`, SL-J02) — which
+    needs an in-memory catalog path in `sortlens-catalog` first, because a wasm engine has no
+    directory to open — and a keep-or-remove-after-upload client behaviour (SL-J05), which is the
+    client's half of the ack.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

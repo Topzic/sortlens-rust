@@ -18,7 +18,7 @@ pub mod shell;
 pub mod theme;
 pub mod thumbs;
 
-pub use shell::{Action, RightTab, Source, UiState, View, show, toggle_compare};
+pub use shell::{Action, DeviceRow, RightTab, ServerSurface, Source, UiState, View, show, toggle_compare};
 pub use theme::{Density, GridMode, Motion, ThemeKind, Tokens, apply};
 pub use thumbs::Thumbnails;
 

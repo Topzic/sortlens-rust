@@ -476,3 +476,51 @@ fn a_server_restart_keeps_the_tokens_and_the_pairing_scope() {
     let (status, body) = client.api(&token, "library.stats", json!({}));
     assert_eq!(status, 200, "the paired device survives the restart: {body}");
 }
+
+/// The desktop's own surface, driven the way the window drives it: the supervisor from
+/// `sortlens-remote` spawns the real server, reads its startup lines, and the device list the
+/// desktop would show is read from the token file it points at. This is the harness proof that
+/// the desktop's Start button ends in a serving process, not in a parse of an imagined stdout.
+#[test]
+fn the_desktop_supervisor_starts_a_real_server_and_reads_the_token_file() {
+    let library = Library::build("loopback-desktop");
+    let exe = std::path::PathBuf::from(env!("CARGO_BIN_EXE_sortlens-server"));
+    let mut supervisor = sortlens_remote::supervise::Supervisor::spawn(&exe, &library.library).expect("the desktop spawns the server");
+    for _ in 0..100 {
+        std::thread::sleep(Duration::from_millis(20));
+        let state = supervisor.state();
+        if state.port.is_some() && state.code.is_some() {
+            break;
+        }
+    }
+    let state = supervisor.state();
+    let port = state.port.expect("the port arrived from the server's own stdout");
+    let code = state.code.clone().expect("the pairing code arrived");
+    let addr = format!("127.0.0.1:{port}");
+    // The surface the desktop's Settings dialog is fed, built the same way `sync.rs` builds it.
+    let store = sortlens_remote::tokens::TokenStore::load(library.library.join("remote-tokens.json"))
+        .expect("the token file is where the server says");
+    assert!(store.all().is_empty(), "no devices are paired yet");
+    // Pair through the real port the desktop learned, and the desktop's list gains the row.
+    let mut stream = TcpStream::connect(&addr).expect("connect");
+    let body = json!({ "code": code, "device": "Ian's phone" }).to_string();
+    write!(
+        stream,
+        "POST /pair HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    )
+    .expect("the pairing request is sent");
+    let mut response = String::new();
+    let _ = stream.read_to_string(&mut response);
+    assert!(response.contains("\"token\""), "the code became a token: {response}");
+    drop(stream);
+    let store = sortlens_remote::tokens::TokenStore::load(library.library.join("remote-tokens.json"))
+        .expect("the store is rewritten through the pairing");
+    let rows: Vec<&str> = store.all().iter().map(|token| token.device.as_str()).collect();
+    assert_eq!(rows, vec!["Ian's phone"], "the desktop's device list is the token file");
+    supervisor.stop();
+    // A stopped supervisor's port is a fact about a dead process now; the file keeps the row.
+    assert!(supervisor.state().exited, "the desktop's stop is real");
+    let store = sortlens_remote::tokens::TokenStore::load(library.library.join("remote-tokens.json")).expect("the store survives the stop");
+    assert_eq!(store.len(), 1, "stopping does not unpair anyone");
+}

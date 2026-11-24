@@ -283,6 +283,28 @@ fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engi
     harness.into_state().engine
 }
 
+/// The same, with tofu instead of a panic for glyphs the CI font build does not have.
+///
+/// The Settings dialog's language picker names every language in itself, so it paints Arabic and
+/// Japanese whether or not the machine has those faces — which CI's does not. The baseline is
+/// still a full read of the section; the tofu boxes are the documented gap (RTL screenshots wait
+/// for an Arabic-capable font build), not a silent defect.
+fn shoot_at_lenient(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engine {
+    let mut harness = Harness::builder()
+        .with_size(size)
+        .with_pixels_per_point(1.0)
+        .with_max_steps(240)
+        .with_context_setup(move |ctx| sortlens_ui::apply(ctx, kind))
+        .allow_missing_glyphs()
+        .wgpu()
+        .build_eframe(|_cc| scene);
+    settle(&mut harness);
+    harness
+        .try_snapshot(name)
+        .expect("the baseline matches, or its .new/.diff companions say exactly where it does not");
+    harness.into_state().engine
+}
+
 /// The Suggestions tab, with real proposals from the switched-on pack for a selection spanning both folders.
 ///
 /// This is Phase 3B.5's visual proof: the fourth tab on the far-edge rail, the panel's header naming it, one family
@@ -313,6 +335,37 @@ fn suggestions_paints_in_both_themes() {
         scene.state.right_tab = sortlens_ui::RightTab::Suggestions;
         scene.state.selection.select_many(&chosen);
         library.keep(shoot(kind, scene, &format!("suggestions-{}", kind_id(kind))));
+    }
+}
+
+/// Settings → Sync & devices, in the state the desktop's Start button ends in: the port and the
+/// live pairing code the desktop learned from the process's own stdout, and one paired device
+/// with the Revoke button that stays disabled while the server holds its own token store.
+/// Painted taller than the window because the Settings dialog is longer than one screen: the
+/// section is the dialog's tail, and a baseline that clips its subject proves nothing.
+#[test]
+fn settings_sync_paints_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        scene.state.settings_open = true;
+        scene.state.server = sortlens_ui::ServerSurface {
+            running: true,
+            port: Some(52_114),
+            code: Some("448821".to_owned()),
+            devices: vec![sortlens_ui::DeviceRow {
+                token: "a1b2c3d4".to_owned(),
+                device: "Ian's phone".to_owned(),
+                scopes: "read,annotate".to_owned(),
+                since: "2026-11-24".to_owned(),
+            }],
+        };
+        library.keep(shoot_at_lenient(
+            kind,
+            scene,
+            &format!("settings-sync-{}", kind_id(kind)),
+            egui::vec2(900.0, 1700.0),
+        ));
     }
 }
 

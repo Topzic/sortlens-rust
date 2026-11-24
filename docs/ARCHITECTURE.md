@@ -621,6 +621,12 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
   `<library>/remote-tokens.json` with per-token permissions (`read`, `upload`, `annotate`, `cull`).
   Routes: `GET /health` (the connection test, no token), `POST /pair`, `POST /api`
   (`{method, params}` → the registry's answer), `POST /upload` and `GET /upload/<id>`.
+- The desktop's own surface (shipped 2026-11-24, Phase 4 item 3): Settings → Sync & devices spawns
+  the server binary beside the app and follows its stdout through `sortlens-remote::supervise`
+  (the startup-line contract is parsed once, beside the protocol), shows the live port and pairing
+  code, lists the paired devices from the token file, and revokes by exact token — refused while
+  the process runs, because a running server holds its own token store and would write the row
+  straight back. Serving beyond loopback is the CLI's `--bind lan`, not a desktop checkbox.
 - The remote API is the command registry with a restricted allow-list, not a second API. `crates/remote`'s
   table names every id the wire accepts with the scope it needs, is audited against `Registry::v0()` at
   startup, and refuses a host-effect command (`app.quit`, `photo.reveal`, the model/update network
