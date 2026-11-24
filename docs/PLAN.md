@@ -359,27 +359,26 @@ through `craft-update`.
 
 ## 12. Where delivery stands
 
-M0–M10 are built, with core features still open (see below): the skeleton, indexing, previews, keywords and XMP, culling, collections, insights
-and search, the safety work (delete modes, bins, backup/restore, audit and compaction, one-writer locking,
-moves with undo, the change viewer), export, the no-model half of AI (manifest, verified store, NMS, label
-map, EXIF hints, packs, suggestions, the batch pass), `--json` on the read verbs, the diagnostics bundle,
-the MCP server, one version with `--version`, the measured numbers, the icon, and the gates that keep the
-documents and the manifests honest. `CHECKPOINT.md` is the authoritative record — what shipped, in which
-commit, what was not verified by hand. `docs/ROADMAP.md` tracks the same work as checkboxes, and
-`cargo xtask docs` (in `ci`) fails when this section's milestone range, the README's badge or its document
-table fall behind the tracker.
+M0–M10 are built, and the owner's five completion phases are done: the skeleton, indexing, previews,
+keywords and XMP, culling, collections, insights and search, the safety work (delete modes, bins,
+backup/restore, audit and compaction, one-writer locking, moves with undo, the change viewer), export
+including PNG, real local AI tagging with tag provenance and consent-gated model installs, the
+Adobe/ArtCraft layout pass with its screenshot harness, the keymap editor, packaging icons, the
+high-contrast preset, the opt-in update check, localisation scaffolding, the remote server and phone app,
+and the autonomous GitHub intake, playbook and PR-gating workflows. `CHECKPOINT.md` is the authoritative
+record — what shipped, in which commit, what was not verified by hand. `docs/ROADMAP.md` tracks the same
+work as checkboxes, and `cargo xtask docs` (in `ci`) fails when this section's milestone range, the README's
+badge or its document table fall behind the tracker.
 
-What is **not** delivered is tracked, not excused. The owner's course-correction
-(`docs/sortlens_agent_completion_directive.md`) re-opened the features that had been moved into
-"Deliberately absent" tables: video poster frames, stale-revision rejection, `Recently Added`, PNG export,
-real local AI tagging with tag provenance, the Adobe/ArtCraft layout pass and a screenshot harness, the
-keymap editor, packaging icons, the opt-in update check, localisation scaffolding, the remote server and
-phone app, and the GitHub intake that an autonomous agent will work from. They are unchecked rows under
-"Completion phases" in `docs/ROADMAP.md`, in that order. The owner has approved two user-initiated network
-calls — `model.install` and an opt-in update check — and `crates/ai` stays offline. Licensing is confirmed
-as `MIT OR Apache-2.0`. What genuinely cannot be done from this repository (signing identities, a screen
-reader session, installer toolchains) stays in the milestones' "Deliberately absent" tables.
-`docs/PERF.md` lists the budgets this machine cannot measure.
+What is **not** delivered is tracked, not excused. The milestones' "Deliberately absent from M10" table
+holds only work that needs something this repository lacks — an Apple signing identity for notarised
+builds, installer toolchains for MSI/AppImage/Flatpak, a screen-reader session, a chosen palette with a
+redistribution licence, and the owner's release tag — and the post-1.0 backlog stays a visible table
+rather than a hiding place. The two buildable rows left in M9 (more localisation catalogues with RTL
+screenshots, and localised numbers and dates) remain unchecked and plainly labelled. The owner has
+approved two user-initiated network calls — `model.install` and an opt-in update check — and `crates/ai`
+stays offline. Licensing is `MIT OR Apache-2.0`. `docs/PERF.md` lists the budgets this machine cannot
+measure.
 
 The gates did not move, and they are what makes the paragraph above checkable rather than a claim: every
 milestone landed with tests, a green `cargo xtask ci`, a golden-output diff when published text changed,

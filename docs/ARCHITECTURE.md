@@ -660,7 +660,9 @@ model store (sha256, size, licence, packs)   ← explicit download, no auto-fetc
 - Uploads are resumable, verified by size + SHA-256 (the suite's own), and land in a configured album
   folder. Chunks append to `<album>/.uploads/<id>.part`, so the file length is the received count and a
   restart loses nothing; the completing chunk is hashed before it is appended, so a digest mismatch
-  leaves the partial exactly where it was; a published name never overwrites.
+  leaves the partial exactly where it was; a published name never overwrites. A one-shot upload, one
+  with no partial yet, is verified against the body alone — the first-contact case once refused every
+  one-shot with a 500 because it opened a partial file that did not exist.
 - Proven by the two-process loopback harness in `apps/sortlens-server/tests/loopback.rs`: a real server
   process against a real scanned library, pairing through `/pair`, reads and writes through `/api`, an
   upload that dies mid-transfer and resumes, and a token that survives a server restart.

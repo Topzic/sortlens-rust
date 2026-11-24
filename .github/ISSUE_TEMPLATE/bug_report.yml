@@ -1,0 +1,85 @@
+name: Bug report
+description: Something in Sortlens is wrong — a photograph that will not load, a cull that does not stick, a window that closes badly.
+title: "[Bug]: "
+labels:
+  - bug
+  - triaged
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. Sortlens never sends anything on its own, so this page is the
+        report — what you write here is what a person reads.
+
+        Two things make a bug actionable: a reproduction another person can walk through, and the
+        diagnostics bundle. `sortlens-cli diagnostics` redacts absolute paths before it writes,
+        so paste it rather than describing it.
+  - type: input
+    id: version
+    attributes:
+      label: Sortlens version
+      description: What the About dialog prints, or what `sortlens-cli --version` answers.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS on Apple silicon
+        - macOS on Intel
+        - Windows 11
+        - Windows 10
+        - Linux on X11
+        - Linux on Wayland
+        - Another platform (name it below)
+    validations:
+      required: true
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version and display setup
+      description: The version, the display scale, and how many monitors, because most layout defects live there.
+      placeholder: macOS 15.2, 150% scale, two displays
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, starting from a fresh library where the bug allows it. Say what you clicked, dragged or pressed.
+      placeholder: |
+        1. Create a library from a folder with three JPEGs.
+        2. Open the cull view and press P.
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: The exact wording of any message, and a crash report or backtrace if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste the output of `sortlens-cli diagnostics`. Absolute paths are redacted in the bundle, so it is safe to attach.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Screenshots, the size of the library, and whether the files are on an external or network volume.
+    validations:
+      required: false

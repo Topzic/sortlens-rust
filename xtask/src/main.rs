@@ -7,6 +7,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod intake;
+mod workflow;
+mod yaml;
+
 const LIB_CRATES: &[&str] = &[
     "core", "hash", "quality", "testkit", "meta", "media", "sidecar", "geo", "ai", "thumbs", "scan", "catalog", "cull", "insights",
     "similar", "remote", "engine", "ui", "mcp",
@@ -50,6 +54,9 @@ fn main() -> ExitCode {
         "a11y" => a11y(),
         "perf" => perf(),
         "docs" => docs(),
+        "templates" => templates(),
+        "workflows" => workflows(),
+        "intake" => intake_check(),
         _ => {
             help();
             return ExitCode::SUCCESS;
@@ -85,7 +92,10 @@ fn help() {
   attribution  every dependency attributed, and the document honest about what is linked
   a11y     every custom-painted clickable region registers a name
   perf     measurements for docs/PERF.md (not in ci: a timing that fails on a loaded box gets ignored)
-  docs     the documents agree with the tracker, and every crate and document is named"
+  docs     the documents agree with the tracker, and every crate and document is named
+  templates  the GitHub issue forms and the pull-request checklist are the shape GitHub accepts
+  workflows  the gates a pull request meets, the intake that reads a report, and the playbook's rules
+  intake   check a filed report (SORTLENS_ISSUE_BODY, SORTLENS_ISSUE_LABELS) against its form"
     );
 }
 
@@ -101,6 +111,8 @@ fn ci() -> Result<(), String> {
     attribution()?;
     a11y()?;
     docs()?;
+    templates()?;
+    workflows()?;
     Ok(())
 }
 
@@ -713,6 +725,55 @@ fn shipped_through(roadmap: &str) -> Option<u32> {
         }
     }
     shipped
+}
+
+/// Check the GitHub intake: the issue forms GitHub will parse, and the pull-request checklist.
+///
+/// A malformed issue form fails from the reporter's side, where nobody here sees it, and the
+/// checklist is the only place the gates are written down for a contributor. Both are checked in
+/// `ci` for the reason the documents are: a promise nobody verifies has already drifted.
+fn templates() -> Result<(), String> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let problems = intake::check(&root);
+    report("templates", problems)
+}
+
+/// Check the GitHub workflows and the autonomous-agent playbook (ROADMAP Phase 5 items 2 and 3).
+///
+/// Two promises live only in these files: that every gate the pull-request template names is run by
+/// a workflow that can fail, and that the intake that reads a stranger's issue can label it and
+/// reach nothing else. The playbook is checked for the rules it is the only copy of. All three are
+/// facts, not phrasing, and every one of them is a promise nobody would notice going stale.
+fn workflows() -> Result<(), String> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let problems = workflow::check(&root);
+    report("workflows", problems)
+}
+
+/// Check a filed report against the form it came through, for `agent-intake.yml`.
+///
+/// The body and labels arrive through the environment because that is how a workflow can pass a
+/// stranger's text without interpolating it into a script line. The output is the comment the
+/// intake posts: which required headings are absent or empty. Exit status is the answer; the
+/// workflow labels the issue rather than failing a run a reporter cannot act on.
+fn intake_check() -> Result<(), String> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let labels = std::env::var("SORTLENS_ISSUE_LABELS").unwrap_or_default();
+    let body = std::env::var("SORTLENS_ISSUE_BODY").unwrap_or_default();
+    if crate::intake::form_for_labels(&labels).is_none() {
+        println!("intake: neither a bug nor a feature report; nothing to check");
+        return Ok(());
+    }
+    let problems = crate::intake::report_problems(&root, &labels, &body);
+    if problems.is_empty() {
+        println!("intake: the report carries every field its form asks for");
+        return Ok(());
+    }
+    println!("Thanks for the report. Its form asks for the fields below, and these are missing or empty:");
+    for problem in &problems {
+        println!("- {problem}");
+    }
+    Err(format!("intake: {} field(s) missing or incomplete", problems.len()))
 }
 
 fn assets() -> Result<(), String> {

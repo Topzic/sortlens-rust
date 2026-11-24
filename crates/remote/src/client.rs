@@ -40,9 +40,9 @@ pub trait Transport {
 
 /// One fully built request: the transport's only job is to send it and bring the answer back.
 ///
-/// The protocol is the crate's, not the transport's: the blocking [`Client`] and the wasm
-/// page's [`crate::web::WebClient`] both build their calls with these functions, so a browser
-/// cannot drift from what the native tests and the two-process harness prove.
+/// The protocol is the crate's, not the transport's: every client builds its calls with these
+/// functions, so a phone cannot drift from what the native tests and the two-process harness
+/// prove.
 #[derive(Debug, Clone)]
 pub struct Request {
     /// The HTTP method.
@@ -420,6 +420,9 @@ impl<T: Transport> Client<T> {
     /// for SL-J05: the toggle survives the resume, because it lives on the item, not on the
     /// connection. The completing chunk carries `X-Content-Sha256`, and the server refuses
     /// the file if the bytes that arrived do not match, leaving the partial where it was.
+    ///
+    /// Every answer is decoded through [`upload_step`], the one decision both this blocking
+    /// loop and the wasm page's async loop walk — the two cannot drift.
     pub fn upload(&mut self, item: &UploadItem) -> Result<UploadAck, ClientError> {
         let Some(token) = self.token.as_deref() else {
             return Err(ClientError::Connection("the client is not paired".into()));
@@ -440,7 +443,7 @@ impl<T: Transport> Client<T> {
         if total <= chunk {
             let headers = upload_headers(item, id, Some(&sha), token);
             let response = self.transport.request("POST", "/upload", &headers, &item.bytes)?;
-            return finished(response, item.remove_after_upload);
+            return finish_upload(response, item.remove_after_upload);
         }
 
         // Chunked, resuming from wherever the server says its copy ends. The ranges are
@@ -475,39 +478,17 @@ impl<T: Transport> Client<T> {
             let mut headers = upload_headers(item, id, completing.then_some(sha.as_str()), token);
             headers.push(("Content-Range".to_string(), format!("bytes {start}-{end}/{total}")));
             let response = self.transport.request("POST", "/upload", &headers, span)?;
-            let body = response.json()?;
-            match response.status {
-                // Completed: `saved` names the file that landed, `sha256` is the verified digest.
-                200 if body.get("saved").and_then(Value::as_str).is_some() => {
+            match upload_step(response, start) {
+                UploadStep::Saved { saved, sha256 } => {
                     return Ok(UploadAck {
-                        saved: body.get("saved").and_then(Value::as_str).unwrap_or_default().to_string(),
-                        sha256: body.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
+                        saved,
+                        sha256,
                         local_copy: local_copy(item.remove_after_upload),
                     });
                 }
-                // An intermediate ack: the next pass starts after what the server received.
-                200 => {
-                    let received = body.get("received").and_then(Value::as_u64).unwrap_or(0);
-                    if received <= start {
-                        return Err(ClientError::Server {
-                            status: response.status,
-                            message: "the server acknowledged nothing".to_string(),
-                        });
-                    }
-                    cursor = received;
-                }
-                // A refusal that names the count: resume from there, unless it names no
-                // progress at all, in which case it is a real failure.
-                409 => {
-                    let Some(received) = resume_from(&body) else {
-                        return Err(server_error(409, &body));
-                    };
-                    if received <= start {
-                        return Err(server_error(409, &body));
-                    }
-                    cursor = received;
-                }
-                _ => return Err(server_error(response.status, &body)),
+                // The next pass starts after what the server received.
+                UploadStep::Continue(received) => cursor = received,
+                UploadStep::Fail(error) => return Err(error),
             }
         }
     }
@@ -519,10 +500,81 @@ impl<T: Transport> Client<T> {
     }
 }
 
+/// What one server answer to an upload chunk means, decoded once here for every client:
+/// the blocking [`Client`]'s loop and a phone's own queue both walk their transfers through
+/// this, so the two cannot drift from what the two-process harness proves.
+pub(crate) enum UploadStep {
+    /// The file landed: the published name, and the digest the server verified.
+    Saved { saved: String, sha256: String },
+    /// The transfer continues; the cursor moves to this count.
+    Continue(u64),
+    /// The server refused, and said why (or said nothing useful).
+    Fail(ClientError),
+}
+
+/// Decode one answer to an upload chunk, from the position the chunk claimed (`start`).
+/// A `200` that names `saved` ends the transfer; a `200` or `409` that names a count past
+/// where the client already is moves the cursor; everything else is the server's own
+/// refusal, carried as a typed error.
+pub(crate) fn upload_step(response: Response, start: u64) -> UploadStep {
+    let body = match response.json() {
+        Ok(body) => body,
+        Err(error) => return UploadStep::Fail(error),
+    };
+    match response.status {
+        200 => {
+            if let Some(saved) = body.get("saved").and_then(Value::as_str) {
+                UploadStep::Saved {
+                    saved: saved.to_string(),
+                    sha256: body.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
+                }
+            } else {
+                let received = body.get("received").and_then(Value::as_u64).unwrap_or(0);
+                if received > start {
+                    UploadStep::Continue(received)
+                } else {
+                    UploadStep::Fail(ClientError::Server {
+                        status: 200,
+                        message: body
+                            .get("error")
+                            .and_then(Value::as_str)
+                            .unwrap_or("the server acknowledged nothing")
+                            .to_string(),
+                    })
+                }
+            }
+        }
+        // A refusal that names a count past the cursor is an instruction to resume; one
+        // that names no progress at all is a real failure.
+        409 => match resume_from(&body) {
+            Some(received) if received > start => UploadStep::Continue(received),
+            _ => UploadStep::Fail(server_error(409, &body)),
+        },
+        _ => UploadStep::Fail(server_error(response.status, &body)),
+    }
+}
+
+/// Interpret the server's answer to a completed (one-shot) upload, with the client's
+/// keep-or-remove decision attached — the blocking client and the wasm page both use it.
+pub(crate) fn finish_upload(response: Response, remove_after_upload: bool) -> Result<UploadAck, ClientError> {
+    match upload_step(response, 0) {
+        UploadStep::Saved { saved, sha256 } => Ok(UploadAck {
+            saved,
+            sha256,
+            local_copy: local_copy(remove_after_upload),
+        }),
+        UploadStep::Fail(error) => Err(error),
+        UploadStep::Continue(_) => Err(ClientError::Server {
+            status: 200,
+            message: "the one-shot upload answered as a partial".to_string(),
+        }),
+    }
+}
+
 /// The ranges that cover `total` bytes in chunks of `chunk`: `(start, end)` inclusive, each
 /// start exactly where the last ended, so the server's `start != received_now` guard never
 /// refuses a fresh client's next chunk.
-fn chunk_ranges(total: u64, chunk: u64) -> Vec<(u64, u64)> {
+pub(crate) fn chunk_ranges(total: u64, chunk: u64) -> Vec<(u64, u64)> {
     let chunk = chunk.max(1);
     let mut ranges = Vec::new();
     let mut start = 0;
@@ -535,12 +587,12 @@ fn chunk_ranges(total: u64, chunk: u64) -> Vec<(u64, u64)> {
 }
 
 /// What a `409` tells the client to do: continue from the count the server received.
-fn resume_from(body: &Value) -> Option<u64> {
+pub(crate) fn resume_from(body: &Value) -> Option<u64> {
     body.get("received").and_then(Value::as_u64)
 }
 
 /// The keep-or-remove decision (SL-J05), applied client-side on the server's ack.
-fn local_copy(remove_after_upload: bool) -> LocalCopy {
+pub(crate) fn local_copy(remove_after_upload: bool) -> LocalCopy {
     if remove_after_upload { LocalCopy::Remove } else { LocalCopy::Keep }
 }
 
@@ -549,19 +601,29 @@ fn local_copy(remove_after_upload: bool) -> LocalCopy {
 fn upload_id(name: &str, bytes: &[u8]) -> String {
     let mut entropy = name.as_bytes().to_vec();
     entropy.extend(bytes.len().to_le_bytes());
-    entropy.extend(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|since| since.as_nanos())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
+    entropy.extend(clock_entropy().to_le_bytes());
     format!("u{}", &sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&entropy))[..24])
+}
+
+/// The clock part of the upload id's entropy. A browser page cannot call `SystemTime::now`
+/// — wasm32 has no clock, and it *panics* rather than answering — so the wasm build asks
+/// the browser's own clock, the same way the page already speaks to the browser.
+#[cfg(not(target_arch = "wasm32"))]
+fn clock_entropy() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_nanos() as u64)
+        .unwrap_or(0)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn clock_entropy() -> u64 {
+    js_sys::Date::now() as u64
 }
 
 /// The headers every chunk carries: the bearer token, the file name and transfer id, and the
 /// digest on the chunk that completes the file.
-fn upload_headers(item: &UploadItem, id: &str, sha: Option<&str>, token: &str) -> Vec<(String, String)> {
+pub(crate) fn upload_headers(item: &UploadItem, id: &str, sha: Option<&str>, token: &str) -> Vec<(String, String)> {
     let mut headers = vec![
         ("Authorization".to_string(), format!("Bearer {token}")),
         ("X-Filename".to_string(), item.name.clone()),
@@ -572,22 +634,6 @@ fn upload_headers(item: &UploadItem, id: &str, sha: Option<&str>, token: &str) -
         headers.push(("X-Content-Sha256".to_string(), sha.to_string()));
     }
     headers
-}
-
-/// Interpret the server's answer to a completed upload.
-fn finished(response: Response, remove_after_upload: bool) -> Result<UploadAck, ClientError> {
-    let body = response.json()?;
-    if response.status == 200
-        && body.get("ok").and_then(Value::as_bool) == Some(true)
-        && let Some(saved) = body.get("saved").and_then(Value::as_str)
-    {
-        return Ok(UploadAck {
-            saved: saved.to_string(),
-            sha256: body.get("sha256").and_then(Value::as_str).unwrap_or_default().to_string(),
-            local_copy: local_copy(remove_after_upload),
-        });
-    }
-    Err(server_error(response.status, &body))
 }
 
 /// The server's error shape, as a typed failure.
@@ -737,6 +783,83 @@ mod tests {
         })
         .expect_err("not pixels");
         assert!(error.to_string().contains("no such photo"), "{error}");
+    }
+
+    /// The shared step decoder is the one decision both clients walk: a completing answer
+    /// is `Saved` with the published name and digest, an intermediate answer moves the
+    /// cursor, and every refusal is the server's own reason.
+    #[test]
+    fn upload_step_decides_saved_continue_and_fail() {
+        let saved = upload_step(
+            ok_json(json!({ "ok": true, "received": 5, "saved": "photo.jpg", "sha256": "abc" })).expect("response"),
+            0,
+        );
+        match saved {
+            UploadStep::Saved { saved, sha256 } => {
+                assert_eq!(saved, "photo.jpg");
+                assert_eq!(sha256, "abc");
+            }
+            _ => panic!("a completing answer is Saved"),
+        }
+        let step = upload_step(ok_json(json!({ "ok": true, "received": 4_096 })).expect("response"), 0);
+        assert_eq!(
+            match step {
+                UploadStep::Continue(n) => n,
+                _ => panic!("intermediate is Continue"),
+            },
+            4_096
+        );
+        // A count at or behind the cursor is not progress; the server's reason carries.
+        let error = upload_step(ok_json(json!({ "ok": true, "received": 0 })).expect("response"), 0);
+        assert!(matches!(error, UploadStep::Fail(_)));
+        let step = upload_step(
+            error_json(
+                409,
+                json!({ "ok": false, "error": "the chunk does not start where the file ends", "received": 8_192 }),
+            )
+            .expect("response"),
+            4_096,
+        );
+        assert_eq!(
+            match step {
+                UploadStep::Continue(n) => n,
+                _ => panic!("a 409 with progress resumes"),
+            },
+            8_192
+        );
+        let error = upload_step(error_json(409, json!({ "ok": false, "error": "unknown id" })).expect("response"), 0);
+        match error {
+            UploadStep::Fail(ClientError::Server { status, message }) => {
+                assert_eq!(status, 409);
+                assert_eq!(message, "unknown id");
+            }
+            _ => panic!("a refusal without progress fails with the server's reason"),
+        }
+        let error = upload_step(
+            error_json(413, json!({ "ok": false, "error": "the upload is past the limit" })).expect("response"),
+            0,
+        );
+        assert!(matches!(error, UploadStep::Fail(_)));
+    }
+
+    /// A one-shot upload whose answer is not a completion is the server's own refusal.
+    #[test]
+    fn a_one_shot_answer_is_a_completion_or_the_server_s_reason() {
+        let ack = finish_upload(
+            ok_json(json!({ "ok": true, "received": 3, "saved": "kept.jpg", "sha256": "abc" })).expect("response"),
+            false,
+        )
+        .expect("completed");
+        assert_eq!(ack.saved, "kept.jpg");
+        assert_eq!(ack.local_copy, LocalCopy::Keep);
+        let error = finish_upload(ok_json(json!({ "ok": true, "received": 3 })).expect("response"), false).expect_err("no saved");
+        assert!(error.to_string().contains("partial"), "{error}");
+        let error = finish_upload(
+            error_json(413, json!({ "ok": false, "error": "the upload is past the limit" })).expect("response"),
+            false,
+        )
+        .expect_err("refused");
+        assert!(error.to_string().contains("past the limit"), "{error}");
     }
 
     /// A transport that records what it was asked and answers from a script, so the client's

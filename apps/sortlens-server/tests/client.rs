@@ -281,6 +281,95 @@ fn an_upload_resumes_and_the_ack_decides_the_local_copy() {
     let _ = kept_item;
 }
 
+/// A one-shot upload — a file at or under the chunk size, one request, first contact with
+/// no partial on disk — completes with its declared digest verified. A phone's picker sends
+/// photographs exactly this way, and this path refused every such upload with a 500 before
+/// this test existed.
+#[test]
+fn a_one_shot_upload_verifies_the_digest_on_first_contact() {
+    let library = Library::build("client-one-shot");
+    let server = Server::spawn(&library, &["--code", "246810"]);
+    let mut device = server.device();
+    device.pair(&server.code, "phone").expect("pair");
+
+    // Well under the 512 KiB chunk: one request, no partial file on disk when the digest
+    // is checked.
+    let bytes: Vec<u8> = (0..2048).map(|step| (step % 253) as u8).collect();
+    let item = UploadItem::new("one_shot.jpg", bytes.clone(), false);
+    let ack = device.upload(&item).expect("the one-shot completes");
+    assert_eq!(ack.saved, "one_shot.jpg");
+    assert_eq!(ack.local_copy, LocalCopy::Keep);
+    assert_eq!(ack.sha256.len(), 64);
+    let landed = library.album.join("one_shot.jpg");
+    assert_eq!(std::fs::read(&landed).expect("landed"), bytes, "every byte arrived in one request");
+    assert!(
+        !library.album.join(".uploads").join(format!("{}.part", item.id)).exists(),
+        "nothing was left in staging"
+    );
+
+    // A wrong digest on a one-shot is refused (422), and nothing lands: a phone hashes every
+    // photograph it picks, so a lying header cannot publish a file.
+    let bytes: Vec<u8> = vec![7u8; 512];
+    let wrong_sha = "0".repeat(64);
+    let status = raw_upload(
+        &server.addr,
+        device.token().expect("paired"),
+        "wrong_digest.jpg",
+        "uwrong-digest-1",
+        Some(&wrong_sha),
+        &bytes,
+    );
+    assert_eq!(status, 422, "the digest mismatch is the server's own refusal");
+    assert!(!library.album.join("wrong_digest.jpg").exists(), "nothing was published");
+
+    // The right digest — the shape every client actually sends — completes.
+    let sha = sortlens_ai::sha256::to_hex(&sortlens_ai::sha256::digest(&bytes));
+    let status = raw_upload(
+        &server.addr,
+        device.token().expect("paired"),
+        "wrong_digest.jpg",
+        "uwrong-digest-2",
+        Some(&sha),
+        &bytes,
+    );
+    assert_eq!(status, 200, "the right digest publishes");
+    assert_eq!(std::fs::read(library.album.join("wrong_digest.jpg")).expect("landed"), bytes);
+}
+
+/// One raw one-shot `POST /upload`: headers only a hand-built request can set (a wrong
+/// digest is not something the client API ever sends), the status read back.
+fn raw_upload(addr: &str, token: &str, name: &str, id: &str, sha: Option<&str>, body: &[u8]) -> u16 {
+    use std::io::{Read as _, Write as _};
+    use std::net::TcpStream;
+    let mut head = format!(
+        "POST /upload HTTP/1.1\r\nHost: sortlens\r\nContent-Length: {}\r\n\
+         Authorization: Bearer {token}\r\nX-Filename: {name}\r\nX-Upload-Id: {id}\r\n",
+        body.len()
+    );
+    if let Some(sha) = sha {
+        head.push_str(&format!("X-Content-Sha256: {sha}\r\n"));
+    }
+    head.push_str("\r\n");
+    let mut stream = TcpStream::connect(addr).expect("the server is listening");
+    stream
+        .write_all(head.as_bytes())
+        .and_then(|_| stream.write_all(body))
+        .and_then(|_| stream.flush())
+        .expect("the upload is written");
+    let mut raw = Vec::new();
+    stream.read_to_end(&mut raw).expect("the server answers");
+    let head_end = raw
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("an HTTP response has a header terminator");
+    String::from_utf8_lossy(&raw[..head_end])
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|code| code.parse().ok())
+        .expect("a status line")
+}
+
 /// A wrapper that lets the first N requests through and then reports the connection dead,
 /// so the resume test loses a transfer without staging a real network fault.
 struct DropAfter(usize, TcpTransport);

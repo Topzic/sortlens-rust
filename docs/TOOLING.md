@@ -284,6 +284,25 @@ Notes and gotchas:
   `docs/PLAN.md` §12, requires every crate and app in the workspace to be named in the layer diagram, and
   requires every `docs/*.md` to be reachable from the README. It checks facts that have one right answer,
   not how they are phrased.
+- **The GitHub intake is checked with the code**: `cargo xtask templates` (in `ci`) reads the two issue
+  forms through a deliberately small YAML reader — block mappings, block sequences, scalars and `|`
+  blocks; flow collections, folded scalars, anchors and tab indentation are refused with their line —
+  and then checks the shape GitHub renders: the keys an issue form carries, the element types it knows,
+  an id on every field, a label on everything a person fills in, options where a dropdown or checkbox
+  list needs them, at least one required field, and that the bug form asks for
+  `sortlens-cli diagnostics`. The pull-request template is checked for the markers a reviewer needs:
+  the linked issue, the failing-then-passing test, every gate as a checkbox, the scan/catalog/thumbs
+  `cargo xtask perf` table and the `crates/ui` before-and-after. It checks facts, not phrasing.
+- **The workflows and the autonomous-agent contract are checked too**: `cargo xtask workflows` (in `ci`)
+  reads `.github/workflows/ci.yml`, `.github/workflows/agent-intake.yml` and `docs/AUTONOMOUS_AGENT.md`.
+  It fails when a gate command disappears from `ci.yml`, when a gate gets `continue-on-error` or an `if`
+  that leaves pull requests out, when the intake stops running on filed issues, reaches a repository
+  secret, loses its issue-only guard or its comment-and-relabel step, and when the playbook loses one of
+  the rules it is the only copy of. `cargo xtask intake` is the checker the intake workflow runs: given
+  `SORTLENS_ISSUE_BODY` and `SORTLENS_ISSUE_LABELS`, it reads the required headings from the form itself
+  and names each one that is missing or empty. The workflow files are written in the block style that
+  reader accepts — a flow list such as `branches: [main]` is refused, because a check that cannot read
+  its own workflow is not a check.
 - **Measurements, not budgets, in `perf`**: `cargo xtask perf` runs `apps/sortlens-perf` in release mode
   and prints one table — scan, index, cold and warm thumbnails, the worker service, the suggestion pass,
   library open, headless grid frames. It is deliberately not in `ci`: a timing that fails on a loaded box
