@@ -928,8 +928,7 @@ shipped in Phase 4 item 2a (`cargo xtask icons`) and the High-Contrast preset in
 
 Rows that need something this repository genuinely does not have (an identity, a toolchain, a screen reader, a
 person's decision). Anything buildable lives in "Completion phases" below instead. The packaging icons
-(`.icns`/`.ico`) shipped in Phase 4 item 2a; the opt-in update check is
-still open there.
+(`.icns`/`.ico`) shipped in Phase 4 item 2a; the opt-in update check shipped in item 2c.
 
 | Not built | Because | What would unblock it |
 | --- | --- | --- |
@@ -1289,7 +1288,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     canvas, white words, yellow marks, borders that read as boundaries. It appears everywhere presets are
     named because every menu iterates `ThemeKind::ALL` — the Appearance chip's right-click, its cycle, and
     Settings — with no new drawing code.
-  - [ ] 2c. `craft-update` behind an explicit opt-in (SL-I10)
+  - [x] 2c. `craft-update` behind an explicit opt-in (SL-I10) — **done 2026-11-24**: the consent-gated
+    update check in `sortlens-engine`'s `update` module, desktop-only and shaped like `model.install`:
+    `update.status`, `update.check` and `update.consent` in the registry (never in `crates/ai`), the
+    consent stored per session in the engine and persisted by the app as `updates.check_consent`,
+    `update.check` refusing without it from every face — UI (Settings → Updates, `Check now` only
+    behind the switch), CLI (`update`, `update-consent`, `update-check`) and MCP examples. The check
+    runs on a worker as an `Update` activity job; the answer (the latest release read through
+    `craft-update`'s capped parser, held to `Topzic/sortlens-rust`'s own download links, and compared
+    with `craft-update`'s semver rules including the local-build rule) is kept for `update.status` and
+    the Settings row, so an answer landing after the dialog closes is not thrown away. Proved by
+    `update_check_refuses_without_consent_and_names_the_setting`, `update_consent_flips_through_its_command`,
+    `update_status_reports_version_consent_and_last_check`, `update_check_runs_on_a_worker_and_keeps_its_answer`
+    (a loopback feed in GitHub's shape, the worker path end-to-end), `a_failing_feed_fails_the_job_and_keeps_no_answer`,
+    `a_second_check_refuses_while_one_is_running`, the module's own parse tests (prerelease skipped,
+    local build never downgraded, rate limit named, empty answer read as up to date), and the headless
+    `the_updates_settings_section_gates_the_check_behind_consent` (the checkbox clicked through the real
+    widget, `Check now` appearing and disappearing with the consent). No baseline moved: no settings scene
+    exists, and the section is desktop-only.
   - [ ] 2d. `craft-i18n` scaffolding (SL-L07)
   (B,E)
 - [ ] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,

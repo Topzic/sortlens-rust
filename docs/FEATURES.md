@@ -352,7 +352,7 @@ whose approval flow, undo record and audit entry do not already exist.
 | SL-I07 | Language + RTL | [I] (ArtCraft) | UI language, Arabic RTL | `craft-i18n` catalogs + `craft-ui::fonts` stack | P1 | M9 |
 | SL-I08 | UI scale | [I] | 0.8–2.0 | egui zoom factor, persisted | P1 | M2 |
 | SL-I09 | Shortcuts editor | [I] (craft-keymap) | Rebind, conflict detection, import other apps' sets | `craft-keymap` data + editor UI | P1 | M9 |
-| SL-I10 | Update check + release notes | [D] | In-app version history and update | `craft-update` with suite app metadata | P1 | M9 |
+| SL-I10 | Update check + release notes | [D] | Consent-gated check with release notes headline | `craft-update` parser + semver, engine `update.check`/`update.consent`/`update.status` | P1 | M9 |
 | SL-I11 | Credits / attribution | [I] (ArtCraft) | Licences for models, fonts, data | `docs/ATTRIBUTION.md` + in-app credits | P0 | M9 |
 | SL-I12 | First-run setup | [D] v0.10 | Choose library, add a folder, optional remote test | Wizard as commands, skippable, resumable | P1 | M5 |
 | SL-I13 | Library profiles ("accounts") | [D] v0.10 | Each person has their own library | `profile` dir with its own catalog + settings; no auth server | P1 | M9 |

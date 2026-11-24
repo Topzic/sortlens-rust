@@ -16,6 +16,10 @@ pub mod moves;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod models;
 
+// The update check (SL-I10) is the other approved network call, consent-gated the same way.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod update;
+
 pub use command::{CommandSpec, Group, Registry, Status};
 pub use job::{Job, JobKind, JobStatus};
 pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Suggestion};
@@ -115,6 +119,13 @@ struct PendingSharpness {
 struct PendingModel {
     job: u64,
     download: crate::models::Download,
+}
+
+/// An update check in flight (SL-I10, desktop only).
+#[cfg(not(target_arch = "wasm32"))]
+struct PendingUpdateCheck {
+    job: u64,
+    rx: Receiver<std::result::Result<crate::update::UpdateReport, String>>,
 }
 
 /// What a finished sharpness pass measured.
@@ -226,6 +237,26 @@ pub struct Engine {
     /// loopback one — the manifest is the contract, and the contract is data, not a constant.
     #[cfg(not(target_arch = "wasm32"))]
     model_manifest: sortlens_ai::Manifest,
+    /// An update check in flight (SL-I10, desktop only).
+    #[cfg(not(target_arch = "wasm32"))]
+    pending_update: Option<PendingUpdateCheck>,
+    /// A fetcher a test installed for `update.check`, standing in for the real HTTPS client.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(test)]
+    update_fetcher_override: Option<std::sync::Arc<dyn crate::update::Fetcher>>,
+    /// The owner's opt-in for the update check, the same per-session shape as the model
+    /// downloader's consent: false every session until the setting is switched on, and checked
+    /// before anything is fetched.
+    #[cfg(not(target_arch = "wasm32"))]
+    update_consent: bool,
+    /// The last finished check's answer, for `update.status` and the Settings row. Session
+    /// memory: a check from yesterday is not this one's answer.
+    #[cfg(not(target_arch = "wasm32"))]
+    last_update: Option<crate::update::UpdateReport>,
+    /// The endpoint the check reads — the real GitHub releases URL, unless a test points it at
+    /// a loopback server. The same seam the model manifest's URLs use.
+    #[cfg(not(target_arch = "wasm32"))]
+    update_url: String,
     /// The loaded detector, when the pinned detector model is installed and verified. Loaded once
     /// per session and shared with the suggestion worker; a removed model is picked up on the next
     /// session, which is exactly how the settings rows behave.
@@ -288,6 +319,16 @@ impl Engine {
             model_rows: None,
             #[cfg(not(target_arch = "wasm32"))]
             model_manifest: sortlens_ai::Manifest::shipped(),
+            #[cfg(not(target_arch = "wasm32"))]
+            pending_update: None,
+            #[cfg(all(not(target_arch = "wasm32"), test))]
+            update_fetcher_override: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            update_consent: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            last_update: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            update_url: crate::update::releases_url(crate::update::REPO),
             #[cfg(not(target_arch = "wasm32"))]
             detector: None,
             #[cfg(not(target_arch = "wasm32"))]
@@ -4022,6 +4063,32 @@ impl Engine {
                 self.set_models_consent(on);
                 Ok(json!({ "consent": self.models_consent() }))
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            "update.status" => Ok(json!({
+                "consent": self.update_consent(),
+                "current": sortlens_core::VERSION,
+                "repo": crate::update::REPO,
+                "checking": self.pending_update.is_some(),
+                "last": self.last_update.as_ref().map(|report| json!({
+                    "offered": report.offered,
+                    "latest": report.latest,
+                    "headline": report.headline(),
+                })),
+            })),
+            #[cfg(not(target_arch = "wasm32"))]
+            "update.check" => {
+                self.start_update_check()?;
+                Ok(json!({ "checking": true }))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            "update.consent" => {
+                let on = args
+                    .get("on")
+                    .and_then(Value::as_bool)
+                    .ok_or_else(|| Error::Invalid("on (true or false) is required".into()))?;
+                self.set_update_consent(on);
+                Ok(json!({ "consent": self.update_consent() }))
+            }
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
         };
         // Every response carries the catalog revision, per the SL-D11 design note: a stale render
@@ -4390,6 +4457,108 @@ impl Engine {
         // The model session caches point at the old manifest's store; a swapped manifest is a
         // different session as far as the suggestion pass is concerned.
         self.reset_model_sessions();
+    }
+
+    /// The update check's consent, and setting it. Same per-session strictness as the model
+    /// downloader: the app persists the setting and turns it back on at launch.
+    pub fn update_consent(&self) -> bool {
+        self.update_consent
+    }
+
+    /// Set the consent. Returns whether it changed, so a settings row can report what it did.
+    pub fn set_update_consent(&mut self, on: bool) -> bool {
+        let changed = self.update_consent != on;
+        self.update_consent = on;
+        changed
+    }
+
+    /// Whether a check is running.
+    pub fn update_check_running(&self) -> bool {
+        self.pending_update.is_some()
+    }
+
+    /// The last finished check's answer.
+    pub fn last_update_report(&self) -> Option<&crate::update::UpdateReport> {
+        self.last_update.as_ref()
+    }
+
+    /// Start an update check on a worker thread. Refuses without consent, naming the setting,
+    /// the way `model.install` refuses; and refuses while one is already running, because two
+    /// answers to the same question are one too many to show.
+    pub fn check_for_updates(&mut self) -> Result<()> {
+        let fetcher = crate::update::Http::new().map_err(|error| Error::Invalid(format!("the update check could not start: {error}")))?;
+        self.check_for_updates_with(std::sync::Arc::new(fetcher))
+    }
+
+    /// What `update.check` runs: the real HTTPS client, or — under test — the loopback one the
+    /// test installed. Test-only overrides change the endpoint, never the consent gate.
+    pub(crate) fn start_update_check(&mut self) -> Result<()> {
+        #[cfg(test)]
+        if let Some(fetcher) = self.update_fetcher_override.clone() {
+            return self.check_for_updates_with(fetcher);
+        }
+        self.check_for_updates()
+    }
+
+    /// The same, with a fetcher supplied by the caller — the test seam that keeps the network
+    /// out of the tests, and lets a test point the endpoint at a loopback server.
+    pub fn check_for_updates_with(&mut self, fetcher: std::sync::Arc<dyn crate::update::Fetcher>) -> Result<()> {
+        if !self.update_consent {
+            return Err(Error::Invalid(
+                "update checks are switched off — allow them in Settings → Updates first".into(),
+            ));
+        }
+        if self.pending_update.is_some() {
+            return Err(Error::Invalid("an update check is already running".into()));
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let url = self.update_url.clone();
+        let repo = crate::update::REPO;
+        let current = sortlens_core::VERSION.to_owned();
+        std::thread::Builder::new()
+            .name("sortlens-update".into())
+            .spawn(move || {
+                let answer = crate::update::check(fetcher.as_ref(), &url, repo, &current);
+                let _ = tx.send(answer);
+            })
+            .map_err(|error| Error::Invalid(format!("could not start the update worker: {error}")))?;
+        let job = self.start_job(JobKind::UpdateCheck, "Checking for updates…");
+        self.pending_update = Some(PendingUpdateCheck { job, rx });
+        Ok(())
+    }
+
+    /// Collect a finished check, if there is one. The activity job gets its last word and the
+    /// answer is kept for `update.status` and the Settings row, so a check that finishes while
+    /// the dialog is closed is not thrown away.
+    pub fn poll_update_check(&mut self) -> Option<std::result::Result<crate::update::UpdateReport, String>> {
+        let pending = self.pending_update.as_ref()?;
+        let answer = match pending.rx.try_recv() {
+            Ok(answer) => answer,
+            Err(TryRecvError::Empty) => return None,
+            Err(TryRecvError::Disconnected) => Err("the update worker stopped".to_owned()),
+        };
+        let pending = self.pending_update.take()?;
+        let (status, error) = match &answer {
+            Ok(_) => (JobStatus::Done, None),
+            Err(message) => (JobStatus::Failed, Some(message.clone())),
+        };
+        if let Some(job) = self.jobs.iter_mut().find(|job| job.id == pending.job) {
+            job.error = error;
+            job.finish(status);
+        }
+        if let Ok(report) = &answer {
+            self.last_update = Some(report.clone());
+        }
+        Some(answer)
+    }
+
+    /// Point the check at another endpoint, with the fetcher to read it through. Test-only: the
+    /// product reads the app's own GitHub releases over HTTPS, and a test cannot serve that URL
+    /// on loopback — the same seam the model manifest's URLs use.
+    #[cfg(test)]
+    pub(crate) fn use_update_url_for_tests(&mut self, url: String, fetcher: std::sync::Arc<dyn crate::update::Fetcher>) {
+        self.update_url = url;
+        self.update_fetcher_override = Some(fetcher);
     }
 }
 
@@ -8096,6 +8265,185 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("the download did not finish");
+    }
+
+    // --- The update check (SL-I10): consent, the worker and the answer. ---
+
+    /// A plain-HTTP read of a loopback endpoint, for the check's fetcher seam. The real fetcher
+    /// is `craft-update`'s HTTPS client; the seam it plugs into is exactly this trait.
+    struct LoopbackApi {
+        url: String,
+    }
+
+    impl crate::update::Fetcher for LoopbackApi {
+        fn get_api(&self, _url: &str, _etag: Option<&str>) -> std::result::Result<craft_update::http::Fetched, String> {
+            let response = ureq::get(&self.url)
+                .call()
+                .map_err(|error| format!("could not reach the server: {error}"))?;
+            match response.status().as_u16() {
+                200 => {
+                    let text = response
+                        .into_body()
+                        .read_to_string()
+                        .map_err(|error| format!("unreadable answer ({error})"))?;
+                    Ok(craft_update::http::Fetched::Body { text, etag: None })
+                }
+                404 => Ok(craft_update::http::Fetched::NotFound),
+                other => Err(format!("the server answered {other}")),
+            }
+        }
+    }
+
+    /// A GitHub releases-list answer with one stable release above the running 0.1.0.
+    const UPDATE_LIST: &str = r#"[
+        {
+            "tag_name": "v9.9.9",
+            "name": "Sortlens v9.9.9",
+            "draft": false,
+            "prerelease": false,
+            "published_at": "2026-11-20T10:00:00Z",
+            "html_url": "https://github.com/Topzic/sortlens-rust/releases/tag/v9.9.9",
+            "body": "A fix worth having",
+            "assets": []
+        }
+    ]"#;
+
+    #[test]
+    fn update_check_refuses_without_consent_and_names_the_setting() {
+        let (_temp, mut engine) = library("update-consent");
+        let error = engine.check_for_updates().expect_err("no consent");
+        assert!(
+            error.to_string().contains("Settings → Updates"),
+            "the refusal says where to turn it on: {error}"
+        );
+        let refused = engine.run("update.check", &json!({})).expect_err("no consent");
+        assert!(refused.to_string().contains("switched off"), "{refused}");
+        assert!(!engine.update_check_running(), "nothing started");
+    }
+
+    #[test]
+    fn update_consent_flips_through_its_command() {
+        let (_temp, mut engine) = library("update-consent-cmd");
+        let on = engine.run("update.consent", &json!({ "on": true })).expect("on");
+        assert_eq!(on["consent"], true);
+        assert!(engine.update_consent());
+        let off = engine.run("update.consent", &json!({ "on": false })).expect("off");
+        assert_eq!(off["consent"], false);
+        assert!(!engine.update_consent(), "consent can be withdrawn mid-session");
+    }
+
+    #[test]
+    fn update_status_reports_version_consent_and_last_check() {
+        let (_temp, mut engine) = library("update-status");
+        let status = engine.run("update.status", &json!({})).expect("status");
+        assert_eq!(status["consent"], false);
+        assert_eq!(status["current"], sortlens_core::VERSION);
+        assert_eq!(status["repo"], crate::update::REPO);
+        assert_eq!(status["checking"], false);
+        assert_eq!(status["last"], json!(null), "no check has run yet");
+    }
+
+    /// The full worker path, offline: consent on, a loopback endpoint serving GitHub's shape,
+    /// the check on the worker, the job finishing Done, and the answer kept for `update.status`.
+    #[test]
+    fn update_check_runs_on_a_worker_and_keeps_its_answer() {
+        let feed = FakeRelease::serve("update-feed", UPDATE_LIST.as_bytes().to_vec());
+        let (_temp, mut engine) = library("update-check-worker");
+        engine.run("update.consent", &json!({ "on": true })).expect("consent on");
+        engine.use_update_url_for_tests(feed.url.clone(), std::sync::Arc::new(LoopbackApi { url: feed.url.clone() }));
+
+        engine.run("update.check", &json!({})).expect("check starts");
+        assert!(engine.update_check_running(), "the job is in flight");
+        let answer = {
+            let mut found = None;
+            for _ in 0..600 {
+                if let Some(answer) = engine.poll_update_check() {
+                    found = Some(answer);
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            found.expect("the check finished")
+        };
+        let report = answer.expect("the feed answered");
+        assert!(report.offered, "9.9.9 is newer than the running build");
+        assert_eq!(report.latest.as_ref().expect("the release").version_label(), "9.9.9");
+
+        // The answer survives the poll, for `update.status` and the Settings row.
+        let status = engine.run("update.status", &json!({})).expect("status");
+        assert_eq!(status["checking"], false);
+        assert_eq!(status["last"]["offered"], true);
+        assert_eq!(status["last"]["latest"]["tag"], "v9.9.9");
+        assert!(status["last"]["headline"].as_str().unwrap_or_default().contains("Update available"));
+
+        // The activity stack holds the job, finished Done.
+        let jobs = engine.jobs();
+        assert!(
+            jobs.iter()
+                .any(|job| job.kind == JobKind::UpdateCheck && job.status == JobStatus::Done),
+            "the check is an activity row"
+        );
+    }
+
+    #[test]
+    fn a_failing_feed_fails_the_job_and_keeps_no_answer() {
+        let feed = FakeRelease::serve("update-broken", b"not json".to_vec());
+        let (_temp, mut engine) = library("update-check-broken");
+        engine.run("update.consent", &json!({ "on": true })).expect("consent on");
+        engine.use_update_url_for_tests(feed.url.clone(), std::sync::Arc::new(LoopbackApi { url: feed.url.clone() }));
+        engine.run("update.check", &json!({})).expect("check starts");
+        let answer = {
+            let mut found = None;
+            for _ in 0..600 {
+                if let Some(answer) = engine.poll_update_check() {
+                    found = Some(answer);
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            found.expect("the check finished")
+        };
+        assert!(answer.is_err(), "garbage is an error, not an up-to-date");
+        assert!(engine.last_update_report().is_none(), "a failed check keeps no answer");
+        assert!(
+            engine
+                .jobs()
+                .iter()
+                .any(|job| job.kind == JobKind::UpdateCheck && job.status == JobStatus::Failed),
+            "the failure is named in the activity stack"
+        );
+    }
+
+    #[test]
+    fn a_second_check_refuses_while_one_is_running() {
+        // A check whose worker is still running holds the slot: two answers to one question are
+        // one too many to show. The poll below drains the first before the loop ends.
+        let feed = FakeRelease::serve("update-twice", UPDATE_LIST.as_bytes().to_vec());
+        let (_temp, mut engine) = library("update-check-twice");
+        engine.run("update.consent", &json!({ "on": true })).expect("consent on");
+        engine.use_update_url_for_tests(feed.url.clone(), std::sync::Arc::new(LoopbackApi { url: feed.url.clone() }));
+        engine.run("update.check", &json!({})).expect("first starts");
+        let second = engine.run("update.check", &json!({})).expect_err("already running");
+        assert!(second.to_string().contains("already running"), "{second}");
+        // Drain it, and a new check is welcome again.
+        for _ in 0..600 {
+            if engine.poll_update_check().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(engine.run("update.check", &json!({})).is_ok(), "the slot frees when the check ends");
+    }
+
+    #[test]
+    fn engine_update_module_parses_the_shipped_shapes() {
+        // The parsing and comparison rules live in `update.rs`; this is the engine-side wiring
+        // check that a release whose repo matches is read through the same parser the real
+        // fetcher feeds.
+        let report = crate::update::parse(UPDATE_LIST, crate::update::REPO, "9.9.9").expect("parses");
+        assert!(!report.offered, "9.9.9 is not newer than a build running 9.9.9");
+        let report = crate::update::parse(UPDATE_LIST, crate::update::REPO, "0.1.0").expect("parses");
+        assert!(report.offered);
     }
 
     #[test]

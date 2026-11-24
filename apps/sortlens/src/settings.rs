@@ -16,6 +16,7 @@ pub struct Prefs {
     pub library: Library,
     pub ai: Ai,
     pub remote: Remote,
+    pub updates: Updates,
     /// Shortcut sets; the active set is what the keymap loads. Stored as the array craft-settings
     /// replaces whole, so a set the editor deleted stays deleted after saving.
     pub shortcuts: Profiles,
@@ -129,6 +130,15 @@ pub struct Remote {
     pub port: u16,
 }
 
+/// Update checks (SL-I10).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Updates {
+    /// The owner-approved opt-in for the other one network call: checking GitHub's releases for
+    /// a newer Sortlens. Off by default, exactly like the model downloader's consent.
+    pub check_consent: bool,
+}
+
 impl Settings for Prefs {
     const APP_ID: &'static str = "sortlens";
     const SCHEMA_VERSION: u32 = 1;
@@ -150,6 +160,7 @@ mod tests {
         assert!(!prefs.ai.enabled, "models are opt-in");
         assert!(!prefs.ai.download_consent, "model downloads are opt-in");
         assert!(!prefs.remote.enabled, "the server is opt-in");
+        assert!(!prefs.updates.check_consent, "update checks are opt-in");
     }
 
     /// Every grid mode survives a trip through the settings file, and an unknown one reads as the default.
@@ -229,6 +240,20 @@ mod tests {
         // And a settings file written before this setting existed still opens, with motion at its default.
         let old: Prefs = toml::from_str("[appearance]\ntheme = \"paper\"\n").expect("parse");
         assert_eq!(old.appearance.motion, "full");
+    }
+
+    #[test]
+    fn update_consent_round_trips_and_an_old_file_stays_off() {
+        let mut prefs = Prefs::default();
+        assert!(!prefs.updates.check_consent);
+        prefs.updates.check_consent = true;
+        let text = toml::to_string(&prefs).expect("serialise");
+        let read: Prefs = toml::from_str(&text).expect("parse");
+        assert!(read.updates.check_consent, "the opt-in survives the settings file");
+        // A settings file written before the section existed reads with the consent off, which is
+        // what "opt-in" means: nobody consented without saying so.
+        let old: Prefs = toml::from_str("[appearance]\ntheme = \"paper\"\n").expect("parse");
+        assert!(!old.updates.check_consent);
     }
 
     #[test]

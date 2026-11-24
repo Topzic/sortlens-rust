@@ -217,6 +217,8 @@ pub enum Action {
     Backup,
     /// The model-downloader consent was switched on or off, and should be persisted.
     SetModelConsent(bool),
+    /// The update-check consent was switched on or off, and should be persisted (SL-I10).
+    SetUpdateConsent(bool),
     /// Verify an archive and unpack it into a folder the host chooses.
     RestoreBackup,
     /// Repoint an indexed root, which the host asks a folder for.
@@ -8212,6 +8214,10 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             #[cfg(not(target_arch = "wasm32"))]
             ai_models_section(ui, t, engine, actions);
             ui.separator();
+            // The update check (SL-I10) is desktop-only and consent-gated the same way.
+            #[cfg(not(target_arch = "wasm32"))]
+            updates_section(ui, t, engine, actions);
+            ui.separator();
             ui.label(RichText::new("Keyword packs").size(11.0).color(t.text_muted));
             keyword_packs(ui, t, engine, actions);
             if ui
@@ -8329,6 +8335,54 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
                     .color(t.text_faint),
             );
         }
+    }
+    ui.add_space(8.0);
+}
+
+/// Settings → Updates (SL-I10): the consent switch and the one check it buys.
+///
+/// The consent switch is the whole gate, exactly as it is for the model downloader: with it off,
+/// no check runs from here, from the CLI or from an agent — the engine refuses, not just the
+/// button. With it on, `Check now` asks the engine, which fetches on a worker; each frame picks
+/// the answer up here, so the dialog never blocks on the network and an answer that lands after
+/// the dialog closes is still kept for `update.status`.
+#[cfg(not(target_arch = "wasm32"))]
+fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    ui.label(RichText::new("Updates").size(11.0).color(t.text_muted));
+    let mut consent = engine.update_consent();
+    if ui.checkbox(&mut consent, "Check for updates (network)").changed() {
+        engine.set_update_consent(consent);
+        actions.push(Action::SetUpdateConsent(consent));
+    }
+    ui.label(
+        RichText::new(
+            "One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.",
+        )
+        .size(10.5)
+        .color(t.text_faint),
+    );
+    if consent && ui.button(RichText::new("Check now").size(11.0)).clicked() {
+        match engine.check_for_updates() {
+            Ok(()) => {}
+            Err(error) => actions.push(Action::Notice(error.to_string())),
+        }
+    }
+    // The answer, whatever frame it arrived in.
+    if let Some(answer) = engine.poll_update_check() {
+        let message = match answer {
+            Ok(report) => report.headline(),
+            Err(error) => format!("Update check failed: {error}"),
+        };
+        actions.push(Action::Notice(message));
+    }
+    if engine.update_check_running() {
+        ui.label(RichText::new("Checking…").size(10.0).color(t.text_muted));
+    } else if let Some(report) = engine.last_update_report() {
+        ui.label(
+            RichText::new(report.headline())
+                .size(10.5)
+                .color(if report.offered { t.text } else { t.text_muted }),
+        );
     }
     ui.add_space(8.0);
 }
@@ -13046,6 +13100,130 @@ mod tests {
             !output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
                 if text.galley.text() == "Install")),
             "the buttons are gone with the consent"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Settings → Updates (SL-I10): the consent checkbox is the gate, exactly as it is in the AI
+    /// section. The click is driven through the real widget; the `Check now` button exists only
+    /// behind consent, and the test does not press it — pressing it would start the real network
+    /// call, and the engine tests own the check itself, offline.
+    #[test]
+    fn the_updates_settings_section_gates_the_check_behind_consent() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-updates-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine_cell = std::cell::RefCell::new(Engine::open(&dir).expect("open"));
+        assert!(!engine_cell.borrow().update_consent(), "consent starts off");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.settings_open = true;
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let frame = |state: &mut UiState, mut input: egui::RawInput| {
+            input.screen_rect = Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0)));
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(ui, state, &tokens, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // With consent off: the section paints its switch and its honest sentence, and there is
+        // no Check now button to press.
+        let _warm = frame(&mut state, egui::RawInput::default());
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text().starts_with("Check for updates"))),
+            "the consent switch is painted"
+        );
+        assert!(
+            output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text().contains("Nothing downloads"))),
+            "the switch says what it does not do"
+        );
+        assert!(
+            !output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Check now")),
+            "no Check now button without consent"
+        );
+        assert!(actions_cell.borrow().is_empty(), "painting alone changes nothing");
+
+        // Click the consent checkbox: the engine flips, and the host is asked to persist it.
+        let label = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text().starts_with("Check for updates") => {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .expect("the consent checkbox painted its label");
+        let at = label.center();
+        let click = |at: egui::Pos2, pressed: bool| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 900.0))),
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        frame(&mut state, click(at, true));
+        frame(&mut state, click(at, false));
+        assert!(engine_cell.borrow().update_consent(), "the click reached the engine");
+        assert!(
+            actions_cell.borrow().iter().any(|action| action == &Action::SetUpdateConsent(true)),
+            "and asked the host to persist it"
+        );
+
+        // With consent on, Check now exists — still nothing has been fetched, and none of the
+        // frames the checkbox drove ever started a check.
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Check now")),
+            "Check now appears behind consent"
+        );
+        assert!(!engine_cell.borrow().update_check_running(), "toggling the switch runs nothing");
+
+        // And the gate can be withdrawn: Check now's arrival shifts the rows, so the label is
+        // found again where it now paints.
+        let output = frame(&mut state, egui::RawInput::default());
+        let label = output
+            .shapes
+            .iter()
+            .find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.text().starts_with("Check for updates") => {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .expect("the consent checkbox still painted its label");
+        let at = label.center();
+        actions_cell.borrow_mut().clear();
+        frame(&mut state, click(at, true));
+        frame(&mut state, click(at, false));
+        assert!(!engine_cell.borrow().update_consent(), "consent is withdrawn");
+        assert!(
+            actions_cell
+                .borrow()
+                .iter()
+                .any(|action| action == &Action::SetUpdateConsent(false))
+        );
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            !output.shapes.iter().any(|clipped| matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.text() == "Check now")),
+            "the button is gone with the consent"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

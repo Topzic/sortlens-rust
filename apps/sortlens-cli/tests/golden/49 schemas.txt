@@ -92,6 +92,12 @@ exit 0
     "verb": "models"
   },
   {
+    "command": "update.status",
+    "kind": "read",
+    "note": "the running version, the consent switch, and the last check's answer with its release notes headline",
+    "verb": "update"
+  },
+  {
     "command": "suggest.list",
     "kind": "read",
     "note": "proposals for one photo: keyword, source, confidence. Nothing is written until `accept`",

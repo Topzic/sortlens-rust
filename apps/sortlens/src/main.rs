@@ -150,6 +150,8 @@ impl App {
         let mut engine = engine;
         let consent = store.get().ai.download_consent;
         engine.set_models_consent(consent);
+        // The update check's consent, the same way (SL-I10).
+        engine.set_update_consent(store.get().updates.check_consent);
 
         Self {
             engine,
@@ -385,6 +387,14 @@ impl App {
                     "Model downloads allowed — nothing downloads until you install one"
                 } else {
                     "Model downloads switched off"
+                });
+            }
+            Action::SetUpdateConsent(on) => {
+                self.store.update(|prefs| prefs.updates.check_consent = on);
+                self.ui.notice(if on {
+                    "Update checks allowed — nothing is fetched until you run one"
+                } else {
+                    "Update checks switched off"
                 });
             }
             Action::Backup => {

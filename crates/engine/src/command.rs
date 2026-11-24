@@ -909,6 +909,35 @@ impl Registry {
                     menu: "Sortlens > Allow Model Downloads…",
                     status: Status::Ready,
                 },
+                // The update check (SL-I10). Desktop only, consent-gated like the downloader: the
+                // wasm build has no updater, so the commands and their handlers are gated together.
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "update.status",
+                    label: "Update Status",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Update Status",
+                    status: Status::Ready,
+                },
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "update.check",
+                    label: "Check for Updates",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Check for Updates…",
+                    status: Status::Ready,
+                },
+                #[cfg(not(target_arch = "wasm32"))]
+                CommandSpec {
+                    id: "update.consent",
+                    label: "Allow Update Checks",
+                    group: Group::App,
+                    shortcut: None,
+                    menu: "Sortlens > Allow Update Checks…",
+                    status: Status::Ready,
+                },
             ],
         }
     }

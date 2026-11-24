@@ -1,5 +1,61 @@
 # Checkpoint
 
+## 2026-11-24 (forty-eighth) — Phase 4 item 2c: the opt-in update check (SL-I10)
+
+- **What shipped:** `craft-update` behind an explicit opt-in — the second of the two owner-approved
+  network calls, consent-gated in exactly the shape `model.install` set. `sortlens-engine`'s new
+  `update` module (desktop-only, gated like the model downloader so the wasm build never reaches for
+  a socket) reads the latest published release of `Topzic/sortlens-rust` through `craft-update`'s
+  parser — drafts and error bodies refused, every text capped, asset links held to the app's own
+  repository — and compares it against the running version with `craft-update`'s semver rules,
+  including the local-build rule, so a build from source is never offered the release it already
+  contains. Three registry commands: `update.status` (version, consent, repo, whether a check is
+  running, the last answer), `update.check` (refuses without consent, naming the setting, the way
+  the downloader does; refuses again while one is running), and `update.consent`. The check runs on
+  a worker thread as an `Update` activity job; the answer is kept for `update.status` and the
+  Settings row, so one that lands after the dialog closes is not thrown away.
+- **Every face wired:** the app persists the consent as `updates.check_consent` and restores it at
+  launch like the model downloader's; Settings → Updates paints the consent switch, the `Check now`
+  button only behind it, `Checking…` while the worker runs and the last answer's one-line headline;
+  the CLI answers with `update` (status), `update-consent on|off` and `update-check` (a progress
+  verb, like `model-install`); the MCP examples name `update.check`, `update.consent` and
+  `update.status`. Nothing downloads or installs automatically — an update still means building from
+  source; the self-update path stays in M10's absence table with the installer work it needs.
+- **Tests that fail when the behaviour is broken:** in the module, the parse tests (a newer stable
+  release offered and summarised, an older one not, a prerelease skipped for a stable running build,
+  a local build only ever offered a higher release number, garbage and a rate limit named as errors,
+  an empty answer read as up to date rather than as a failure); in the engine, the refusal without
+  consent naming `Settings → Updates`, the consent flip through its command, `update.status`'s shape
+  before and after a check, the full worker path over a loopback feed in GitHub's own shape (the job
+  finishing Done, the answer kept, the headline read back), a failing feed failing the job and
+  keeping no answer, a second check refusing while one runs, and the endpoint/fetcher seam that
+  keeps the network out of the tests (`craft-update`'s real client is HTTPS-only, so `update.check`
+  under test swaps in the loopback fetcher, never the consent gate). In the shell, the headless
+  `the_updates_settings_section_gates_the_check_behind_consent`: the switch clicked through the real
+  widget flips the engine and asks the host to persist it, `Check now` exists only behind consent,
+  and the test never presses it — pressing it would be the real network call.
+- **Visual verification:** no baseline moved. No settings scene exists (the dialog is covered by the
+  headless tests), and the section is desktop-only, so `cargo xtask screenshots` ran green over all
+  33 baselines byte-identical — the proof the Settings change touches no other surface.
+- Files: `crates/engine/src/update.rs` (new), `crates/engine/src/lib.rs` (module, fields,
+  `update_consent`/`set_update_consent`/`check_for_updates[_with]`/`start_update_check`/
+  `poll_update_check`, the three command handlers, the tests), `crates/engine/src/command.rs` (the
+  three registry rows), `crates/engine/src/job.rs` (`JobKind::UpdateCheck`),
+  `crates/engine/Cargo.toml` (`craft-update` without the `egui` feature, so the CLI build stays
+  clear of egui), `crates/ui/src/shell.rs` (`Action::SetUpdateConsent`, `updates_section`, the
+  `run_ui` test), `apps/sortlens/src/settings.rs` (`Updates.check_consent`, defaults, round-trip and
+  old-file tests), `apps/sortlens/src/main.rs` (restore at launch, persist on the action),
+  `apps/sortlens-cli/src/main.rs` (the three verbs, help, schema row), `crates/mcp/src/examples.rs`,
+  `docs/ROADMAP.md` (2c ticked with the proof named; M10 prose reconciled), `docs/FEATURES.md` (the
+  SL-I10 row), `docs/UX.md` (the Updates dialog row), `docs/RELEASE.md` (the "no update check"
+  claim replaced), `docs/ARCHITECTURE.md` (§13 updates).
+- Gates: `ci`, `snapshot` (the two CLI goldens that name the verb list were regenerated with
+  `--update` and read), `deny`, `wasm` (`crates/ui` changed), `screenshots` all green.
+- **Next**: Phase 4 item 2d — `craft-i18n` scaffolding (SL-L07): the `craft-i18n` crate is already a
+  pinned workspace dependency; wire the catalog so the interface's strings load through it, with the
+  RTL behaviour of SL-L07's design note and the font stack already handling the symbols, then item 3
+  `sortlens-server` + `sortlens-web` with the two-process loopback harness.
+
 ## 2026-11-24 (forty-seventh) — Phase 4 item 2b: the High-Contrast preset (SL-L09)
 
 - **What shipped:** the fifth theme preset — `ThemeKind::HighContrast`, persisted as

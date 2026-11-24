@@ -60,6 +60,18 @@ pub const NEEDS_CALLER: &[(&str, &str)] = &[
         "on: true or false; the owner-approved opt-in for the one network call Sortlens makes, downloading models",
     ),
     (
+        "update.check",
+        "no arguments; asks the project's GitHub releases for a newer Sortlens on a worker. Refused until consent is on (update.consent)",
+    ),
+    (
+        "update.consent",
+        "on: true or false; the owner-approved opt-in for update checks, the other approved network call",
+    ),
+    (
+        "update.status",
+        "no arguments; the running version, the consent switch, and the last check's answer",
+    ),
+    (
         "suggest.start",
         "no arguments; proposes keywords for the whole library on a worker, writes nothing",
     ),

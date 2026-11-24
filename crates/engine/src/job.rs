@@ -26,6 +26,8 @@ pub enum JobKind {
     Sharpness,
     /// Fetching a model into the store (SL-F02, opt-in).
     ModelInstall,
+    /// Checking for an update (SL-I10, opt-in).
+    UpdateCheck,
 }
 
 impl JobKind {
@@ -41,6 +43,7 @@ impl JobKind {
             Self::Suggest => "Suggestions",
             Self::Sharpness => "Sharpness",
             Self::ModelInstall => "Model",
+            Self::UpdateCheck => "Update",
         }
     }
 }

@@ -60,6 +60,9 @@ Commands:
   model-consent on|off      the opt-in switch for downloading models (network)
   model-install <id>        download a pinned model; resumable, digest-checked
   model-remove <id>         delete an installed model from the store
+  update                    the running version and the last check's answer
+  update-consent on|off     the opt-in switch for update checks (network)
+  update-check              ask the project's GitHub releases for a newer Sortlens
   undo                      undo the last change
   remap <old> <new>         repoint a moved or renamed root, sample checked
   history [--limit N]       recent changes, newest first
@@ -274,6 +277,63 @@ fn batch_suggest(engine: &mut Engine) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Update status, the consent switch, or one check (SL-I10). The check is a progress verb: it
+/// starts on a worker and waits for the answer, like model-install.
+fn updates(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(), String> {
+    if command == "update" {
+        let status = engine
+            .run("update.status", &serde_json::json!({}))
+            .map_err(|error| error.to_string())?;
+        println!(
+            "Sortlens {} · repo {} · update checks {}",
+            status["current"].as_str().unwrap_or("?"),
+            status["repo"].as_str().unwrap_or("?"),
+            if status["consent"].as_bool().unwrap_or(false) {
+                "allowed"
+            } else {
+                "switched off"
+            }
+        );
+        if let Some(last) = status["last"].as_object() {
+            println!("last check: {}", last["headline"].as_str().unwrap_or("?"));
+        }
+        return Ok(());
+    }
+    if command == "update-consent" {
+        let on = match rest.first().map(String::as_str) {
+            Some("on") => true,
+            Some("off") => false,
+            _ => return Err("say on or off".into()),
+        };
+        engine.set_update_consent(on);
+        println!(
+            "update checks {}",
+            if on {
+                "allowed — nothing is fetched until you run one"
+            } else {
+                "switched off"
+            }
+        );
+        return Ok(());
+    }
+    // update-check
+    engine.check_for_updates().map_err(|error| error.to_string())?;
+    println!("checking GitHub releases…");
+    for _ in 0..600 {
+        if let Some(answer) = engine.poll_update_check() {
+            return match answer {
+                Ok(report) => {
+                    println!("{}", report.headline());
+                    Ok(())
+                }
+                Err(message) => Err(message),
+            };
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Err("the check did not finish".into())
 }
 
 /// List the keyword packs in the library, or switch one on or off.
@@ -611,6 +671,12 @@ const SCHEMAS: &[Schema] = &[
         command: "model.status",
         kind: Kind::Read,
         note: "every pinned model with its licence, size and digest-checked install state; `consent` says whether downloads are allowed",
+    },
+    Schema {
+        verb: "update",
+        command: "update.status",
+        kind: Kind::Read,
+        note: "the running version, the consent switch, and the last check's answer with its release notes headline",
     },
     Schema {
         verb: "suggest",
@@ -1079,6 +1145,7 @@ fn run() -> Result<(), String> {
         "suggest" | "accept" | "dismiss" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
         "models" | "model-consent" | "model-install" | "model-remove" => models(&mut engine, &command, rest),
+        "update" | "update-consent" | "update-check" => updates(&mut engine, &command, rest),
         "batchsuggest" => batch_suggest(&mut engine),
         "delete" => delete_photos(&mut engine, rest),
         "sharpen" => sharpen(&mut engine),

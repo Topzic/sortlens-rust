@@ -66,7 +66,10 @@ phases"), and the list shrinks as those rows are ticked.
   symbols the interface draws. Shortcuts *are* rebindable now: Settings → Shortcuts opens the `craft-keymap`
   editor (rebinding, conflict detection, named sets, craft-keymap JSON import and export), and the help and
   the palette paint the current chords.
-- **No installer, no signed builds, no update check.** See M10 in the roadmap.
+- **No installer, no signed builds, no automatic update.** See M10 in the roadmap. What exists is
+  the opt-in check: Settings → Updates or `sortlens-cli update-check` asks the project's GitHub
+  releases once, with the consent switch off until you turn it on, and nothing is downloaded or
+  installed automatically — an update means fetching the source and building, as today.
 - **A prototype-grade layout.** The Adobe/ArtCraft-style icon-first chrome in `docs/UX.md` is Phase 3.
 
 What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF

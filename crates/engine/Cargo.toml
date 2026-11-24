@@ -32,6 +32,10 @@ serde = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ureq = { workspace = true }
 craft-atomic = { workspace = true }
+# The update check (SL-I10). The workspace pin carries the `egui` feature for the dialog we do
+# not use — the shell draws its own Settings section, the way the AI panel does — so this crate
+# takes the crate with default features only, and the CLI build stays free of egui.
+craft-update = { git = "https://github.com/storytold/craft-libs", rev = "23acc704933a9a5619a5cd1cddc9bb1fb5a9b2d3" }
 
 [dev-dependencies]
 sortlens-testkit = { workspace = true }

@@ -686,7 +686,10 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 
 - Desktop: `eframe` + `wgpu` (Metal/Vulkan/DX12), signed and notarised macOS app bundle,
   Windows MSI/Inno-free installer (WiX or `cargo-bundle`), Linux AppImage + Flatpak.
-- Updates: `craft-update` with the suite app descriptor, release notes rendered in-app.
+- Updates: `craft-update`'s release parsing and semver rules behind the engine's consent-gated
+  `update.check` (SL-I10, opt-in); the answer — tag, version, notes headline — shows in Settings →
+  Updates and `update.status`. Nothing downloads or installs automatically; self-update stays out
+  until the installer work in M10's absence table exists.
 - Web: wasm bundle served by the optional server; no CDN dependencies.
 - Geography: `assets/coastline.txt` — the Natural Earth 1:110m coastline (public domain), embedded in
   `sortlens-geo` with `include_str!` and stroked under the Places dots with its credit on screen. A `tiles/`

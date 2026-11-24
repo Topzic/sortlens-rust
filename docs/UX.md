@@ -495,6 +495,7 @@ command registry rather than a second list that could drift from it.
 | About / credits | Help | version, licences, font/model attribution, update check |
 | Library doctor | Settings → Library / Missing source | Per-folder status table, rescan, remap, remove-missing |
 | AI models | Settings → AI | Consent switch for model downloads (network, opt-in), then one row per pinned model: licence, size, install state, Install / Remove; a download shows its progress and a Stop that keeps the partial file |
+| Updates | Settings → Updates | Consent switch for update checks (network, opt-in), `Check now` behind it, and the last check's one-line answer; a check shows Checking… and never blocks the dialog (SL-I10) |
 
 Destructive dialogs follow one template: what will happen, how many, how big, a list, the
 irreversible warning only in permanent mode, and the safe action as the default button.
