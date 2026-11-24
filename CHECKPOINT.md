@@ -1,5 +1,60 @@
 # Checkpoint
 
+## 2026-11-24 (seventieth) — the phone's font set is trimmed to the languages it ships (Phase 4 item 3b)
+
+- **Why this came up.** The sixty-ninth entry left the roadmap's 3b row with three open items — a device
+  build, the iOS Photos library, and "trimming the embedded font set for a phone". The first two wait for a
+  Mac and an NDK; the third was buildable here, and a phone binary that embeds the whole 48 MiB craft-fonts
+  manifest to paint three languages was paying for families it could never draw (the manifest's Hangul face,
+  for a build that ships English, Arabic and Japanese).
+- **One parser answers for two readers.** `crates/ui/src/font_manifest.rs` is a dependency-free module
+  `crates/ui/build.rs` includes at build time (`#[path]`) and `xtask` includes for its font report, so a
+  build and `cargo xtask fonts` cannot disagree about what a manifest line means or which faces survive. It
+  parses craft-fonts' `family | style | file | scripts | …` lines, selects the faces a build embeds, and
+  validates that a set covers the scripts the interface draws.
+- **The filter is `CRAFT_FONTS_SCRIPTS`.** Comma- or space-separated ISO 15924 codes; unset means the whole
+  manifest, as the desktop embeds today. `cargo xtask mobile` passes exactly `PHONE_SCRIPTS` — `Latn`,
+  `Zsym`, `Arab`, `Jpan`, the interface's own two plus every shipped language's — when `CRAFT_FONTS_DIR` is
+  set, through a new `run_env` helper (edition 2024 makes `set_var` unsafe). `build.rs` also writes
+  `SELECTED_SCRIPTS` into the generated table, and `fonts::selected_scripts()` reports it, so a release can
+  say what it carries without re-deriving it.
+- **Refusals before bytes, not after.** A requested script no manifest face covers is refused by name (a
+  typo such as `Hng` never embeds a half-set); `cargo xtask fonts` refuses a set — filtered or not — that
+  misses a script the interface ships, which strengthens the old "covers no Latin" check to the shipped
+  languages too. The phone script table is held to its definition by a test (required scripts ∪ shipped
+  languages), and another test holds `SHIPPED_LANGUAGE_SCRIPTS` to the picker's own `LANGUAGES`, so adding
+  a language without its script fails the build, not the phone.
+- **Verified end to end against a fixture checkout**: a fake craft-fonts clone with six faces (Japanese,
+  Arabic, Hangul, two symbol faces) — `cargo xtask fonts` reported `5 of 6 face(s) in 4 family(ies) after
+  the CRAFT_FONTS_SCRIPTS filter`, the unfiltered report kept all six, and the typo filter was refused by
+  name; the filtered `cargo build -p sortlens-ui` generated a table with the five kept faces and no
+  `NanumGothic`. On this checkout (no fonts checkout, CI's configuration) nothing changes: `xtask fonts`
+  still reports "not embedded" and the app still runs on egui's own faces.
+- **Files.** `crates/ui/src/font_manifest.rs` (new); `crates/ui/build.rs` (the filter, `SELECTED_SCRIPTS`,
+  the parser shared); `crates/ui/src/fonts.rs` (`selected_scripts`, `REQUIRED_SCRIPTS` re-exported from the
+  module, two new tests); `crates/ui/src/lib.rs`; `xtask/src/main.rs` (the module include, `run_env`,
+  `mobile` passing the filter, `fonts` validating coverage); `docs/ROADMAP.md` (3b shipped bullet, the font
+  row, M10's stale "craft-update still open" sentence fixed — it shipped as item 2c on 2026-11-24);
+  `docs/ARCHITECTURE.md` §8.3, `docs/ATTRIBUTION.md` (the trim and the strengthened refusal),
+  `docs/RELEASE.md`, `docs/UX.md` (what 3b still lacks is now two items, not three).
+- **Tests that fail when the behaviour is absent** (11 new: nine in `font_manifest` — parse, no-filter
+  keeps everything, the phone filter drops the Hangul face, the typo refusal, the no-face refusal, the
+  filter value's grammar, the coverage validation both ways, and the phone script set's definition — plus
+  two in `fonts`: the shipped-language table matches the picker, and a filtered build names every script
+  the interface ships). `cargo xtask fonts` refuses a set that misses a script the interface ships, proved
+  on the fixture.
+- **Verified.** `cargo test -p sortlens-ui --lib` (173), `-p xtask` (42, the module's tests run there too).
+  `cargo xtask ci` green through every gate (two fmt reformats and one clippy `manual_contains` + a
+  never-actually-loops loop fixed along the way). `cargo xtask snapshot` green, no golden moved.
+  `cargo xtask screenshots` green, 23 scenes, no baseline moved — the phone's paint is untouched; only what
+  a phone *build* embeds changed. `cargo xtask deny` green. `cargo xtask mobile` still needs the NDK and
+  Xcode, as documented.
+- **Next.** The iOS Photos library (iOS still reads the Files-visible Documents folder) and a device
+  build; both wait for a machine with the NDK, Xcode and the iOS Photos framework. That is everything
+  buildable left in the owner's Phase 0 → Phase 5 plan — the remaining 3b "Still open" items are the
+  device verification itself, the APK/AAB and `.ipa` workflow legs (whose signing halves are the same
+  Apple-identity blocker the M10 table already names), and the post-1.0 backlog rows.
+
 ## 2026-11-24 (sixty-ninth) — the phone asks whether the desktop is there before a code is spent (SL-J07 from the app)
 
 - **Why this came up.** The sixty-eighth entry ended on the one thing the pairing flow still asked
@@ -4706,8 +4761,7 @@ says so rather than skipping it silently). The full text is in `docs/ROADMAP.md`
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
     the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the native
-    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). The canvas at that width — the far-edge rail standing down, a two-row filter strip, a tray whose every control is on screen — is **done 2026-11-24** (sixty-seventh entry). What remains of
-    the row is that app: send-to-desktop upload, the iOS Photos library and a device build.
+    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). The canvas at that width — the far-edge rail standing down, a two-row filter strip, a tray whose every control is on screen — is **done 2026-11-24** (sixty-seventh entry). The send half, the pairing's connection test and the phone's own screens shipped the same day (sixty-eighth and sixty-ninth entries), and the phone's embedded font set is trimmed to the shipped languages' scripts (seventieth entry). What remains of the row is the iOS Photos library and a device build — both waiting for a machine with the NDK, Xcode and the iOS Photos framework.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates — **done 2026-11-24**, see the fifty-eighth entry.

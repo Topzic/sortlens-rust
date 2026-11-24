@@ -89,8 +89,12 @@ faces. Nothing from that repository is vendored here, and `.fonts/` is gitignore
 
 When a build embeds craft faces, they are appended to each family (never prepended — a fallback that
 changes Latin text is a bug). The full manifest is about 48 MiB. `fonts/embedded.txt` records what the
-last such build carried, and `cargo xtask fonts` reports the face set and refuses one that covers no
-Latin text.
+last such build carried, and `cargo xtask fonts` reports the face set and refuses one that misses a
+script the interface ships (its own two, or one a shipped translation is written in). A build may also
+be *trimmed*: `CRAFT_FONTS_SCRIPTS` (a comma-separated script list) embeds only the faces the named
+scripts need — the phone's build sets it to `Latn,Zsym,Arab,Jpan` through `cargo xtask mobile`, so a
+phone binary does not carry families no shipped language uses, and a script the manifest has no face
+for is refused by name before anything is embedded.
 
 Faces that appear in that record, all under the SIL Open Font License 1.1, with the licence text travelling
 in `craft-fonts` itself:

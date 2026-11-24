@@ -11,6 +11,11 @@ mod intake;
 mod workflow;
 mod yaml;
 
+// The manifest reader crates/ui's build script uses, so the phone trim and the font report
+// cannot disagree with the build about which faces a `CRAFT_FONTS_SCRIPTS` filter keeps.
+#[path = "../../crates/ui/src/font_manifest.rs"]
+mod font_manifest;
+
 const LIB_CRATES: &[&str] = &[
     "core", "hash", "quality", "testkit", "meta", "media", "sidecar", "geo", "ai", "thumbs", "scan", "catalog", "cull", "insights",
     "similar", "remote", "engine", "ui", "mcp",
@@ -79,12 +84,13 @@ fn help() {
   fmt      check formatting
   clippy   lint every target with -D warnings
   test     run the workspace tests
-  mobile   check the phone app and the crates under it for Android and iOS (`mobile android|ios` for one)
+  mobile   check the phone app and the crates under it for Android and iOS (`mobile android|ios` for one),
+           asking the CRAFT_FONTS_SCRIPTS trim a phone build embeds with
   layers   enforce the dependency layering rules
   roots    enforce the crate-level lint header
   assets   enforce that every asset has a provenance entry
   icons    check assets/icon.ico and assets/icon.icns against the drawing; --update rewrites them
-  fonts    report the embedded face set and refuse to ship one that covers no Latin text
+  fonts    report the embedded face set and refuse one that misses a script the interface ships
   deny     check licences, advisories, bans and sources against deny.toml
   snapshot golden CLI output; --update rewrites the goldens, then read the diff
   screenshots  paint the shell through egui_kittest and diff the baselines; --update rewrites them
@@ -141,10 +147,33 @@ fn mobile() -> Result<(), String> {
         Some("ios") => &["aarch64-apple-ios"],
         Some(other) => return Err(format!("mobile knows android and ios, not {other}")),
     };
+    // The phone's trimmed font set (roadmap 3b): a phone build that embeds craft-fonts keeps only
+    // the faces the shipped interface languages need, not the whole manifest — a desktop luxury
+    // a phone binary does not pay for. Without a checkout to embed from this is a no-op.
+    let env: Vec<(String, String)> = if std::env::var_os("CRAFT_FONTS_DIR").is_some() {
+        vec![("CRAFT_FONTS_SCRIPTS".to_string(), font_manifest::PHONE_SCRIPTS.join(","))]
+    } else {
+        Vec::new()
+    };
     for target in targets {
-        run("cargo", &["check", "-p", "sortlens-mobile", "--target", target])?;
+        run_env("cargo", &["check", "-p", "sortlens-mobile", "--target", target], &env)?;
     }
     Ok(())
+}
+
+/// [`run`] with environment variables set for the child only.
+fn run_env(program: &str, args: &[&str], env: &[(String, String)]) -> Result<(), String> {
+    let mut command = Command::new(program);
+    command.args(args);
+    for (key, value) in env {
+        command.env(key, value);
+    }
+    let status = command.status().map_err(|error| format!("could not run {program}: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} {} failed", args.join(" ")))
+    }
 }
 
 /// Read the dependency section of a crate manifest, excluding dev-dependencies and build-dependencies.
@@ -239,15 +268,24 @@ fn roots() -> Result<(), String> {
 /// Check the font stack: the family list, and whether the required scripts are covered.
 ///
 /// The craft-fonts checkout is optional, so "not embedded" is a pass with a clear line rather than a
-/// silent success — but a build that *does* embed faces and covers none of the interface's own
-/// scripts is refused, because that is a table built from the wrong manifest.
+/// silent success — but a set that *does* embed faces and misses a script the interface ships (its
+/// own two, or one a shipped translation is written in) is refused, and so is a `CRAFT_FONTS_SCRIPTS`
+/// filter the manifest cannot satisfy. The rules are the manifest reader's, shared with the build
+/// script so a report and a build cannot disagree.
 fn fonts() -> Result<(), String> {
     let manifest = Path::new("fonts/embedded.txt");
     let dir = std::env::var_os("CRAFT_FONTS_DIR").map(std::path::PathBuf::from);
+    let filter_value = std::env::var("CRAFT_FONTS_SCRIPTS").ok();
+    let filter = font_manifest::parse_filter(filter_value.as_deref());
     let mut report = Vec::new();
     match &dir {
         None => {
-            println!("xtask fonts: not embedded (CRAFT_FONTS_DIR is unset) — egui's own faces are used");
+            let trimmed = if filter.is_empty() {
+                String::new()
+            } else {
+                format!("; CRAFT_FONTS_SCRIPTS={} would trim a checkout build", filter.join(","))
+            };
+            println!("xtask fonts: not embedded (CRAFT_FONTS_DIR is unset) — egui's own faces are used{trimmed}");
             println!("  to embed: git clone https://github.com/storytold/craft-fonts .fonts/craft-fonts");
             println!("            CRAFT_FONTS_DIR=$PWD/.fonts/craft-fonts cargo xtask fonts");
             return Ok(());
@@ -258,33 +296,34 @@ fn fonts() -> Result<(), String> {
                 return Err(format!("{} is not a craft-fonts checkout", dir.display()));
             }
             let text = fs::read_to_string(&checkout).map_err(|error| error.to_string())?;
-            let mut families: Vec<&str> = text
-                .lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty() && !line.starts_with('#'))
-                .filter_map(|line| line.split(" | ").next())
-                .collect();
+            let parsed = font_manifest::parse(&text)?;
+            let kept = font_manifest::select(&parsed, &filter).map_err(|error| format!("CRAFT_FONTS_SCRIPTS: {error}"))?;
+            let mut families: Vec<&str> = kept.iter().map(|face| face.family).collect();
             families.sort_unstable();
             families.dedup();
-            report.push(format!(
-                "{} face(s) in {} family(ies): {}",
-                text.lines()
-                    .map(str::trim)
-                    .filter(|line| !line.is_empty() && !line.starts_with('#'))
-                    .count(),
-                families.len(),
-                families.join(", ")
-            ));
-            let has_latin = text.lines().any(|line| line.contains("Latn"));
-            let has_symbols = text.contains("Zsym");
-            if !has_latin {
-                return Err("the manifest lists no Latin face".to_string());
+            if filter.is_empty() {
+                report.push(format!(
+                    "{} face(s) in {} family(ies): {}",
+                    kept.len(),
+                    families.len(),
+                    families.join(", ")
+                ));
+            } else {
+                report.push(format!(
+                    "{} of {} face(s) in {} family(ies) after the CRAFT_FONTS_SCRIPTS filter ({}): {}",
+                    kept.len(),
+                    parsed.len(),
+                    families.len(),
+                    filter.join(","),
+                    families.join(", ")
+                ));
             }
-            report.push(format!(
-                "required scripts: Latn {} · Zsym {}",
-                "covered",
-                if has_symbols { "covered" } else { "MISSING" }
-            ));
+            // The same rule the build enforces on itself: the embedded set must cover the
+            // interface's own scripts and every shipped language's — a release that offers a
+            // language it cannot paint is a defect, not a note.
+            if let Some(problem) = font_manifest::validate(&text, &filter)?.into_iter().next() {
+                return Err(problem);
+            }
         }
     }
     if let Ok(written) = fs::read_to_string(manifest) {

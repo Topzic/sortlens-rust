@@ -8,6 +8,7 @@
 
 pub mod a11y;
 pub mod charts;
+pub mod font_manifest;
 pub mod fonts;
 pub mod i18n;
 pub mod icons;

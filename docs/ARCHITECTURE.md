@@ -463,7 +463,11 @@ token set, not a sweep through the UI.
 Implemented as `crates/ui/build.rs` + `crates/ui/src/fonts.rs`:
 
 - `build.rs` reads `CRAFT_FONTS_DIR` (unset is a supported configuration, and what CI uses) and writes
-  a `CRAFT_FONTS: &[CraftFont]` table.
+  a `CRAFT_FONTS: &[CraftFont]` table. It also reads `CRAFT_FONTS_SCRIPTS` — a script filter for builds
+  that must not carry faces the interface cannot paint: the phone's trim. The parser and selection
+  rules live in `crates/ui/src/font_manifest.rs`, a module `cargo xtask fonts` includes too, so a
+  build and its report answer to one implementation; `cargo xtask mobile` passes the phone's script
+  set (`Latn`, `Zsym`, `Arab`, `Jpan`) when a checkout is being embedded from.
 - `fonts::install(ctx)` registers them and **appends** each face to `Proportional` and `Monospace`,
   after egui's own, so a fallback can never take over Latin text.
 - `fonts::coverage()` checks the scripts the interface itself draws (`Latn`, `Zsym`); the translated

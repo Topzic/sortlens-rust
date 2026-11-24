@@ -39,7 +39,12 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 - [x] `cargo deny` allow-list in `deny.toml` (licences, advisories, bans, sources), `cargo xtask deny`, its own CI job; `Cargo.lock` committed (E)
 - [x] App shell: top bar, bottom bar, left/right panels, canvas (B)
 - [x] `craft-window` title-bar policy; macOS traffic-light inset (B)
-- [x] Fonts: `crates/ui/build.rs` embeds craft-fonts when `CRAFT_FONTS_DIR` is set (optional by design), `fonts::install` appends them as fallbacks after egui's own faces, `fonts::coverage` checks `Latn`/`Zsym`, and `cargo xtask fonts` reports the set (B) — egui's own faces remain the zero-config default
+- [x] Fonts: `crates/ui/build.rs` embeds craft-fonts when `CRAFT_FONTS_DIR` is set (optional by design),
+  `fonts::install` appends them as fallbacks after egui's own faces, `fonts::coverage` checks `Latn`/`Zsym`,
+  and `cargo xtask fonts` reports the set (B) — egui's own faces remain the zero-config default. **The
+  `CRAFT_FONTS_SCRIPTS` trim shipped 2026-11-24:** a filtered build (the phone's) embeds only the faces the
+  shipped languages need, selected by `crates/ui/src/font_manifest.rs`, the module the report shares — see
+  Phase 4 item 3b.
 - [x] Four theme presets + contrast tests (B) — widget states set on `Visuals` through the `WidgetPalette` mapping in `Tokens::palette`
 - [x] `craft-settings` v1 type, damaged-file notice, unknown-key preservation (A)
 - [x] Command registry skeleton; `Engine::run` returns typed errors (A)
@@ -902,8 +907,8 @@ photos live; the UI renders correctly in Arabic and Japanese.
 the icon, the attribution gate and the first half of the accessibility audit are in. Signing, installers,
 the emitted accessibility tree, the operating system's own reduced-motion preference, theme import and the tag
 are not — each named with its unblocker in the table at the end of this milestone. The `.icns`/`.ico` files
-shipped in Phase 4 item 2a (`cargo xtask icons`) and the High-Contrast preset in item 2b; the opt-in
-`craft-update` toggle is still open in Phase 4 item 2c.
+shipped in Phase 4 item 2a (`cargo xtask icons`), the High-Contrast preset in item 2b, and the opt-in
+`craft-update` toggle in item 2c.
 
 - [x] Accessibility audit, part 1 — **names**: every custom-painted clickable region in the shell (grid
   cell, detail preview, lookahead strip, cull strip, similar clusters, memory cards, sidebar rows) now
@@ -1497,9 +1502,24 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     code is typed, storing nothing either way and standing down while a pairing runs; the shell drives the
     connection test, Pair, Send, Stop and Forget at phone width, and proves each
     width paints only its own section.
+  - **Shipped 2026-11-24 (the phone's trimmed font set):** a phone build that embeds craft-fonts
+    embeds only the faces the shipped interface languages need. `CRAFT_FONTS_SCRIPTS` — a comma- or
+    space-separated list of ISO 15924 codes — is read by `crates/ui/build.rs`, whose parser and
+    selection rules live in `crates/ui/src/font_manifest.rs`, a module `cargo xtask fonts` includes
+    too, so a build and its report cannot disagree about what a manifest line means or which faces
+    survive. `cargo xtask mobile` passes exactly `PHONE_SCRIPTS` (`Latn`, `Zsym`, `Arab`, `Jpan` —
+    the interface's own two plus every shipped language's, a table a test holds to the picker) so a
+    phone binary leaves out whole families it could never paint (the manifest's Hangul face, for a
+    build that ships English, Arabic and Japanese) while a desktop build leaves the variable unset
+    and embeds the whole manifest. A requested script no face covers is refused by name (a typo is
+    refused before anything is embedded), and both the build report and `cargo xtask fonts` refuse a
+    set that misses a script the interface ships. Verified end to end against a fixture checkout:
+    the filtered build's generated table carries the five faces the filter keeps and not the
+    Hangul one. Tests: manifest parsing, selection, the typo refusal, the coverage validation, the
+    phone script set's definition, and a filtered build naming every shipped script.
   - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
-    `cargo xtask mobile` (this checkout has neither); trimming the embedded font set for a phone; the iOS
-    Photos library; an APK/AAB and an `.ipa` in the release workflow.
+    `cargo xtask mobile` (this checkout has neither); the iOS Photos library; an APK/AAB and an `.ipa`
+    in the release workflow.
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

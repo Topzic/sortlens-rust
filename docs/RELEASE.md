@@ -85,8 +85,10 @@ phases"), and the list shrinks as those rows are ticked.
   full-width sheet at a time, the bar drops its words and keeps five glyphs, and the search field keeps
   the room they leave. The canvas inside that frame is the phone's too — the far-edge rail stands down while
   the inspector is closed and tab-switches beside its open sheet, the filter strip wraps into two rows
-  without a second count, and the bottom bar's tray keeps every control on screen. What 3b still lacks is
-  the device build, the trimmed font set and the iOS Photos library.
+  without a second count, and the bottom bar's tray keeps every control on screen. The font set a phone build embeds is trimmed the same
+way: `cargo xtask mobile` passes `CRAFT_FONTS_SCRIPTS` (the interface's two scripts plus every shipped
+language's), so a phone binary embeds only the faces it could paint. What 3b still lacks is
+  the device build and the iOS Photos library.
 
 What *is* in it that older notes denied: HEIC thumbnails (`craft-heif`), PNG, TIFF, WebP, BMP and GIF
 thumbnails, RAW previews, the shipped coastline and the tile-folder map.

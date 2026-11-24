@@ -97,8 +97,9 @@ anything paints, so the bar, the docks and the canvas all answer to the same mea
   server's start, live code and device rows — is not painted on a phone, whose host cannot serve, and this
   section is not painted on the desktop.
 
-What the phone still lacks is named in the roadmap's 3b row: a device build, the trimmed font set and the iOS
-Photos library.
+What the phone still lacks is named in the roadmap's 3b row: a device build and the iOS Photos library. The
+font set a phone build embeds is already trimmed to the shipped languages' scripts (`CRAFT_FONTS_SCRIPTS`,
+applied by `cargo xtask mobile`).
 
 ---
 
