@@ -17,6 +17,7 @@
 #![cfg(feature = "screenshots")]
 #![forbid(unsafe_code)]
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -305,6 +306,55 @@ fn set_dir(set: &str) -> String {
     out.trim_end_matches('-').to_string()
 }
 
+/// What one test's scenes did: how many were painted, and which ones did not match.
+#[derive(Default)]
+struct Painted {
+    scenes: usize,
+    mismatches: Vec<String>,
+}
+
+thread_local! {
+    /// The record of the test running on this thread.
+    ///
+    /// A test that paints several scenes must not stop at the first mismatch. The gate's way of handing
+    /// over a set it has never painted is the `.new.png` each mismatch writes, and a panic in the middle
+    /// of a test leaves every scene after it unpainted and unuploaded — which is how four paper baselines
+    /// stayed missing through two red runs while the artifact held the twenty that came before them.
+    static RECORD: RefCell<Painted> = RefCell::new(Painted::default());
+}
+
+/// Record one painted scene: counted always, remembered only when it did not match.
+fn record(name: &str, outcome: Result<(), String>) {
+    RECORD.with(|record| {
+        let mut record = record.borrow_mut();
+        record.scenes += 1;
+        if let Err(err) = outcome {
+            record.mismatches.push(format!("{name}: {err}"));
+        }
+    });
+}
+
+/// Take this test's record, leaving the thread ready for the next one.
+fn take_report() -> Painted {
+    RECORD.with(|record| std::mem::take(&mut *record.borrow_mut()))
+}
+
+/// Fail the test if any scene it painted differed — naming every one, not just the first.
+///
+/// A test calls this last, once every scene it paints has been painted. Before it existed the first
+/// mismatch panicked inside `shoot`, so the scenes after it were never painted and never handed over.
+fn assert_every_scene_matched() {
+    let Painted { scenes, mismatches } = take_report();
+    if mismatches.is_empty() {
+        return;
+    }
+    let listed = mismatches.join("\n  - ");
+    panic!(
+        "{} of this test's {scenes} scenes did not match their baselines; each one's `.new.png` is the paint it handed over:\n  - {listed}",
+        mismatches.len()
+    );
+}
+
 /// Paint one scene at the fixed window size and compare it with its baseline.
 ///
 /// Returns the engine, so the next scene paints the same library without scanning it again.
@@ -322,9 +372,8 @@ fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engi
         .wgpu()
         .build_eframe(|_cc| scene);
     settle(&mut harness);
-    harness
-        .try_snapshot(baseline_name(name))
-        .expect("the baseline matches, or its .new/.diff companions say exactly where it does not");
+    let baseline = baseline_name(name);
+    record(&baseline, harness.try_snapshot(baseline.clone()).map_err(|err| err.to_string()));
     harness.into_state().engine
 }
 
@@ -344,9 +393,8 @@ fn shoot_at_lenient(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2)
         .wgpu()
         .build_eframe(|_cc| scene);
     settle(&mut harness);
-    harness
-        .try_snapshot(baseline_name(name))
-        .expect("the baseline matches, or its .new/.diff companions say exactly where it does not");
+    let baseline = baseline_name(name);
+    record(&baseline, harness.try_snapshot(baseline.clone()).map_err(|err| err.to_string()));
     harness.into_state().engine
 }
 
@@ -364,6 +412,61 @@ fn a_baseline_set_scopes_every_scene_to_its_own_directory() {
     assert_eq!(scoped_name("Mesa LLVM 15.0", "x"), "mesa-llvm-15-0/x");
     assert_eq!(scoped_name("  //  ", "x"), "x", "a name with no letter or digit is no set");
     assert_eq!(scoped_name("../..", "x"), "x", "a set cannot climb out of the baselines");
+}
+
+/// A report names every scene that differed, and taking it leaves the thread clean.
+///
+/// The counting is what makes the failure message honest: `2 of 3` says a scene matched, which a
+/// list of two names alone would not.
+#[test]
+fn a_report_names_every_scene_that_differed() {
+    record("lavapipe/detail-paper", Err("Missing snapshot".to_owned()));
+    record("lavapipe/cull-paper", Ok(()));
+    record("lavapipe/compare-paper", Err("Differs".to_owned()));
+    let Painted { scenes, mismatches } = take_report();
+    assert_eq!(scenes, 3, "every scene painted is counted, matched or not");
+    assert_eq!(mismatches.len(), 2, "the matched scene is not a mismatch");
+    assert!(
+        mismatches[0].starts_with("lavapipe/detail-paper: Missing snapshot"),
+        "{}",
+        mismatches[0]
+    );
+    assert!(mismatches[1].starts_with("lavapipe/compare-paper: Differs"), "{}", mismatches[1]);
+    assert_eq!(take_report().scenes, 0, "taking the record empties it");
+}
+
+/// One scene that differed fails its test, after the scenes behind it have painted.
+#[test]
+#[should_panic(expected = "did not match their baselines")]
+fn a_mismatch_fails_the_test_once_every_scene_has_painted() {
+    record("lavapipe/library-square-paper", Err("Missing snapshot".to_owned()));
+    assert_every_scene_matched();
+}
+
+/// Every test that paints a scene must check its whole report.
+///
+/// A test that forgets the final check is invisible: its scenes still paint, and a mismatch in the middle
+/// takes the rest with it exactly as before. This reads the file it lives in, which is the only way a test
+/// can notice an omission in code that never runs.
+#[test]
+fn every_test_that_paints_a_scene_checks_its_whole_report() {
+    let source = include_str!("screenshots.rs");
+    let paints = ["keep(shoot", "drop(shoot", "= shoot(", "= shoot_at("];
+    let mut silent = Vec::new();
+    for chunk in source.split("\n#[test]\n").skip(1) {
+        // This test spells the call it looks for as data, so it is not a test of the gate.
+        if chunk.contains("fn every_test_that_paints_a_scene_checks_its_whole_report") {
+            continue;
+        }
+        if paints.iter().any(|call| chunk.contains(call)) && !chunk.contains("assert_every_scene_matched()") {
+            let name = chunk.split("fn ").nth(1).and_then(|rest| rest.split('(').next());
+            silent.push(name.unwrap_or("<anonymous>").to_owned());
+        }
+    }
+    assert!(
+        silent.is_empty(),
+        "these tests paint a scene and never check their report, so a mismatch there would not fail: {silent:?}"
+    );
 }
 
 /// The Suggestions tab, with real proposals from the switched-on pack for a selection spanning both folders.
@@ -397,6 +500,8 @@ fn suggestions_paints_in_both_themes() {
         scene.state.selection.select_many(&chosen);
         library.keep(shoot(kind, scene, &format!("suggestions-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Settings → Sync & devices, in the state the desktop's Start button ends in: the port and the
@@ -428,6 +533,8 @@ fn settings_sync_paints_in_both_themes() {
             egui::vec2(900.0, 1700.0),
         ));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Settings at a laptop's height: the dialog is longer than 800 points, and it used to run past the
@@ -447,6 +554,8 @@ fn a_short_window_scrolls_the_settings_dialog_in_both_themes() {
             egui::vec2(900.0, 620.0),
         ));
     }
+
+    assert_every_scene_matched();
 }
 
 /// The empty state a first launch shows: no folder, no photographs, the welcome copy.
@@ -461,6 +570,8 @@ fn empty_welcome_paints_in_both_themes() {
         // The scene's engine is a fresh, empty library, so it is dropped rather than handed back.
         drop(shoot(kind, scene, &format!("welcome-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// The library grid in both layouts: justified rows and the square lattice, same photographs.
@@ -475,6 +586,8 @@ fn library_grid_paints_both_layouts_in_both_themes() {
         scene.state.grid_mode = GridMode::Square;
         library.keep(shoot(kind, scene, &format!("library-square-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// The accessibility preset on the two ends of the shell: the grid with its marks, and the empty
@@ -492,6 +605,8 @@ fn high_contrast_paints_the_grid_and_the_welcome() {
     assert_eq!(engine.stats().total, 0);
     let scene = new_scene(kind, engine, &library.cache());
     drop(shoot(kind, scene, &format!("welcome-{}", kind_id(kind))));
+
+    assert_every_scene_matched();
 }
 
 /// The Missing scope: the one source that asks the filesystem rather than an annotation.
@@ -524,6 +639,8 @@ fn missing_scope_paints_in_both_themes() {
         engine = shoot(kind, scene, &format!("missing-{}", kind_id(kind)));
     }
     library.keep(engine);
+
+    assert_every_scene_matched();
 }
 
 /// The detail view, alone and beside a second frame: the canvas, the facts, the histogram and the
@@ -543,6 +660,8 @@ fn detail_and_compare_paint_in_both_themes() {
         scene.state.compare = Some(library.photos[1]);
         library.keep(shoot(kind, scene, &format!("compare-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Cull: the canvas, the up-next strip and the action bar with live counts.
@@ -556,6 +675,8 @@ fn cull_paints_in_both_themes() {
         scene.state.view = View::Cull;
         library.keep(shoot(kind, scene, &format!("cull-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Similar: a settled hash pass with its duplicate group in the list.
@@ -567,6 +688,8 @@ fn similar_paints_in_both_themes() {
         scene.state.view = View::Similar;
         library.keep(shoot(kind, scene, &format!("similar-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Places: the shipped coastline under dots from real EXIF, with the credit line that travels with it.
@@ -586,6 +709,8 @@ fn places_paints_in_both_themes() {
         scene.state.places_zoom_chosen = true;
         library.keep(shoot(kind, scene, &format!("places-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Command mode: the ⌘K palette hung under the search field, grouped by the registry's own groups
@@ -600,6 +725,8 @@ fn command_palette_paints_in_both_themes() {
         scene.state.palette_query = "library".to_string();
         library.keep(shoot(kind, scene, &format!("palette-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// The shortcuts overlay, narrowed to the arrow keys: every keycap the search can surface.
@@ -618,6 +745,8 @@ fn shortcuts_paint_in_both_themes() {
         scene.state.shortcut_query = "◀".to_string();
         library.keep(shoot(kind, scene, &format!("shortcuts-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// The shortcut editor (SL-I09): craft-keymap's dialog over the app's catalog, with the set row,
@@ -633,6 +762,8 @@ fn shortcut_editor_paints_in_both_themes() {
         scene.state.shortcut_editor = Some(craft_keymap::ui::DialogState::new());
         library.keep(shoot(kind, scene, &format!("shortcut-editor-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// Soft Focus: the relative sharpness review as its own destination, with stored scores.
@@ -664,6 +795,8 @@ fn soft_focus_paints_in_both_themes() {
         engine = shoot(kind, scene, &format!("soft-focus-{}", kind_id(kind)));
     }
     library.keep(engine);
+
+    assert_every_scene_matched();
 }
 
 /// Insights: the figures and the distributions, from the same library the grid shows.
@@ -675,6 +808,8 @@ fn insights_paints_in_both_themes() {
         scene.state.view = View::Insights;
         library.keep(shoot(kind, scene, &format!("insights-{}", kind_id(kind))));
     }
+
+    assert_every_scene_matched();
 }
 
 /// A window too narrow for nine labelled destinations: the row collapses to the current one plus a
@@ -689,6 +824,8 @@ fn a_narrow_window_collapses_the_tab_row() {
     scene.state.left_open = false;
     scene.state.right_open = false;
     library.keep(shoot_at(kind, scene, "narrow-charcoal", egui::vec2(900.0, 620.0)));
+
+    assert_every_scene_matched();
 }
 
 /// A phone: 390 points wide, both docks put away, and the grid on the screen.
@@ -703,6 +840,8 @@ fn a_phone_window_opens_on_the_grid() {
     let kind = ThemeKind::Charcoal;
     let scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
     library.keep(shoot_at(kind, scene, "phone-charcoal", egui::vec2(390.0, 780.0)));
+
+    assert_every_scene_matched();
 }
 
 /// The sidebar on a phone: the dock takes the screen, and the bar keeps the glyph that gives it back.
@@ -718,6 +857,8 @@ fn a_phone_sidebar_takes_the_screen() {
     scene.state.left_open = true;
     scene.state.right_open = false;
     library.keep(shoot_at(kind, scene, "phone-sidebar-charcoal", egui::vec2(390.0, 780.0)));
+
+    assert_every_scene_matched();
 }
 
 /// A canvas squeezed by both docks: the header keeps its name whole and its controls, and gives up the rest.
@@ -740,6 +881,8 @@ fn a_narrow_canvas_keeps_the_header_name_whole() {
             egui::vec2(900.0, 620.0),
         ));
     }
+
+    assert_every_scene_matched();
 }
 
 /// A short window with the sidebar open: the sections scroll above the pinned foot instead of painting over it.
@@ -760,6 +903,8 @@ fn a_short_window_scrolls_the_sidebar_above_its_foot_in_both_themes() {
             egui::vec2(1280.0, 620.0),
         ));
     }
+
+    assert_every_scene_matched();
 }
 
 /// The filter strip while it is asking something: three stars and up, and one colour label.
@@ -783,6 +928,8 @@ fn the_filter_strip_paints_its_state_in_both_themes() {
         engine = shoot_at(kind, scene, &format!("filters-{}", kind_id(kind)), egui::vec2(1200.0, 800.0));
     }
     library.keep(engine);
+
+    assert_every_scene_matched();
 }
 
 /// A library filtered down to nothing: the screen that explains it, with the count and one way back.
@@ -809,6 +956,8 @@ fn a_filtered_to_nothing_library_explains_itself_in_both_themes() {
             egui::vec2(1200.0, 800.0),
         ));
     }
+
+    assert_every_scene_matched();
 }
 
 /// A stable name fragment per preset, so a baseline file name does not depend on enum order.

@@ -1621,8 +1621,9 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   one, loses `triaged` and gains `needs-info`; a later complete edit swaps them back. `ci.yml` now runs the fifth
   gate, `screenshots`, on Mesa's software Vulkan so the baselines are checked headlessly — through
   `SORTLENS_SNAPSHOT_SET=lavapipe`, because that software adapter's paint is not the reference machine's, and
-  a failed run uploads the frames it painted as the `screenshot-set` artifact so the set it is missing can be
-  downloaded and committed — and `cargo xtask workflows` refuses a missing gate, a `continue-on-error` step, or
+  a failed run uploads every frame it painted as the `screenshot-set` artifact — every scene of a test that
+  differed, not just the first, because a mismatch is recorded and checked once the test has painted them all —
+  so the set it is missing can be downloaded and committed — and `cargo xtask workflows` refuses a missing gate, a `continue-on-error` step, or
   an `if` that would leave pull requests out.
 
 ---

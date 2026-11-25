@@ -759,9 +759,15 @@ shell — `sortlens_ui::show` inside an `eframe::App`, the same entry the window
 the empty-filter canvas, Cull, Detail, Compare, Similar, Places, Insights, Suggestions, the palette, Soft
 Focus, Missing, the active filter strip, and a 900×620 narrow window that keeps one theme because it is
 about geometry) in the Charcoal and Paper presets, and the 1200×800 filter baselines that share the strip's
-wrap. Thirty-one PNGs are committed under `crates/ui/tests/snapshots/` and diffed by `egui_kittest`, with the
+wrap. Forty-seven PNGs are committed under `crates/ui/tests/snapshots/` and diffed by `egui_kittest`, with the
 per-pixel tolerance
 in `kittest.toml`; a mismatch writes the painted image and a diff beside the baseline and fails the run.
+A test does not stop at its first mismatch: `shoot` records the scene's name and error in a per-thread
+report instead of panicking, and each test ends with `assert_every_scene_matched()`, which fails with every
+scene that differed and says how many of the test's scenes matched — and a contract test reads the file it
+lives in and refuses a painting test that never calls it. That is what makes a red run hand over all of its
+paint: a panic mid-test used to skip every later scene of that test, so a red artifact held twenty of the
+twenty-four frames the set needed and the other four took two more red runs to arrive.
 The library behind them is a real fixture: fixed ratings, flags, keywords, a collection, EXIF
 dimensions, two locations and a duplicate pair, scanned once. The harness is a `sortlens-ui` feature
 (`screenshots`) that no app links, because it needs a GPU adapter and `cargo xtask ci` stays headless;

@@ -1,5 +1,43 @@
 # Checkpoint
 
+## 2026-11-24 (seventy-sixth) — a red screenshot run hands over every scene it painted, not just the first failure
+
+- **Why this came up.** `CI` on `main` is red in `screenshots`, and the run at `40e838a` (`45543501424`) is the
+  evidence. Its `screenshot-set` artifact holds twenty `.new.png` frames, and the committed `lavapipe` set still
+  lacks four paper scenes — `detail-paper`, `compare-paper`, `library-justified-paper`, `library-square-paper`.
+  The artifact could not have held them. Each pair lives in one test (`detail_and_compare_paint_in_both_themes`,
+  `library_grid_paints_both_layouts_in_both_themes`) and `shoot` panicked on the first mismatch, so every scene
+  after it was never painted at all. Six red runs and two baseline commits later the set is still four short, and
+  the artifact that is supposed to complete a set was structurally unable to name more than the first failure of
+  each test. That is the defect the four missing files are a symptom of.
+- **A mismatch no longer ends the test.** `shoot_at`/`shoot_at_lenient` record the scene's baseline name and the
+  error in a per-thread `Painted { scenes, mismatches }` instead of `.expect()`-ing, so the next scene of the same
+  test still paints and still writes its `.new.png`. Each of the 23 painting tests ends with
+  `assert_every_scene_matched()`, which drains the record and fails with every scene that differed and
+  `N of this test's M scenes` — the count is what lets the message say a scene matched. The record is
+  thread-local because libtest gives every test its own thread, and taking it empties it so nothing leaks between
+  tests.
+- **The check cannot be forgotten.** Three new tests, one of which reads `include_str!("screenshots.rs")`:
+  `every_test_that_paints_a_scene_checks_its_whole_report` names any test that paints and never calls the check.
+  It was proved to bite by deleting `cull`'s call — it answered `["cull_paints_in_both_themes"]` — and then the
+  call was restored. `a_report_names_every_scene_that_differed` pins the counting and the emptying;
+  `a_mismatch_fails_the_test_once_every_scene_has_painted` pins the panic.
+- **Files.** `crates/ui/tests/screenshots.rs` (`Painted`, `RECORD`, `record`, `take_report`,
+  `assert_every_scene_matched`, the three `shoot*` call sites, one call at the end of each painting test, the
+  three tests); `docs/ARCHITECTURE.md` §12 (what a red run hands over; the stale "Thirty-one PNGs" corrected to
+  forty-seven); `docs/ROADMAP.md` (Phase 5 item 3's artifact sentence now says *every* frame, and why).
+- **Verified.** `cargo xtask screenshots` green: 27 tests, 50 s, no baseline moved and no `.new` written — the
+  refactor paints exactly what it painted before. `cargo xtask ci` (one `cargo fmt --all` first), `snapshot` and
+  `deny` for this commit. Nothing here is a UI change, so no new `Context::run_ui` test was owed. `cargo xtask
+  mobile` still needs the NDK and Xcode, as documented.
+- **Next.** The trunk first, and it is one command: read the `CI` run for this commit with one
+  `gh run view <id> --json status,conclusion,jobs`. Its `screenshots` job will be red on the four missing paper
+  scenes — and now paints all four, which is the point of this commit. `gh run download <id> -n screenshot-set -D
+  tmp-shot`, move `detail-paper.new.png`, `compare-paper.new.png`, `library-justified-paper.new.png` and
+  `library-square-paper.new.png` to `crates/ui/tests/snapshots/lavapipe/` with `.new` stripped, read them, and
+  commit: that is the tick that turns the job green. After that the only open roadmap row is SL-L07's remainder
+  (zh-TW/ko/th/vi catalogues, the unrouted surfaces, and RTL screenshots which wait on an Arabic-capable font
+  build).
 ## 2026-11-25 (seventy-second) — the shell writes numbers and dates the reader's language (SL-L08)
 
 - **Why this came up.** The last row left open in M9 by the sixty-eighth tick's scaffolding was
