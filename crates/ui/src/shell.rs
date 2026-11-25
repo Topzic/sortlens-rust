@@ -8016,28 +8016,101 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     }
 }
 
+/// A card's kind, named in the interface language: the heading it gets when it does not name a day,
+/// and the word its hover and the header line use.
+fn memory_kind_word(kind: sortlens_memories::CardKind) -> &'static str {
+    match kind {
+        sortlens_memories::CardKind::OnThisDay => tl!("On this day"),
+        sortlens_memories::CardKind::ThisWeek => tl!("This week in past years"),
+        sortlens_memories::CardKind::Forgotten => tl!("Never looked at"),
+    }
+}
+
+/// The catalogue key for a month: the English name, which every catalogue has a row for.
+fn month_key(month: u32) -> &'static str {
+    match month {
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
+        _ => "",
+    }
+}
+
+/// A card's heading, worded from [`sortlens_memories::Card::title_parts`]: a month and a day for a
+/// day card, the kind's own words otherwise, so `June 24` can read `6月24日` in a Japanese window.
+fn memory_card_title(card: &sortlens_memories::Card) -> String {
+    match card.title_parts() {
+        sortlens_memories::TitleParts::Day { month, day } => crate::i18n::fmt(
+            "{month} {day}",
+            &[("month", tl!(month_key(month))), ("day", &format_count(u64::from(day)))],
+        ),
+        sortlens_memories::TitleParts::Kind(kind) => memory_kind_word(kind).to_string(),
+    }
+}
+
+/// A card's detail line, worded from [`sortlens_memories::Card::detail_parts`]: the shown and
+/// matched counts in the language's digits, then the oldest year as its own clause.
+fn memory_card_detail(card: &sortlens_memories::Card) -> String {
+    let parts = card.detail_parts();
+    let photos = match parts.matched {
+        Some(total) => crate::i18n::fmt(
+            "{shown} of {total} photos",
+            &[("shown", &format_count(parts.shown as u64)), ("total", &format_count(total as u64))],
+        ),
+        None if parts.shown == 1 => crate::i18n::fmt("{count} photo", &[("count", &format_count(1))]),
+        None => crate::i18n::fmt("{count} photos", &[("count", &format_count(parts.shown as u64))]),
+    };
+    match parts.first_year {
+        Some(year) => crate::i18n::fmt(
+            "{photos} · since {year}",
+            &[("photos", &photos), ("year", &crate::format::year(year))],
+        ),
+        None => photos,
+    }
+}
+
+/// The header line: how many cards, and which kinds, from the crate's own pieces.
+fn memory_headline(memories: &sortlens_memories::Memories) -> String {
+    let Some(parts) = memories.headline_parts() else {
+        return tl!("Nothing to resurface yet").to_string();
+    };
+    let kinds: Vec<&str> = parts.kinds.iter().map(|kind| memory_kind_word(*kind)).collect();
+    crate::i18n::fmt(
+        "{cards} card(s): {kinds}",
+        &[("cards", &format_count(parts.cards as u64)), ("kinds", &kinds.join(", "))],
+    )
+}
+
 /// Memories: what happened on this day, this week in past years, and what was never looked at.
 fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
     let memories = engine.memories(None);
     ui.horizontal(|ui| {
-        ui.label(RichText::new("For You").size(15.0).strong().color(t.text));
-        ui.label(RichText::new(memories.headline()).size(10.5).color(t.text_faint));
+        ui.label(RichText::new(tl!("For You")).size(15.0).strong().color(t.text));
+        ui.label(RichText::new(memory_headline(&memories)).size(10.5).color(t.text_faint));
     });
     hint(
         ui,
         t,
-        "Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.",
+        tl!("Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC."),
     );
     ui.add_space(6.0);
     if memories.is_empty() {
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
-            ui.label(RichText::new("Nothing to resurface yet").size(14.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Nothing to resurface yet")).size(14.0).color(t.text_muted));
             hint(
                 ui,
                 t,
-                "Cards appear once photos have capture dates in earlier years, or are a year old \
-                 and still unrated.",
+                tl!("Cards appear once photos have capture dates in earlier years, or are a year old and still unrated."),
             );
         });
         return;
@@ -8046,8 +8119,8 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
         for card in &memories.cards {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new(card.title.clone()).size(12.5).strong().color(t.text));
-                ui.label(RichText::new(card.detail()).size(10.0).color(t.text_faint));
+                ui.label(RichText::new(memory_card_title(card)).size(12.5).strong().color(t.text));
+                ui.label(RichText::new(memory_card_detail(card)).size(10.0).color(t.text_faint));
             });
             // Where the card's photos come from: a card that says "since 2019" but leans entirely on
             // one year is a different invitation than one spread over five.
@@ -8083,7 +8156,8 @@ fn for_you_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                         ui.painter()
                             .rect_stroke(rect, t.corner(), Stroke::new(2.0, t.accent), StrokeKind::Inside);
                     }
-                    if response.on_hover_text(format!("{} · {}", photo.name, card.kind.label())).clicked() {
+                    let hover = crate::i18n::fmt("{name} · {kind}", &[("name", &photo.name), ("kind", memory_kind_word(card.kind))]);
+                    if response.on_hover_text(hover).clicked() {
                         state.selection.replace(*id);
                         activate_view(state, engine, View::Detail);
                     }
@@ -14408,6 +14482,159 @@ mod tests {
     /// words, its histogram caption and its select action are catalogue rows and templates, so a
     /// Japanese or Arabic owner reads the review in their own words and digits rather than an English
     /// sentence with Latin numerals.
+    /// The For You view speaks the interface language (SL-L07): its heading, its hint, its empty
+    /// state and every card are worded from `sortlens-memories`' own pieces, so a Japanese or
+    /// Arabic window reads the same cards the English CLI prints.
+    #[test]
+    fn the_for_you_view_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-for-you-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-for-you-words");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [40, 70, 90], 64, 48), root.join("IMG_0001.jpg")).expect("copy");
+
+        // An empty library is its own screen; one photograph captured on 29 February is the
+        // forgotten card on every day but a leap year's late February, so the card's own words
+        // do not depend on when the test runs.
+        let mut nothing = Engine::open(dir.join("empty")).expect("empty library");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.all_photos().first().expect("one photo").id;
+        let leap_day = sortlens_memories::midnight(sortlens_memories::Date {
+            year: 2020,
+            month: 2,
+            day: 29,
+        });
+        engine.set_captured(&[(id, Some(leap_day))]).expect("captured");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 760.0))),
+            ..egui::RawInput::default()
+        };
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.view = View::ForYou;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        // `fmt` isolates a value so it holds its direction in right-to-left text; the frame is read
+        // without those marks, so a card is compared by its words and its digits.
+        let plain = |texts: Vec<String>| -> Vec<String> {
+            texts
+                .into_iter()
+                .map(|text| {
+                    text.chars()
+                        .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                        .collect()
+                })
+                .collect()
+        };
+        let paint = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails| -> Vec<String> {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    for_you_view(ui, &tokens, state, engine, thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            plain(painted_texts(&output))
+        };
+
+        // English first: exactly the words the view painted before this slice.
+        let english = paint(&mut state, &mut engine, &mut thumbs);
+        assert_painted(
+            &english,
+            &[
+                "For You",
+                "Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.",
+                "Never looked at",
+                "1 photo · since 2020",
+            ],
+        );
+        assert!(
+            english.iter().any(|text| text.contains("card(s): Never looked at")),
+            "the headline names the card it counts: {english:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state, &mut engine, &mut thumbs);
+        assert_painted(
+            &japanese,
+            &[
+                "あなたへ",
+                "撮影日と、まだ判定していない写真をもとに浮かび上がらせます。日付は UTC として読みます。",
+                "まだ見ていない写真",
+                "写真 1 枚 · 2020 年以降",
+            ],
+        );
+        assert!(
+            japanese
+                .iter()
+                .any(|text| text.starts_with("カード ") && text.contains("まだ見ていない写真")),
+            "the Japanese headline counts in its own words: {japanese:?}"
+        );
+        assert!(
+            !japanese.iter().any(|text| text == "For You" || text == "Never looked at"),
+            "the Japanese view keeps no English chrome: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state, &mut engine, &mut thumbs);
+        assert_painted(
+            &arabic,
+            &[
+                "لك",
+                "تُستعاد حسب تاريخ الالتقاط وحسب ما لم تحكم عليه بعد. تُقرأ التواريخ بتوقيت UTC.",
+                "لم تُستعرض قط",
+                "١ صورة · منذ ٢٠٢٠",
+            ],
+        );
+        assert!(
+            arabic.iter().any(|text| text.contains("بطاقة") && text.contains("لم تُستعرض قط")),
+            "the Arabic headline counts in its own words: {arabic:?}"
+        );
+
+        // The empty library: the state a new owner meets, in all three languages.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let empty_english = paint(&mut state, &mut nothing, &mut thumbs);
+        assert_painted(
+            &empty_english,
+            &[
+                "For You",
+                "Nothing to resurface yet",
+                "Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let empty_japanese = paint(&mut state, &mut nothing, &mut thumbs);
+        assert_painted(
+            &empty_japanese,
+            &[
+                "あなたへ",
+                "まだ浮かび上がるものはありません",
+                "過去の年の撮影日がある写真、または 1 年以上前で未評価の写真があるとカードが現れます。",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let empty_arabic = paint(&mut state, &mut nothing, &mut thumbs);
+        assert_painted(
+            &empty_arabic,
+            &[
+                "لك",
+                "لا شيء يُستعاد بعد",
+                "تظهر البطاقات عندما تحمل الصور تواريخ التقاط في سنوات سابقة، أو عندما يبلغ عمرها عامًا وهي بلا تقييم.",
+            ],
+        );
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
     #[test]
     fn the_soft_focus_view_speaks_the_interface_language() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-soft-focus-words-{}", std::process::id()));

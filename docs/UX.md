@@ -489,6 +489,12 @@ Places (named clusters), Recently Found (newly indexed). Card actions: open as a
 cull session, save as a collection. "Refresh" re-runs providers; results are deterministic per
 catalog revision so refresh never reshuffles randomly.
 
+Its words are the interface language's: the title, the hint and the empty state are catalogue rows, and each
+card's heading and detail line are worded from `sortlens-memories`' own pieces rather than its English sentence —
+a month row and the language's digits for `June 24` (so `6月24日` in Japanese), the shown and matched counts as
+`{shown} of {total} photos`, and `since {year}` as its own clause — so the screen and the CLI count the same card.
+A photograph's file name stays as it is on disk, because that is what the file is called.
+
 ### 5.12 Empty states
 
 Each view declares: title, one-sentence explanation, 1–2 primary actions, optional hint.

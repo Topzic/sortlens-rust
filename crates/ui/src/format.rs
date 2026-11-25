@@ -121,6 +121,12 @@ pub(crate) fn date_time_in(style: &Style, seconds: i64) -> String {
     )
 }
 
+/// A calendar year: `2020`, `٢٠٢٠`. Four digits and never grouped — a year is a label, not a
+/// quantity, so `format::count`'s thousands separators would write `2 020`.
+pub(crate) fn year(year: i64) -> String {
+    digits_in(current(), year.unsigned_abs(), 4)
+}
+
 /// A civil date without the time: `2026-11-21`, `2026/11/21`, `٢١/١١/٢٠٢٦`.
 pub(crate) fn date(seconds: i64) -> String {
     date_in(current(), seconds)

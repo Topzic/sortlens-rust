@@ -751,4 +751,18 @@
 	1 photo at the cut, and {others} others share its score	صورة واحدة عند القطع ويشاركها {others} في الدرجة نفسها
 	1 photo at or below the cut	صورة واحدة عند القطع أو دونه
 	{count} photos at or below the cut ({percent}%)	{count} صورة عند القطع أو دونه ({percent}%)
+	For You	لك
+	On this day	في مثل هذا اليوم
+	This week in past years	هذا الأسبوع في سنوات ماضية
+	Never looked at	لم تُستعرض قط
+	Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.	تُستعاد حسب تاريخ الالتقاط وحسب ما لم تحكم عليه بعد. تُقرأ التواريخ بتوقيت UTC.
+	Nothing to resurface yet	لا شيء يُستعاد بعد
+	Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.	تظهر البطاقات عندما تحمل الصور تواريخ التقاط في سنوات سابقة، أو عندما يبلغ عمرها عامًا وهي بلا تقييم.
+	{cards} card(s): {kinds}	{cards} بطاقة: {kinds}
+	{month} {day}	{day} {month}
+	{shown} of {total} photos	{shown} من {total} صورة
+	{count} photo	{count} صورة
+	{count} photos	{count} صورة
+	{photos} · since {year}	{photos} · منذ {year}
+	{name} · {kind}	{name}، {kind}
 

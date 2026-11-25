@@ -1,5 +1,64 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fourth) — the For You view speaks the interface language, and its cards are worded from the crate's own pieces
+
+- **Why this came up.** The hundred-and-third entry's Next named it: after Soft Focus, For You was the last
+  view painting its own chrome in English — the title, the hint, the empty state, and the `memories.headline()`
+  and `card.detail()` sentences, which were English composed inside `sortlens-memories`. So a Japanese window
+  painted `For You` over a card headed `Never looked at` and counted `1 photo · since 2020`.
+- **The crate hands back pieces, not sentences.** `Memories::headline_parts()` answers the card count and the
+  kinds in display order, `Card::title_parts()` answers a calendar day (month, day) or the kind whose label is
+  the heading, and `Card::detail_parts()` answers the shown count, the matched count when the card was cut down
+  and the oldest capture year. `headline()` and `detail()` are now joined from those pieces, so the CLI, the
+  `memories.list` JSON and the screen cannot describe different cards. `Card` gained a `day: Option<Date>` field
+  so a screen can word "June 24" without parsing it back out of English.
+- **What is routed.** 14 new rows in each of `ar.tsv` and `ja.tsv`: `For You`, the view's UTC hint, its empty
+  state's two lines, the three kind words (`On this day`, `This week in past years`, `Never looked at`), the
+  headline template `{cards} card(s): {kinds}`, the heading template `{month} {day}`, the detail templates
+  `{shown} of {total} photos`, `{count} photo`/`{count} photos` and `{photos} · since {year}`, and the hover
+  `{name} · {kind}`. The month and the day are the catalogues' own month rows already shipped for `Insights` plus
+  `format::count`, so a Japanese card reads `6月24日` with `写真 1 枚 · 2020 年以降` and an Arabic one writes
+  `١ صورة · منذ ٢٠٢٠`.
+- **A year is a label, not a quantity.** `format::count(2020)` writes `2 020` in English — the grouping every
+  three digits gets — so years go through a new `format::year`, which keeps four digits and the language's own
+  digits (`2020`, `٢٠٢٠`) and never groups them.
+- **English is unchanged, which is why no baseline moved.** A `tl!` with no row is the English text itself, and
+  the headings and details are joined exactly as the crate joins them: `For You`, `1 card(s): Never looked at`,
+  `Never looked at`, `1 photo · since 2020`. The 27 committed scenes are byte-identical.
+- **Named as not shipped.** The bottom bar's destination names still come from `View::label()`, so the tab beside
+  this translated title still reads `For You` in a Japanese window; the four remaining catalogues (zh-TW/ko/th/vi)
+  and the RTL screenshots are still open in the SL-L07 row; each photograph's own file name is a value and stays
+  as it is on disk, and the assistive names (`crate::a11y`) stay English, which the row does not count as painted
+  chrome.
+- **Tests that fail when the behaviour is absent.** `the_for_you_view_speaks_the_interface_language` paints the
+  real `for_you_view` at 1000×760 over a library holding one photograph captured on 29 February 2020 — a date no
+  ordinary year has, so the card's words do not depend on when the test runs — in English (the title, the whole
+  hint, the card's heading and `1 photo · since 2020`, and the headline naming the card), Japanese (`あなたへ`,
+  its hint, `まだ見ていない写真`, `写真 1 枚 · 2020 年以降`, and a headline containing `カード` and the kind, with
+  the English chrome asserted absent) and Arabic (`لك`, its hint, `لم تُستعرض قط`, `١ صورة · منذ ٢٠٢٠`, and a
+  headline naming `بطاقة`). It then paints the empty library in all three languages, so a first launch's
+  `Nothing to resurface yet` and its explanation are the rows rather than a second literal. `fmt` isolates values,
+  so the frame is read through the same isolate filter the other language tests use. In `sortlens-memories`,
+  `the_english_is_joined_from_the_pieces_a_screen_words` rebuilds the heading, the detail and the headline from
+  their pieces and holds them to the English the CLI prints, so a piece that stops being filled is caught there.
+  The catalogue audit in `i18n.rs` reads the new `tl!`/`fmt` literals and fails if either catalogue loses a row.
+- **Files.** `crates/memories/src/lib.rs` (`TitleParts`, `DetailParts`, `HeadlineParts`, `Card::day`,
+  `title_parts`/`detail_parts`/`headline_parts`, one test); `crates/ui/src/shell.rs` (`for_you_view`,
+  `memory_kind_word`/`month_key`/`memory_card_title`/`memory_card_detail`/`memory_headline`, one test);
+  `crates/ui/src/format.rs` (`year`); `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (14 rows each); `docs/ROADMAP.md`
+  (the SL-L07 row); `docs/UX.md` (§5.11); this entry.
+- **Verified.** Local: `cargo clippy` is part of `cargo xtask ci` below; the new UI test, the memories crate's 10
+  tests and `catalogs_load_and_routed_keys_have_rows` pass. `cargo xtask ci` green through every gate (fmt --check
+  after `cargo fmt --all`, clippy `--workspace --all-targets` with `-D warnings`, the full test suite, layers,
+  roots, assets, version, attribution, a11y, docs, templates and workflows); `cargo xtask snapshot` (5 tests),
+  `cargo xtask deny` (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask screenshots` (27
+  scenes, `for_you_paints_in_both_themes` among them, byte-identical to the committed baselines because English
+  has no catalogue and the pieces join in the same order). There is no `cargo xtask wasm` in this workspace, so no
+  wasm gate ran. No release dispatch: this slice touches `crates/ui`, `crates/memories`, tests and docs, so no
+  build or release surface changed.
+- **Next.** The four remaining catalogues (zh-TW/ko/th/vi) and the RTL screenshots of the painted interface, which
+  is what the SL-L07 row still lists; the bottom bar's destination labels (`View::label()`) are still an unrouted
+  English key on every view. No release run in flight.
 ## 2026-11-26 (hundred-and-third) — the Soft Focus view speaks the interface language
 
 - **Why this came up.** The hundred-and-second entry's Next named it: after Compare, Soft Focus was the last

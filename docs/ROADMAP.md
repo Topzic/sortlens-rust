@@ -964,6 +964,13 @@ and none of M9 is closed until the remaining rows are ticked.
   `الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠` and `تحديد ١ صورة`. What stays English on that view is its notices
   (`Measured … photo(s)`, `Selected the … softest`) and the slider's assistive name, which the row does not
   count as painted chrome, plus the bottom bar's destination names, which still come from `View::label()`.
+  The For You view followed (hundred-and-fourth entry): its title, its hint and its empty state are rows,
+  and the `N card(s): …` headline, a card's heading and its detail line are worded from `sortlens-memories`'
+  own pieces (`Memories::headline_parts`, `Card::title_parts`, `Card::detail_parts`) rather than its English
+  sentence — so the `June 24` heading is a month row plus the language's digits (`6月24日`), the counts are
+  `{shown} of {total} photos` filled through `format::count`, and `since {year}` is its own clause. An Arabic
+  card writes `١ صورة · منذ ٢٠٢٠` where it wrote English. What stays English on that view is each photograph's
+  own file name, which is a value, and the bottom bar's destination names above.
   What stays English there is each side's own value (a colour token, the engine's exposure sentence,
   `format_bytes`) and the notices that open a compare.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL

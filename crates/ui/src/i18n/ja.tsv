@@ -751,4 +751,18 @@
 	1 photo at the cut, and {others} others share its score	切り口に 1 枚、ほかに {others} 枚が同じスコアです
 	1 photo at or below the cut	切り口以下は 1 枚
 	{count} photos at or below the cut ({percent}%)	切り口以下は {count} 枚（{percent}%）
+	For You	あなたへ
+	On this day	この日
+	This week in past years	過去の同じ週
+	Never looked at	まだ見ていない写真
+	Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.	撮影日と、まだ判定していない写真をもとに浮かび上がらせます。日付は UTC として読みます。
+	Nothing to resurface yet	まだ浮かび上がるものはありません
+	Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.	過去の年の撮影日がある写真、または 1 年以上前で未評価の写真があるとカードが現れます。
+	{cards} card(s): {kinds}	カード {cards} 枚: {kinds}
+	{month} {day}	{month}{day}日
+	{shown} of {total} photos	{total} 枚中 {shown} 枚
+	{count} photo	写真 {count} 枚
+	{count} photos	写真 {count} 枚
+	{photos} · since {year}	{photos} · {year} 年以降
+	{name} · {kind}	{name}（{kind}）
 

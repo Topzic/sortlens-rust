@@ -186,6 +186,44 @@ impl CardKind {
     }
 }
 
+/// What a card's heading says, as the pieces a language writes it from.
+///
+/// A heading naming a day is a month and a day number, never the English words: the shell looks
+/// each up, so `June 24` can read `6月24日` without the crate learning a language. The other two
+/// kinds are their own label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleParts {
+    /// A calendar day: the month (1–12) and the day of the month.
+    Day {
+        /// Month, 1–12.
+        month: u32,
+        /// Day of the month.
+        day: u32,
+    },
+    /// The kind's own heading.
+    Kind(CardKind),
+}
+
+/// The pieces a card's detail line is written from, so an interface can word the same numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DetailParts {
+    /// How many photos the card shows.
+    pub shown: usize,
+    /// How many photos the rule matched, when the card was cut down; `None` when nothing was.
+    pub matched: Option<usize>,
+    /// The oldest capture year on the card, for a "since 2019" clause.
+    pub first_year: Option<i64>,
+}
+
+/// The pieces the resurfacing headline is written from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeadlineParts {
+    /// How many cards there are.
+    pub cards: usize,
+    /// Each card's kind, in display order.
+    pub kinds: Vec<CardKind>,
+}
+
 /// One card of photos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Card {
@@ -193,6 +231,8 @@ pub struct Card {
     pub kind: CardKind,
     /// Heading, which may name the day or the span.
     pub title: String,
+    /// The day the "on this day" heading names, for callers that word the heading themselves.
+    pub day: Option<Date>,
     /// The photos, best first.
     pub photos: Vec<PhotoId>,
     /// How many photos the rule matched before the card was cut down.
@@ -202,16 +242,39 @@ pub struct Card {
 }
 
 impl Card {
+    /// What the heading says, as pieces rather than the English sentence above.
+    pub fn title_parts(&self) -> TitleParts {
+        match self.day {
+            Some(date) => TitleParts::Day {
+                month: date.month,
+                day: date.day,
+            },
+            None => TitleParts::Kind(self.kind),
+        }
+    }
+
+    /// One line under the heading, as the pieces a language words it from.
+    pub fn detail_parts(&self) -> DetailParts {
+        DetailParts {
+            shown: self.photos.len(),
+            matched: (self.matched > self.photos.len()).then_some(self.matched),
+            first_year: self.first_year,
+        }
+    }
+
     /// One line under the heading.
+    ///
+    /// The English is joined from `detail_parts`, so a screen wording the same pieces cannot
+    /// describe a different card than the CLI prints.
     pub fn detail(&self) -> String {
-        let years = match self.first_year {
-            Some(year) => format!(" · since {year}"),
-            None => String::new(),
+        let parts = self.detail_parts();
+        let photos = match parts.matched {
+            Some(total) => format!("{} of {}", parts.shown, plural(total, "photo")),
+            None => plural(parts.shown, "photo"),
         };
-        if self.matched > self.photos.len() {
-            format!("{} of {}{years}", self.photos.len(), plural(self.matched, "photo"))
-        } else {
-            format!("{}{years}", plural(self.photos.len(), "photo"))
+        match parts.first_year {
+            Some(year) => format!("{photos} · since {year}"),
+            None => photos,
         }
     }
 
@@ -239,13 +302,24 @@ impl Memories {
         self.cards.iter().map(|card| card.photos.len()).sum()
     }
 
-    /// One line for the header or the CLI.
-    pub fn headline(&self) -> String {
+    /// The headline as the pieces a language words it from; `None` when there is nothing to show.
+    pub fn headline_parts(&self) -> Option<HeadlineParts> {
         if self.is_empty() {
-            return "Nothing to resurface yet".to_string();
+            return None;
         }
-        let kinds: Vec<&str> = self.cards.iter().map(|card| card.kind.label()).collect();
-        format!("{} card(s): {}", self.cards.len(), kinds.join(", "))
+        Some(HeadlineParts {
+            cards: self.cards.len(),
+            kinds: self.cards.iter().map(|card| card.kind).collect(),
+        })
+    }
+
+    /// One line for the header or the CLI, joined from `headline_parts` so the two cannot disagree.
+    pub fn headline(&self) -> String {
+        let Some(parts) = self.headline_parts() else {
+            return "Nothing to resurface yet".to_string();
+        };
+        let kinds: Vec<&str> = parts.kinds.iter().map(|kind| kind.label()).collect();
+        format!("{} card(s): {}", parts.cards, kinds.join(", "))
     }
 
     /// Look up one card.
@@ -303,6 +377,7 @@ fn on_this_day(candidates: &[Candidate], date: Date, limit: usize) -> Card {
     Card {
         kind: CardKind::OnThisDay,
         title: format!("{} {}", month_name(date.month), date.day),
+        day: Some(date),
         photos: hits.iter().map(|candidate| candidate.id).collect(),
         matched,
         first_year,
@@ -335,6 +410,7 @@ fn this_week(candidates: &[Candidate], date: Date, limit: usize) -> Card {
     Card {
         kind: CardKind::ThisWeek,
         title: CardKind::ThisWeek.label().to_string(),
+        day: None,
         photos: hits.iter().map(|candidate| candidate.id).collect(),
         matched,
         first_year,
@@ -374,6 +450,7 @@ fn forgotten(candidates: &[Candidate], today: i64, limit: usize) -> Card {
     Card {
         kind: CardKind::Forgotten,
         title: CardKind::Forgotten.label().to_string(),
+        day: None,
         photos: hits.iter().map(|candidate| candidate.id).collect(),
         matched,
         first_year,
@@ -466,6 +543,50 @@ mod tests {
         let card = memories.card(CardKind::OnThisDay).expect("card");
         assert_eq!(card.photos, vec![PhotoId(1)]);
         assert_eq!(card.detail(), "1 photo · since 2024", "one photo is not one photos");
+    }
+
+    /// The English a CLI prints is joined from the same pieces the shell words, so a translated
+    /// card and the record cannot describe different numbers.
+    #[test]
+    fn the_english_is_joined_from_the_pieces_a_screen_words() {
+        let today = at(2024, 6, 24);
+        let candidates: Vec<Candidate> = (1..=10).map(|id| candidate(id, Some(at(2020, 6, 24)), 0)).collect();
+        let memories = Memories::build(&candidates, today, 3);
+        let card = memories.card(CardKind::OnThisDay).expect("card");
+
+        // The heading names a day, and the English is the month's own name beside the number.
+        let TitleParts::Day { month, day } = card.title_parts() else {
+            panic!("the on-this-day card names a day");
+        };
+        assert_eq!(format!("{} {}", month_name(month), day), card.title);
+        assert_eq!((month, day), (6, 24));
+
+        // The detail is its pieces in reading order, and the cut is the only difference.
+        let parts = card.detail_parts();
+        assert_eq!((parts.shown, parts.matched, parts.first_year), (3, Some(10), Some(2020)));
+        let shown = parts.shown;
+        let total = parts.matched.unwrap_or(shown);
+        let year = parts.first_year.unwrap_or_default();
+        assert_eq!(format!("{shown} of {total} photos · since {year}"), card.detail());
+
+        // The headline is the card count and the kinds it names, in display order.
+        let headline = memories.headline_parts().expect("cards to resurface");
+        assert_eq!(headline.cards, memories.cards.len());
+        assert_eq!(
+            headline.kinds,
+            vec![CardKind::OnThisDay, CardKind::ThisWeek, CardKind::Forgotten],
+            "the order the view paints"
+        );
+        assert_eq!(
+            memories.headline(),
+            "3 card(s): On this day, This week in past years, Never looked at"
+        );
+
+        // A card that names its kind rather than a day says so, and an empty library has no
+        // pieces to word: the shell paints its own empty line.
+        let week = TitleParts::Kind(CardKind::ThisWeek);
+        assert!(matches!(week, TitleParts::Kind(CardKind::ThisWeek)));
+        assert!(Memories::default().headline_parts().is_none());
     }
 
     #[test]
