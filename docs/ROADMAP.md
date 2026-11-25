@@ -998,9 +998,14 @@ and none of M9 is closed until the remaining rows are ticked.
   `ไทย` and the sidebar, canvas header and every catalogued dialog paint Thai — with Thailand's
   numbers and dates (`12,408`, `03/10/2026 04:00`). The font manifest's shipped-language table and
   the phone's script filter now name `Thai`, so a phone build asks for the Thai face a Thai
-  interface needs.
-  Open: Vietnamese (`vi`), which waits for a translation pass, and RTL
-  screenshots, which need a font build with an Arabic face
+  interface needs. The Vietnamese catalogue followed (hundred-and-twelfth entry):
+  `crates/ui/src/i18n/vi.tsv` answers the same 754 routed keys, the shortcut editor's 175 strings
+  and its eleven `@plural` counts, so Settings → Language offers `Tiếng Việt` and every catalogued
+  surface paints Vietnamese — with Vietnam's numbers and dates (`12.408`, `1,4 MB`,
+  `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
+  (already required) and a phone build needs no new face; the picker/table test holds the two
+  together. That is all six languages the design names.
+  Open: the RTL screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

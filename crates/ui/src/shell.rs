@@ -11002,6 +11002,10 @@ mod tests {
         assert!(text_rect(&output, "SOURCES").is_none(), "and English is not painted behind it");
         assert!(text_rect(&output, "모든 사진").is_none(), "nor Korean");
 
+        // Vietnamese, the sixth catalogue: Latin letters with diacritics, written left to right, so
+        // the panels keep the reading start English used and the sidebar's words are its own.
+        vietnamese_leg(&mut state, &mut frame, &text_rect);
+
         // And back: English restores the left edge exactly.
         let mut english = UiState::new(ThemeKind::Charcoal, 0.0);
         english.settings_open = true;
@@ -11079,6 +11083,27 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The Vietnamese leg of the language test: the sixth catalogue paints the sidebar's own words
+    /// in Latin letters with diacritics, left to right like English.
+    fn vietnamese_leg(
+        state: &mut UiState,
+        frame: &mut impl FnMut(&mut UiState, egui::RawInput) -> egui::FullOutput,
+        text_rect: &impl Fn(&egui::FullOutput, &str) -> Option<Rect>,
+    ) {
+        crate::i18n::set_current(crate::i18n::from_code("vi").expect("Vietnamese is offered"));
+        assert!(
+            matches!(crate::i18n::resolve_direction(), craft_ui::direction::Direction::Ltr),
+            "Vietnamese runs left to right"
+        );
+        let output = frame(state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "NGUỒN").is_some(),
+            "the sources section reads NGUỒN in Vietnamese"
+        );
+        assert!(text_rect(&output, "Tất cả ảnh").is_some(), "the All Photos row reads Tất cả ảnh");
+        assert!(text_rect(&output, "SOURCES").is_none(), "and English is not painted behind it");
+        assert!(text_rect(&output, "แหล่งที่มา").is_none(), "nor Thai");
+    }
     /// The Welcome card and the screen a filter narrows to nothing speak the interface language
     /// (SL-L07): the English strings are the catalogue keys, so a Japanese interface paints
     /// Japanese and an Arabic one writes the count in its own digits — while English is painted

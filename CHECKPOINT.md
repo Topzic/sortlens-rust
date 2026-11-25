@@ -1,5 +1,43 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twelfth) — the sixth catalogue: `Tiếng Việt`, and the six languages the design names all ship
+
+- **Why this came up.** The hundred-and-eleventh entry's Next named `vi.tsv`: the last of the six languages
+  the design names, and the last open item of SL-L07's catalogue half (the RTL screenshots stay open).
+- **One catalogue, the same keys in the same order.** `crates/ui/src/i18n/vi.tsv` was built by zipping
+  `ko.tsv`'s keys with Vietnamese translations — 754 key rows, 11 `@plural` rows and the `@id` row
+  (`Tiếng Việt`), 769 lines, so a key cannot be mistyped and the English column stays a catalogue's own
+  text. `I18n::check_all()` parses every line with no bad row.
+- **One plural form, not two.** The table asks Vietnamese for a single form, exactly as it does Korean and
+  Thai; a two-form `@plural` row is a parse problem (`expected 1 nonempty plural forms`), which the keymap
+  audit reported as eleven missing rows until each row was written as one form. Three rows also had to
+  differ from English to count as rows: `Raw` -> `RAW`, `Video` -> `Đoạn phim`, and `{name} · {kind}` ->
+  `{name} · loại {kind}` — a row that translates to itself is indistinguishable from a missing one.
+- **Wiring, and no new face.** `CATALOGS` embeds the file and `LANGUAGES` offers `vi` between `th` and
+  `zh-TW`; `format::STYLES` gains Vietnam's shapes (dot grouping, comma decimal, day-first slash date):
+  `12.408`, `1,4 MB`, `03/10/2026 04:00`. `SHIPPED_LANGUAGE_SCRIPTS` gains `(vi, Latn)` -- `Latn` is
+  already required, so `PHONE_SCRIPTS` and the phone build are unchanged and the embedded Latin face paints
+  the diacritics.
+- **Tests that fail when the behaviour is absent.** The catalogue audit's two loops now include `vi` (every
+  routed `tl!`/`fmt` key, and the shortcut editor's 175 strings and eleven plurals), the picker test names
+  `Tiếng Việt`, the direction test adds a Vietnamese left-to-right leg, `format`'s numbers and dates tests pin
+  the three shapes above, and `the_language_switch_moves_the_sidebar_to_the_reading_start` paints `NGUỒN`
+  and `Tất cả ảnh` after switching through the real Settings dialog.
+- **Files.** `crates/ui/src/i18n/vi.tsv` (new); `crates/ui/src/i18n.rs` (`CATALOGS`, `LANGUAGES`, the two
+  audits, the picker and direction tests, the module doc); `crates/ui/src/format.rs` (the `vi` style and its
+  tests); `crates/ui/src/font_manifest.rs` (the shipped-language row); `crates/ui/src/shell.rs` (the headless
+  language test's Vietnamese leg); the four `settings-{short,sync}-{charcoal,paper}.png` baselines repainted
+  by `cargo xtask screenshots --update`; `docs/ROADMAP.md`, `docs/UX.md`, `docs/FEATURES.md`.
+- **Verified.** `cargo xtask ci`, `cargo xtask snapshot` (five pass) and `cargo xtask deny` green, and
+  `cargo xtask screenshots` green on the repainted baselines. The `settings-short-charcoal` frame was read:
+  the Language row paints English plus five names, `Tiếng Việt` with its diacritics and no clipping or
+  overlap, and nothing else in the dialog moved. No release workflow was dispatched: this slice touches no
+  workflow, no `apps/` path, no `Cargo.toml` and no release code.
+- **Next.** Read this commit's CI run (`gh run list --workflow CI --limit 1`) and adopt its `screenshots`
+  frames with `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt <dir>` if the runner's paint
+  differs from this machine's. That closes SL-L07's catalogue half; its last open item is the RTL
+  screenshots, which need a font build that embeds an Arabic face so a right-to-left frame can be painted
+  and compared. No release run is in flight.
 ## 2026-11-26 (hundred-and-eleventh) — the trunk goes green on the Thai row's own paint
 
 - **Why this came up.** The trunk was red on `4912da8` (`45629163245`) with exactly one failing job,

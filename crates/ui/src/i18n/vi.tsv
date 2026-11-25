@@ -1,0 +1,769 @@
+# Vietnamese (vi) catalogue for Sortlens' interface — Phase 4 item 2d scaffolding (SL-L07).
+# Format: context<TAB>source<TAB>translation; the shared column of the embedded table is empty,
+# so these are all Sortlens' own rows. A missing row is the English text, never an error.
+@id	language.name	Tiếng Việt
+	All Photos	Tất cả ảnh
+	Recently Added	Mới thêm gần đây
+	Picks	Ảnh chọn
+	Rated	Có đánh giá
+	Missing	Bị thiếu
+	Rejects	Ảnh loại
+	Sources	Nguồn
+	Folders	Thư mục
+	Subfolders	Thư mục con
+	Keywords	Từ khóa
+	Collections	Bộ sưu tập
+	Library	Thư viện
+	Detail	Chi tiết
+	Places	Địa điểm
+	Details	Thông tin
+	Tags	Thẻ
+	Suggestions	Gợi ý
+	Activity	Hoạt động
+	Move to the Trash	Chuyển vào Thùng rác
+	Tag only, move nothing	Chỉ gắn thẻ, không chuyển gì
+	Settings	Cài đặt
+	Appearance	Giao diện
+	Backup	Sao lưu
+	Shortcuts	Phím tắt
+	Keyword packs	Gói từ khóa
+	Language	Ngôn ngữ
+	Back up library…	Sao lưu thư viện…
+	Restore into a folder…	Khôi phục vào một thư mục…
+	Edit shortcuts…	Sửa phím tắt…
+	Write XMP sidecars beside photos	Ghi tệp XMP phụ cạnh ảnh
+	AI models (local)	Mô hình AI (cục bộ)
+	Updates	Cập nhật
+	More settings arrive with the features they configure.	Các cài đặt khác sẽ đến cùng tính năng mà chúng cấu hình.
+	Check Library	Kiểm tra thư viện
+	Recently Deleted	Đã xóa gần đây
+	Recent Changes	Thay đổi gần đây
+	Keyboard Shortcuts	Phím tắt bàn phím
+	Applying a cull batch	Đang áp dụng lô loại ảnh
+	Sync & devices	Đồng bộ & thiết bị
+	Stop serving	Dừng phục vụ
+	Start serving	Bắt đầu phục vụ
+	Revoke	Thu hồi
+	Send to desktop	Gửi tới máy tính
+	Forget this desktop	Quên máy tính này
+	Desktop address	Địa chỉ máy tính
+	Port	Cổng
+	Pairing code	Mã ghép đôi
+	Pair	Ghép đôi
+	Test connection	Kiểm tra kết nối
+	Stop sending	Dừng gửi
+	Send the selection	Gửi phần đã chọn
+	Remove from this phone once the desktop holds them	Xóa khỏi điện thoại này khi máy tính đã nhận
+	Sending…	Đang gửi…
+	Welcome to Sortlens	Chào mừng đến với Sortlens
+	Point it at a folder of photos and it builds a catalog beside your files.	Trỏ tới một thư mục ảnh và nó dựng danh mục ngay cạnh các tệp của bạn.
+	Your files stay put	Tệp của bạn vẫn ở nguyên chỗ
+	No upload, no rename, no moving. Sortlens only reads.	Không tải lên, không đổi tên, không di chuyển. Sortlens chỉ đọc.
+	Everything is undoable	Mọi thứ đều có thể hoàn tác
+	Ratings, flags and keywords live in one log you can step back.	Đánh giá, gắn cờ và từ khóa nằm trong một nhật ký bạn có thể lùi lại.
+	Rejects wait for you	Ảnh loại chờ bạn
+	Culling stages decisions; nothing is trashed until you apply.	Việc lọc ảnh chỉ giữ quyết định; không gì bị xóa cho tới khi bạn áp dụng.
+	Add Folder…	Thêm thư mục…
+	Not now	Để sau
+	JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate	JPEG, HEIC, TIFF, PNG, WebP, GIF, ảnh thô máy ảnh và video — khung hình xem trước, thời lượng và tốc độ khung hình
+	Indexing…	Đang lập chỉ mục…
+	{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.	Đến nay {files} tệp trong {folders} thư mục. Đang đọc kích thước và khóa nội dung; không gì bị di chuyển.
+	scanning	đang quét
+	Found so far	Đã tìm thấy
+	Nothing yet	Chưa có gì
+	Nothing matches these filters	Không ảnh nào khớp bộ lọc này
+	{n} photograph in this library, and the current filters exclude every one of them.	Thư viện này có {n} ảnh, và bộ lọc hiện tại loại trừ tất cả.
+	{n} photographs in this library, and the current filters exclude every one of them.	Thư viện này có {n} ảnh, và bộ lọc hiện tại loại trừ tất cả.
+	Clear filters	Xóa bộ lọc
+	Clears the search text and every filter, and forgets the folder scope	Xóa nội dung tìm kiếm và mọi bộ lọc, đồng thời quên phạm vi thư mục
+	Export finished	Xuất xong
+	The originals are where they were; an export only writes copies.	Bản gốc vẫn ở chỗ cũ; xuất chỉ ghi các bản sao.
+	Export	Xuất
+	{n} photo(s) · {spec}	{n} ảnh · {spec}
+	Format	Định dạng
+	Original	Nguyên bản
+	A copy: same bytes, same name, no resize and no re-encode.	Bản sao: cùng byte, cùng tên, không đổi kích thước và không mã hóa lại.
+	Longest edge	Cạnh dài nhất
+	px · 0 keeps the original size	px · 0 giữ nguyên kích thước gốc
+	Quality	Chất lượng
+	Keep EXIF and IPTC	Giữ EXIF và IPTC
+	Carries the camera's metadata into the new file	Mang siêu dữ liệu của máy ảnh sang tệp mới
+	PNG is lossless: no quality to pick, and alpha is kept.	PNG là không mất dữ liệu: không cần chọn chất lượng, và kênh alpha được giữ.
+	If the name is taken	Nếu tên đã tồn tại
+	Skip	Bỏ qua
+	Keep both	Giữ cả hai
+	Replace	Thay thế
+	quality {n}	chất lượng {n}
+	{n} px longest edge	cạnh dài nhất {n} px
+	without metadata	không kèm siêu dữ liệu
+	lossless	không mất dữ liệu
+	{n} written	đã ghi {n}
+	{n} skipped	đã bỏ qua {n}
+	{n} failed	{n} lỗi
+	{done} of {total}	{done}/{total}
+	Stop	Dừng
+	Choose folder…	Chọn thư mục…
+	An export is already running, or nothing is selected	Một lần xuất đang chạy, hoặc chưa chọn ảnh nào
+	Cancel	Hủy
+	Your photos stay where they are; this writes copies into the folder you pick.	Ảnh của bạn vẫn ở nguyên; thao tác này ghi các bản sao vào thư mục bạn chọn.
+	Delete selected photos	Xóa các ảnh đã chọn
+	{n} photo(s)	{n} ảnh
+	What happens to them	Điều gì xảy ra với chúng
+	Files that changed on disk since they were indexed stop the whole batch.	Tệp đã thay đổi trên đĩa kể từ khi lập chỉ mục sẽ dừng cả lô.
+	Delete	Xóa
+	Deleted {n} photo(s)	Đã xóa {n} ảnh
+	, {n} failed	, {n} lỗi
+	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	Đã giữ {n} ảnh. {mode} Áp dụng để ghi nhận quyết định — bạn có thể hoàn tác như một bước.
+	Apply cull batch	Áp dụng lô loại ảnh
+	{rejects} rejects · {picks} picks	{rejects} ảnh loại · {picks} ảnh chọn
+	What happens to the rejects	Điều gì xảy ra với ảnh loại
+	Apply	Áp dụng
+	Applied {n} photo(s)	Đã áp dụng {n} ảnh
+	Empty the rejects bin?	Làm trống thùng ảnh loại?
+	{batches} batch(es), {files} file(s) will lose their restore record.	{batches} lô, {files} tệp sẽ mất bản ghi khôi phục.
+	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	Tệp đã chuyển vẫn ở Thùng rác của hệ thống; tệp chỉ bị đánh dấu vẫn ở nguyên. Không có gì bị xóa trên đĩa ở đây, và thao tác này không thể hoàn tác.
+	Empty bin	Làm trống thùng
+	Forgot {batches} batch(es) covering {files} file(s)	Đã quên {batches} lô gồm {files} tệp
+	Rename collection	Đổi tên bộ sưu tập
+	Save	Lưu
+	Renamed to {name}	Đã đổi tên thành {name}
+	About Sortlens	Giới thiệu Sortlens
+	Version {version}	Phiên bản {version}
+	Fast, local culling for photographers who shoot thousands of images.	Lọc ảnh nhanh, cục bộ cho nhiếp ảnh gia chụp hàng nghìn ảnh.
+	{commands} commands, {ready} ready today.	{commands} lệnh, {ready} sẵn sàng hôm nay.
+	Library health	Tình trạng thư viện
+	Catalog files	Tệp danh mục
+	Clean · {photos} photos · seq {seq}	Sạch · {photos} ảnh · seq {seq}
+	Recoverable · {photos} photos, {records} record(s) replayed	Có thể khôi phục · {photos} ảnh, đã phát lại {records} bản ghi
+	Needs attention	Cần chú ý
+	snapshot at seq {seq}	ảnh chụp tại seq {seq}
+	{n} record(s) replayed	đã phát lại {n} bản ghi
+	{n} already covered	đã bao gồm {n}
+	{bytes} log bytes	{bytes} byte nhật ký
+	none	không có
+	Check integrity	Kiểm tra toàn vẹn
+	The check replays a copy of the log, so the library itself is never touched.	Việc kiểm tra phát lại một bản sao của nhật ký, nên thư viện không hề bị đụng tới.
+	Compact	Nén gọn
+	Write a fresh snapshot and empty the log; also repairs a torn log tail	Ghi một ảnh chụp mới và làm trống nhật ký; cũng sửa phần đuôi nhật ký bị rách
+	Catalog was already compact	Danh mục đã gọn sẵn
+	Compacted · {bytes} reclaimed	Đã nén gọn · thu hồi {bytes}
+	{present} of {checked} files present · {missing} missing	có {present}/{checked} tệp · thiếu {missing}
+	Not checked yet.	Chưa kiểm tra.
+	Check library	Kiểm tra thư viện
+	Checked {checked} files · {missing} missing · {changed} changed	Đã kiểm tra {checked} tệp · thiếu {missing} · thay đổi {changed}
+	Stats every file and updates the missing badges in one undoable step.	Thống kê từng tệp và cập nhật nhãn thiếu trong một bước có thể hoàn tác.
+	{n} file(s) changed on disk since they were indexed	{n} tệp đã thay đổi trên đĩa kể từ khi lập chỉ mục
+	Refresh changed	Làm mới phần thay đổi
+	Re-read metadata and identity for exactly those files	Đọc lại siêu dữ liệu và danh tính cho đúng những tệp đó
+	Nothing could be refreshed	Không làm mới được gì
+	Refreshed {n} photo(s)	Đã làm mới {n} ảnh
+	Find moved photos	Tìm ảnh đã di chuyển
+	No moved photos found under their roots	Không tìm thấy ảnh nào đã di chuyển dưới gốc của chúng
+	Relocated {n} photo(s)	Đã chuyển vị trí {n} ảnh
+	Matches missing photos by content key under the same root.	Khớp ảnh bị thiếu theo khóa nội dung dưới cùng một gốc.
+	Point at…	Trỏ tới…
+	This folder moved or its volume was renamed	Thư mục này đã di chuyển hoặc ổ đĩa của nó đã đổi tên
+	{n} photo(s) under {root}	{n} ảnh dưới {root}
+	Repointing checks a sample of photos in the new folder first.	Việc trỏ lại kiểm tra trước một mẫu ảnh trong thư mục mới.
+	No photos are waiting on a metadata retry	Không ảnh nào đang chờ thử lại siêu dữ liệu
+	{n} photo(s) could not be read when indexed	{n} ảnh không đọc được khi lập chỉ mục
+	Retry metadata	Thử lại siêu dữ liệu
+	Try reading EXIF again for the photos that failed	Thử đọc lại EXIF cho những ảnh đã lỗi
+	Nothing recovered; {remaining} still unreadable	Không khôi phục được gì; {remaining} vẫn không đọc được
+	Read metadata for {n} photo(s)	Đọc siêu dữ liệu cho {n} ảnh
+	Read {updated}; {remaining} still unreadable	Đã đọc {updated}; {remaining} vẫn không đọc được
+	Re-read all without EXIF	Đọc lại tất cả ảnh không có EXIF
+	{n} photo(s) have no camera and no date; try again with the current readers	{n} ảnh không có máy ảnh và không có ngày; thử lại với bộ đọc hiện tại
+	Remove missing from library	Xóa ảnh thiếu khỏi thư viện
+	Nothing is marked missing	Không có gì bị đánh dấu thiếu
+	Removed {n} missing photo(s) — undo restores them	Đã xóa {n} ảnh thiếu — hoàn tác sẽ khôi phục chúng
+	Removes catalog entries only; the files are already gone.	Chỉ xóa mục trong danh mục; các tệp đã không còn.
+	Cull summary	Tóm tắt lọc ảnh
+	Nothing to cull	Không có gì để lọc
+	Judged all {total} photos	Đã xét tất cả {total} ảnh
+	{judged} of {total} judged	đã xét {judged}/{total}
+	Deferred	Đã hoãn
+	Not judged	Chưa xét
+	{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.	{changed} ảnh sẽ thay đổi khi áp dụng; {deferred} lần hoãn không bao giờ được ghi.
+	Apply…	Áp dụng…
+	Keep culling	Tiếp tục lọc
+	Jump to next	Nhảy tới ảnh kế
+	Skip to the first photo without a decision	Nhảy tới ảnh đầu tiên chưa có quyết định
+	Discard	Bỏ
+	Drop every staged decision and restore the flags	Bỏ mọi quyết định đã giữ và khôi phục cờ
+	Cull discarded	Đã bỏ lọc ảnh
+	Quit Sortlens?	Thoát Sortlens?
+	An index scan is running; the files found so far are not saved yet.	Một lần quét chỉ mục đang chạy; các tệp đã tìm thấy chưa được lưu.
+	{staged} staged cull decision(s) have not been applied. The session is kept for next time.	{staged} quyết định lọc đã giữ chưa được áp dụng. Phiên làm việc được giữ cho lần sau.
+	A similarity pass is running; hashes finished so far are kept.	Một lượt so sánh độ tương đồng đang chạy; các mã băm đã xong được giữ lại.
+	Keep working	Tiếp tục làm việc
+	Quit anyway	Vẫn thoát
+	Close the window now; unstaged work is dropped	Đóng cửa sổ ngay; công việc chưa giữ sẽ bị bỏ
+	Indexed {path}	Đã lập chỉ mục {path}
+	Stopped indexing {path}	Đã dừng lập chỉ mục {path}
+	Added {file}	Đã thêm {file}
+	Removed {file}	Đã xóa {file}
+	Marked photo #{id} as missing	Đánh dấu ảnh #{id} là bị thiếu
+	Found photo #{id} again	Đã tìm lại ảnh #{id}
+	Rated {photos}	Đã đánh giá {photos}
+	Flagged {photos}	Đã gắn cờ {photos}
+	Labelled {photos}	Đã gắn nhãn {photos}
+	Set the capture date on {photos}	Đặt ngày chụp cho {photos}
+	Keyworded {photos}	Đã gắn từ khóa {photos}
+	Recorded where keywords came from on {photos}	Đã ghi nguồn từ khóa trên {photos}
+	Stopped suggesting {keywords}	Ngừng gợi ý {keywords}
+	Found {photos} somewhere else	Đã tìm thấy {photos} ở nơi khác
+	Queued {photos} for a metadata retry	Đã xếp {photos} vào hàng chờ thử lại siêu dữ liệu
+	Linked {aliases} keyword alias(es)	Đã liên kết {aliases} bí danh từ khóa
+	Repointed {from} to {to}	Đã trỏ lại {from} sang {to}
+	Created the collection {name}	Đã tạo bộ sưu tập {name}
+	Deleted the collection {name}	Đã xóa bộ sưu tập {name}
+	Renamed a collection to {name}	Đã đổi tên một bộ sưu tập thành {name}
+	Collection change: +{added} -{removed}	Thay đổi bộ sưu tập: +{added} -{removed}
+	Set a collection's colour to {colour}	Đặt màu bộ sưu tập thành {colour}
+	Switched on the “{name}” keyword pack	Bật gói từ khóa “{name}”
+	Switched off the “{name}” keyword pack	Tắt gói từ khóa “{name}”
+	Measured the sharpness of {photos}	Đã đo độ nét của {photos}
+	Pinned {folder} and set it to {colour}	Đã ghim {folder} và đặt thành {colour}
+	Pinned {folder}	Đã ghim {folder}
+	Set {folder} to {colour}	Đặt {folder} thành {colour}
+	Cleared the mark on {folder}	Đã xóa dấu trên {folder}
+	{first} (+{others} more change(s))	{first} (+{others} thay đổi khác)
+	Dismissed nothing	Không bỏ gợi ý nào
+	Cleared a collection's colour	Đã xóa màu bộ sưu tập
+	Starred a collection	Đã đánh dấu sao bộ sưu tập
+	Unstarred a collection	Đã bỏ đánh dấu sao bộ sưu tập
+	Changed a collection's sort	Đã đổi cách sắp xếp bộ sưu tập
+	Changed a collection's search	Đã đổi tìm kiếm của bộ sưu tập
+	Grouped change	Thay đổi nhóm
+	Recent changes	Thay đổi gần đây
+	No changes since the last snapshot.	Không có thay đổi kể từ ảnh chụp trước.
+	Every change is a record in the log; older ones are folded into the snapshot.	Mọi thay đổi là một bản ghi trong nhật ký; bản cũ được gộp vào ảnh chụp.
+	Export report…	Báo cáo xuất…
+	Plain text, for a support request	Văn bản thuần, cho yêu cầu hỗ trợ
+	The report lists folder and file names; it never includes photo contents.	Báo cáo liệt kê tên thư mục và tệp; không bao giờ gồm nội dung ảnh.
+	no date	không có ngày
+	Red	Đỏ
+	Yellow	Vàng
+	Green	Xanh lá
+	Blue	Xanh dương
+	Purple	Tím
+	{n} keyword(s)	{n} từ khóa
+	Batch applied	Đã áp dụng lô
+	{n} photo handled	đã xử lý {n} ảnh
+	{n} photos handled	đã xử lý {n} ảnh
+	Moved to the system Trash	Đã chuyển vào Thùng rác hệ thống
+	Left on disk and flagged as rejected	Vẫn ở trên đĩa và bị gắn cờ loại
+	Moved to {folder}	Đã chuyển tới {folder}
+	{n} pick(s) written	đã ghi {n} ảnh chọn
+	Batch {batch} · {n} file(s) kept on disk	Lô {batch} · giữ {n} tệp trên đĩa
+	{n} file(s) could not be handled	{n} tệp không xử lý được
+	Put them back	Đưa chúng trở lại
+	Done	Xong
+	Restored the batch	Đã khôi phục lô
+	Colour	Màu
+	None	Không có
+	Pinned and {colour}	Đã ghim và {colour}
+	Pinned to the top	Đã ghim lên đầu
+	Folder is {colour}	Thư mục là {colour}
+	Folder mark cleared	Đã xóa dấu thư mục
+	Collection is {colour}	Bộ sưu tập là {colour}
+	{n} collections are {colour}	{n} bộ sưu tập là {colour}
+	Collection colour cleared	Đã xóa màu bộ sưu tập
+	Colour cleared on {n} collections	Đã xóa màu trên {n} bộ sưu tập
+	{colour} label	Nhãn {colour}
+	{colour} label on {n} photos	Nhãn {colour} trên {n} ảnh
+	Colour filter: {colour}	Bộ lọc màu: {colour}
+	Colour filter: any colour	Bộ lọc màu: mọi màu
+	Only photos with this colour label — an empty ring means every colour	Chỉ ảnh có nhãn màu này — vòng trống nghĩa là mọi màu
+	No colour label.	Không có nhãn màu.
+	Cleared the label	Đã xóa nhãn
+	Cleared the label on {n} photos	Đã xóa nhãn trên {n} ảnh
+	Show every shortcut	Hiện mọi phím tắt
+	Close the dialog, overlay or detail view	Đóng hộp thoại, lớp phủ hoặc chế độ xem chi tiết
+	Add a folder to the library	Thêm thư mục vào thư viện
+	Rescan the library for changes	Quét lại thư viện để tìm thay đổi
+	New collection	Bộ sưu tập mới
+	Open the command palette, or close it	Mở bảng lệnh, hoặc đóng nó
+	Open settings	Mở cài đặt
+	Quit, asking about unsaved work	Thoát, hỏi về công việc chưa lưu
+	Undo the last change	Hoàn tác thay đổi cuối
+	Redo the last undone change	Làm lại thay đổi vừa hoàn tác
+	Flag as picked	Gắn cờ chọn
+	Flag as rejected	Gắn cờ loại
+	Clear the flag	Xóa cờ
+	Set the star rating, 0 clearing it	Đặt số sao, 0 để xóa
+	Colour label: red, yellow, green, blue; again to clear	Nhãn màu: đỏ, vàng, xanh lá, xanh dương; nhấn lại để xóa
+	Jump to the keyword field	Nhảy tới ô từ khóa
+	Apply the keyword you last added to the selection	Áp dụng từ khóa bạn vừa thêm cho phần đang chọn
+	Select one photo; ⌘-click adds or removes, Shift-click takes the run	Chọn một ảnh; ⌘-click để thêm hoặc bỏ, Shift-click để lấy cả dải
+	Select every photo in view	Chọn mọi ảnh đang xem
+	Marquee-select from the grid background	Chọn khung từ nền lưới
+	Grid layout: justified rows or a square lattice	Bố cục lưới: hàng cân đối hoặc lưới vuông
+	Open the detail view	Mở chế độ xem chi tiết
+	Start a cull session from the filters	Bắt đầu phiên lọc từ các bộ lọc
+	Open insights	Mở phần tổng quan
+	Open the map	Mở bản đồ
+	Open the similar-photo search	Mở tìm ảnh tương tự
+	Next photo in the sorted order	Ảnh kế trong thứ tự đã sắp
+	Previous photo in the sorted order	Ảnh trước trong thứ tự đã sắp
+	Zoom to fit or 1:1	Thu phóng vừa khung hoặc 1:1
+	Compare with the next photo	So sánh với ảnh kế
+	Close the detail view	Đóng chế độ xem chi tiết
+	Keep this photo	Giữ ảnh này
+	Reject this photo	Loại ảnh này
+	Leave it undecided and move on	Để chưa quyết định và đi tiếp
+	Mark undecided again	Đánh dấu chưa quyết định lại
+	Step back one photo	Lùi một ảnh
+	Apply the keyword you last added to this photo	Áp dụng từ khóa bạn vừa thêm cho ảnh này
+	Apply the staged rejections	Áp dụng các ảnh loại đã giữ
+	Zoom to fit or 2×	Thu phóng vừa khung hoặc 2×
+	Pan while zoomed	Dịch chuyển khi đã thu phóng
+	Close the compare	Đóng so sánh
+	Swap the two sides	Đổi hai bên
+	Step the pair together	Bước cả cặp cùng nhau
+	Detail view	Chế độ xem chi tiết
+	Cull session	Phiên lọc ảnh
+	Compare	So sánh
+	Anywhere	Mọi nơi
+	Nothing focused, no dialog open.	Không có gì được chọn, không mở hộp thoại.
+	D from the grid; Esc closes it.	D từ lưới; Esc đóng nó.
+	C starts a session from the current filters.	C bắt đầu phiên từ bộ lọc hiện tại.
+	C in the detail view; S swaps sides.	C trong chế độ xem chi tiết; S đổi bên.
+	Also works with a dialog open.	Cũng hoạt động khi mở hộp thoại.
+	Keyboard shortcuts	Phím tắt bàn phím
+	Search keys or actions	Tìm phím hoặc hành động
+	{n} bindings	{n} phím gán
+	{bound} of {total} bound	đã gán {bound}/{total}
+	Nothing is bound to that.	Không có gì được gán cho đó.
+	Scan	Quét
+	Previews	Xem trước
+	Sidecars	Tệp phụ
+	Similar	Tương tự
+	Insights	Tổng quan
+	Sharpness	Độ nét
+	Model	Mô hình
+	Update	Cập nhật
+	running	đang chạy
+	done	xong
+	cancelled	đã hủy
+	failed	lỗi
+	{files} files · {dirs} folders	{files} tệp · {dirs} thư mục
+	{files} files · {dirs} folders · {unreadable} unreadable	{files} tệp · {dirs} thư mục · {unreadable} không đọc được
+	cancelled before committing	đã hủy trước khi ghi
+	Nothing has run yet. Scans and exports appear here.	Chưa có gì chạy. Các lần quét và xuất sẽ hiện ở đây.
+	Indexed	Đã lập chỉ mục
+	On disk	Trên đĩa
+	Select a photo to see what its own file and the keyword packs propose.	Chọn một ảnh để xem tệp của nó và các gói từ khóa gợi ý gì.
+	Nothing to propose for this selection.	Không có gì để gợi ý cho phần đang chọn.
+	Proposals come from each file's own EXIF and from the keyword packs that are switched on.	Gợi ý đến từ EXIF của chính từng tệp và từ các gói từ khóa đang bật.
+	{proposals} for {photos}	{proposals} cho {photos}
+	{n} proposal	{n} gợi ý
+	{n} proposals	{n} gợi ý
+	{n} photo	{n} ảnh
+	{n} photos	{n} ảnh
+	Accept all	Chấp nhận tất cả
+	Add every proposal in this family as a keyword, as one undo	Thêm mọi gợi ý trong nhóm này làm từ khóa, trong một lần hoàn tác
+	Those keywords are already on every selected photo	Những từ khóa đó đã có trên mọi ảnh đang chọn
+	Added {n} keyword(s) — one undo takes them back	Đã thêm {n} từ khóa — một lần hoàn tác lấy lại
+	 · on {photos} of the {selected} selected photos	· trên {photos} trong {selected} ảnh đang chọn
+	Don't propose “{tag}” again for these photos — one undo brings it back	Đừng gợi ý “{tag}” nữa cho các ảnh này — một lần hoàn tác sẽ đưa nó trở lại
+	“{tag}” was already dismissed	“{tag}” đã bị bỏ trước đó
+	Won't propose “{tag}” again — one undo brings it back	Sẽ không gợi ý “{tag}” nữa — một lần hoàn tác sẽ đưa nó trở lại
+	“{tag}” is already on every selected photo	“{tag}” đã có trên mọi ảnh đang chọn
+	Added “{tag}” — one undo takes it back	Đã thêm “{tag}” — một lần hoàn tác lấy lại
+	{tag} · {percent} from {source}	{tag} · {percent} từ {source}
+	Suggested	Gợi ý
+	Suggested keywords	Từ khóa gợi ý
+	Clear	Xóa
+	Uses what each file says about itself and any keyword packs you switched on.	Dùng điều mỗi tệp tự nói về mình và mọi gói từ khóa bạn đã bật.
+	No proposals yet.	Chưa có gợi ý.
+	{n} photo(s) with something to suggest	{n} ảnh có điều để gợi ý
+	Objects	Đối tượng
+	Scene	Bối cảnh
+	EXIF	EXIF
+	detector	bộ dò
+	camera	máy ảnh
+	pack	gói
+	caption	chú thích
+	Nothing is written while this runs.	Không có gì được ghi khi việc này chạy.
+	Suggest for the whole library	Gợi ý cho cả thư viện
+	{percent} from {source} — clicking adds it	{percent} từ {source} — bấm để thêm
+	Custom	Tùy chỉnh
+	OK	OK
+	Close	Đóng
+	Undo	Hoàn tác
+	Redo	Làm lại
+	Reset All…	Đặt lại tất cả…
+	Restore every default shortcut in this set?	Khôi phục mọi phím tắt mặc định trong bộ này?
+	Reset All	Đặt lại tất cả
+	Show:	Hiện:
+	Filter:	Lọc:
+	Search:	Tìm:
+	Search by key	Tìm theo phím
+	All Commands	Mọi lệnh
+	{menu} Menu	Menu {menu}
+	Tools	Công cụ
+	{panel} Panel	Bảng {panel}
+	Other	Khác
+	Fixed Keys	Phím cố định
+	All	Tất cả
+	With Shortcut	Có phím tắt
+	Changed	Đã đổi
+	Conflicts	Xung đột
+	No matching commands	Không có lệnh nào khớp
+	(cycles)	(chu kỳ)
+	{label} (cycles)	{label} (chu kỳ)
+	{label} (Changed)	{label} (Đã đổi)
+	Command	Lệnh
+	Commands	Lệnh
+	Detail pane size	Kích thước khung chi tiết
+	Select a command to see and change its shortcuts	Chọn một lệnh để xem và sửa phím tắt của nó
+	Shortcut	Phím tắt
+	Default	Mặc định
+	{chord} (Default)	{chord} (Mặc định)
+	{chord} ({scope})	{chord} ({scope})
+	{label} ({scope})	{label} ({scope})
+	Application	Ứng dụng
+	Current shortcuts:	Phím tắt hiện tại:
+	New shortcut:	Phím tắt mới:
+	New shortcut: {chord}	Phím tắt mới: {chord}
+	press keys	nhấn phím
+	{chord} (press again for a double press)	{chord} (nhấn lại để nhấn đúp)
+	Type…	Gõ…
+	Context:	Ngữ cảnh:
+	Assign	Gán
+	Use Default	Dùng mặc định
+	Default: {chord}	Mặc định: {chord}
+	Currently assigned to:	Hiện được gán cho:
+	Not assigned	Chưa gán
+	{label} ({scope}, both work)	{label} ({scope}, cả hai đều dùng được)
+	Add a shortcut to {label}	Thêm phím tắt cho {label}
+	Remove {chord} from {label}	Xóa {chord} khỏi {label}
+	Restore the default for {label}	Khôi phục mặc định cho {label}
+	{label}: {chord}	{label}: {chord}
+	{label}: press keys	{label}: nhấn phím
+	Now used by {label}	Nay được {label} dùng
+	{label}: {chord} (Now used by {holder})	{label}: {chord} (Nay được {holder} dùng)
+	the shortcut has no key	phím tắt không có phím
+	unknown modifier {key}	bộ điều chỉnh không rõ {key}
+	modifier {key} given twice	bộ điều chỉnh {key} xuất hiện hai lần
+	key sequences are not supported	không hỗ trợ chuỗi phím
+	the scope name is not valid	tên ngữ cảnh không hợp lệ
+	Keyboard	Bàn phím
+	Keyboard: US	Bàn phím: US
+	Keyboard: US (macOS)	Bàn phím: US (macOS)
+	Control	Control
+	Option	Option
+	Shift	Shift
+	Ctrl	Ctrl
+	Alt	Alt
+	Caps Lock	Caps Lock
+	Win	Win
+	Super	Super
+	Panel or context	Bảng hoặc ngữ cảnh
+	Both	Cả hai
+	Modifier on	Bộ điều chỉnh bật
+	{chord}: {label}	{chord}: {label}
+	Click a key to see its shortcuts	Bấm một phím để xem phím tắt của nó
+	Key: {key}	Phím: {key}
+	Assign to Selected	Gán cho phần đã chọn
+	Assign {chord} to {label}	Gán {chord} cho {label}
+	Select a command first	Chọn lệnh trước
+	Nothing uses this key	Không gì dùng phím này
+	⚠ {chord} is used by {label}	⚠ {chord} được {label} dùng
+	{chord} was removed from {label}	{chord} đã bị xóa khỏi {label}
+	Also used by {label}	Cũng được {label} dùng
+	{chord} is reserved by the system	{chord} do hệ thống giữ riêng
+	A command can have at most {n} shortcuts	Một lệnh có tối đa {n} phím tắt
+	The scope {scope} is unknown	Ngữ cảnh {scope} không rõ
+	Too many shortcuts are assigned	Gán quá nhiều phím tắt
+	This command is unknown	Lệnh này không rõ
+	Take It	Lấy nó
+	Take It and Go to Conflict	Lấy nó và tới chỗ xung đột
+	Keep Both	Giữ cả hai
+	Go to Conflict	Tới chỗ xung đột
+	Cancel the new shortcut	Hủy phím tắt mới
+	Dismiss	Bỏ qua
+	{key}: no command has this name	{key}: không lệnh nào có tên này
+	{key}: “{text}” is not a shortcut ({error})	{key}: “{text}” không phải phím tắt ({error})
+	{key}: {text} is reserved by the system	{key}: {text} do hệ thống giữ riêng
+	{key}: the scope in “{text}” is unknown	{key}: ngữ cảnh trong “{text}” không rõ
+	{key}: listed more than once	{key}: được liệt kê nhiều lần
+	{key}: part of the entry was dropped	{key}: một phần mục đã bị bỏ
+	Set:	Bộ:
+	(modified)	(đã sửa)
+	New Set…	Bộ mới…
+	Rename…	Đổi tên…
+	Revert Set	Khôi phục bộ
+	Import…	Nhập…
+	Export…	Xuất…
+	Summarize…	Tóm tắt…
+	{title}: {set}	{title}: {set}
+	Create	Tạo
+	Rename	Đổi tên
+	More	Thêm
+	Name:	Tên:
+	Based on:	Dựa trên:
+	Current shortcuts	Phím tắt hiện tại
+	Save changes to “{set}”?	Lưu thay đổi vào “{set}”?
+	Don't Save	Không lưu
+	Delete the set “{set}”?	Xóa bộ “{set}”?
+	Keyboard Shortcuts (JSON)	Phím tắt bàn phím (JSON)
+	The name is empty, too long or has control characters	Tên trống, quá dài hoặc có ký tự điều khiển
+	A set with this name exists	Đã có bộ cùng tên này
+	The set was not found	Không tìm thấy bộ này
+	Built-in sets cannot be changed	Không thể sửa bộ có sẵn
+	There are too many sets	Quá nhiều bộ
+	This is not a shortcut set file	Đây không phải tệp bộ phím tắt
+	This is not a craft-keymap file	Đây không phải tệp craft-keymap
+	This file is from a newer version (format {n})	Tệp này từ phiên bản mới hơn (định dạng {n})
+	The file is too large	Tệp quá lớn
+	Import “{set}”	Nhập “{set}”
+	Set name:	Tên bộ:
+	Import	Nhập
+	Cancel Import	Hủy nhập
+	line {n}	dòng {n}
+	Will change	Sẽ thay đổi
+	Not matched	Không khớp
+	Unreadable	Không đọc được
+	Approximated	Gần đúng
+	{title} ({n})	{title} ({n})
+	Suggestions ({n})	Gợi ý ({n})
+	numeric keypad key read as main key	phím bàn số đọc thành phím chính
+	Matched without change	Khớp không đổi
+	Command for {item}	Lệnh cho {item}
+	Choose a command…	Chọn một lệnh…
+	no command has this name	không lệnh nào có tên này
+	more than one command fits	có nhiều hơn một lệnh khớp
+	in a context that is not imported	trong ngữ cảnh không được nhập
+	only a command of the other kind fits (tool or menu command)	chỉ lệnh loại khác khớp (lệnh công cụ hoặc menu)
+	empty shortcut	phím tắt trống
+	the shortcut is too long	phím tắt quá dài
+	unknown key {key}	phím không rõ {key}
+	unsupported modifier {key}	bộ điều chỉnh không hỗ trợ {key}
+	{label} keeps its shortcuts (matched by a panel menu name)	{label} giữ phím tắt của nó (khớp theo tên menu bảng)
+	Import as New Set	Nhập thành bộ mới
+	Imported	Đã nhập
+	Imported as “{set}”	Đã nhập thành “{set}”
+	Skipped	Đã bỏ qua
+	Taken from other commands	Lấy từ lệnh khác
+	Not changed	Không đổi
+	taken by {label}	do {label} chiếm
+	taken by a later entry	do mục sau chiếm
+	reserved by the system	do hệ thống giữ riêng
+	the scope is unknown	ngữ cảnh không rõ
+	the set's shortcuts could not be added	không thêm được phím tắt của bộ
+	the shortcuts could not be removed	không xóa được phím tắt
+	Copy Report	Sao chép báo cáo
+	Double-press bindings are not read here; record a single chord	Phím gán nhấn đúp không được đọc ở đây; hãy ghi một hợp âm
+	craft-keymap set	bộ craft-keymap
+	Shortcuts saved	Đã lưu phím tắt
+	Imported shortcut set “{name}”	Đã nhập bộ phím tắt “{name}”
+	Could not import the set: {error}	Không nhập được bộ: {error}
+@plural	{n} shortcut is assigned more than once|{n} shortcuts are assigned more than once	phím tắt {n} được gán nhiều hơn một lần
+@plural	{n} saved shortcut could not be used|{n} saved shortcuts could not be used	không dùng được {n} phím tắt đã lưu
+@plural	{n} command will change|{n} commands will change	{n} lệnh sẽ thay đổi
+@plural	{n} item without a shortcut|{n} items without a shortcut	{n} mục không có phím tắt
+@plural	{n} item not matched|{n} items not matched	{n} mục không khớp
+@plural	{n} item could not be read|{n} items could not be read	không đọc được {n} mục
+@plural	{n} key read approximately|{n} keys read approximately	{n} phím đọc gần đúng
+@plural	{n} entry cut at a limit|{n} entries cut at a limit	{n} mục bị cắt theo giới hạn
+@plural	{n} command changed|{n} commands changed	đã đổi {n} lệnh
+@plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	{n} phím tắt cũng dùng được ở ngữ cảnh khác
+@plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	đã bỏ qua {n} mục: quá nhiều lệnh
+	Cull	Lọc ảnh
+	No photos match the current filters.	Không ảnh nào khớp bộ lọc hiện tại.
+	{n} photos in view. Nothing moves until you apply.	{n} ảnh đang xem. Không gì thay đổi cho tới khi bạn áp dụng.
+	Start culling {n} photos	Bắt đầu lọc {n} ảnh
+	Culling {n} photos	Đang lọc {n} ảnh
+	P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down	P chọn · X loại · Space hoãn · U xóa · ◀ lùi · T từ khóa cuối · kéo lên/xuống
+	{position} of {total}	{position}/{total}
+	Summary	Tóm tắt
+	End session	Kết thúc phiên
+	Discard staged decisions; nothing has been written yet	Bỏ các quyết định đã giữ; chưa có gì được ghi
+	{picked} picked · {rejected} rejected · {deferred} deferred	{picked} chọn · {rejected} loại · {deferred} hoãn
+	Up next	Tiếp theo
+	Session complete	Phiên xong
+	Pick	Chọn
+	Reject	Loại
+	Defer	Hoãn
+	Apply rejects…	Áp dụng ảnh loại…
+	Reject a photo first; picks and defers need no apply	Hãy loại một ảnh trước; ảnh chọn và ảnh hoãn không cần áp dụng
+	Move picks…	Chuyển ảnh chọn…
+	Pick a photo first	Hãy chọn một ảnh trước
+	Move the picks into a folder; keeps every rating and keyword	Chuyển ảnh chọn vào một thư mục; giữ mọi đánh giá và từ khóa
+	Export picks…	Xuất ảnh chọn…
+	Write the picks into a folder; the originals are not touched	Ghi ảnh chọn vào một thư mục; bản gốc không bị đụng tới
+	Back	Quay lại
+	Remove keyword from this photo	Xóa từ khóa khỏi ảnh này
+	Add keyword to this photo	Thêm từ khóa cho ảnh này
+	Add	Thêm
+	That keyword is already on this photo	Từ khóa đó đã có trên ảnh này
+	Tagged “{tag}”	Đã gắn thẻ “{tag}”
+	Find similar photos	Tìm ảnh tương tự
+	Hashing…	Đang băm…
+	Groups up to date	Các nhóm đã mới nhất
+	Hashing {n} previews	Đang băm {n} ảnh xem trước
+	{groups} groups · {bits} identical bits	{groups} nhóm · {bits} bit giống nhau
+	strictness	độ chặt
+	Match	Khớp
+	palette	bảng màu
+	How far apart two palettes may be, per channel	Hai bảng màu có thể lệch nhau bao xa, theo từng kênh
+	Select leftovers in every group ({n})	Chọn ảnh thừa trong mọi nhóm ({n})
+	Ticks every photo that is not its group's best, so you can review them together	Đánh dấu mọi ảnh không phải ảnh tốt nhất của nhóm, để bạn xem chúng cùng nhau
+	Selected {n} leftover(s) across {groups} group(s)	Đã chọn {n} ảnh thừa trong {groups} nhóm
+	Delete the {n} selected…	Xóa {n} ảnh đã chọn…
+	Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets	Chuyển chúng vào thùng rác, thư mục ảnh loại hoặc một thẻ, sau cùng các bước kiểm tra an toàn như một lô lọc
+	{n} group(s) · nothing selected	{n} nhóm · chưa chọn gì
+	No groups yet	Chưa có nhóm
+	Hash the library to find bursts and re-edits.	Băm thư viện để tìm loạt ảnh và bản chỉnh sửa lại.
+	spread {bits} bits	trải {bits} bit
+	Select all but the best	Chọn tất cả trừ ảnh tốt nhất
+	Ticks every photo in this group except the one worth keeping	Đánh dấu mọi ảnh trong nhóm này trừ ảnh đáng giữ
+	{n} set aside	đã để riêng {n}
+	keeping {keep}	giữ {keep}
+	best	tốt nhất
+	Removed keyword {tag}	Đã xóa từ khóa {tag}
+	Structure	Cấu trúc
+	Either	Hoặc
+	Same layout and the same palette — the safe default.	Cùng bố cục và cùng bảng màu — mặc định an toàn.
+	Same palette anywhere in the frame, whatever the layout.	Cùng bảng màu ở bất kỳ đâu trong khung, bất kể bố cục.
+	Structure or palette; the widest net, more false pairs.	Cấu trúc hoặc bảng màu; lưới rộng nhất, nhiều cặp sai hơn.
+	Counting	Đang đếm
+	Recount	Đếm lại
+	Count the library again on a worker, reporting progress as it goes	Đếm lại thư viện trên một luồng nền, báo tiến độ trong khi chạy
+	Photos	Ảnh
+	Keyworded	Có từ khóa
+	Ratings	Đánh giá
+	Unrated	Chưa đánh giá
+	Labels	Nhãn
+	Kinds	Loại
+	Images	Ảnh chụp
+	Raw	RAW
+	Video	Đoạn phim
+	Cameras	Máy ảnh
+	Lenses	Ống kính
+	Timeline	Dòng thời gian
+	No capture dates yet	Chưa có ngày chụp
+	{n} with no capture date	{n} không có ngày chụp
+	Months	Tháng
+	Nothing dated yet	Chưa có gì có ngày
+	Busiest month	Tháng bận rộn nhất
+	Busiest day	Ngày bận rộn nhất
+	Most used camera	Máy ảnh dùng nhiều nhất
+	No capture date	Không có ngày chụp
+	January	Tháng 1
+	February	Tháng 2
+	March	Tháng 3
+	April	Tháng 4
+	May	Tháng 5
+	June	Tháng 6
+	July	Tháng 7
+	August	Tháng 8
+	September	Tháng 9
+	October	Tháng 10
+	November	Tháng 11
+	December	Tháng 12
+	Winter	Mùa đông
+	Spring	Mùa xuân
+	Summer	Mùa hè
+	Autumn	Mùa thu
+	{month} — {count} photo(s) · mostly {season}	{month} — {count} ảnh · chủ yếu {season}
+	{month} — {count} photo(s)	{month} — {count} ảnh
+	{date} — {count} photo(s)	{date} — {count} ảnh
+	{camera} — {count} photo(s)	{camera} — {count} ảnh
+	{count} photo(s), {percent} of the library	{count} ảnh, {percent} thư viện
+	Busiest: {month} · mostly {season}	Bận rộn nhất: {month} · chủ yếu {season}
+	Busiest: {month}	Bận rộn nhất: {month}
+	No photo has a location yet	Chưa ảnh nào có vị trí
+	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	Máy ảnh ghi nơi chụp vào EXIF của tệp. Ảnh chụp khi tắt dịch vụ định vị, hoặc bị công cụ khác xóa, sẽ không có.
+	zoom {zoom}	thu phóng {zoom}
+	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	{located} ảnh có vị trí · {dots} điểm · bấm một điểm để chọn
+	No places.txt — dots show their coordinates	Không có places.txt — các điểm hiện tọa độ của chúng
+	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	Đặt tên từ places.txt · {named} địa điểm · điểm trong {km} km mượn tên
+	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	Đường bờ biển sơ lược · cài một thư mục ô bản đồ hoặc một kho MBTiles để có bản đồ nền thật
+	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	Đặt các ô {z}/{x}/{y}.png và một attribution.txt trong {dir} — hoặc một kho tiles.mbtiles với một dòng siêu dữ liệu `attribution` bên cạnh — để thay đường viền 1:110m. Không có gì được tải xuống.
+	The basemap cannot be used	Không dùng được bản đồ nền
+	Nothing selected	Chưa chọn gì
+	Pick a photo in the grid, then press D.	Chọn một ảnh trong lưới, rồi nhấn D.
+	Back to the grid	Về lại lưới
+	Loading preview…	Đang tải ảnh xem trước…
+	Previous	Trước
+	Next	Sau
+	No preview to measure	Không có ảnh xem trước để đo
+	Lookahead	Đọc trước
+	P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close	P/X/U gắn cờ · 1–5 đánh giá · trái/phải đi · Z thu phóng · Esc đóng
+	Open	Mở
+	Hand this file to the desktop's default application	Chuyển tệp này cho ứng dụng mặc định của máy tính
+	Show in folder	Hiện trong thư mục
+	Show this file where it lives on disk	Hiện tệp này ở nơi nó nằm trên đĩa
+	Write a copy somewhere; the original is not touched	Ghi một bản sao ở nơi khác; bản gốc không bị đụng tới
+	Close  Esc	Đóng  Esc
+	Fit  Z	Vừa khung  Z
+	1:1  Z	Kích thước thật  Z
+	Swap  S	Đổi bên  S
+	Swap which pane is the left one	Đổi khung nào là bên trái
+	Close compare  C	Đóng so sánh  C
+	Go back to the single photograph	Quay lại một ảnh duy nhất
+	Compare  C	So sánh  C
+	Show the next photo beside this one, at the same magnification	Hiện ảnh kế bên cạnh ảnh này, ở cùng độ phóng đại
+	Kind	Loại
+	Folder	Thư mục
+	Size	Kích thước
+	Dimensions	Kích thước điểm ảnh
+	Camera	Máy ảnh
+	Lens	Ống kính
+	Exposure	Phơi sáng
+	Captured	Ngày chụp
+	Rating	Đánh giá
+	{rating} of 5	{rating}/5
+	Flag	Cờ
+	Label	Nhãn
+	Status	Trạng thái
+	missing	thiếu
+	present	có mặt
+	Image	Ảnh
+	pick	chọn
+	reject	loại
+	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	Nhấn 1–5 để đánh giá, 0 để xóa, P để chọn, X để loại, U để bỏ cờ.
+	Select a photo to see camera, exposure and file details.	Chọn một ảnh để xem thông tin máy ảnh, phơi sáng và tệp.
+	stars	sao
+	label	nhãn
+	exposure	phơi sáng
+	length	thời lượng
+	size	kích thước
+	pixels	điểm ảnh
+	{left} vs {right}	{left} so với {right}
+	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} so với {right_width}×{right_height}
+	Soft Focus	Lấy nét mềm
+	A relative cut, never a verdict	Ngưỡng tương đối, không phải phán quyết
+	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	Độ nét xếp hạng các khung trong thư viện này, trong một điều kiện sáng và một tiêu cự. Ngưỡng lấy N% mềm nhất, nên nó chỉ có thể nói là tương đối với chính những ảnh này.
+	Measuring	Đang đo
+	Measure sharpness	Đo độ nét
+	Decode each photo and measure how much fine detail it has	Giải mã từng ảnh và đo mức chi tiết mịn
+	{n} photo(s) have no current score	{n} ảnh chưa có điểm hiện tại
+	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	Chưa đo gì. Độ nét xếp hạng các khung trong thư viện này; nó không phán quyết khung nào.
+	Softest {percent}% · scores {low} to {high}	Mềm nhất {percent}% · điểm từ {low} đến {high}
+	Select {n} photo(s)	Chọn {n} ảnh
+	Ticks them in the library, where you can look before you act	Đánh dấu chúng trong thư viện, để bạn xem trước khi làm
+	Nothing at the cut	Không có gì ở ngưỡng
+	Nothing is scored yet	Chưa có điểm nào
+	Every photo scored the same, so a relative cut cannot separate them	Mọi ảnh đều cùng điểm, nên ngưỡng tương đối không tách được chúng
+	1 photo at the cut, and {others} others share its score	1 ảnh ở ngưỡng, và {others} ảnh khác cùng điểm
+	1 photo at or below the cut	1 ảnh ở hoặc dưới ngưỡng
+	{count} photos at or below the cut ({percent}%)	{count} ảnh ở hoặc dưới ngưỡng ({percent}%)
+	For You	Dành cho bạn
+	On this day	Ngày này năm xưa
+	This week in past years	Tuần này những năm trước
+	Never looked at	Chưa từng xem
+	Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.	Nổi lên lại theo ngày chụp và theo điều bạn chưa xét. Ngày được đọc theo UTC.
+	Nothing to resurface yet	Chưa có gì để nổi lên lại
+	Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.	Thẻ xuất hiện khi ảnh có ngày chụp từ năm trước, hoặc đã một năm mà vẫn chưa đánh giá.
+	{cards} card(s): {kinds}	{cards} thẻ: {kinds}
+	{month} {day}	{day} {month}
+	{shown} of {total} photos	{shown}/{total} ảnh
+	{count} photo	{count} ảnh
+	{count} photos	{count} ảnh
+	{photos} · since {year}	{photos} · từ {year}
+	{name} · {kind}	{name} · loại {kind}

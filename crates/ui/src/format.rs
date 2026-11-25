@@ -39,7 +39,8 @@ pub(crate) enum Order {
 
 /// The styles offered, one per language the picker offers. `en` is the shape the app has always
 /// painted; `ja` is Japan's comma grouping and slash date; `ko` is Korea's comma grouping and
-/// dotted year-first date; `th` is Thailand's comma grouping and slash day-first date; `ar` is
+/// dotted year-first date; `th` is Thailand's comma grouping and slash day-first date; `vi` is
+/// Vietnam's dot grouping with a comma decimal mark and the day first; `ar` is
 /// Egyptian Arabic's Arabic-Indic digits with `٬` grouping, `٫` decimal and the day first.
 const STYLES: &[Style] = &[
     Style {
@@ -79,6 +80,14 @@ const STYLES: &[Style] = &[
         zero: '0',
         group: Some(','),
         decimal: '.',
+        order: Order::DayMonthYear,
+        date_sep: '/',
+    },
+    Style {
+        lang: "vi",
+        zero: '0',
+        group: Some('.'),
+        decimal: ',',
         order: Order::DayMonthYear,
         date_sep: '/',
     },
@@ -259,12 +268,14 @@ mod tests {
         assert_eq!(count_in(style("ja"), 12_408), "12,408");
         assert_eq!(count_in(style("ko"), 12_408), "12,408");
         assert_eq!(count_in(style("th"), 12_408), "12,408");
+        assert_eq!(count_in(style("vi"), 12_408), "12.408");
         assert_eq!(count_in(style("zh-TW"), 12_408), "12,408");
         assert_eq!(count_in(style("ar"), 12_408), "١٢٬٤٠٨");
         assert_eq!(count_in(style("ar"), 7), "٧");
         assert_eq!(size_in(style("en"), 1_400_000), "1.4 MB");
         assert_eq!(size_in(style("ja"), 1_400_000), "1.4 MB");
         assert_eq!(size_in(style("ko"), 1_400_000), "1.4 MB");
+        assert_eq!(size_in(style("vi"), 1_400_000), "1,4 MB");
         assert_eq!(size_in(style("ar"), 1_400_000), "١٫٤ MB");
         assert_eq!(size_in(style("ar"), 812_000_000_000), "٨١٢ GB");
     }
@@ -294,6 +305,7 @@ mod tests {
         assert_eq!(date_time_in(style("ja"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ko"), seconds), "2026.10.03 04:00");
         assert_eq!(date_time_in(style("th"), seconds), "03/10/2026 04:00");
+        assert_eq!(date_time_in(style("vi"), seconds), "03/10/2026 04:00");
         assert_eq!(date_time_in(style("zh-TW"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦ ٠٤:٠٠");
         // A date on its own is the same day, written the same way, with the time left off.

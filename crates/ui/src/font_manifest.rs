@@ -27,6 +27,7 @@ pub const SHIPPED_LANGUAGE_SCRIPTS: &[(&str, &str)] = &[
     ("ko", "Hang"),
     ("zh-TW", "Hani"),
     ("th", "Thai"),
+    ("vi", "Latn"),
 ];
 
 /// The scripts a phone build's filter must name: the interface's own two plus every shipped
