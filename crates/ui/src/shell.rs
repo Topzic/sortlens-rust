@@ -9866,8 +9866,7 @@ mod tests {
             let mut output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     for button in caption_buttons(ui, &t, actions) {
-                        let label =
-                            ui.ctx().accesskit_node_builder(button.id, |node| node.label().map(str::to_owned));
+                        let label = ui.ctx().accesskit_node_builder(button.id, |node| node.label().map(str::to_owned));
                         seen.push((label.flatten().unwrap_or_default(), button.rect));
                     }
                 });
