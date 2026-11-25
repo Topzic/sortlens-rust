@@ -169,6 +169,67 @@ impl Report {
     }
 }
 
+/// What a [`Receipt`]'s headline says.
+///
+/// A translated receipt cannot join an English sentence with its own words without contradicting
+/// the count beside it, so the dialog is handed this piece instead — the same shape the cull
+/// summary sheet's `Headline` gave its own sheet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiptHeadline {
+    /// The batch handled this many files.
+    Handled {
+        /// Files the batch disposed of.
+        photos: usize,
+    },
+}
+
+impl ReceiptHeadline {
+    /// This headline in English.
+    pub fn english(&self) -> String {
+        match *self {
+            Self::Handled { photos } => {
+                let noun = if photos == 1 { "photo" } else { "photos" };
+                format!("{photos} {noun} handled")
+            }
+        }
+    }
+}
+
+/// Where a batch put the files it handled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Destination {
+    /// The system Trash.
+    Trash,
+    /// Left where they were, flagged as rejected.
+    KeptOnDisk,
+    /// Moved into this folder.
+    Folder(String),
+}
+
+/// One piece of a [`Receipt`]'s detail line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DetailPart {
+    /// Where the files went.
+    Destination(Destination),
+    /// Picks the batch also wrote.
+    Picks(usize),
+    /// Files that could not be handled.
+    Failed(usize),
+}
+
+impl DetailPart {
+    /// This piece in English.
+    pub fn english(&self) -> String {
+        match self {
+            Self::Destination(Destination::Trash) => "Moved to the system Trash".to_owned(),
+            Self::Destination(Destination::KeptOnDisk) => "Left on disk and flagged as rejected".to_owned(),
+            Self::Destination(Destination::Folder(folder)) => format!("Moved to {folder}"),
+            Self::Picks(count) => format!("{count} pick(s) written"),
+            Self::Failed(count) => format!("{count} failed"),
+        }
+    }
+}
+
 /// What one Apply did, in the terms the receipt dialog uses.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Receipt {
@@ -202,28 +263,45 @@ impl Receipt {
         }
     }
 
+    /// The headline as a piece: what a language other than English words for itself.
+    ///
+    /// [`Receipt::headline`] is joined from this, so the English sentence the report prints and
+    /// the piece a translated receipt paints cannot disagree about the count.
+    pub const fn headline_kind(&self) -> ReceiptHeadline {
+        ReceiptHeadline::Handled { photos: self.applied }
+    }
+
     /// A one-line headline for the dialog title.
     pub fn headline(&self) -> String {
-        let noun = if self.applied == 1 { "photo" } else { "photos" };
-        format!("{} {noun} handled", self.applied)
+        self.headline_kind().english()
+    }
+
+    /// Where this batch put the files.
+    pub fn destination(&self) -> Destination {
+        if let Some(folder) = self.mode.strip_prefix("move:") {
+            Destination::Folder(folder.to_owned())
+        } else if self.mode == "tag" {
+            Destination::KeptOnDisk
+        } else {
+            Destination::Trash
+        }
+    }
+
+    /// What happened to the files, as the pieces a receipt is worded from, in reading order.
+    pub fn detail_parts(&self) -> Vec<DetailPart> {
+        let mut parts = vec![DetailPart::Destination(self.destination())];
+        if self.picks > 0 {
+            parts.push(DetailPart::Picks(self.picks));
+        }
+        if self.failed > 0 {
+            parts.push(DetailPart::Failed(self.failed));
+        }
+        parts
     }
 
     /// What happened to the files, as one sentence.
     pub fn detail(&self) -> String {
-        let mut text = if let Some(folder) = self.mode.strip_prefix("move:") {
-            format!("Moved to {folder}")
-        } else if self.mode == "tag" {
-            "Left on disk and flagged as rejected".to_string()
-        } else {
-            "Moved to the system Trash".to_string()
-        };
-        if self.picks > 0 {
-            text.push_str(&format!(" · {} pick(s) written", self.picks));
-        }
-        if self.failed > 0 {
-            text.push_str(&format!(" · {} failed", self.failed));
-        }
-        text
+        self.detail_parts().iter().map(DetailPart::english).collect::<Vec<_>>().join(" · ")
     }
 
     /// Whether the batch can be put back.
@@ -466,6 +544,46 @@ mod tests {
     }
 
     use super::*;
+
+    /// The receipt's English is joined from its pieces, so a translated receipt and the record
+    /// the report prints cannot describe different batches.
+    #[test]
+    fn the_receipt_english_is_joined_from_its_pieces() {
+        let mut receipt = Receipt {
+            batch_id: 7,
+            mode: "move:/photos/rejects".into(),
+            applied: 2,
+            failed: 0,
+            kept: 0,
+            picks: 1,
+            at: 1_700_000_000,
+        };
+        assert_eq!(receipt.headline_kind(), ReceiptHeadline::Handled { photos: 2 });
+        assert_eq!(receipt.headline(), "2 photos handled");
+        assert_eq!(receipt.headline(), receipt.headline_kind().english());
+        assert_eq!(receipt.destination(), Destination::Folder("/photos/rejects".into()));
+        assert_eq!(
+            receipt.detail_parts(),
+            vec![
+                DetailPart::Destination(Destination::Folder("/photos/rejects".into())),
+                DetailPart::Picks(1),
+            ]
+        );
+        assert_eq!(receipt.detail(), "Moved to /photos/rejects · 1 pick(s) written");
+
+        receipt.mode = "tag".into();
+        receipt.applied = 1;
+        receipt.picks = 0;
+        receipt.failed = 2;
+        assert_eq!(receipt.headline(), "1 photo handled");
+        assert_eq!(receipt.headline(), receipt.headline_kind().english());
+        assert_eq!(receipt.destination(), Destination::KeptOnDisk);
+        assert_eq!(receipt.detail(), "Left on disk and flagged as rejected · 2 failed");
+
+        receipt.mode = "trash".into();
+        assert_eq!(receipt.destination(), Destination::Trash);
+        assert_eq!(receipt.detail(), "Moved to the system Trash · 2 failed");
+    }
 
     struct Temp(PathBuf);
 

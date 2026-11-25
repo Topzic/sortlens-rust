@@ -9184,6 +9184,41 @@ fn summary_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     state.summary_open = open;
 }
 
+/// The Batch applied receipt's headline in the reader's language, from the receipt's own piece —
+/// the same piece its English `headline()` is joined from.
+fn receipt_headline(receipt: &sortlens_engine::ApplyReceipt) -> String {
+    let sortlens_engine::ApplyReceiptHeadline::Handled { photos } = receipt.headline_kind();
+    // "1 photo handled" and "3 photos handled" are two English rows a language may disagree
+    // about, so each is a template with the count in its placeholder.
+    let template = if photos == 1 { "{n} photo handled" } else { "{n} photos handled" };
+    crate::i18n::fmt(template, &[("n", &format_count(photos as u64))])
+}
+
+/// Where a batch put the files, in the reader's language.
+fn receipt_destination(destination: &sortlens_engine::ApplyDestination) -> String {
+    match destination {
+        sortlens_engine::ApplyDestination::Trash => tl!("Moved to the system Trash").to_string(),
+        sortlens_engine::ApplyDestination::KeptOnDisk => tl!("Left on disk and flagged as rejected").to_string(),
+        sortlens_engine::ApplyDestination::Folder(folder) => crate::i18n::fmt("Moved to {folder}", &[("folder", folder)]),
+    }
+}
+
+/// The receipt's detail line, worded from its pieces.
+fn receipt_detail(receipt: &sortlens_engine::ApplyReceipt) -> String {
+    receipt
+        .detail_parts()
+        .iter()
+        .map(|part| match part {
+            sortlens_engine::ApplyDetailPart::Destination(destination) => receipt_destination(destination),
+            sortlens_engine::ApplyDetailPart::Picks(count) => {
+                crate::i18n::fmt("{n} pick(s) written", &[("n", &format_count(*count as u64))])
+            }
+            sortlens_engine::ApplyDetailPart::Failed(count) => crate::i18n::fmt("{n} failed", &[("n", &format_count(*count as u64))]),
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
 /// The receipt for a finished Apply, with the way back.
 fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     let Some(receipt) = engine.receipt().cloned() else {
@@ -9194,39 +9229,45 @@ fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     let mut restore = false;
     let mut show_bin = false;
     let mut done = false;
-    dialog_window("Batch applied")
+    dialog_window(tl!("Batch applied"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(360.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(receipt.headline()).size(14.0).strong());
-            ui.label(RichText::new(receipt.detail()).size(11.0).color(t.text_muted));
+            ui.label(RichText::new(receipt_headline(&receipt)).size(14.0).strong());
+            ui.label(RichText::new(receipt_detail(&receipt)).size(11.0).color(t.text_muted));
             ui.add_space(6.0);
             ui.label(
-                RichText::new(format!("Batch {} · {} file(s) kept on disk", receipt.batch_id, receipt.kept))
-                    .size(10.5)
-                    .color(t.text_faint),
+                RichText::new(crate::i18n::fmt(
+                    "Batch {batch} · {n} file(s) kept on disk",
+                    &[("batch", &receipt.batch_id.to_string()), ("n", &format_count(receipt.kept as u64))],
+                ))
+                .size(10.5)
+                .color(t.text_faint),
             );
             if receipt.failed > 0 {
                 ui.label(
-                    RichText::new(format!("{} file(s) could not be handled", receipt.failed))
-                        .size(10.5)
-                        .color(t.reject),
+                    RichText::new(crate::i18n::fmt(
+                        "{n} file(s) could not be handled",
+                        &[("n", &format_count(receipt.failed as u64))],
+                    ))
+                    .size(10.5)
+                    .color(t.reject),
                 );
             }
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(receipt.is_restorable(), Button::new(RichText::new("Put them back").size(12.0)))
+                    .add_enabled(receipt.is_restorable(), Button::new(RichText::new(tl!("Put them back")).size(12.0)))
                     .clicked()
                 {
                     restore = true;
                 }
-                if ui.button(RichText::new("Recently Deleted").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Recently Deleted")).size(12.0)).clicked() {
                     show_bin = true;
                 }
-                if ui.button(RichText::new("Done").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Done")).size(12.0)).clicked() {
                     done = true;
                 }
             });
@@ -9234,7 +9275,7 @@ fn receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     if restore {
         match engine.restore_batch(receipt.batch_id) {
             Ok(_) => {
-                state.notice("Restored the batch".to_string());
+                state.notice(tl!("Restored the batch").to_string());
                 done = true;
             }
             Err(error) => state.notice_problem(error.to_string()),
@@ -15123,6 +15164,112 @@ mod tests {
         let row = history_line(&sortlens_engine::Description::Rated { photos: 1 });
         assert!(row.contains('١') && !row.contains("photo"), "{row}");
         assert!(label_at(&arabic, "Rated 1 photo(s)").is_none(), "no English row behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Batch applied receipt speaks the interface language, from the receipt's own pieces
+    /// (SL-L07).
+    ///
+    /// Its headline and detail used to be English sentences built inside `sortlens-cull`, painted
+    /// under a translated title; now the receipt hands the shell a `ReceiptHeadline` and its
+    /// `DetailPart`s, the same pieces its own English is joined from, so the dialog and the record
+    /// the report prints cannot describe different batches.
+    #[test]
+    fn the_batch_applied_receipt_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-receipt-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-receipt-i18n");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30, 60 * index as u8, 140], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("cull");
+        // One pick and one reject: the batch the receipt describes is one file handled, kept on
+        // disk, with one pick written beside it.
+        engine.cull_decide(Decision::Pick);
+        engine.cull_decide(Decision::Reject);
+        engine.cull_apply(sortlens_cull::trash::Mode::TagOnly).expect("apply");
+        let receipt = engine.receipt().cloned().expect("a receipt");
+        assert_eq!(
+            receipt.headline_kind(),
+            sortlens_engine::ApplyReceiptHeadline::Handled { photos: 1 }
+        );
+        assert_eq!(receipt.headline(), "1 photo handled");
+        assert_eq!(receipt.detail(), "Left on disk and flagged as rejected · 1 pick(s) written");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.receipt_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        receipt_dialog(ui, state, &tokens, engine);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+
+        // English, worded from the receipt's own pieces.
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&english, "Batch applied").is_some(), "the title paints");
+        assert!(label_at(&english, "1 photo handled").is_some(), "and the headline");
+        assert!(
+            label_at(&english, "Left on disk and flagged as rejected · 1 pick(s) written").is_some(),
+            "and the detail line"
+        );
+        assert!(label_at(&english, "Put them back").is_some(), "and the way back");
+        assert_eq!(receipt_headline(&receipt), receipt.headline());
+        assert_eq!(receipt_detail(&receipt), receipt.detail());
+
+        // Japanese: the title, the headline, the detail and the buttons are the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        assert_eq!(receipt_headline(&receipt), "1 枚の写真を処理しました");
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(
+            label_at(&japanese, "バッチを適用しました").is_some(),
+            "the title is the catalogue's"
+        );
+        assert!(label_at(&japanese, "完了").is_some(), "and the buttons");
+        assert!(label_at(&japanese, "1 photo handled").is_none(), "no English headline behind it");
+        assert!(label_at(&japanese, "Batch applied").is_none(), "no English title behind it");
+
+        // Arabic: the counts are Arabic-Indic digits inside the Arabic sentence.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = receipt_headline(&receipt);
+        assert!(arabic.contains('١') && !arabic.contains("photo"), "{arabic}");
+        let arabic_detail = receipt_detail(&receipt);
+        assert!(arabic_detail.contains('١') && !arabic_detail.contains("pick"), "{arabic_detail}");
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let arabic_frame = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&arabic_frame, "تم تطبيق الدفعة").is_some(), "the title is the catalogue's");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

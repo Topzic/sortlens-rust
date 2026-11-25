@@ -563,6 +563,16 @@ by `format_count` inside the suite's `{n} photo(s)` wording, so a language place
 Arabic writes its own digits. The row's second line is the time alone: the op's own name
 (`tagged`, `rate`) stays in the log, the report and the wire rather than being printed untranslated,
 and `the_change_viewer_speaks_the_interface_language` paints the dialog in all three languages.
+The Batch applied receipt is routed from `sortlens-cull`'s own pieces: `Receipt::headline_kind`
+returns a `ReceiptHeadline` (`Handled { photos }`) and `Receipt::detail_parts` a `Vec<DetailPart>`
+(`Destination`, `Picks`, `Failed`), with `Receipt::headline` and `Receipt::detail` — the sentences
+the record and the report print — joined from exactly those pieces. The shell words the destination
+(`Moved to the system Trash`, `Left on disk and flagged as rejected`, `Moved to {folder}`), the
+pick count and the failure count through `tl!`/`i18n::fmt`, with every count a `format_count`
+placeholder; `receipt_headline` and `receipt_detail` are the wording helpers, and
+`the_batch_applied_receipt_speaks_the_interface_language` paints the dialog in all three
+languages.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

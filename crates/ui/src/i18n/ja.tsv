@@ -247,3 +247,15 @@
 	Blue	青
 	Purple	紫
 	{n} keyword(s)	{n} 件
+	Batch applied	バッチを適用しました
+	{n} photo handled	{n} 枚の写真を処理しました
+	{n} photos handled	{n} 枚の写真を処理しました
+	Moved to the system Trash	システムのゴミ箱へ移動しました
+	Left on disk and flagged as rejected	ディスク上に残し、却下の印を付けました
+	Moved to {folder}	{folder} へ移動しました
+	{n} pick(s) written	ピックを {n} 件書き込みました
+	Batch {batch} · {n} file(s) kept on disk	バッチ {batch} · {n} 件のファイルをディスクに保持
+	{n} file(s) could not be handled	{n} 件のファイルを処理できませんでした
+	Put them back	元に戻す
+	Done	完了
+	Restored the batch	バッチを復元しました

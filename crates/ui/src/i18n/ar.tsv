@@ -247,3 +247,15 @@
 	Blue	أزرق
 	Purple	بنفسجي
 	{n} keyword(s)	{n} كلمة مفتاحية
+	Batch applied	تم تطبيق الدفعة
+	{n} photo handled	تمت معالجة {n} صورة
+	{n} photos handled	تمت معالجة {n} صورة
+	Moved to the system Trash	نُقلت إلى سلة المهملات
+	Left on disk and flagged as rejected	بقيت على القرص ووُسمت كمرفوضة
+	Moved to {folder}	نُقلت إلى {folder}
+	{n} pick(s) written	سُجّل {n} اختيار
+	Batch {batch} · {n} file(s) kept on disk	الدفعة {batch} · بقي {n} ملف على القرص
+	{n} file(s) could not be handled	تعذّرت معالجة {n} ملف
+	Put them back	أعِدها
+	Done	تم
+	Restored the batch	استُعيدت الدفعة

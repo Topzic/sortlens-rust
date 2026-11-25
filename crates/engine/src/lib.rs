@@ -28,7 +28,9 @@ pub use sortlens_catalog::op::Description;
 pub use sortlens_catalog::photo::now_epoch;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result, TagSource};
-pub use sortlens_cull::trash::Receipt as ApplyReceipt;
+pub use sortlens_cull::trash::{
+    Destination as ApplyDestination, DetailPart as ApplyDetailPart, Receipt as ApplyReceipt, ReceiptHeadline as ApplyReceiptHeadline,
+};
 pub use sortlens_cull::{Decision, Headline as CullHeadline, Summary as CullSummary};
 pub use sortlens_export::{
     Collision, Format as ExportFormat, Report as ExportReport, ReportPart as ExportReportPart, Spec as ExportSpec,

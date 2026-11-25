@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-sixth) — the Batch applied receipt is worded from the batch's own pieces
+
+- **Why this came up.** The eighty-fifth entry's "Next" named Batch applied first: its headline and
+  detail were English sentences built inside `sortlens-cull` and painted under a translated title,
+  so no word of the dialog could be translated until those sentences were pieces.
+- **The receipt hands back the pieces.** `Receipt::headline_kind` returns a `ReceiptHeadline`
+  (`Handled { photos }`) and `Receipt::detail_parts` a `Vec<DetailPart>` (`Destination`, `Picks`,
+  `Failed`), with `Destination` `Trash`, `KeptOnDisk` or `Folder(String)`; `headline()` and
+  `detail()` are now those pieces' `english()` joined with ` · `, so the record the report prints
+  and the dialog cannot describe different batches. English is unchanged to the byte, pinned for
+  the moved, tag-only and trash shapes with a pick and a failure.
+- **The dialog is routed end to end.** The title, `Put them back`, `Done` and the restored toast are
+  `tl!` keys; the headline is two templates (`{n} photo handled`, `{n} photos handled`) filled by
+  `format_count`, the destination line is `tl!` per shape with `Moved to {folder}` a template, the
+  pick and failure counts are templates, and so are the batch's own line (`Batch {batch} · {n}
+  file(s) kept on disk`) and `{n} file(s) could not be handled` — 12 new rows in each catalogue,
+  with `{n} failed` and `Recently Deleted` reused rather than duplicated.
+- **Tests.** `the_receipt_english_is_joined_from_its_pieces` (cull crate) pins the piece, the
+  English and the parts for all three destinations;
+  `the_batch_applied_receipt_speaks_the_interface_language` opens a real scanned library, stages one
+  pick and one reject, applies TagOnly and paints the dialog: English first (`Batch applied`, `1
+  photo handled`, the exact detail line, `Put them back`), then Japanese (`バッチを適用しました`,
+  `完了`, the headline from the catalogue) and Arabic (`تم تطبيق الدفعة`, the headline and detail
+  in Arabic-Indic digits). The catalogue audit demanded both catalogues' 12 rows and passed.
+- **Files.** `crates/cull/src/trash.rs` (the three pieces, `headline_kind`, `destination`,
+  `detail_parts`, one test), `crates/engine/src/lib.rs` (the re-exports), `crates/ui/src/shell.rs`
+  (`receipt_headline`, `receipt_destination`, `receipt_detail`, the routed dialog, one paint test),
+  `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (12 rows each), `docs/ROADMAP.md` (Phase 4 item 2d),
+  `docs/ARCHITECTURE.md` (8.4), `docs/UX.md` and `docs/FEATURES.md` (SL-L07).
+- **Verified.** `cargo fmt --all`; `cargo clippy -p sortlens-cull -p sortlens-engine -p sortlens-ui
+  --all-targets -- -D warnings` clean; `cargo xtask ci` green (its UI test step includes the
+  catalogue audit); `snapshot`, `deny` and `screenshots` green (27 scenes, no baseline moved,
+  because no scene paints the receipt). No release workflow dispatched: this slice touches no
+  workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** The eighty-fifth entry's remaining surfaces: Suggested keywords needs `sortlens-ai`'s own
+  suggestion wording and a piece per proposal shape before its panel can be translated (the AI
+  suggestion card's `detail()` is engine-composed English), and Keyboard shortcuts still paints the
+  keymap table's labels literally. Also open from the eighty-fifth entry: the sidebar's colour chips
+  and the label menu paint `Red`…`Purple` literally and should share `colour_word`.
+
 ## 2026-11-26 (eighty-fifth) — the change viewer words the log's own pieces, and stops printing the op's code name
 
 - **Why this came up.** The eighty-fourth entry's "Next" named the change viewer first: its rows were

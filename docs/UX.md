@@ -656,8 +656,12 @@ re-checks its own contrast pairs after applying.
   The Welcome card, the indexing screen and the "Nothing matches these filters" screen are
   catalogued (2026-11-26): a Japanese first launch reads in Japanese, and the count sentence is one
   template with `{n}` in it, so a language that does not inflect the noun — Japanese and Arabic
-  both write the same one — is not forced through English's plural. Still English by omission:
-  the dialogs, and the sentences the engine composes for a receipt or a spec summary.
+  both write the same one — is not forced through English's plural. The dialogs joined them one
+  slice at a time: export and its receipt, the delete confirmations, rename, About, Library health,
+  the cull summary, the quit guard, the change viewer and the Batch applied receipt, each worded
+  from the same pieces its English sentence is joined from. Still English by omission: Suggested
+  keywords, Keyboard shortcuts, and the sentences the engine composes for the support report and
+  the activity row's job lines.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

@@ -1450,7 +1450,14 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     hints, the export button and its hover and the footer are `tl!` keys, and
     `the_change_viewer_speaks_the_interface_language` paints the rows in all three languages; the op's
     raw name left the row for the report and the wire, where it is a record field rather than a word a
-    reader has to parse. Still open on this row: Batch applied, Suggested keywords and Keyboard
+    reader has to parse. The Batch applied receipt joined them in the next tick (eighty-sixth
+    entry): `sortlens-cull`'s `Receipt::headline_kind` returns a `ReceiptHeadline` and
+    `Receipt::detail_parts` a `Vec<DetailPart>` (`Destination`, `Picks`, `Failed`), with
+    `headline()`/`detail()` joined from those pieces, pinned by
+    `the_receipt_english_is_joined_from_its_pieces`; the title, the two count lines, the destination
+    line, the pick and failure counts, `Put them back`, `Done` and the restored toast are `tl!`/`fmt`
+    keys with every count a placeholder, and `the_batch_applied_receipt_speaks_the_interface_language`
+    paints it in all three languages. Still open on this row: Suggested keywords and Keyboard
     shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
