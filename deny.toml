@@ -31,6 +31,7 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
     "CDLA-Permissive-2.0",
     "IJG",
     "ISC",
@@ -41,10 +42,9 @@ allow = [
     "Unlicense",
     "Zlib",
 ]
-# Two entries above are deliberately *not* listed even though crates in the graph carry them:
-# ryu is "Apache-2.0 OR BSL-1.0" (Apache-2.0 is on the list, so BSL never has to be chosen) and
-# epaint_default_fonts is covered by the exception below. Listing them would only produce
-# "licence not encountered" noise.
+# ryu is "Apache-2.0 OR BSL-1.0" and chooses Apache-2.0, but BSL-1.0 is listed for xxhash-rust,
+# which walkers' linked HTTP cache pulls in; it is permissive and the crate is not modified.
+# epaint_default_fonts is covered by the exception below rather than the list.
 #
 # The Unicode tables are Unicode-3.0; libjpeg's independent-JPEG-group licence (IJG) covers the JPEG
 # decoder's reference tables; fontconfig and the bundled fonts are OFL.
