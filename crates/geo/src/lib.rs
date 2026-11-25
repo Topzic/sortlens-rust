@@ -2,8 +2,8 @@
 //!
 //! Turn a latitude and longitude into a point on a **Web Mercator** map at a zoom level, group nearby points into
 //! **clusters** that stay stable from frame to frame, look a coordinate up in an **offline gazetteer** so a photo can be
-//! remembered as "Brighton" rather than 50.82°N 0.14°W, draw the **land and coastline** embedded in the binary, and
-//! find the **tiles** for a cell in a folder on disk.
+//! remembered as "Brighton" rather than 50.82°N 0.14°W, draw the **land, borders, rivers and lakes** embedded in the
+//! binary, and find the **tiles** for a cell in a folder on disk.
 //!
 //! # Decisions that shape this crate
 //!
@@ -18,11 +18,12 @@
 //!   current zoom and each cell becomes a cluster. The output is sorted by a stable key, so the same photos produce
 //!   the same clusters in the same order on every run — a cluster dot that jumps between refreshes is a bug the eye
 //!   notices long before the code does.
-//! - **Land and coastline ship; a tile set replaces them.** `land::Land` embeds the public-domain Natural Earth 1:110m
-//!   polygons and `coastline::Coastline` the matching outlines, so Places has geography with no setup, no download and
-//!   no licence to negotiate. They are a schematic starter, and `tiles::TileSet` — a `{z}/{x}/{y}.png` folder with an
-//!   `attribution.txt` beside it, or a `tiles.mbtiles` archive with the same credit in its metadata — is what replaces
-//!   them with a real basemap when the person has one. Nothing is fetched at runtime either way.
+//! - **Land, borders, rivers and lakes ship; a tile set replaces them.** `land::Land` embeds the public-domain Natural
+//!   Earth 1:110m polygons and `coastline::Coastline` the matching outlines; `lines::Lines` adds the 1:50m country
+//!   boundaries and rivers, and `land::Land::lakes` the 1:50m lake polygons. Places has geography with no setup, no
+//!   download and no licence to negotiate. They are a schematic starter, and `tiles::TileSet` — a `{z}/{x}/{y}.png`
+//!   folder with an `attribution.txt` beside it, or a `tiles.mbtiles` archive with the same credit in its metadata —
+//!   is what replaces them with a real basemap when the person has one. Nothing is fetched at runtime either way.
 //! - **The gazetteer is a file, never a network call.** This crate parses a tab-separated file the user puts in the
 //!   library; it holds no place data of its own and downloads nothing, so the app stays local, and the data's licence
 //!   stays where its attribution can be read.
@@ -455,6 +456,7 @@ impl Gazetteer {
 
 pub mod coastline;
 pub mod land;
+pub mod lines;
 pub mod mbtiles;
 pub mod tiles;
 

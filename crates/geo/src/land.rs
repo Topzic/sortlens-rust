@@ -27,7 +27,7 @@ use std::sync::OnceLock;
 use crate::{LatLon, MERCATOR_LIMIT, Point, TILE, project};
 
 /// What is printed wherever the shipped land is drawn.
-pub const CREDIT: &str = "Land and coastline: Natural Earth 1:110m (public domain)";
+pub const CREDIT: &str = "Map: Natural Earth (public domain)";
 
 /// The embedded source file, for the attribution document and for anybody reading the binary's provenance.
 pub const SOURCE: &str = "assets/land.txt";
@@ -66,6 +66,13 @@ impl Land {
     pub fn shipped() -> &'static Self {
         static SHIPPED: OnceLock<Land> = OnceLock::new();
         SHIPPED.get_or_init(|| Self::parse(SHIPPED_TEXT))
+    }
+
+    /// The inland lakes embedded in the binary, parsed on first use. Painted over the land mesh so a lake is water
+    /// even where the 1:110m land polygons did not carry it as a hole.
+    pub fn lakes() -> &'static Self {
+        static SHIPPED: OnceLock<Land> = OnceLock::new();
+        SHIPPED.get_or_init(|| Self::parse(LAKES_TEXT))
     }
 
     /// Parse the shipped format: polygon<TAB>O|H<TAB>lat,lon …, one ring per line, # for comments.
@@ -215,6 +222,9 @@ impl Land {
 /// The embedded land out of the binary.
 const SHIPPED_TEXT: &str = include_str!("../../../assets/land.txt");
 
+/// The embedded lakes out of the binary.
+const LAKES_TEXT: &str = include_str!("../../../assets/lakes.txt");
+
 #[derive(Default)]
 struct Builder {
     outer: Vec<LatLon>,
@@ -330,6 +340,18 @@ mod tests {
                 assert!((pair.0.x - pair.1.x).abs() <= TILE, "a triangle edge crosses the seam: {pair:?}");
             }
         }
+    }
+
+    /// The 1:50m lakes ship as real polygons, not as a handful of outlines. The source rings are all
+    /// outer rings, so a hole here would remove a lake from the map rather than reveal an island.
+    #[test]
+    fn the_shipped_lakes_are_water_polygons() {
+        let lakes = Land::lakes();
+        assert!(lakes.len() > 100, "{} lakes is a fragment", lakes.len());
+        assert!(lakes.points() > 5_000, "{} points is a fragment", lakes.points());
+        assert_eq!(lakes.holes(), 0, "a lake ring was mistaken for an island");
+        assert_eq!(lakes.skipped(), 0, "the shipped lakes must parse cleanly");
+        assert!(!lakes.triangles().is_empty());
     }
 
     /// A square with a square hole keeps its hole: the mesh must have more than one triangle, and every

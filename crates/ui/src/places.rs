@@ -127,6 +127,8 @@ impl MapStyle {
                 water: tokens.thumb_bg,
                 land: tokens.card,
                 coast: tokens.map_coast,
+                border: tokens.border,
+                river: tokens.border.gamma_multiply(0.8),
                 graticule: tokens.border.gamma_multiply(0.55),
                 frame: tokens.border,
                 label: tokens.text_muted,
@@ -136,6 +138,8 @@ impl MapStyle {
                 water: Color32::from_rgb(0x14, 0x18, 0x1a),
                 land: Color32::from_rgb(0x21, 0x27, 0x2b),
                 coast: Color32::from_rgb(0x45, 0x52, 0x59),
+                border: Color32::from_rgb(0x36, 0x40, 0x46),
+                river: Color32::from_rgb(0x2e, 0x42, 0x4c),
                 graticule: Color32::from_rgb(0x2b, 0x33, 0x38),
                 frame: Color32::from_rgb(0x35, 0x3d, 0x42),
                 label: Color32::from_rgb(0xc2, 0xca, 0xce),
@@ -145,6 +149,8 @@ impl MapStyle {
                 water: Color32::from_rgb(0xd9, 0xe6, 0xe5),
                 land: Color32::from_rgb(0xf4, 0xef, 0xe2),
                 coast: Color32::from_rgb(0x8c, 0x85, 0x76),
+                border: Color32::from_rgb(0xc3, 0xb9, 0xa5),
+                river: Color32::from_rgb(0x9d, 0xbf, 0xc2),
                 graticule: Color32::from_rgb(0xda, 0xd2, 0xc1),
                 frame: Color32::from_rgb(0xb9, 0xb1, 0xa0),
                 label: Color32::from_rgb(0x3c, 0x39, 0x32),
@@ -154,6 +160,8 @@ impl MapStyle {
                 water: Color32::from_rgb(0x0c, 0x22, 0x3d),
                 land: Color32::from_rgb(0x12, 0x33, 0x59),
                 coast: Color32::from_rgb(0x58, 0x98, 0xc8),
+                border: Color32::from_rgb(0x2c, 0x5f, 0x8b),
+                river: Color32::from_rgb(0x3f, 0x84, 0xb5),
                 graticule: Color32::from_rgb(0x1c, 0x41, 0x6c),
                 frame: Color32::from_rgb(0x24, 0x4c, 0x77),
                 label: Color32::from_rgb(0xc0, 0xd9, 0xee),
@@ -163,6 +171,8 @@ impl MapStyle {
                 water: Color32::from_rgb(0xe7, 0xe7, 0xe5),
                 land: Color32::from_rgb(0xf7, 0xf7, 0xf5),
                 coast: Color32::from_rgb(0x6f, 0x6f, 0x6b),
+                border: Color32::from_rgb(0xbd, 0xbd, 0xb7),
+                river: Color32::from_rgb(0xa5, 0xa5, 0x9f),
                 graticule: Color32::from_rgb(0xd0, 0xd0, 0xcc),
                 frame: Color32::from_rgb(0xa8, 0xa8, 0xa2),
                 label: Color32::from_rgb(0x22, 0x22, 0x20),
@@ -217,6 +227,10 @@ pub struct MapPalette {
     pub land: Color32,
     /// The shoreline stroke.
     pub coast: Color32,
+    /// Country boundaries.
+    pub border: Color32,
+    /// Rivers and lake edges.
+    pub river: Color32,
     /// The latitude/longitude grid.
     pub graticule: Color32,
     /// The map's hairline border.
@@ -606,12 +620,153 @@ impl Tiles for PlacesTiles<'_> {
 /// The zoom the map starts at before the first frame fits it to the library.
 pub const DEFAULT_ZOOM: u8 = 5;
 
-/// Paint the embedded land and coastline for a map rectangle.
+/// The spacing of the graticule at a zoom, in degrees.
 ///
-/// This is the offline basemap: the Natural Earth 1:110m land polygons are filled, the coastline is stroked over them,
-/// and a faint graticule appears at world zoom. Tiles, when supplied, replace all of it; the caller decides which to
-/// draw. World coordinates are stored at zoom zero, so one scale factor and one wrap offset put them anywhere the
-/// camera looks, including across the antimeridian.
+/// A fixed grid cannot serve a world view and a city view at once: thirty degrees is a useful reference over a
+/// continent and a wall of lines over a street. The step follows the scale, so the grid stays a reading aid as the
+/// person zooms in instead of disappearing above zoom five.
+fn grid_step(zoom: f64) -> f64 {
+    if zoom <= 4.5 {
+        30.0
+    } else if zoom <= 6.5 {
+        10.0
+    } else if zoom <= 8.5 {
+        5.0
+    } else if zoom <= 10.5 {
+        1.0
+    } else if zoom <= 12.5 {
+        0.5
+    } else {
+        0.1
+    }
+}
+
+/// Project one polyline into the zoom-zero world square, unwrapping longitude as it goes.
+///
+/// Drawing the line directly would put a border that crosses the antimeridian on a path around the whole world. The
+/// unwrap keeps each line local; the caller then paints the wrapped copies the viewport needs.
+fn project_path(line: &[LatLon]) -> Vec<sortlens_geo::Point> {
+    let mut points = Vec::with_capacity(line.len());
+    let mut previous_x: Option<f64> = None;
+    for at in line {
+        let clamped = LatLon::new(at.lat.clamp(-sortlens_geo::MERCATOR_LIMIT, sortlens_geo::MERCATOR_LIMIT), at.lon);
+        let Some(clamped) = clamped else { continue };
+        let Some(mut point) = sortlens_geo::project(clamped, 0) else {
+            continue;
+        };
+        if let Some(previous) = previous_x {
+            while point.x - previous > sortlens_geo::TILE / 2.0 {
+                point.x -= sortlens_geo::TILE;
+            }
+            while point.x - previous < -sortlens_geo::TILE / 2.0 {
+                point.x += sortlens_geo::TILE;
+            }
+        }
+        previous_x = Some(point.x);
+        points.push(point);
+    }
+    if points.is_empty() {
+        return points;
+    }
+    let middle = points.iter().map(|point| point.x).sum::<f64>() / points.len() as f64;
+    let shift = -(middle / sortlens_geo::TILE).floor() * sortlens_geo::TILE;
+    for point in &mut points {
+        point.x += shift;
+    }
+    points
+}
+
+/// Paint one already-projected path at every world wrap the viewport can see.
+///
+/// Each run of visible segments becomes one shape: a long river is one paint call, not one per segment. The cull is
+/// generous because a segment can cross the viewport while both of its endpoints sit outside it.
+fn paint_world_path(
+    painter: &egui::Painter,
+    map: egui::Rect,
+    world: &[sortlens_geo::Point],
+    to_screen: &dyn Fn(f64, f64) -> egui::Pos2,
+    wrap_low: i32,
+    wrap_high: i32,
+    stroke: egui::Stroke,
+) {
+    if world.len() < 2 {
+        return;
+    }
+    let visible = map.expand(32.0);
+    for wrap in wrap_low..=wrap_high {
+        let shift = f64::from(wrap) * sortlens_geo::TILE;
+        let mut run: Vec<egui::Pos2> = Vec::new();
+        for pair in world.windows(2) {
+            let a = to_screen(pair[0].x + shift, pair[0].y);
+            let b = to_screen(pair[1].x + shift, pair[1].y);
+            if egui::Rect::from_points(&[a, b]).intersects(visible) {
+                if run.is_empty() {
+                    run.push(a);
+                }
+                run.push(b);
+            } else {
+                if run.len() > 1 {
+                    painter.add(egui::Shape::line(std::mem::take(&mut run), stroke));
+                }
+                run.clear();
+            }
+        }
+        if run.len() > 1 {
+            painter.add(egui::Shape::line(run, stroke));
+        }
+    }
+}
+
+/// Fill one triangulated mesh in the zoom-zero world square at every visible wrap.
+fn fill_world_mesh(
+    painter: &egui::Painter,
+    map: egui::Rect,
+    triangles: &[[sortlens_geo::Point; 3]],
+    colour: egui::Color32,
+    centre_world: sortlens_geo::Point,
+    scale: f64,
+    wrap_low: i32,
+    wrap_high: i32,
+) {
+    let mut mesh = egui::Mesh::default();
+    let cull = map.expand(2.0);
+    for triangle in triangles {
+        for wrap in wrap_low..=wrap_high {
+            let shift = f64::from(wrap) * sortlens_geo::TILE;
+            let a = egui::pos2(
+                map.center().x + ((triangle[0].x + shift - centre_world.x) * scale) as f32,
+                map.center().y + ((triangle[0].y - centre_world.y) * scale) as f32,
+            );
+            let b = egui::pos2(
+                map.center().x + ((triangle[1].x + shift - centre_world.x) * scale) as f32,
+                map.center().y + ((triangle[1].y - centre_world.y) * scale) as f32,
+            );
+            let c = egui::pos2(
+                map.center().x + ((triangle[2].x + shift - centre_world.x) * scale) as f32,
+                map.center().y + ((triangle[2].y - centre_world.y) * scale) as f32,
+            );
+            if !egui::Rect::from_points(&[a, b, c]).intersects(cull) {
+                continue;
+            }
+            let base = mesh.vertices.len() as u32;
+            for point in [a, b, c] {
+                mesh.colored_vertex(point, colour);
+            }
+            mesh.add_triangle(base, base + 1, base + 2);
+        }
+    }
+    if !mesh.is_empty() {
+        painter.add(egui::Shape::mesh(mesh));
+    }
+}
+
+/// Paint the embedded land, lakes, borders, rivers and coastline for a map rectangle.
+///
+/// This is the offline basemap: the Natural Earth land polygons are filled, the 1:50m country boundaries, rivers and
+/// lakes give it interior detail, the coastline is stroked over them, and a scale-aware graticule shows the
+/// projection. Tiles, when supplied, replace all of it; the caller decides which one to draw. World coordinates are
+/// stored at zoom zero, so one scale factor and one wrap offset put them anywhere the camera looks, including across
+/// the antimeridian.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn paint_geography(
     painter: &egui::Painter,
@@ -640,81 +795,82 @@ pub fn paint_geography(
 
     painter.rect_filled(map, 0.0, palette.water);
 
-    // The graticule is behind the land: a grid is a reading aid, not a thing on the ground. It is only legible at
-    // world zoom; deeper in it would be a wall of lines, so it fades out by zoom five.
-    if zoom <= 4.5 {
-        let grid = egui::Stroke::new(0.5, palette.graticule);
-        for longitude in (-180..180).step_by(30) {
-            let x = (f64::from(longitude) + 180.0) / 360.0 * 256.0;
-            for wrap in wrap_low..=wrap_high {
-                let sx = to_screen(x + f64::from(wrap) * 256.0, 0.0).x;
+    // The graticule is behind the land: a grid is a reading aid, not a thing on the ground. Its step follows the
+    // scale, so it remains useful when the person zooms in rather than vanishing at the world view.
+    let step = grid_step(zoom);
+    let divisions = (180.0 / step).round() as i32;
+    let grid = egui::Stroke::new(if step <= 1.0 { 0.4 } else { 0.5 }, palette.graticule);
+    for index in -divisions..=divisions {
+        let longitude = f64::from(index) * step;
+        let x = (longitude + 180.0) / 360.0 * sortlens_geo::TILE;
+        for wrap in wrap_low..=wrap_high {
+            let sx = to_screen(x + f64::from(wrap) * sortlens_geo::TILE, 0.0).x;
+            if sx >= map.left() - 1.0 && sx <= map.right() + 1.0 {
                 painter.line_segment([egui::pos2(sx, map.top()), egui::pos2(sx, map.bottom())], grid);
             }
         }
-        for latitude in [-60.0, -30.0, 0.0, 30.0, 60.0] {
-            let Some(world) = sortlens_geo::LatLon::new(latitude, 0.0).and_then(|at| sortlens_geo::project(at, 0)) else {
-                continue;
-            };
-            let sy = to_screen(0.0, world.y).y;
+    }
+    for index in (-divisions + 1)..divisions {
+        let latitude = f64::from(index) * step;
+        let Some(world) = LatLon::new(latitude, 0.0).and_then(|at| sortlens_geo::project(at, 0)) else {
+            continue;
+        };
+        let sy = to_screen(0.0, world.y).y;
+        if sy >= map.top() - 1.0 && sy <= map.bottom() + 1.0 {
             painter.line_segment([egui::pos2(map.left(), sy), egui::pos2(map.right(), sy)], grid);
         }
     }
 
     // One mesh for all the land, so the sea shows between islands without a stroke around every triangle.
-    let mut mesh = egui::Mesh::default();
-    let cull = map.expand(2.0);
-    for triangle in sortlens_geo::land::Land::shipped().triangles() {
-        for wrap in wrap_low..=wrap_high {
-            let shift = f64::from(wrap) * 256.0;
-            let a = to_screen(triangle[0].x + shift, triangle[0].y);
-            let b = to_screen(triangle[1].x + shift, triangle[1].y);
-            let c = to_screen(triangle[2].x + shift, triangle[2].y);
-            let bounds = egui::Rect::from_points(&[a, b, c]);
-            if !bounds.intersects(cull) {
-                continue;
-            }
-            let base = mesh.vertices.len() as u32;
-            for point in [a, b, c] {
-                mesh.colored_vertex(point, palette.land);
-            }
-            mesh.add_triangle(base, base + 1, base + 2);
+    fill_world_mesh(
+        painter,
+        map,
+        sortlens_geo::land::Land::shipped().triangles(),
+        palette.land,
+        centre_world,
+        scale,
+        wrap_low,
+        wrap_high,
+    );
+
+    // Lakes are water, not land: filled over the land mesh and outlined so a small lake still reads at world zoom.
+    fill_world_mesh(
+        painter,
+        map,
+        sortlens_geo::land::Land::lakes().triangles(),
+        palette.water,
+        centre_world,
+        scale,
+        wrap_low,
+        wrap_high,
+    );
+    let lake_stroke = egui::Stroke::new(if zoom < 4.0 { 0.5 } else { 0.7 }, palette.coast);
+    for polygon in sortlens_geo::land::Land::lakes().polygons() {
+        paint_world_path(painter, map, &polygon.world, &to_screen, wrap_low, wrap_high, lake_stroke);
+        for hole in &polygon.world_holes {
+            paint_world_path(painter, map, hole, &to_screen, wrap_low, wrap_high, lake_stroke);
         }
     }
-    if !mesh.is_empty() {
-        painter.add(egui::Shape::mesh(mesh));
+
+    // Country boundaries and rivers are the interior line work that turns a filled silhouette into a map. Both are
+    // Natural Earth 1:50m and both are culled and wrapped like the coast.
+    let border_stroke = egui::Stroke::new(if zoom < 4.0 { 0.55 } else { 0.75 }, palette.border);
+    for line in sortlens_geo::lines::Lines::borders().lines() {
+        let world = project_path(line);
+        paint_world_path(painter, map, &world, &to_screen, wrap_low, wrap_high, border_stroke);
+    }
+    let river_stroke = egui::Stroke::new(if zoom < 4.0 { 0.45 } else { 0.65 }, palette.river);
+    for line in sortlens_geo::lines::Lines::rivers().lines() {
+        let world = project_path(line);
+        paint_world_path(painter, map, &world, &to_screen, wrap_low, wrap_high, river_stroke);
     }
 
     // The coast is a stroke, not a filled edge: it is the line the land stops at, and it is what makes a schematic
     // map read as a map. Each run of visible segments is one shape, so a long coast is one paint call, not thousands.
     let stroke = egui::Stroke::new(if zoom < 3.0 { 0.7 } else { 1.0 }, palette.coast);
-    let visible = map.expand(32.0);
     for outline in sortlens_geo::coastline::Coastline::shipped().outlines() {
-        let world: Vec<sortlens_geo::Point> = outline.iter().filter_map(|at| sortlens_geo::project(*at, 0)).collect();
-        if world.len() < 2 {
-            continue;
-        }
-        for wrap in wrap_low..=wrap_high {
-            let shift = f64::from(wrap) * 256.0;
-            let mut run: Vec<egui::Pos2> = Vec::new();
-            for pair in world.windows(2) {
-                let a = to_screen(pair[0].x + shift, pair[0].y);
-                let b = to_screen(pair[1].x + shift, pair[1].y);
-                if egui::Rect::from_points(&[a, b]).intersects(visible) {
-                    if run.is_empty() {
-                        run.push(a);
-                    }
-                    run.push(b);
-                } else {
-                    if run.len() > 1 {
-                        painter.add(egui::Shape::line(std::mem::take(&mut run), stroke));
-                    }
-                    run.clear();
-                }
-            }
-            if run.len() > 1 {
-                painter.add(egui::Shape::line(run, stroke));
-            }
-        }
+        let world = project_path(outline);
+        paint_world_path(painter, map, &world, &to_screen, wrap_low, wrap_high, stroke);
     }
 }
 
@@ -725,6 +881,17 @@ mod tests {
 
     fn at(lat: f64, lon: f64) -> LatLon {
         LatLon::new(lat, lon).expect("a place")
+    }
+
+    #[test]
+    fn the_graticule_tightens_as_the_map_zooms_in() {
+        assert_eq!(grid_step(2.0), 30.0);
+        assert_eq!(grid_step(6.0), 10.0);
+        assert_eq!(grid_step(8.0), 5.0);
+        assert_eq!(grid_step(10.0), 1.0);
+        assert_eq!(grid_step(12.0), 0.5);
+        assert_eq!(grid_step(14.0), 0.1);
+        assert!(grid_step(4.6) < grid_step(4.5));
     }
 
     #[test]

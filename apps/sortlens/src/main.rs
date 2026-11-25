@@ -31,6 +31,19 @@ fn title_inset(frame: &Frame) -> f32 {
     }
 }
 
+/// The app bar's height, when the frame paints its own title strip.
+///
+/// macOS puts the traffic lights at a fixed fourteen points from the top. On a taller app bar the
+/// controls below them read as a second, misaligned row; asking the shell for a 28-point bar puts
+/// its centre on the lights' own line. A frame without an inset strip gets `None`, so the shell
+/// keeps its normal height.
+fn title_bar_height(frame: &Frame) -> Option<f32> {
+    match frame {
+        Frame::Inset(mac) => Some((mac.centre_from_top * 2.0).max(28.0)),
+        Frame::Integrated(_) | Frame::Native => None,
+    }
+}
+
 fn folder_name(path: &str) -> String {
     path.trim_end_matches(['/', '\\'])
         .rsplit(['/', '\\'])
@@ -94,6 +107,7 @@ fn window_icon() -> egui::IconData {
 fn main() -> eframe::Result {
     let decision = decide_for(Prefix::new("SORTLENS"), Backend::from_env(), TitleBarPref::Integrated);
     let inset = title_inset(&decision.frame);
+    let title_bar_h = title_bar_height(&decision.frame);
     // Only a frame the app draws leaves the window's three buttons to the app: the system title bar
     // draws its own, and macOS keeps its traffic lights over the app's bar (`Frame::Inset`).
     let captions = matches!(decision.frame, Frame::Integrated(_));
@@ -111,7 +125,11 @@ fn main() -> eframe::Result {
         viewport,
         ..Default::default()
     };
-    eframe::run_native("Sortlens", options, Box::new(move |cc| Ok(Box::new(App::new(cc, inset, captions)))))
+    eframe::run_native(
+        "Sortlens",
+        options,
+        Box::new(move |cc| Ok(Box::new(App::new(cc, inset, captions, title_bar_h)))),
+    )
 }
 
 /// The application: one engine, one shell, one settings store.
@@ -128,7 +146,7 @@ struct App {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, title_inset: f32, captions: bool) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, title_inset: f32, captions: bool, title_bar_h: Option<f32>) -> Self {
         // Before the first frame, so no frame is drawn in a font that is about to be replaced. With
         // no craft-fonts checkout this is a no-op and egui's own faces stay.
         let faces = sortlens_ui::fonts::install(&cc.egui_ctx);
@@ -146,6 +164,7 @@ impl App {
 
         let mut ui = UiState::new(kind, title_inset);
         ui.captions = captions;
+        ui.title_bar_h = title_bar_h;
         ui.density = Density::from_id(&store.get().appearance.density);
         ui.grid_mode = sortlens_ui::GridMode::from_id(&store.get().appearance.grid);
         ui.motion = sortlens_ui::Motion::from_id(&store.get().appearance.motion);
@@ -611,5 +630,7 @@ mod tests {
         };
         assert!((title_inset(&Frame::Inset(mac)) - 78.0).abs() < f32::EPSILON);
         assert!((title_inset(&Frame::Native) - 10.0).abs() < f32::EPSILON);
+        assert_eq!(title_bar_height(&Frame::Inset(mac)), Some(28.0));
+        assert_eq!(title_bar_height(&Frame::Native), None);
     }
 }

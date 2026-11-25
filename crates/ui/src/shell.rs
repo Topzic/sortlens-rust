@@ -20,8 +20,8 @@ use craft_keymap::ui::{DialogState, FixedRow, Options as ShortcutOptions, Outcom
 use craft_keymap::{CommandRef, Keymap, Overrides, Profiles};
 use craft_ui::direction::{align2, end_panel, end_x, forward, start_align, start_panel, start_x};
 use egui::{
-    Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Rect, RichText, Sense,
-    Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
+    Align, Align2, Button, Color32, CornerRadius, FontId, Frame, Key, KeyboardShortcut, Layout, Margin, Modifiers, Popup, Rect, RichText,
+    Sense, Stroke, StrokeKind, TextEdit, Ui, Vec2, pos2, vec2,
 };
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
 use sortlens_cull::gesture::Gesture;
@@ -919,6 +919,9 @@ pub struct UiState {
     pub right_tab: RightTab,
     /// Left padding that clears whatever the frame paints at the window's leading edge.
     pub title_inset: f32,
+    /// The bar's height when the host knows the frame's own title strip — macOS's traffic lights sit at a fixed
+    /// fourteen points, so the app's bar shrinks to their row instead of centring its controls below them.
+    pub title_bar_h: Option<f32>,
     /// Which sidebar sections are folded open.
     pub sections: SidebarSections,
     /// The frame is the app's own, so the bar is the title bar and draws the window's three
@@ -1167,6 +1170,7 @@ impl UiState {
             narrow: false,
             right_tab: RightTab::Details,
             title_inset,
+            title_bar_h: None,
             sections: SidebarSections::default(),
             captions: false,
             settings_open: false,
@@ -1842,7 +1846,7 @@ fn dismiss_top_window(state: &mut UiState) -> bool {
 
 fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::Panel::top("top_bar")
-        .exact_size(t.top_bar_h)
+        .exact_size(state.title_bar_h.unwrap_or(t.top_bar_h))
         .frame(Frame::NONE.fill(t.chrome).inner_margin(Margin::symmetric(10, 0)))
         .show(ui, |ui| {
             ui.horizontal_centered(|ui| {
@@ -7583,6 +7587,85 @@ fn map_centre(position: walkers::Position) -> Option<sortlens_geo::LatLon> {
     sortlens_geo::LatLon::new(lat, lon)
 }
 
+/// The style chip and its one flat menu.
+///
+/// The chip is drawn directly rather than through `menu_button`, which nests a button frame inside the caller's
+/// frame and makes a small control read as two containers. The popup is likewise one surface: no heading row, no
+/// second inner menu frame, just the six choices at a consistent height.
+fn places_style_chip(ui: &mut Ui, t: &Tokens, state: &mut UiState, current: places::MapStyle) -> bool {
+    let text = format!("{} · {}", tl!("Map style"), tl!(current.label()));
+    let font = FontId::proportional(10.5);
+    let width = (measure(ui, &text, &font) + 38.0).max(126.0);
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 26.0), Sense::click());
+    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
+    let painter = ui.painter();
+    let fill = if open || response.hovered() { t.hover } else { t.card };
+    painter.rect(
+        rect,
+        7.0,
+        fill,
+        Stroke::new(1.0, if open { t.text_faint } else { t.border }),
+        StrokeKind::Inside,
+    );
+    painter.text(rect.left_center() + vec2(10.0, 0.0), Align2::LEFT_CENTER, &text, font, t.text);
+    let chevron = rect.right_center() - vec2(10.0, 0.0);
+    let arrow = Stroke::new(1.1, t.text_muted);
+    painter.line_segment([chevron + vec2(-3.0, -1.5), chevron + vec2(0.0, 1.5)], arrow);
+    painter.line_segment([chevron + vec2(0.0, 1.5), chevron + vec2(3.0, -1.5)], arrow);
+    a11y::label_widget(ui, &response, egui::Role::Button, &text, false);
+
+    let mut changed = false;
+    let popup = Popup::menu(&response).layout(Layout::top_down(Align::Min)).width(width).frame(
+        Frame::NONE
+            .fill(t.card)
+            .stroke(Stroke::new(1.0, t.border))
+            .corner_radius(8.0)
+            .inner_margin(Margin::same(4))
+            .shadow(egui::epaint::Shadow {
+                offset: [0, 6],
+                blur: 18,
+                spread: 0,
+                color: t.shadow,
+            }),
+    );
+    popup.show(|ui| {
+        ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
+        for option in places::MapStyle::ALL {
+            let selected = state.places_style == option;
+            let label = tl!(option.label());
+            let (row, row_response) = ui.allocate_exact_size(vec2(ui.available_width(), 27.0), Sense::click());
+            let row_response = row_response.on_hover_cursor(egui::CursorIcon::PointingHand);
+            let row_painter = ui.painter();
+            if selected {
+                row_painter.rect_filled(row, 5.0, t.selection);
+            } else if row_response.hovered() {
+                row_painter.rect_filled(row, 5.0, t.hover);
+            }
+            row_painter.text(
+                row.left_center() + vec2(10.0, 0.0),
+                Align2::LEFT_CENTER,
+                label,
+                FontId::proportional(11.0),
+                if selected { t.text } else { t.text_muted },
+            );
+            if selected {
+                let check = row.right_center() - vec2(12.0, 0.0);
+                let tick = Stroke::new(1.4, t.accent);
+                row_painter.line_segment([check + vec2(-4.0, 0.0), check + vec2(-1.0, 3.0)], tick);
+                row_painter.line_segment([check + vec2(-1.0, 3.0), check + vec2(4.0, -4.0)], tick);
+            }
+            a11y::label_widget(ui, &row_response, egui::Role::Button, label, selected);
+            if row_response.clicked() {
+                state.places_style = option;
+                changed = true;
+                ui.close();
+            }
+        }
+    });
+    changed
+}
+
 /// The map's own chrome: a style menu, a zoom pill and a fit button.
 ///
 /// The controls are drawn in a child UI with the map's rectangle, so painting them does not move the parent's cursor
@@ -7601,30 +7684,10 @@ fn places_map_controls(
     let mut changed = false;
     let mut overlay = ui.new_child(egui::UiBuilder::new().max_rect(map.shrink(8.0)));
 
-    // Style, top-left, in a quiet chip rather than a toolbar. It opens a menu so the map itself stays uncluttered.
+    // Style, top-left, in a quiet chip rather than a toolbar. It opens one flat menu so the map itself stays
+    // uncluttered; the chip and the menu are the only two surfaces, not a framed control inside a second frame.
     overlay.with_layout(Layout::left_to_right(Align::Min), |ui| {
-        Frame::NONE
-            .fill(t.card)
-            .stroke(Stroke::new(1.0, t.border))
-            .corner_radius(t.corner())
-            .inner_margin(Margin::symmetric(8, 3))
-            .show(ui, |ui| {
-                ui.menu_button(
-                    RichText::new(format!("{} · {}", tl!("Map style"), tl!(style.label())))
-                        .size(10.5)
-                        .color(t.text),
-                    |ui| {
-                        ui.label(RichText::new(tl!("Map style")).size(10.0).color(t.text_faint));
-                        for option in places::MapStyle::ALL {
-                            if ui.selectable_label(state.places_style == option, tl!(option.label())).clicked() {
-                                state.places_style = option;
-                                changed = true;
-                                ui.close();
-                            }
-                        }
-                    },
-                );
-            });
+        changed |= places_style_chip(ui, t, state, style);
     });
 
     // Zoom, top-right: two buttons and the level, in one rounded pill.
