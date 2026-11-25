@@ -5071,24 +5071,28 @@ fn empty_library(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
 /// the one button clears exactly what the header's `N active` badge counts — the search text included,
 /// because a query that matches nothing is as much a reason for this screen as a star rating is.
 fn empty_no_matches(ui: &mut Ui, t: &Tokens, state: &mut UiState, library: usize) {
-    ui.label(RichText::new("Nothing matches these filters").size(20.0).strong());
+    ui.label(RichText::new(tl!("Nothing matches these filters")).size(20.0).strong());
     ui.add_space(6.0);
+    // One template with the count in a placeholder, because "1 photograph" and "3 photographs"
+    // are two rows a language may disagree about: Japanese writes the same noun for both and
+    // Arabic does not, so the count and the noun travel together through `fmt`.
+    let template = if library == 1 {
+        "{n} photograph in this library, and the current filters exclude every one of them."
+    } else {
+        "{n} photographs in this library, and the current filters exclude every one of them."
+    };
     ui.label(
-        RichText::new(format!(
-            "{} {} in this library, and the current filters exclude every one of them.",
-            format_count(library as u64),
-            if library == 1 { "photograph" } else { "photographs" }
-        ))
-        .size(12.5)
-        .color(t.text_muted),
+        RichText::new(crate::i18n::fmt(template, &[("n", &format_count(library as u64))]))
+            .size(12.5)
+            .color(t.text_muted),
     );
     ui.add_space(14.0);
-    let clear = ui.add(Button::new(RichText::new("Clear filters").size(12.5)).min_size(vec2(130.0, 30.0)));
+    let clear = ui.add(Button::new(RichText::new(tl!("Clear filters")).size(12.5)).min_size(vec2(130.0, 30.0)));
     if clear.clicked() {
         state.search.clear();
         state.clear_filters();
     }
-    clear.on_hover_text("Clears the search text and every filter, and forgets the folder scope");
+    clear.on_hover_text(tl!("Clears the search text and every filter, and forgets the folder scope"));
 }
 
 /// The width of the Welcome rows' glyph column: one 14-point glyph plus its gap.
@@ -5096,10 +5100,10 @@ const WELCOME_GLYPH_COLUMN: f32 = 16.0;
 
 /// Step one: what Sortlens does, and the one button worth pressing.
 fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<Action>) {
-    ui.label(RichText::new("Welcome to Sortlens").size(22.0).strong());
+    ui.label(RichText::new(tl!("Welcome to Sortlens")).size(22.0).strong());
     ui.add_space(6.0);
     ui.label(
-        RichText::new("Point it at a folder of photos and it builds a catalog beside your files.")
+        RichText::new(tl!("Point it at a folder of photos and it builds a catalog beside your files."))
             .size(12.5)
             .color(t.text_muted),
     );
@@ -5112,18 +5116,18 @@ fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<A
         for (icon, title, detail) in [
             (
                 crate::icons::Icon::Folder,
-                "Your files stay put",
-                "No upload, no rename, no moving. Sortlens only reads.",
+                tl!("Your files stay put"),
+                tl!("No upload, no rename, no moving. Sortlens only reads."),
             ),
             (
                 crate::icons::Icon::History,
-                "Everything is undoable",
-                "Ratings, flags and keywords live in one log you can step back.",
+                tl!("Everything is undoable"),
+                tl!("Ratings, flags and keywords live in one log you can step back."),
             ),
             (
                 crate::icons::Icon::Reject,
-                "Rejects wait for you",
-                "Culling stages decisions; nothing is trashed until you apply.",
+                tl!("Rejects wait for you"),
+                tl!("Culling stages decisions; nothing is trashed until you apply."),
             ),
         ] {
             ui.horizontal_top(|ui| {
@@ -5142,13 +5146,13 @@ fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<A
     ui.add_space(12.0);
     ui.horizontal(|ui| {
         if ui
-            .add(Button::new(RichText::new("Add Folder…").size(12.5)).min_size(vec2(130.0, 30.0)))
+            .add(Button::new(RichText::new(tl!("Add Folder…")).size(12.5)).min_size(vec2(130.0, 30.0)))
             .clicked()
         {
             actions.push(Action::PickFolder);
         }
         if ui
-            .add(Button::new(RichText::new("Not now").size(12.0)).fill(Color32::TRANSPARENT))
+            .add(Button::new(RichText::new(tl!("Not now")).size(12.0)).fill(Color32::TRANSPARENT))
             .clicked()
         {
             state.welcome_dismissed = true;
@@ -5156,25 +5160,26 @@ fn welcome_add(ui: &mut Ui, t: &Tokens, state: &mut UiState, actions: &mut Vec<A
     });
     ui.add_space(10.0);
     ui.label(
-        RichText::new("JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate")
-            .size(10.5)
-            .color(t.text_faint),
+        RichText::new(tl!(
+            "JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate"
+        ))
+        .size(10.5)
+        .color(t.text_faint),
     );
 }
 
 /// Step two: what has been found so far, including the first thumbnails.
 fn welcome_indexing(ui: &mut Ui, t: &Tokens, engine: &Engine) {
-    ui.label(RichText::new("Indexing…").size(20.0).strong());
+    ui.label(RichText::new(tl!("Indexing…")).size(20.0).strong());
     ui.add_space(4.0);
     let (files, dirs) = engine
         .scan_progress()
         .map(|progress| (progress.files, progress.dirs))
         .unwrap_or((0, 0));
     ui.label(
-        RichText::new(format!(
-            "{} files in {} folders so far. Reading sizes and content keys; nothing is moved.",
-            format_count(files as u64),
-            format_count(dirs as u64)
+        RichText::new(crate::i18n::fmt(
+            "{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.",
+            &[("files", &format_count(files as u64)), ("folders", &format_count(dirs as u64))],
         ))
         .size(12.0)
         .color(t.text_muted),
@@ -5183,14 +5188,14 @@ fn welcome_indexing(ui: &mut Ui, t: &Tokens, engine: &Engine) {
     ui.add(
         egui::ProgressBar::new(if dirs == 0 { 0.05 } else { 0.35 })
             .desired_width(320.0)
-            .text("scanning"),
+            .text(tl!("scanning")),
     );
     ui.add_space(14.0);
-    ui.label(RichText::new("Found so far").size(11.0).color(t.text_faint));
+    ui.label(RichText::new(tl!("Found so far")).size(11.0).color(t.text_faint));
     ui.horizontal(|ui| {
         let recent = engine.page(&Filter::default(), Sort::Newest, 0, 8).photos;
         if recent.is_empty() {
-            ui.label(RichText::new("Nothing yet").size(11.0).color(t.text_faint));
+            ui.label(RichText::new(tl!("Nothing yet")).size(11.0).color(t.text_faint));
         }
         for photo in recent {
             let (rect, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
@@ -10100,6 +10105,87 @@ mod tests {
         let sources = text_rect(&output, "SOURCES").expect("English again");
         assert!(sources.right() < 640.0, "the sidebar is back at the left edge, got {sources:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Welcome card and the screen a filter narrows to nothing speak the interface language
+    /// (SL-L07): the English strings are the catalogue keys, so a Japanese interface paints
+    /// Japanese and an Arabic one writes the count in its own digits — while English is painted
+    /// byte for byte as it always was, which is why no committed baseline moved.
+    #[test]
+    fn the_welcome_card_and_the_empty_filter_screen_speak_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let paint = |ctx: &egui::Context, state: &mut UiState, no_matches: bool| {
+            let mut actions = Vec::new();
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        if no_matches {
+                            empty_no_matches(ui, &tokens, state, 3);
+                        } else {
+                            welcome_add(ui, &tokens, state, &mut actions);
+                        }
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out.shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                    _ => None,
+                })
+                .collect::<Vec<String>>()
+        };
+
+        // English: the shipped words, including the count sentence exactly as it used to be built.
+        let english = paint(&ctx, &mut state, false);
+        assert!(english.iter().any(|text| text == "Welcome to Sortlens"), "{english:?}");
+        assert!(english.iter().any(|text| text == "Your files stay put"), "{english:?}");
+        let english_empty = paint(&ctx, &mut state, true);
+        assert!(
+            english_empty
+                .iter()
+                .any(|text| text == "3 photographs in this library, and the current filters exclude every one of them."),
+            "the English sentence is the key, unchanged: {english_empty:?}"
+        );
+        assert!(
+            english_empty.iter().any(|text| text == "Nothing matches these filters"),
+            "{english_empty:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&ctx, &mut state, false);
+        assert!(japanese.iter().any(|text| text == "Sortlens へようこそ"), "{japanese:?}");
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Welcome to Sortlens" || text == "Your files stay put"),
+            "the card leaves no English behind: {japanese:?}"
+        );
+        let japanese_empty = paint(&ctx, &mut state, true);
+        assert!(
+            japanese_empty.iter().any(|text| text == "この絞り込みに一致する写真はありません"),
+            "{japanese_empty:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic_empty = paint(&ctx, &mut state, true);
+        assert!(
+            arabic_empty.iter().any(|text| text == "لا شيء يطابق هذه المرشحات"),
+            "{arabic_empty:?}"
+        );
+        assert!(
+            arabic_empty.iter().any(|text| text.contains('٣')),
+            "the count is written in the language's digits: {arabic_empty:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     #[test]

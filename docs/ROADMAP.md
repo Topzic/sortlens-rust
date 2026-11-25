@@ -887,8 +887,12 @@ and none of M9 is closed until the remaining rows are ticked.
     the refusal).
 - [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07 — the scaffolding is in:
   embedded ar/ja catalogues, Settings → Language, the reading-start/end panels and the mirrored rows
-  (see the Phase 4 item 2d row). Open: the other four languages, the unrouted surfaces, and RTL
-  screenshots, which need a font build with an Arabic face
+  (see the Phase 4 item 2d row). The Welcome card, the indexing screen and the empty-filter screen
+  went through the catalogues on 2026-11-26 (seventy-sixth entry), so a first launch and a filter
+  that hides everything read in the chosen language; the dialogs and the sentences the engine
+  composes (an export receipt, `Spec::summary`) are still English by omission, not by decision.
+  Open: the other four languages, those surfaces, and RTL screenshots, which need a font build with
+  an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

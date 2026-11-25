@@ -653,6 +653,11 @@ re-checks its own contrast pairs after applying.
   ships Arabic and Japanese (Settings → Language, persisted) with the direction plumbing: RTL
   mirrors the shell's chrome — the sidebar sits at the reading start, the tool strip and right
   panel at the reading end, rows read from their reading start — and the photo is never mirrored.
+  The Welcome card, the indexing screen and the "Nothing matches these filters" screen are
+  catalogued (2026-11-26): a Japanese first launch reads in Japanese, and the count sentence is one
+  template with `{n}` in it, so a language that does not inflect the noun — Japanese and Arabic
+  both write the same one — is not forced through English's plural. Still English by omission:
+  the dialogs, and the sentences the engine composes for a receipt or a spec summary.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

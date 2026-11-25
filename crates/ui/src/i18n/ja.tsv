@@ -53,3 +53,24 @@
 	Send the selection	選択を送信
 	Remove from this phone once the desktop holds them	デスクトップが受け取ったらこの端末から削除
 	Sending…	送信中…
+	Welcome to Sortlens	Sortlens へようこそ
+	Point it at a folder of photos and it builds a catalog beside your files.	写真のフォルダーを指定すると、ファイルの隣にカタログを作成します。
+	Your files stay put	ファイルはそのまま
+	No upload, no rename, no moving. Sortlens only reads.	アップロードも、名前の変更も、移動もしません。Sortlens は読み取るだけです。
+	Everything is undoable	すべて元に戻せます
+	Ratings, flags and keywords live in one log you can step back.	評価・フラグ・キーワードはひとつのログに残り、さかのぼれます。
+	Rejects wait for you	却下はあなたの判断待ち
+	Culling stages decisions; nothing is trashed until you apply.	選別は決定をためるだけで、適用するまで何も削除されません。
+	Add Folder…	フォルダーを追加…
+	Not now	後で
+	JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate	JPEG、HEIC、TIFF、PNG、WebP、GIF、カメラRAW、動画 — ポスター画像・長さ・フレームレート
+	Indexing…	インデックス作成中…
+	{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.	これまでに {files} ファイル、{folders} フォルダー。サイズと内容キーを読み取っています。何も移動しません。
+	scanning	スキャン中
+	Found so far	これまでの検出
+	Nothing yet	まだありません
+	Nothing matches these filters	この絞り込みに一致する写真はありません
+	{n} photograph in this library, and the current filters exclude every one of them.	このライブラリには写真が {n} 枚あり、現在の絞り込みがそのすべてを除外しています。
+	{n} photographs in this library, and the current filters exclude every one of them.	このライブラリには写真が {n} 枚あり、現在の絞り込みがそのすべてを除外しています。
+	Clear filters	絞り込みを解除
+	Clears the search text and every filter, and forgets the folder scope	検索語とすべての絞り込みを解除し、フォルダーの範囲も忘れます

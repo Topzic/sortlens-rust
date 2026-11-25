@@ -53,3 +53,24 @@
 	Send the selection	إرسال المحدد
 	Remove from this phone once the desktop holds them	إزالة من هذا الهاتف بعد أن يستلمها سطح المكتب
 	Sending…	جارٍ الإرسال…
+	Welcome to Sortlens	مرحبًا بك في Sortlens
+	Point it at a folder of photos and it builds a catalog beside your files.	وجّهه إلى مجلد صور ليبني فهرسًا بجوار ملفاتك.
+	Your files stay put	ملفاتك تبقى في مكانها
+	No upload, no rename, no moving. Sortlens only reads.	لا رفع ولا إعادة تسمية ولا نقل. يقرأ Sortlens فقط.
+	Everything is undoable	كل شيء قابل للتراجع
+	Ratings, flags and keywords live in one log you can step back.	التقييمات والأعلام والكلمات المفتاحية في سجل واحد يمكنك الرجوع فيه خطوة.
+	Rejects wait for you	المستبعدات في انتظار قرارك
+	Culling stages decisions; nothing is trashed until you apply.	الفرز يجمع قراراتك، ولا يُرمى شيء في المهملات حتى تطبّق.
+	Add Folder…	إضافة مجلد…
+	Not now	ليس الآن
+	JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate	JPEG وHEIC وTIFF وPNG وWebP وGIF وصور RAW للكاميرا والفيديو — إطار الغلاف والطول ومعدل الإطارات
+	Indexing…	جارٍ الفهرسة…
+	{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.	حتى الآن {files} ملفًا في {folders} مجلدًا. يجري قراءة الأحجام ومفاتيح المحتوى؛ ولا يُنقل شيء.
+	scanning	جارٍ الفحص
+	Found so far	ما وُجد حتى الآن
+	Nothing yet	لا شيء بعد
+	Nothing matches these filters	لا شيء يطابق هذه المرشحات
+	{n} photograph in this library, and the current filters exclude every one of them.	في هذه المكتبة {n} صورة، والمرشحات الحالية تستبعدها كلها.
+	{n} photographs in this library, and the current filters exclude every one of them.	في هذه المكتبة {n} صورة، والمرشحات الحالية تستبعدها كلها.
+	Clear filters	مسح المرشحات
+	Clears the search text and every filter, and forgets the folder scope	يمسح نص البحث وكل مرشح، وينسى نطاق المجلد

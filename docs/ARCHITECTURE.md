@@ -498,6 +498,12 @@ and the tool strip and right panel at the reading end, and `nav_row` paints its 
 count from the reading start. A left-to-right interface paints byte for byte what it painted
 before the scaffold existed — the screenshot baselines are the proof.
 
+Strings reach the screen through `crates/ui/src/i18n.rs`, whose English text is the catalogue key
+(the row list is in `crates/ui/src/i18n/{ar,ja}.tsv`). The Welcome card, the indexing screen and the
+empty-filter screen are routed through it: a sentence with a count in it is one template with `{n}`
+filled by `i18n::fmt`, so the count is written in the language's digits and a language that does
+not inflect the noun is not forced through English's plural.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

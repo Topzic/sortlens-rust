@@ -5019,6 +5019,53 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   its log says nothing on PATH answers to that name, so the job has to install and name the NDK's clang
   (or state honestly that the target is unverified here) rather than assume it.
 
+## 2026-11-26 (seventy-sixth) — a first launch speaks the interface language, and its count sentence is not forced through English's plural
+
+- **Why this came up.** The i18n row's open list said "the unrouted surfaces", and the screens a new
+  owner meets first were exactly that: the Welcome card, the indexing screen and the "Nothing matches
+  these filters" screen painted English words whatever Settings → Language said, so a Japanese or
+  Arabic interface introduced itself in English.
+- **What was routed.** Every word `welcome_add`, `welcome_indexing` and `empty_no_matches` paint is now
+  `tl!`-keyed, with rows in `ar.tsv` and `ja.tsv`: the title, the promise line, the three promise
+  titles and their details, `Add Folder…`/`Not now`, the format line, `Indexing…`, the scan progress
+  line, the progress bar's own word, `Found so far`/`Nothing yet`, the empty-filter headline,
+  `Clear filters` and its hover text — 21 keys.
+- **The count sentences are one template, not a `format!`.** "N photograph(s) in this library…" used to
+  pick its noun in English (`if library == 1`), a decision a language cannot override: Arabic and
+  Japanese write the same noun for every count. The sentence is now a template with `{n}` filled by
+  `i18n::fmt`, so the count is written in the language's own digits, and the two English sentences stay
+  two keys (`1 photograph`, `3 photographs`) for the languages that do inflect. The scan line is the
+  same shape with `{files}` and `{folders}`.
+- **English is unchanged, which is why no baseline moved.** A `tl!` with no row is the English text
+  itself, and English has no catalogue, so the card paints byte for byte what it painted before; the
+  test asserts the whole English count sentence, not a word of it, rather than trusting the claim.
+- **Tests.** `the_welcome_card_and_the_empty_filter_screen_speak_the_interface_language` paints both
+  screens headlessly at 1100×780: English first (the entire count sentence, exactly as it was built),
+  then Japanese (`Sortlens へようこそ`, and no English left on the card), then Arabic, where the
+  three-photograph sentence must contain `٣`. It fails the moment a string goes back to a bare literal.
+  The catalogue audit in `i18n.rs`, which reads `shell.rs` for `tl!` keys, now demands an ar and a ja
+  row for all 21, so a routed string without a translation fails instead of quietly showing English.
+- **Files.** `crates/ui/src/shell.rs` (`welcome_add`, `welcome_indexing`, `empty_no_matches`, one test);
+  `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (21 rows each); `docs/UX.md`, `docs/ARCHITECTURE.md`,
+  `docs/FEATURES.md`, `docs/ROADMAP.md` — the same reconciliation: what is routed, and what is still
+  English by omission (the dialogs, and the sentences the engine composes for a receipt or a spec
+  summary).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test and the
+  `language` filter (nine tests, the picker's names among them) pass; `cargo xtask ci`, `snapshot` and
+  `deny` green — exit codes written to a file and read from it, since the first `ci` run's log was lost
+  to a redirect that PowerShell wrote as UTF-16 — and `cargo xtask screenshots` painted all 27 scenes
+  against the committed baselines, `empty_welcome` among them, so "English is unchanged" is a
+  comparison rather than a claim. No release workflow was dispatched: no build or release surface
+  changed (this is `crates/ui` source, tests and docs).
+- **Next.** The export dialog is the next unrouted surface, and it needs one piece of engine work first:
+  its count line prints `Spec::summary()`, an English sentence built inside `sortlens-export`, so the
+  dialog can only be fully translated once the UI can compose that line from the spec's own fields (or
+  the engine hands back parts rather than a sentence). The export receipt is the same shape. No release
+  workflow was dispatched: this slice touches no build or release surface (`crates/ui` source, tests and
+  docs only). The `CI` run for the baseline commit before this one, `45547733709` on `974f038`, had every
+  job green but `screenshots` still painting when this tick read it — that run is the next tick's first
+  read, one `gh run view`, because it is the proof the lavapipe set is whole.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
