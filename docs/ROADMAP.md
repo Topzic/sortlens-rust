@@ -1315,8 +1315,10 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   formerly-Windows-only tests, 148 in the crate. **Still open on a Mac without craft faces:** the
   screenshot gate — `craft-keymap`'s own editor dialog paints the platform's `⇧`/`⌃` and the harness
   installs only egui's faces, so `shortcut_editor_paints_in_both_themes` panics and two scenes' chord
-  wording differs. Making the shots a Mac gate means the harness embedding the symbol faces and a
-  separate baseline set.
+  wording differs. The second half of that is now a mechanism: `SORTLENS_SNAPSHOT_SET` scopes every
+  scene to `tests/snapshots/<set>/` and the gate still compares byte for byte (2026-11-26, seventy-fifth
+  entry), so a Mac set is a directory to commit rather than a code change. Making the shots a Mac gate
+  still means the harness embedding the symbol faces and that set.
 - [x] 2. Packaging and accessibility, in this order — 2a–2d shipped 2026-11-24; the signed and notarised
   bundles that would consume the icons are not this row and stay blocked in "Deliberately absent from M10":
   - [x] 2a. `.icns`/`.ico` generated from `crates/icon` by `cargo xtask icons` (B)
@@ -1610,8 +1612,11 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   request, never reaches a repository secret, and passes the body and labels to `cargo xtask intake` through the
   environment (never interpolated into the script). A report missing a required heading gets a comment naming each
   one, loses `triaged` and gains `needs-info`; a later complete edit swaps them back. `ci.yml` now runs the fifth
-  gate, `screenshots`, on Mesa's software Vulkan so the baselines are checked headlessly, and `cargo xtask workflows`
-  refuses a missing gate, a `continue-on-error` step, or an `if` that would leave pull requests out.
+  gate, `screenshots`, on Mesa's software Vulkan so the baselines are checked headlessly — through
+  `SORTLENS_SNAPSHOT_SET=lavapipe`, because that software adapter's paint is not the reference machine's, and
+  a failed run uploads the frames it painted as the `screenshot-set` artifact so the set it is missing can be
+  downloaded and committed — and `cargo xtask workflows` refuses a missing gate, a `continue-on-error` step, or
+  an `if` that would leave pull requests out.
 
 ---
 

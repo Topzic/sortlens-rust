@@ -763,6 +763,15 @@ which is how the unnamed sort dropdown was found. `--update` rewrites the baseli
 decision; the image diff is the review. Baselines are verified on macOS (Metal), which is where the
 suite's own project treats them as authoritative.
 
+A painter that differs is a **baseline set**, not a looser test. `SORTLENS_SNAPSHOT_SET` names one —
+the runner sets it to `lavapipe` — and every scene then reads
+`tests/snapshots/<set>/<name>.png` instead of `tests/snapshots/<name>.png`; the set is still compared
+byte for byte, so a set is either painted by that adapter or absent. The name is folded to a plain
+directory (lower case, one dash per run of anything else), so a hand-written `Mesa LLVM 15.0` is one
+folder and `../..` is none. CI uploads a failed run's `.new.png` paint as the `screenshot-set`
+artifact, which is how a set that nobody has committed yet gets committed: download, read the frames,
+add them under the set's directory.
+
 CI (`xtask`, mirroring LightCraft):
 `cargo xtask ci --quick` (fmt, clippy -D warnings, changed-package tests, layers, roots,
 assets), `cargo xtask ci` (full + benches smoke), plus `cargo xtask mobile` per platform, plus a Windows leg and a

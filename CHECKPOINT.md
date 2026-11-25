@@ -4853,6 +4853,49 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   counts, file sizes and dates are formatted with English rules whatever the picker says. The four other
   catalogues and the RTL screenshots still wait for a translation pass and an Arabic font build.
 
+## 2026-11-26 (seventy-fifth) — the screenshots gate compares against a set named for the adapter, and a red run hands over what it painted
+
+- **Why this came up.** `CI` on `main` was red, and had been for six commits: the loop read release runs
+  and never this one, so the one red it could not see was the one it could have fixed. Run
+  `45540115487` on `b1e7578` named two jobs — `screenshots` and `mobile` — and this tick took
+  `screenshots`, because the work for it was already in the tree (an uncommitted `ci.yml` and
+  `crates/ui/tests/screenshots.rs`, finished here rather than left as a second tick's inheritance).
+- **The screenshots job was comparing one adapter's paint against another's.** The committed baselines
+  are painted by the reference rasteriser; the runner has no GPU, so wgpu finds Mesa's software Vulkan
+  (lavapipe), which paints a few pixels differently. The old gate answered that with a byte-for-byte
+  comparison across two different painters, which can only be red. `SORTLENS_SNAPSHOT_SET` now names a
+  baseline **set**: with a set named, every scene compares against `tests/snapshots/<set>/<name>.png`.
+  The tolerance does not move — both are compared byte for byte — so a set is either painted by that
+  adapter or absent, and the job cannot go green by being forgiven.
+- **The set name becomes a directory, so it is sanitised.** It arrives from a workflow written by hand
+  and lands under `tests/snapshots/`, so `set_dir` lower-cases it and folds every run of anything that
+  is not a letter or a digit into one dash: `Mesa LLVM 15.0` is one folder, and `../..` is no folder at
+  all instead of an escape from the baselines. A blank or unset value is the committed set, which is
+  what a developer's own machine uses.
+- **A red run now leaves its paint behind.** `if-no-files-found: ignore` guards an upload of
+  `crates/ui/tests/snapshots/**/*.new.png` as the `screenshot-set` artifact, `if: always()`. A set
+  nobody has committed cannot compare, and the frames it failed on are exactly the frames that set
+  needs: `gh run download <id>` gets them, a person reads them, and they are committed under the set's
+  directory. Without that step a red `screenshots` job had nothing to fix it with.
+- **Verified.** `cargo xtask workflows` accepts the edited `ci.yml` (`xtask workflows: ok`) — the
+  checker already refuses a gate that cannot fail, and an `if` this one is not. `cargo xtask ci` green.
+  The new test `a_baseline_set_scopes_every_scene_to_its_own_directory` passes and would fail if
+  `scoped_name` stopped prefixing the set: it pins the empty, blank, plain, mixed-case and escape
+  spellings. No baseline was regenerated and none is read differently — the reference set is unchanged,
+  which is the point of a set.
+- **Files.** `crates/ui/tests/screenshots.rs` (`SORTLENS_SNAPSHOT_SET`, `baseline_name`, `scoped_name`,
+  `set_dir`, one test, the two `try_snapshot` call sites); `.github/workflows/ci.yml` (the set's value and
+  the artifact upload); `docs/ARCHITECTURE.md` (what a set is and how one gets committed);
+  `docs/ROADMAP.md` (the Mac row's "separate baseline set" — that mechanism exists now, the Mac set and
+  the embedded symbol faces do not; and the gate's own row says how it compares and what it uploads).
+- **Next.** The `lavapipe` set is not committed yet: this commit is what paints it. Read the `CI` run
+  for it, `gh run download <id> -n screenshot-set`, read the frames and commit them under
+  `crates/ui/tests/snapshots/lavapipe/`. **The other red job is still red** and is the tick after:
+  `mobile` (android, `aarch64-linux-android`) stops in `ring`'s build script with `failed to find tool
+  "aarch64-linux-android-clang"` — the job's comment says the Ubuntu runner carries the Android NDK, and
+  its log says nothing on PATH answers to that name, so the job has to install and name the NDK's clang
+  (or state honestly that the target is unverified here) rather than assume it.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test

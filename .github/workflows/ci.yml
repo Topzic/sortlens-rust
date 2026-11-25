@@ -133,6 +133,22 @@ jobs:
 
       - name: screenshots
         env:
+          # The committed baselines are painted by the reference rasteriser; this runner's is Mesa's
+          # software Vulkan, which paints a few pixels differently. The run therefore names its own set
+          # and compares that byte for byte — the same rule, against baselines from the same adapter.
+          SORTLENS_SNAPSHOT_SET: lavapipe
           WGPU_BACKEND: vulkan
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: cargo xtask screenshots
+
+      # A set nobody has committed yet cannot compare, and the failure is where its frames are: they
+      # are saved as .new.png beside the baselines. Uploading them on a failed run is what lets the next
+      # run download this one's paint (`gh run download <id>`), commit it under the set's directory, and
+      # turn the gate green. Without this step a red screenshots job has nothing to fix it with.
+      - name: the frames this run painted
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-set
+          path: crates/ui/tests/snapshots/**/*.new.png
+          if-no-files-found: ignore

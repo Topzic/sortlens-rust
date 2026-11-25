@@ -260,6 +260,51 @@ fn pump(harness: &mut Harness<'_, Scene>) {
     }
 }
 
+/// The variable that names a baseline set other than the committed one.
+///
+/// The baselines at `tests/snapshots/<name>.png` are painted by the reference rasteriser. A run whose
+/// adapter paints the same scene a few pixels differently — CI's Mesa software Vulkan is the case this
+/// exists for — names its own set, and every scene then compares against
+/// `tests/snapshots/<set>/<name>.png`. What changes is the set, never the tolerance: both are compared
+/// byte for byte, so a set is either painted by that adapter or absent.
+const SNAPSHOT_SET_ENV: &str = "SORTLENS_SNAPSHOT_SET";
+
+/// The baseline a scene compares against, given the set this run names.
+///
+/// An unset or blank set is the committed one, which is what a developer's own machine compares with.
+fn baseline_name(name: &str) -> String {
+    let set = std::env::var(SNAPSHOT_SET_ENV).unwrap_or_default();
+    scoped_name(&set, name)
+}
+
+/// The same, with the set passed in: edition 2024 makes `set_var` unsafe and this file forbids unsafe
+/// code, so the rule is testable only by handing it the value.
+fn scoped_name(set: &str, name: &str) -> String {
+    let set = set_dir(set);
+    if set.is_empty() {
+        name.to_string()
+    } else {
+        format!("{set}/{name}")
+    }
+}
+
+/// A set name as a directory: lower case, one dash per run of anything that is not a letter or a digit.
+///
+/// The value comes from a workflow written by hand, and it becomes a directory under
+/// `tests/snapshots/` — so `Mesa LLVM 15.0` is one folder rather than two, and `../..` is no folder
+/// at all instead of an escape from the baselines.
+fn set_dir(set: &str) -> String {
+    let mut out = String::new();
+    for ch in set.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_end_matches('-').to_string()
+}
+
 /// Paint one scene at the fixed window size and compare it with its baseline.
 ///
 /// Returns the engine, so the next scene paints the same library without scanning it again.
@@ -278,7 +323,7 @@ fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engi
         .build_eframe(|_cc| scene);
     settle(&mut harness);
     harness
-        .try_snapshot(name)
+        .try_snapshot(baseline_name(name))
         .expect("the baseline matches, or its .new/.diff companions say exactly where it does not");
     harness.into_state().engine
 }
@@ -300,9 +345,25 @@ fn shoot_at_lenient(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2)
         .build_eframe(|_cc| scene);
     settle(&mut harness);
     harness
-        .try_snapshot(name)
+        .try_snapshot(baseline_name(name))
         .expect("the baseline matches, or its .new/.diff companions say exactly where it does not");
     harness.into_state().engine
+}
+
+/// Which set a scene compares against, and what a set name may be.
+///
+/// These are the two rules the gate rests on when it runs anywhere but the reference machine, and they cost
+/// a second to check: no paint, no adapter, no window.
+#[test]
+fn a_baseline_set_scopes_every_scene_to_its_own_directory() {
+    assert_eq!(scoped_name("", "library-charcoal"), "library-charcoal");
+    assert_eq!(scoped_name("   ", "library-charcoal"), "library-charcoal");
+    assert_eq!(scoped_name("lavapipe", "library-charcoal"), "lavapipe/library-charcoal");
+    // A hand-written workflow value still lands in one plain directory: case, spaces and dots are not a
+    // path with a stray folder in it.
+    assert_eq!(scoped_name("Mesa LLVM 15.0", "x"), "mesa-llvm-15-0/x");
+    assert_eq!(scoped_name("  //  ", "x"), "x", "a name with no letter or digit is no set");
+    assert_eq!(scoped_name("../..", "x"), "x", "a set cannot climb out of the baselines");
 }
 
 /// The Suggestions tab, with real proposals from the switched-on pack for a selection spanning both folders.
