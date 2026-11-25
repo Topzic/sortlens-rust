@@ -3343,7 +3343,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
             match state.right_tab {
                 RightTab::Details => match state.selection.primary().and_then(|id| engine.photo(id)) {
                     Some(photo) => details(ui, t, photo),
-                    None => hint(ui, t, "Select a photo to see camera, exposure and file details."),
+                    None => hint(ui, t, tl!("Select a photo to see camera, exposure and file details.")),
                 },
                 RightTab::Tags => match state.selection.primary().and_then(|id| engine.photo(id)).cloned() {
                     Some(photo) => tags(ui, t, state, engine, &photo),
@@ -3405,35 +3405,51 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
     ui.label(RichText::new(photo.name.clone()).size(13.0).strong());
     ui.add_space(6.0);
     let kind = match photo.kind {
-        MediaKind::Raw => "Raw",
-        MediaKind::Image => "Image",
-        MediaKind::Video => "Video",
+        MediaKind::Raw => tl!("Raw"),
+        MediaKind::Image => tl!("Image"),
+        MediaKind::Video => tl!("Video"),
     };
-    detail_row(ui, t, "Kind", kind);
-    detail_row(ui, t, "Folder", if photo.folder().is_empty() { "—" } else { photo.folder() });
-    detail_row(ui, t, "Size", &crate::format::size(photo.size));
+    detail_row(ui, t, tl!("Kind"), kind);
+    detail_row(ui, t, tl!("Folder"), if photo.folder().is_empty() { "—" } else { photo.folder() });
+    detail_row(ui, t, tl!("Size"), &crate::format::size(photo.size));
     if photo.width > 0 && photo.height > 0 {
-        detail_row(ui, t, "Dimensions", &format!("{} × {}", photo.width, photo.height));
+        detail_row(ui, t, tl!("Dimensions"), &format!("{} × {}", photo.width, photo.height));
     }
     if !photo.camera.is_empty() {
-        detail_row(ui, t, "Camera", &photo.camera);
-        detail_row(ui, t, "Lens", if photo.lens.is_empty() { "—" } else { &photo.lens });
-        detail_row(ui, t, "Exposure", &photo.exposure());
+        detail_row(ui, t, tl!("Camera"), &photo.camera);
+        detail_row(ui, t, tl!("Lens"), if photo.lens.is_empty() { "—" } else { &photo.lens });
+        detail_row(ui, t, tl!("Exposure"), &photo.exposure());
     }
     if let Some(captured) = photo.captured {
-        detail_row(ui, t, "Captured", &crate::format::date_time(captured));
+        detail_row(ui, t, tl!("Captured"), &crate::format::date_time(captured));
     }
-    detail_row(ui, t, "Rating", &format!("{} of 5", photo.rating));
-    detail_row(ui, t, "Flag", photo.flag.id());
+    detail_row(
+        ui,
+        t,
+        tl!("Rating"),
+        &crate::i18n::fmt("{rating} of 5", &[("rating", &format_count(u64::from(photo.rating)))]),
+    );
+    detail_row(ui, t, tl!("Flag"), &flag_word(photo.flag));
     let label = photo.label.map(colour_word).unwrap_or_else(|| "—".to_string());
-    detail_row(ui, t, "Label", &label);
-    detail_row(ui, t, "Status", if photo.missing { "missing" } else { "present" });
+    detail_row(ui, t, tl!("Label"), &label);
+    detail_row(ui, t, tl!("Status"), if photo.missing { tl!("missing") } else { tl!("present") });
     ui.add_space(8.0);
     ui.label(
-        RichText::new("Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.")
+        RichText::new(tl!("Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag."))
             .size(10.5)
             .color(t.text_faint),
     );
+}
+
+/// The cull flag's word in the interface language: the value the inspector prints, not the token
+/// the op log stores.
+fn flag_word(flag: Flag) -> String {
+    match flag {
+        Flag::None => tl!("none"),
+        Flag::Pick => tl!("pick"),
+        Flag::Reject => tl!("reject"),
+    }
+    .to_string()
 }
 
 fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo: &Photo) {
@@ -5581,7 +5597,12 @@ fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
 /// label it is set on, so a name allowed the whole row would spend it and push the rest of the row past
 /// its own block; the arrow, the position and the gaps are taken out of the budget first.
 fn detail_names(ui: &mut Ui, photo: &Photo, other: Option<&Photo>, position: Option<(usize, usize)>, t: &Tokens) {
-    let position_text = position.map(|(index, total)| format!("{index} of {total}"));
+    let position_text = position.map(|(index, total)| {
+        crate::i18n::fmt(
+            "{position} of {total}",
+            &[("position", &format_count(index as u64)), ("total", &format_count(total as u64))],
+        )
+    });
     let position_width = position_text.as_ref().map_or(0.0, |text| {
         ui.painter()
             .layout_no_wrap(text.clone(), egui::FontId::new(11.5, egui::FontFamily::Proportional), t.text_muted)
@@ -5630,41 +5651,41 @@ fn detail_actions(
     // the row never gets to paint itself over the names or off the edge.
     if room >= ACTIONS_ROOM {
         if ui
-            .add(Button::new(RichText::new("Open").size(10.5)).frame(false))
-            .on_hover_text("Hand this file to the desktop's default application")
+            .add(Button::new(RichText::new(tl!("Open")).size(10.5)).frame(false))
+            .on_hover_text(tl!("Hand this file to the desktop's default application"))
             .clicked()
         {
             actions.push(Action::OpenExternal(id));
         }
         if ui
-            .add(Button::new(RichText::new("Show in folder").size(10.5)).frame(false))
-            .on_hover_text("Show this file where it lives on disk")
+            .add(Button::new(RichText::new(tl!("Show in folder")).size(10.5)).frame(false))
+            .on_hover_text(tl!("Show this file where it lives on disk"))
             .clicked()
         {
             actions.push(Action::Reveal(id));
         }
         if ui
-            .add(Button::new(RichText::new("Export…").size(10.5)).frame(false))
-            .on_hover_text("Write a copy somewhere; the original is not touched")
+            .add(Button::new(RichText::new(tl!("Export…")).size(10.5)).frame(false))
+            .on_hover_text(tl!("Write a copy somewhere; the original is not touched"))
             .clicked()
         {
             state.export_ids = vec![id];
             state.export_open = true;
         }
     }
-    if ui.button(RichText::new("Close  Esc").size(11.0)).clicked() {
+    if ui.button(RichText::new(tl!("Close  Esc")).size(11.0)).clicked() {
         state.view = View::Library;
         state.compare = None;
     }
-    let zoom_label = if state.detail_zoom { "Fit  Z" } else { "1:1  Z" };
+    let zoom_label = if state.detail_zoom { tl!("Fit  Z") } else { tl!("1:1  Z") };
     if room >= TIGHT_ACTIONS_ROOM && ui.button(RichText::new(zoom_label).size(11.0)).clicked() {
         state.detail_zoom = !state.detail_zoom;
     }
     if comparing {
         if room >= TIGHT_ACTIONS_ROOM
             && ui
-                .button(RichText::new("Swap  S").size(11.0))
-                .on_hover_text("Swap which pane is the left one")
+                .button(RichText::new(tl!("Swap  S")).size(11.0))
+                .on_hover_text(tl!("Swap which pane is the left one"))
                 .clicked()
             && let Some(second) = state.compare
         {
@@ -5674,16 +5695,16 @@ fn detail_actions(
         // The button is a toggle, so in a compare it says what it will do: closing the pair
         // rather than opening one you are already looking at.
         if ui
-            .button(RichText::new("Close compare  C").size(11.0))
-            .on_hover_text("Go back to the single photograph")
+            .button(RichText::new(tl!("Close compare  C")).size(11.0))
+            .on_hover_text(tl!("Go back to the single photograph"))
             .clicked()
         {
             state.compare = None;
             state.view = View::Detail;
         }
     } else if ui
-        .button(RichText::new("Compare  C").size(11.0))
-        .on_hover_text("Show the next photo beside this one, at the same magnification")
+        .button(RichText::new(tl!("Compare  C")).size(11.0))
+        .on_hover_text(tl!("Show the next photo beside this one, at the same magnification"))
         .clicked()
     {
         toggle_compare(state, engine);
@@ -5695,13 +5716,13 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
     let Some(id) = state.selection.primary() else {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
-            ui.label(RichText::new("Nothing selected").size(16.0).strong());
+            ui.label(RichText::new(tl!("Nothing selected")).size(16.0).strong());
             ui.label(
-                RichText::new("Pick a photo in the grid, then press D.")
+                RichText::new(tl!("Pick a photo in the grid, then press D."))
                     .size(11.5)
                     .color(t.text_muted),
             );
-            if ui.button("Back to the grid").clicked() {
+            if ui.button(tl!("Back to the grid")).clicked() {
                 state.view = View::Library;
             }
         });
@@ -5835,8 +5856,13 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                             .image(texture.id(), sized, uv, cached_tint(item));
                     }
                     None => {
-                        ui.painter()
-                            .text(pane.center(), Align2::CENTER_CENTER, "Loading preview…", t.font(11.0), t.text_faint);
+                        ui.painter().text(
+                            pane.center(),
+                            Align2::CENTER_CENTER,
+                            tl!("Loading preview…"),
+                            t.font(11.0),
+                            t.text_faint,
+                        );
                     }
                 }
             }
@@ -5848,8 +5874,13 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
                 painter.image(texture.id(), target, uv, cached_tint(&photo));
             }
             None => {
-                ui.painter()
-                    .text(area.center(), Align2::CENTER_CENTER, "Loading preview…", t.font(11.0), t.text_faint);
+                ui.painter().text(
+                    area.center(),
+                    Align2::CENTER_CENTER,
+                    tl!("Loading preview…"),
+                    t.font(11.0),
+                    t.text_faint,
+                );
             }
         },
     }
@@ -5880,12 +5911,12 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
 
     ui.add_space(8.0);
     ui.horizontal(|ui| {
-        if ui.add(Button::new(RichText::new("Previous").size(11.0))).clicked()
+        if ui.add(Button::new(RichText::new(tl!("Previous")).size(11.0))).clicked()
             && let Some(previous) = engine.neighbour(&filter, state.sort, id, -1)
         {
             state.selection.replace(previous);
         }
-        if ui.add(Button::new(RichText::new("Next").size(11.0))).clicked()
+        if ui.add(Button::new(RichText::new(tl!("Next")).size(11.0))).clicked()
             && let Some(next) = engine.neighbour(&filter, state.sort, id, 1)
         {
             state.selection.replace(next);
@@ -5923,12 +5954,12 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         if let Some(histogram) = thumbs.histogram(&photo) {
             histogram_widget(ui, t, histogram);
         } else {
-            ui.label(RichText::new("No preview to measure").size(10.0).color(t.text_faint));
+            ui.label(RichText::new(tl!("No preview to measure")).size(10.0).color(t.text_faint));
         }
         ui.add_space(10.0);
         let mut jump = None;
         ui.vertical(|ui| {
-            ui.label(RichText::new("Lookahead").size(10.0).color(t.text_faint));
+            ui.label(RichText::new(tl!("Lookahead")).size(10.0).color(t.text_faint));
             ui.horizontal(|ui| {
                 for delta in [-2isize, -1, 1, 2] {
                     let Some(neighbour) = engine.neighbour(&filter, state.sort, id, delta) else {
@@ -5962,7 +5993,7 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
     });
 
     ui.label(
-        RichText::new("P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close")
+        RichText::new(tl!("P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close"))
             .size(10.0)
             .color(t.text_faint),
     );
@@ -14033,6 +14064,228 @@ mod tests {
             "the detail view paints only glyphs the bundled faces have; these do not: {missing:?}"
         );
         assert!(actions.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Detail view and the Details tab speak the interface language (SL-L07): the empty state,
+    /// the controls under the photograph, the lookahead strip and the sidecar rows are catalogue
+    /// rows, and the position and rating are templates, so a Japanese or Arabic owner reads a
+    /// photograph's own details in their own words and digits.
+    #[test]
+    fn the_detail_view_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-detail-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-detail-words");
+        for (name, phase) in [("IMG_0001.jpg", 3), ("IMG_0002.jpg", 9)] {
+            let camera = sortlens_testkit::Camera {
+                make: "Fujifilm",
+                model: "X-T5",
+                iso: Some(200),
+                focal: Some(35.0),
+                place: None,
+            };
+            std::fs::copy(
+                fixture.jpeg_with_camera(name, 64, 48, sortlens_testkit::Pattern::Gradient(phase), camera),
+                root.join(name),
+            )
+            .expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 2).photos[0].id;
+        let photo = engine.photo(id).cloned().expect("the first photo");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 760.0))),
+            ..egui::RawInput::default()
+        };
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.replace(id);
+        state.view = View::Detail;
+
+        // `fmt` isolates a value that has to hold its direction in right-to-left text; the frame is
+        // read without those marks, so a sentence is compared by its words and its digits.
+        let plain = |texts: Vec<String>| -> Vec<String> {
+            texts
+                .into_iter()
+                .map(|text| {
+                    text.chars()
+                        .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                        .collect()
+                })
+                .collect()
+        };
+        let mut paint_detail = |state: &mut UiState, engine: &mut Engine| -> Vec<String> {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    detail_view(ui, &tokens, state, engine, &mut thumbs, &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            plain(painted_texts(&output))
+        };
+        let paint_details = |photo: &Photo| -> Vec<String> {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    details(ui, &tokens, photo);
+                });
+            });
+            output.textures_delta.clear();
+            plain(painted_texts(&output))
+        };
+
+        let english = paint_detail(&mut state, &mut engine);
+        assert_painted(
+            &english,
+            &[
+                "1:1  Z",
+                "Close  Esc",
+                "Open",
+                "Show in folder",
+                "Export…",
+                "Previous",
+                "Next",
+                "Compare  C",
+                "1 of 2",
+                "Lookahead",
+                "P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close",
+            ],
+        );
+        let english_details = paint_details(&photo);
+        assert_painted(
+            &english_details,
+            &[
+                "Kind",
+                "Image",
+                "Folder",
+                "Size",
+                "Dimensions",
+                "Camera",
+                "Lens",
+                "Exposure",
+                "Rating",
+                "0 of 5",
+                "Flag",
+                "none",
+                "Label",
+                "Status",
+                "present",
+                "Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.",
+            ],
+        );
+
+        // No selection: the view says what to do instead of painting an empty frame.
+        state.selection.clear();
+        let empty = paint_detail(&mut state, &mut engine);
+        assert_painted(
+            &empty,
+            &["Nothing selected", "Pick a photo in the grid, then press D.", "Back to the grid"],
+        );
+        state.selection.replace(id);
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint_detail(&mut state, &mut engine);
+        assert_painted(
+            &japanese,
+            &[
+                "前へ",
+                "次へ",
+                "比較  C",
+                "閉じる  Esc",
+                "実寸  Z",
+                "開く",
+                "フォルダーに表示",
+                "2 中 1",
+                "先読み",
+                "P/X/U フラグ · 1–5 評価 · 左右に移動 · Z ズーム · Esc 閉じる",
+            ],
+        );
+        assert!(
+            !japanese.iter().any(|text| text == "Previous" || text == "1 of 2"),
+            "the Japanese view keeps no English chrome: {japanese:?}"
+        );
+        let japanese_details = paint_details(&photo);
+        assert_painted(
+            &japanese_details,
+            &[
+                "種類",
+                "画像",
+                "フォルダー",
+                "サイズ",
+                "寸法",
+                "カメラ",
+                "レンズ",
+                "露出",
+                "評価",
+                "0 / 5",
+                "フラグ",
+                "なし",
+                "ラベル",
+                "状態",
+                "あり",
+                "1–5 で評価、0 で解除、P で採用、X で却下、U でフラグ解除。",
+            ],
+        );
+        assert!(
+            !japanese_details.iter().any(|text| text == "Kind" || text == "Rating"),
+            "the Japanese sidecar keeps no English row names: {japanese_details:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint_detail(&mut state, &mut engine);
+        assert_painted(
+            &arabic,
+            &[
+                "السابق",
+                "التالي",
+                "مقارنة  C",
+                "إغلاق  Esc",
+                "الحجم الأصلي  Z",
+                "فتح",
+                "إظهار في المجلد",
+                "١ من ٢",
+                "لقطات قادمة",
+            ],
+        );
+        assert!(
+            !arabic.iter().any(|text| text == "Previous" || text == "Next"),
+            "the Arabic view keeps no English controls: {arabic:?}"
+        );
+        let arabic_details = paint_details(&photo);
+        assert_painted(
+            &arabic_details,
+            &[
+                "النوع",
+                "صورة",
+                "المجلد",
+                "الحجم",
+                "الأبعاد",
+                "الكاميرا",
+                "العدسة",
+                "التعريض",
+                "التقييم",
+                "٠ من 5",
+                "الوسم",
+                "لا يوجد",
+                "التسمية",
+                "الحالة",
+                "موجودة",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

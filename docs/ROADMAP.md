@@ -941,6 +941,16 @@ and none of M9 is closed until the remaining rows are ticked.
   writes `٣ صورة بموقع`. What stays English on that view is the click notice and the tile refusal's own
   sentence (`TileError::message()`, an engine word with no piece yet), plus the map's assistive name, which
   the row does not count as painted chrome.
+  The Detail view followed (hundred-and-first entry): its `Nothing selected` state and `Back to the grid`
+  button, the `Previous`/`Next` controls, `Lookahead`, the keyboard hint and the zoom/compare row
+  (`Fit  Z`, `1:1  Z`, `Swap  S`, `Close compare  C`, `Compare  C`) are catalogue rows, and its position
+  line (`{position} of {total}`) and the Details tab's rating (`{rating} of 5`) are templates, so an Arabic
+  photograph reads `١ من ٢`. The inspector's Details tab is catalogued end to end: every row name
+  (`Kind`, `Folder`, `Size`, `Dimensions`, `Camera`, `Lens`, `Exposure`, `Captured`, `Rating`, `Flag`,
+  `Label`, `Status`), its kind values (`Raw`/`Image`/`Video`), its flag values (`none`/`pick`/`reject`),
+  its state values (`missing`/`present`) and its empty-state hint are rows, so a Japanese inspector reads
+  `評価` where it read `Rating`. What stays English on the view is the facts line (a camera, an exposure
+  and a size are values) and its assistive names, which the row does not count as painted chrome.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

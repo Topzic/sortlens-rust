@@ -683,3 +683,47 @@
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	略式の海岸線 · 実際の地図にするにはタイルフォルダーか MBTiles アーカイブを配置
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	{dir} に {z}/{x}/{y}.png タイルと attribution.txt を置くか、`attribution` メタデータ行を持つ tiles.mbtiles アーカイブを隣に置くと、1:110m の輪郭を置き換えられます。ダウンロードは行いません。
 	The basemap cannot be used	地図を利用できません
+	Nothing selected	何も選択されていません
+	Pick a photo in the grid, then press D.	グリッドで写真を選び、D を押してください。
+	Back to the grid	グリッドに戻る
+	Loading preview…	プレビューを読み込み中…
+	Previous	前へ
+	Next	次へ
+	No preview to measure	計測できるプレビューがありません
+	Lookahead	先読み
+	P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close	P/X/U フラグ · 1–5 評価 · 左右に移動 · Z ズーム · Esc 閉じる
+	Open	開く
+	Hand this file to the desktop's default application	このファイルをデスクトップの既定のアプリで開きます
+	Show in folder	フォルダーに表示
+	Show this file where it lives on disk	このファイルの保存場所をディスク上で表示します
+	Write a copy somewhere; the original is not touched	コピーをどこかに書き出します。元のファイルは変更されません
+	Close  Esc	閉じる  Esc
+	Fit  Z	全体  Z
+	1:1  Z	実寸  Z
+	Swap  S	入れ替え  S
+	Swap which pane is the left one	左右どちらのペインにするか入れ替えます
+	Close compare  C	比較を閉じる  C
+	Go back to the single photograph	1 枚の写真表示に戻ります
+	Compare  C	比較  C
+	Show the next photo beside this one, at the same magnification	この写真の隣に次の写真を同じ倍率で並べます
+	Kind	種類
+	Folder	フォルダー
+	Size	サイズ
+	Dimensions	寸法
+	Camera	カメラ
+	Lens	レンズ
+	Exposure	露出
+	Captured	撮影日時
+	Rating	評価
+	{rating} of 5	{rating} / 5
+	Flag	フラグ
+	Label	ラベル
+	Status	状態
+	missing	不在
+	present	あり
+	Image	画像
+	pick	採用
+	reject	却下
+	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	1–5 で評価、0 で解除、P で採用、X で却下、U でフラグ解除。
+	Select a photo to see camera, exposure and file details.	カメラ、露出、ファイルの詳細を見るには写真を選んでください。
+

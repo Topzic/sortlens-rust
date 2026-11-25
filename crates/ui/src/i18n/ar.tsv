@@ -683,3 +683,47 @@
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	خط ساحلي تخطيطي · ثبّت مجلد بلاطات أو أرشيف MBTiles للحصول على خريطة حقيقية
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	ضع بلاطات {z}/{x}/{y}.png وملف attribution.txt في {dir} — أو أرشيف tiles.mbtiles يحوي صف بيانات وصفية `attribution` بجانبه — لاستبدال مخطط 1:110m. لا يُنزَّل أي شيء.
 	The basemap cannot be used	لا يمكن استخدام الخريطة
+	Nothing selected	لم يتم تحديد شيء
+	Pick a photo in the grid, then press D.	اختر صورة من الشبكة ثم اضغط D.
+	Back to the grid	العودة إلى الشبكة
+	Loading preview…	جارٍ تحميل المعاينة…
+	Previous	السابق
+	Next	التالي
+	No preview to measure	لا توجد معاينة لقياسها
+	Lookahead	لقطات قادمة
+	P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close	P/X/U وسم · 1–5 تقييم · يسار/يمين تنقّل · Z تكبير · Esc إغلاق
+	Open	فتح
+	Hand this file to the desktop's default application	سلّم هذا الملف إلى التطبيق الافتراضي لسطح المكتب
+	Show in folder	إظهار في المجلد
+	Show this file where it lives on disk	أظهر هذا الملف حيث يوجد على القرص
+	Write a copy somewhere; the original is not touched	اكتب نسخة في مكان ما؛ الملف الأصلي لا يُمسّ
+	Close  Esc	إغلاق  Esc
+	Fit  Z	ملاءمة  Z
+	1:1  Z	الحجم الأصلي  Z
+	Swap  S	تبديل  S
+	Swap which pane is the left one	بدّل أيّ اللوحتين تكون اليسرى
+	Close compare  C	إغلاق المقارنة  C
+	Go back to the single photograph	العودة إلى الصورة الواحدة
+	Compare  C	مقارنة  C
+	Show the next photo beside this one, at the same magnification	اعرض الصورة التالية بجانب هذه بالتكبير نفسه
+	Kind	النوع
+	Folder	المجلد
+	Size	الحجم
+	Dimensions	الأبعاد
+	Camera	الكاميرا
+	Lens	العدسة
+	Exposure	التعريض
+	Captured	تاريخ الالتقاط
+	Rating	التقييم
+	{rating} of 5	{rating} من 5
+	Flag	الوسم
+	Label	التسمية
+	Status	الحالة
+	missing	مفقودة
+	present	موجودة
+	Image	صورة
+	pick	مختارة
+	reject	مرفوضة
+	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	اضغط 1–5 للتقييم، و0 للمسح، وP للاختيار، وX للرفض، وU لإزالة الوسم.
+	Select a photo to see camera, exposure and file details.	اختر صورة لعرض الكاميرا والتعريض وتفاصيل الملف.
+

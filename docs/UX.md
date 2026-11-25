@@ -332,6 +332,12 @@ only signal.
 - EXIF panel groups fields; missing fields are omitted rather than shown as "—".
 - Prev/next pre-fetches the next and previous photo at loupe size before you ask.
 - `Esc` closes, `◀/▶` steps, `I` cycles info overlay, `L` lights out.
+- The view's own words come from the catalogues: the empty state, `Previous`/`Next`, `Lookahead`, the
+  zoom/compare row and the keyboard hint, plus the inspector's Details tab, whose row names, kind, flag
+  and present/missing values are rows. The position line and the rating are `{position} of {total}` and
+  `{rating} of 5` templates, so Arabic writes "١ من ٢" where English writes "1 of 2". The facts line
+  under the photograph (camera · exposure · size) is values rather than chrome, and the assistive names
+  stay English.
 
 ### 5.5 Cull
 
@@ -682,7 +688,11 @@ re-checks its own contrast pairs after applying.
   strip's four labels, the twelve month names, the four seasons and the `photo(s)` sentences are
   catalogue rows, and the `Busiest: … · mostly …` line is worded from the same pieces. The busiest
   day's date goes through `format::date`, so Arabic writes `١٠/٠٢/٢٠٢٤` rather than a Latin stamp.
-  Nothing on that page is English by omission now.
+  Nothing on that page is English by omission now. The Places view and the Detail view followed the
+  same day: Places' empty state, zoom label, footer counts and basemap notes, then the Detail view's
+  empty state, `Previous`/`Next`, `Lookahead`, its zoom/compare row and keyboard hint, and the
+  inspector's Details tab, whose every row name, kind, flag and present/missing value is catalogued —
+  its position and rating are templates, so Arabic writes "١ من ٢".
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

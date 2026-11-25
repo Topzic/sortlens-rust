@@ -1,5 +1,46 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-first) — the Detail view and the Details tab speak the interface language
+
+- **Why this came up.** The hundredth entry's Next named it: after Places, the Detail view still painted
+  `Nothing selected`, `Previous`/`Next`, `Lookahead` and its keyboard hint in English, and the inspector's
+  Details tab — the sidecar rows that give the view its point — painted `Kind`, `Camera`, `Rating` and every
+  value beside them in English whatever Settings → Language said.
+- **What is routed.** 43 new rows in each of `ar.tsv` and `ja.tsv`; `none` and `{position} of {total}`
+  already had rows, so they are reused rather than duplicated. The empty state and its `Back to the
+  grid` button, the `Open`/`Show in folder`/`Export…` labels with their hover sentences, `Close  Esc`, the
+  `1:1  Z`/`Fit  Z` toggle, `Swap  S`, `Close compare  C`, `Compare  C`, `Previous`/`Next`,
+  `Loading preview…`, `No preview to measure`, `Lookahead` and the keyboard hint; and on the Details tab every
+  row name (`Kind`, `Folder`, `Size`, `Dimensions`, `Camera`, `Lens`, `Exposure`, `Captured`, `Rating`,
+  `Flag`, `Label`, `Status`), its kind values (`Raw`/`Image`/`Video`), its flag values
+  (`none`/`pick`/`reject`), its state values (`missing`/`present`), the empty hint and the rating hint.
+- **The numbers are templates.** The position line is `{position} of {total}` filled with `format_count`, so
+  Arabic writes `١ من ٢`; the rating is `{rating} of 5`, so a zero reads `٠` in Arabic. `flag_word` maps the
+  core `Flag` to a catalogue word, which is why the inspector stops printing the op log's `pick` token in a
+  Japanese interface.
+- **Tests that fail when the behaviour is absent.** `the_detail_view_speaks_the_interface_language` paints the
+  real `detail_view` at 1000×760 over two photographs whose EXIF names a camera: English first (the controls,
+  the compare row, `1 of 2`, `Lookahead` and the keyboard hint, plus every Details row and `0 of 5`), then the
+  empty selection (the three empty-state strings), then Japanese (`前へ`, `実寸  Z`, `2 中 1`, `評価`,
+  `0 / 5`, `なし` and no `Previous`/`Kind`), then Arabic (`السابق`, `الحجم الأصلي  Z`, `١ من ٢`,
+  `التقييم`, `٠ من 5`, `لا يوجد`). `fmt` isolates a value so it holds its direction, so the frame is read
+  through the same isolate filter the Places test uses. The catalogue audit reads the new `tl!`/`fmt`
+  literals and fails if either catalogue loses a row.
+- **Files.** `crates/ui/src/shell.rs` (`detail_view`, `detail_actions`, `detail_names`, `details`,
+  `flag_word`, one test), `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (43 new rows each), `docs/ROADMAP.md`
+  (the SL-L07 row's prose), `docs/UX.md` (§5.4 and the i18n paragraph), this entry.
+- **Verified.** `cargo xtask ci` green through every gate (fmt --check, clippy `--workspace --all-targets`
+  with `-D warnings`, the full test suite, layers, roots, assets, version, attribution, a11y, docs, templates
+  and workflows); the new test and `catalogs_load_and_routed_keys_have_rows` pass; `cargo xtask snapshot`
+  (5 tests), `cargo xtask deny` (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask
+  screenshots` (27 scenes, `detail_and_compare_paint_in_both_themes` among them, byte-identical to the
+  committed baselines — English has no catalogue, so a `tl!` with no row is its own key). There is no
+  `cargo xtask wasm` in this workspace (removed in the sixty-first entry), so no wasm gate ran. No release
+  dispatch: this slice touches `crates/ui` source, catalogues, tests and docs, so no build or release surface
+  changed.
+- **Next.** Compare and Soft Focus are the next two unrouted views, then For You, then the four catalogues
+  (zh-TW/ko/th/vi) and the RTL screenshots. No release dispatch.
+
 ## 2026-11-26 (hundredth) — the Places view speaks the interface language
 
 - **Why this came up.** The ninety-ninth entry's Next named it: Places was the last plainly English surface the
