@@ -628,3 +628,22 @@
 	Same layout and the same palette — the safe default.	同じ構図と同じ配色 — 安全な既定値です。
 	Same palette anywhere in the frame, whatever the layout.	構図にかかわらず、フレーム内のどこでも同じ配色。
 	Structure or palette; the widest net, more false pairs.	構図または配色。最も広い網で、誤検出のペアも増えます。
+	Counting	集計中
+	Recount	再集計
+	Count the library again on a worker, reporting progress as it goes	ライブラリをもう一度ワーカー上で集計し、進み具合を表示します
+	Photos	写真
+	Keyworded	キーワード付き
+	Ratings	評価
+	Unrated	未評価
+	Labels	ラベル
+	Kinds	種類
+	Images	画像
+	Raw	RAW
+	Video	動画
+	Cameras	カメラ
+	Lenses	レンズ
+	Timeline	タイムライン
+	No capture dates yet	撮影日の記録はまだありません
+	{n} with no capture date	撮影日なし: {n}
+	Months	月別
+	Nothing dated yet	日付のある写真はまだありません

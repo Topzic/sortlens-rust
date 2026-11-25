@@ -7323,14 +7323,16 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
         // A library of thousands is not instant, so the pass says how far it has come instead of
         // freezing the view.
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Counting").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Counting")).size(11.0).color(t.text_muted));
             ui.add(egui::ProgressBar::new(if total == 0 { 0.0 } else { done as f32 / total as f32 }).desired_width(220.0));
-            ui.label(RichText::new(format!("{done} of {total}")).size(10.5).color(t.text_faint));
+            let (done_text, total_text) = (format_count(done as u64), format_count(total as u64));
+            let progress = crate::i18n::fmt("{done} of {total}", &[("done", &done_text), ("total", &total_text)]);
+            ui.label(RichText::new(progress).size(10.5).color(t.text_faint));
         });
         ui.add_space(8.0);
     } else if ui
-        .button(RichText::new("Recount").size(11.0))
-        .on_hover_text("Count the library again on a worker, reporting progress as it goes")
+        .button(RichText::new(tl!("Recount")).size(11.0))
+        .on_hover_text(tl!("Count the library again on a worker, reporting progress as it goes"))
         .clicked()
     {
         match engine.begin_insights() {
@@ -7355,13 +7357,13 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
     }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
-            figure(ui, t, "Photos", &format_count(insights.stats.total as u64));
-            figure(ui, t, "On disk", &sortlens_core::format_bytes(insights.stats.bytes));
-            figure(ui, t, "Rated", &format!("{:.0}%", insights.rated_share() * 100.0));
-            figure(ui, t, "Keyworded", &format!("{:.0}%", insights.tagged_share() * 100.0));
-            figure(ui, t, "Picks", &format_count(insights.stats.picks as u64));
-            figure(ui, t, "Rejects", &format_count(insights.stats.rejects as u64));
-            figure(ui, t, "Missing", &format_count(insights.stats.missing as u64));
+            figure(ui, t, tl!("Photos"), &format_count(insights.stats.total as u64));
+            figure(ui, t, tl!("On disk"), &sortlens_core::format_bytes(insights.stats.bytes));
+            figure(ui, t, tl!("Rated"), &format!("{:.0}%", insights.rated_share() * 100.0));
+            figure(ui, t, tl!("Keyworded"), &format!("{:.0}%", insights.tagged_share() * 100.0));
+            figure(ui, t, tl!("Picks"), &format_count(insights.stats.picks as u64));
+            figure(ui, t, tl!("Rejects"), &format_count(insights.stats.rejects as u64));
+            figure(ui, t, tl!("Missing"), &format_count(insights.stats.missing as u64));
         });
         ui.add_space(14.0);
 
@@ -7375,59 +7377,59 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
             ui.spacing_mut().item_spacing.x = gap;
             ui.vertical(|ui| {
                 ui.set_width(column);
-                ui.label(RichText::new("Ratings").size(12.0).strong());
+                ui.label(RichText::new(tl!("Ratings")).size(12.0).strong());
                 for stars in (0..=5).rev() {
                     let count = insights.by_rating[stars];
-                    bar_row(
-                        ui,
-                        t,
-                        &if stars == 0 { "Unrated".to_string() } else { "★".repeat(stars) },
-                        count,
-                        insights.stats.total,
-                    );
+                    let name = if stars == 0 {
+                        tl!("Unrated").to_string()
+                    } else {
+                        "★".repeat(stars)
+                    };
+                    bar_row(ui, t, &name, count, insights.stats.total);
                 }
                 ui.add_space(12.0);
-                ui.label(RichText::new("Labels").size(12.0).strong());
+                ui.label(RichText::new(tl!("Labels")).size(12.0).strong());
                 for (index, label) in sortlens_core::ColorLabel::ALL.iter().enumerate() {
                     bar_row(ui, t, &colour_word(*label), insights.by_label[index], insights.stats.total);
                 }
                 ui.add_space(12.0);
-                ui.label(RichText::new("Kinds").size(12.0).strong());
+                ui.label(RichText::new(tl!("Kinds")).size(12.0).strong());
                 for (index, name) in ["Images", "Raw", "Video"].iter().enumerate() {
-                    bar_row(ui, t, name, insights.by_kind[index], insights.stats.total);
+                    bar_row(ui, t, tl!(*name), insights.by_kind[index], insights.stats.total);
                 }
             });
             ui.vertical(|ui| {
                 ui.set_width(column);
-                breakdown(ui, t, "Cameras", &insights.cameras, insights.unknown_camera);
+                breakdown(ui, t, tl!("Cameras"), &insights.cameras, insights.unknown_camera);
                 ui.add_space(12.0);
-                breakdown(ui, t, "Lenses", &insights.lenses, 0);
+                breakdown(ui, t, tl!("Lenses"), &insights.lenses, 0);
                 ui.add_space(12.0);
-                breakdown(ui, t, "Keywords", &insights.keywords, 0);
+                breakdown(ui, t, tl!("Keywords"), &insights.keywords, 0);
             });
             ui.vertical(|ui| {
                 ui.set_width(column);
-                ui.label(RichText::new("Timeline").size(12.0).strong());
+                ui.label(RichText::new(tl!("Timeline")).size(12.0).strong());
                 if insights.years.is_empty() {
-                    ui.label(RichText::new("No capture dates yet").size(11.0).color(t.text_faint));
+                    ui.label(RichText::new(tl!("No capture dates yet")).size(11.0).color(t.text_faint));
                 }
                 let peak = insights.peak_year().max(1);
                 for year in &insights.years {
                     bar_row(ui, t, &year.year.to_string(), year.count, peak);
                 }
                 if insights.undated > 0 {
+                    let undated = format_count(insights.undated as u64);
                     ui.label(
-                        RichText::new(format!("{} with no capture date", insights.undated))
+                        RichText::new(crate::i18n::fmt("{n} with no capture date", &[("n", &undated)]))
                             .size(10.5)
                             .color(t.text_faint),
                     );
                 }
                 ui.add_space(14.0);
                 // Seasonality: which months the library leans towards, in one row of twelve.
-                ui.label(RichText::new("Months").size(12.0).strong());
+                ui.label(RichText::new(tl!("Months")).size(12.0).strong());
                 let peak = insights.by_month.iter().copied().max().unwrap_or(0);
                 if peak == 0 {
-                    charts::empty(ui, t, "Nothing dated yet", charts::COLUMN_HEIGHT);
+                    charts::empty(ui, t, tl!("Nothing dated yet"), charts::COLUMN_HEIGHT);
                 } else {
                     let month_columns: Vec<Column> = insights
                         .by_month
@@ -16774,6 +16776,136 @@ mod tests {
             .expect_err("nothing staged");
         assert!(reason.contains("Nothing staged"), "{reason}");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Insights screen speaks the interface language (SL-L07): its progress line, its seven
+    /// figures, its column headings, its kinds and its two empty states are catalogue rows, and the
+    /// progress and "no capture date" counts are templates, so a Japanese or Arabic owner reads how
+    /// many photographs there are in their own words and digits. English has no catalogue, so the
+    /// same frame paints byte for byte what the baseline recorded — asserted here, not trusted.
+    #[test]
+    fn the_insights_screen_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-insights-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        // A widget paints its contents inside a layout shape, and the empty month chart is one, so
+        // the frame is read through `all_shapes` rather than from the top level.
+        let mut painted = |state: &mut UiState, engine: &mut Engine| -> Vec<String> {
+            let output = paint_shell(&ctx, vec2(1200.0, 800.0), state, engine, &mut thumbs, &mut actions);
+            all_shapes(&output)
+                .into_iter()
+                .filter_map(|shape| match shape {
+                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.view = View::Insights;
+        let english = painted(&mut state, &mut engine);
+        assert_painted(
+            &english,
+            &[
+                "Photos",
+                "On disk",
+                "Rated",
+                "Keyworded",
+                "Picks",
+                "Rejects",
+                "Missing",
+                "Ratings",
+                "Unrated",
+                "Labels",
+                "Kinds",
+                "Images",
+                "Raw",
+                "Video",
+                "Cameras",
+                "Lenses",
+                "Keywords",
+                "Timeline",
+                "No capture dates yet",
+                "Months",
+                "Nothing dated yet",
+                "Recount",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.view = View::Insights;
+        let japanese = painted(&mut state, &mut engine);
+        assert_painted(
+            &japanese,
+            &[
+                "写真",
+                "ディスク上",
+                "評価済み",
+                "キーワード付き",
+                "評価",
+                "未評価",
+                "ラベル",
+                "種類",
+                "画像",
+                "RAW",
+                "動画",
+                "カメラ",
+                "レンズ",
+                "キーワード",
+                "タイムライン",
+                "撮影日の記録はまだありません",
+                "月別",
+                "日付のある写真はまだありません",
+                "再集計",
+            ],
+        );
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Ratings" || text == "Timeline" || text == "Nothing dated yet"),
+            "the English headings are still on the Japanese frame: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.view = View::Insights;
+        let arabic = painted(&mut state, &mut engine);
+        assert_painted(
+            &arabic,
+            &[
+                "الصور",
+                "على القرص",
+                "مقيّمة",
+                "موسومة بالكلمات المفتاحية",
+                "التقييمات",
+                "بلا تقييم",
+                "التسميات",
+                "الأنواع",
+                "فيديو",
+                "الكاميرات",
+                "العدسات",
+                "الكلمات المفتاحية",
+                "الخط الزمني",
+                "لا تواريخ التقاط بعد",
+                "الأشهر",
+                "لا صور مؤرَّخة بعد",
+                "إعادة العدّ",
+            ],
+        );
+        assert!(
+            !arabic.iter().any(|text| text == "Ratings" || text == "Nothing dated yet"),
+            "the English headings are still on the Arabic frame: {arabic:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+
+        assert!(actions.is_empty(), "painting asks the host for nothing");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

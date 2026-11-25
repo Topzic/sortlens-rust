@@ -628,3 +628,22 @@
 	Same layout and the same palette — the safe default.	التخطيط نفسه ولوحة الألوان نفسها — الخيار الافتراضي الآمن.
 	Same palette anywhere in the frame, whatever the layout.	لوحة الألوان نفسها في أي مكان من الإطار، أيًّا كان التخطيط.
 	Structure or palette; the widest net, more false pairs.	البنية أو لوحة الألوان؛ أوسع شبكة، وأزواج خاطئة أكثر.
+	Counting	جارٍ العدّ
+	Recount	إعادة العدّ
+	Count the library again on a worker, reporting progress as it goes	أعِد عدّ المكتبة على عامل خلفي، مع عرض التقدّم أولًا بأول
+	Photos	الصور
+	Keyworded	موسومة بالكلمات المفتاحية
+	Ratings	التقييمات
+	Unrated	بلا تقييم
+	Labels	التسميات
+	Kinds	الأنواع
+	Images	الصور
+	Raw	RAW
+	Video	فيديو
+	Cameras	الكاميرات
+	Lenses	العدسات
+	Timeline	الخط الزمني
+	No capture dates yet	لا تواريخ التقاط بعد
+	{n} with no capture date	{n} بلا تاريخ التقاط
+	Months	الأشهر
+	Nothing dated yet	لا صور مؤرَّخة بعد

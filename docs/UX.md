@@ -668,8 +668,12 @@ re-checks its own contrast pairs after applying.
   empty hint and stats rows are catalogued. The Suggestions panel took the same route: its source
   words (`detector`, `camera`, `pack`, `caption`), family headings and confidence are `sortlens-ai`'s
   `SuggestionLine` worded through the catalogues, so the right-panel tab, the inspector's Suggested
-  row and the whole-library `Suggested keywords` dialog all read in the chosen language. Still
-  English by omission: the craft-keymap editor's own chrome.
+  row and the whole-library `Suggested keywords` dialog all read in the chosen language. The cull
+  screen, the Similar view and the Insights page joined them the same day, screen by screen (cull
+  chrome and its counts, similarity chrome, its mode picker, then Insights' figures, headings, kinds
+  and empty states). Still English by omission: the Insights highlights strip and its
+  `Busiest: … · mostly …` line, whose month, season and sentence are composed inside
+  `sortlens-insights`.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

@@ -925,6 +925,13 @@ and none of M9 is closed until the remaining rows are ticked.
   hint sentences come from `sortlens-similar`'s own `MatchWord`/`MatchSense` pieces — the enum its English
   `label`/`hint` are built from — so a language names the mode without the shell retyping the sentence, and
   `every_similar_mode_translates_the_engines_own_piece` fails if a literal drifts from the crate's.
+  The Insights page followed (ninety-eighth entry): its `Recount` button and its hover, the `Counting`
+  line and the `{done} of {total}` template, the seven figures, the nine column headings, the three
+  kinds, `Unrated` and both empty states are catalogue rows, and the undated count is a template — so a
+  Japanese page reads `評価`, `タイムライン` and `日付のある写真はまだありません` where it read English.
+  Still English on that page: the highlights strip and the `Busiest: … · mostly …` line, because the
+  month, the season and the sentence are composed inside `sortlens-insights` — the next slice's engine
+  piece, not a shell literal.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

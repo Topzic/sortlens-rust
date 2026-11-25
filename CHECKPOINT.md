@@ -1,5 +1,43 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-eighth) — the Insights page counts, names and heads its columns in your language
+
+- **Why this came up.** The ninety-seventh entry's Next named it: the Insights page was the next surface
+  painting English whatever Settings → Language said, its column headings (`Ratings`, `Cameras`, `Timeline`)
+  and its two empty states the plainest cases.
+- **What is routed.** The `Recount` button and its hover sentence, the `Counting` progress label and the
+  `{done} of {total}` template (an existing row, reused rather than duplicated), the seven figures
+  (`Photos`, `On disk`, `Rated`, `Keyworded`, `Picks`, `Rejects`, `Missing` — five of them existing rows),
+  the eight column headings and section names (`Ratings`, `Labels`, `Kinds`, `Cameras`, `Lenses`,
+  `Keywords`, `Timeline`, `Months`), `Unrated`, the three kinds (`Images`, `Raw`, `Video`), and the two
+  empty states `No capture dates yet` and `Nothing dated yet` — 19 new rows in each of `ar.tsv` and
+  `ja.tsv`. The undated line is a `{n}` template filled with `format_count`, so Arabic writes its own digits.
+- **The duplicate the catalogue refused.** `{done} of {total}` already had a row from the model-install
+  progress, and the parser rejects a second row with the same source text ("defined twice … the first is
+  kept"), so the audit test caught the copy before it could shadow a translation. The row is reused.
+- **Tests that fail when the behaviour is absent.** `the_insights_screen_speaks_the_interface_language`
+  paints the whole shell at 1200×800 on an empty library and reads the frame through `all_shapes`, because
+  the empty month chart paints its word inside a layout shape: English first (all 22 labels, so a baseline that
+  moved is named rather than inferred), then Japanese and Arabic with the English headings asserted absent.
+  The catalogue audit now sees the 19 new literals and fails if either catalogue loses one.
+- **Named as not shipped.** The highlights strip and the `Busiest: … · mostly …` line stay English: the month
+  name, the season and the sentence itself are composed in `sortlens-insights`, so it needs the engine-piece
+  treatment the similar modes got — not a shell literal. Recorded in the ROADMAP row and UX.md rather than
+  implied done.
+- **Files.** `crates/ui/src/shell.rs` (`insights_view`, one test), `crates/ui/src/i18n/ar.tsv` and `ja.tsv`
+  (19 rows each), `docs/ROADMAP.md` (the i18n row's prose), `docs/UX.md` (the same reconciliation, including
+  the stale "still English: the keymap editor" line — that editor was catalogued in the ninety-first entry).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test and the catalogue
+  audit pass; `cargo xtask ci` green — its first run stopped at `cargo fmt --check` on the new test's long
+  Arabic assertion list, which `cargo fmt --all` fixed — and `cargo xtask snapshot`, `cargo xtask deny` and
+  `cargo xtask screenshots` each exit 0, the last painting all 27 committed scenes against their baselines, which
+  is the proof that the English page is unchanged (English has no catalogue, so a `tl!` with no row is its own
+  key). No release dispatch: this slice touches `crates/ui` source, tests and docs, no build or release surface.
+- **Next.** The insights highlights strip: give `sortlens-insights` pieces (a `Highlight` kind rather than an
+  English label, a month and a season as values rather than words) and word it from those, so `Busiest month`,
+  `January`, `Winter` and the `photo(s)` sentences read in the chosen language. Then Places (`No photo has a
+  location yet`, the `places.txt` line), the last plainly English surface the ninety-sixth entry named.
+
 ## 2026-11-26 (ninety-seventh) — the similar view's mode picker names its modes from the similar crate's own pieces
 
 - **Why this came up.** The ninety-sixth entry's Next named exactly this: `Structure`/`Colour`/`Either` and
