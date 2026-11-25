@@ -692,7 +692,9 @@ remap a moved drive; run the wizard on a clean machine.
     area tracks the count and a dot never swamps the coastline), `dot_at` (the **largest** dot within reach wins, not
     the nearest, because where a big dot overhangs a small one the person is aiming at the big one), `clamp_zoom`
     (zooming past the top of a set clamps: the tiles stop, the dots keep going), and `TileCache` — decoded once,
-    failures remembered as failures so one corrupt tile is not re-decoded every frame, bounded at 512 entries.
+    bounded at 512 entries, with two kinds of absence kept apart: a corrupt tile is counted as a failure, a cell the
+    set does not carry is a **hole** that is remembered (so it is not looked up every frame) but is neither a decode
+    nor a failure. Conflating them made a partial map look corrupted — it is what turned `CI` red on 2026-11-26.
   - **Two real bugs, both found by tests I wrote expecting the correct behaviour:**
     1. The view built its dot list by skipping clusters it could not place and then indexed the cluster list by
        *position*, so one off-screen cluster shifted every dot onto its neighbour's photographs. `Dot` now carries its

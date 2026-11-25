@@ -11682,8 +11682,16 @@ mod tests {
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        // A fixed, real window: the cache holds 512 tiles and 1920×1080 at zoom 5 asks for about forty, so nothing
+        // the test wants to count can be evicted mid-run. The raw input's default screen is ten thousand pixels on a
+        // side, which asks for the whole zoom-5 world and would make a cache-limit claim instead of a paint claim.
+        let window = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
         let paint = |state: &mut UiState, engine: &Engine| {
-            let output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            let input = egui::RawInput {
+                screen_rect: Some(window),
+                ..egui::RawInput::default()
+            };
+            let output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| places_view(ui, &tokens, state, engine));
             });
             let mut output = output;
@@ -11707,17 +11715,15 @@ mod tests {
 
         // A tile folder with tiles but no credit: refused, and the error names the file to write.
         let tiles = engine.tiles_dir().expect("a catalog directory");
-        // Tiles where the view will actually look: the same projection and the same viewport the view uses, so the
-        // fixture is a tile set for this map rather than for a map somewhere else.
-        let map = vec2(720.0, 480.0);
-        let centre = engine.located()[0].1;
-        let origin = sortlens_geo::viewport_origin(5, centre, f64::from(map.x), f64::from(map.y)).expect("origin");
-        let cells = sortlens_geo::visible_tiles(5, origin, f64::from(map.x), f64::from(map.y));
-        assert!(!cells.is_empty(), "some tiles cover the viewport");
-        for cell in &cells {
-            let dir = tiles.join(cell.zoom.to_string()).join(cell.x.to_string());
-            std::fs::create_dir_all(&dir).expect("tiles");
-            std::fs::write(dir.join(format!("{}.png", cell.y)), sortlens_icon::png()).expect("tile");
+        // The **whole** zoom-5 world, not just the cells one viewport happens to ask for: the fixture is then a
+        // complete tile set, so a tile that fails here is one that would not decode rather than one the fixture
+        // forgot, and the test does not have to mirror the view's footer arithmetic to know what it painted.
+        for y in 0..32_u32 {
+            for x in 0..32_u32 {
+                let dir = tiles.join("5").join(x.to_string());
+                std::fs::create_dir_all(&dir).expect("tiles");
+                std::fs::write(dir.join(format!("{y}.png")), sortlens_icon::png_at(16)).expect("tile");
+            }
         }
         let error = match engine.tileset() {
             Some(Err(error)) => error,
@@ -11743,10 +11749,17 @@ mod tests {
         );
         // The claim of this run: the map decodes the tiles under the viewport and paints them, once.
         assert!(!state.places_tiles.is_empty(), "the map decoded the tiles it drew");
-        assert_eq!(state.places_tiles.failures(), 0, "every fixture tile was a real PNG");
+        assert_eq!(
+            state.places_tiles.failures(),
+            0,
+            "every fixture tile was a real PNG; held {}, decoded {}",
+            state.places_tiles.len(),
+            state.places_tiles.decodes()
+        );
         let decoded = state.places_tiles.decodes();
-        assert_eq!(decoded, cells.len(), "one decode per visible tile, not one per frame");
         let held = state.places_tiles.len();
+        // One decode per visible tile: the whole world is present, so the held entries are exactly the decoded ones.
+        assert_eq!(decoded, held, "one decode per visible tile, not one per frame");
         paint(&mut state, &engine);
         assert_eq!(state.places_tiles.decodes(), decoded, "a second frame decodes nothing new");
         assert_eq!(state.places_tiles.len(), held);

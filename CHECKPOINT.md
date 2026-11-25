@@ -1,6 +1,43 @@
 # Checkpoint
 
 ## 2026-11-26 (ninety-second) — an MBTiles basemap opens read-only, and its credit is not optional
+## 2026-11-26 (ninety-third) — a hole in the basemap is not a corrupted tile, and that is why the trunk was red
+
+- **Why this came up.** `CI` on `main` was red at `6a810cd` on all three `ci` legs and on `screenshots`. The three
+  `ci` legs failed on one test, `shell::tests::places_reports_the_basemap_or_why_there_is_none`, at
+  `assert_eq!(state.places_tiles.failures(), 0, "every fixture tile was a real PNG")` with 980 failures — and it was
+  red on this machine too, so the trunk had been failing since the MBTiles commit, whose entry said `deny`, `snapshot`
+  and `screenshots` pass and never claimed `ci` did.
+- **The bug is one word in the byte path.** When `TileCache` moved from `TileSet::tile_path` to `TileSet::tile`,
+  `texture()` began counting every empty answer as a decode failure: `set.tile(...).and_then(load)` returns `None` both
+  for "no such tile" and for "bytes that will not decode", and the counter took both. Before the move a missing tile
+  short-circuited in the caller (`and_then(|path| ...)`) and was never counted at all, which is why the assertion passed
+  then. A hole is a normal basemap — a partial tile set, or a viewport wider than its coverage; a failure is a corrupt
+  file. `texture()` now counts a failure only when bytes were present and would not decode, and a hole is remembered as
+  an entry (so it is not re-fetched every frame) while being neither a `decodes()` nor a `failures()`.
+- **The fixture was also making a claim it could not keep.** It wrote the cells one 720×480 viewport asks for, then
+  painted into `RawInput::default()`, whose screen is ten thousand pixels on a side: at zoom 5 that asks for the whole
+  world (1024 cells), so 980 "failures" were tiles the fixture never wrote. The test now paints a fixed 1920×1080
+  window and writes the whole zoom-5 world — 32×32 cells of `sortlens_icon::png_at(16)` — so every visible cell is a
+  real PNG and the assertion is about decoding rather than about arithmetic the test cannot see. "One decode per
+  visible tile" is now `decodes() == len()`, which is one decode per entry precisely because every visible cell is
+  carried.
+- **Tests.** `a_tile_is_decoded_once_and_a_bad_one_is_remembered_as_bad` grew two assertions: after asking for a cell
+  the folder does not carry, `failures()` stays 1 and `decodes()` stays 2, so the old counting fails that test as well
+  as the paint test. The paint test's failure message now prints the held and decoded counts — that is how the
+  980-against-12 shape was read.
+- **Files.** `crates/ui/src/places.rs` (the counting split, the `decodes`/`failures` docs, two assertions);
+  `crates/ui/src/shell.rs` (the fixed window, the whole-world fixture, the stronger assertions); `docs/ROADMAP.md`
+  (the part 3b `TileCache` sentence now says what each kind of absence means); this entry.
+- **Verified.** `cargo test -p sortlens-ui --lib places` passes (15), and `cargo xtask ci`, `snapshot`, `deny` and
+  `screenshots` all ran green on this tree, the ci exit code read from a file rather than a pipeline's. No baseline
+  moved: the change alters what is counted, not what is painted — a hole was already painted as background.
+- **Next.** `screenshots` is still red on `main` and is a different fault: the `lavapipe` set is committed and 47
+  frames match, but `lavapipe/places-charcoal` and `lavapipe/places-paper` are the **old** footer (diff 1748 and 1729
+  px) because the MBTiles commit regenerated only the reference set. Take run `45582577369`'s `screenshot-set`
+  artifact (`gh run download 45582577369 -n screenshot-set`), read the two `places-*.new.png` frames and commit them
+  under `crates/ui/tests/snapshots/lavapipe/`. `mobile` is still the NDK-clang job named in the seventy-fifth entry.
+  No release workflow was dispatched: this slice touches `crates/ui` source, tests and docs only.
 
 - **Why this came up.** The ninety-first entry's Next said the i18n row had no buildable surface left and to take the
   next unstarted roadmap row instead. The unchecked rows were benchmarks part 2 (hardware), optional MBTiles (needs a

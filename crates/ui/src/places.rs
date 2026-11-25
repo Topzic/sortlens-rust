@@ -228,8 +228,10 @@ pub fn clamp_zoom(wanted: u8, range: (u8, u8)) -> u8 {
 
 /// Decoded tiles, kept between frames.
 ///
-/// A tile that failed to decode is remembered as a failure: a corrupt file in the tiles folder, or a hole in an
-/// archive, must not be re-read on every repaint, which is how a single bad tile becomes a stutter.
+/// Both a tile that failed to decode and one the set simply does not carry are remembered, so neither is re-read on
+/// every repaint — how a single bad tile, or a hole in an archive, becomes a stutter. They are not the same kind of
+/// absence, though: a hole is painted as background and counted by neither [`TileCache::decodes`] nor
+/// [`TileCache::failures`], because a partial map is normal and a corrupted tile is a fault.
 #[derive(Default)]
 pub struct TileCache {
     /// The basemap the entries came from. A different folder or archive clears the cache rather than painting one
@@ -279,10 +281,20 @@ impl TileCache {
             if self.entries.len() >= CACHE_LIMIT {
                 self.evict();
             }
-            let loaded = set.tile(cell.zoom, cell.x, cell.y).and_then(|bytes| self.load(ctx, cell, &bytes));
-            if loaded.is_none() {
-                self.failures += 1;
-            }
+            // Only bytes the set actually carries can be a decode failure. A tile that is not there is a hole in the
+            // basemap — a partial tile set, or a viewport wider than the set's coverage — and counting it as a failure
+            // made every such map look corrupted: the Places paint test's whole claim ("every fixture tile was a real
+            // PNG") reported 980 failures for the tiles it never wrote, while the fixture's own tiles decoded fine.
+            let loaded = match set.tile(cell.zoom, cell.x, cell.y) {
+                Some(bytes) => {
+                    let texture = self.load(ctx, cell, &bytes);
+                    if texture.is_none() {
+                        self.failures += 1;
+                    }
+                    texture
+                }
+                None => None,
+            };
             self.entries.insert(cell, loaded);
         }
         self.entries.get(&cell).and_then(Option::as_ref)
@@ -303,12 +315,14 @@ impl TileCache {
         self.entries.is_empty()
     }
 
-    /// How many decodes have been attempted, successes and failures together.
+    /// How many tiles carrying bytes have been decoded, successes and failures together.
+    ///
+    /// A cell the set does not carry is not a decode: there were no bytes to read.
     pub fn decodes(&self) -> usize {
         self.decodes
     }
 
-    /// How many of those failed.
+    /// How many tiles that carried bytes would not decode — a corrupted file, not a hole.
     pub fn failures(&self) -> usize {
         self.failures
     }
@@ -535,6 +549,11 @@ mod tests {
             assert_eq!(cache.failures(), 1);
             assert!(cache.texture(ctx, &set, absent).is_none());
             assert_eq!(cache.len(), 3, "failures are remembered as failures");
+            // A tile the folder does not carry is a hole in the map, not a broken tile: it is remembered (so it is not
+            // stat'ed again) but it is neither a decode nor a failure. Counting it as one made a partial set look
+            // corrupted, which is what the Places paint test was reporting.
+            assert_eq!(cache.failures(), 1, "a hole is not a corrupted tile");
+            assert_eq!(cache.decodes(), 2, "a hole is not a decode attempt");
         });
         output.textures_delta.clear();
         let _ = std::fs::remove_dir_all(&root);
