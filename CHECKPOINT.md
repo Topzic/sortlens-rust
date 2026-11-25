@@ -1,5 +1,40 @@
 # Checkpoint
 
+## 2026-11-25 (seventy-seventh) — the lavapipe set is the whole shell again: forty-seven scenes, nothing missing
+
+- **Why this came up.** `CI`'s `screenshots` job had been red for six commits on four paper scenes, and the
+  seventy-sixth tick made a red run hand over *every* mismatch instead of the first one. Its run for `04736e9`
+  (`45546143839`) therefore uploaded exactly four frames: `compare-paper`, `detail-paper`,
+  `library-justified-paper` and `library-square-paper`. The commit after that (`9b75260`) installed the first
+  two of them; this tick installed the other two, which is the whole of the gap.
+- **The frames are the job's own.** `gh run download 45546143839 -n screenshot-set -D tmp-shot3` gave four
+  `lavapipe/*.new.png`, and the two still missing were copied with `.new` stripped. That the set is now
+  byte-exact is not a guess: the artifact's `detail-paper.new.png` and the already-committed
+  `detail-paper.png` — installed from the *previous* run — hash identically (`DEEFEF39…`), so the job's
+  renderer is deterministic run to run and the two new files are exactly what the next `screenshots` job
+  will paint.
+- **Why those two lagged.** Each paper scene is the second half of a pair inside one test: `compare` after
+  `detail` in `detail_and_compare_paint_in_both_themes`, `library-square` after `library-justified` in
+  `library_grid_paints_both_layouts_in_both_themes`. Before the seventy-sixth tick a mismatch panicked its
+  test, so no artifact could ever name the scene after the first. The pre-refactor artifact of run
+  `45544180229` is the proof: twenty frames, `library-square-charcoal.new.png` among them and no paper
+  sibling at all.
+- **Files.** `crates/ui/tests/snapshots/lavapipe/compare-paper.png` (new),
+  `crates/ui/tests/snapshots/lavapipe/library-square-paper.png` (new), `CHECKPOINT.md`. That is
+  forty-seven PNGs, the number `docs/ARCHITECTURE.md` §12 already names as every scene `screenshots.rs`
+  paints.
+- **Verified.** The artifact is the renderer's own output and the overlap hashes byte-identical to the
+  committed scene, so nothing here is repainted by hand. The gate agrees: `cargo xtask ci` exits `1` on the
+  tree without these two files — the `screenshots` test (`--all-features`, so the gate does paint) panics on
+  the two missing scenes — and exits `0` with them, which is the failing-when-broken test this slice owes.
+  `cargo xtask snapshot` and `cargo xtask deny` green; no `wasm` (no `core`/`ui` source).
+- **Next.** The trunk first: the run for this commit turns the `screenshots` job green if the set is
+  complete, and the `ci` job that was in flight for `9b75260` (`45546324509`) can be read with one
+  `gh run view` to confirm nothing else was red. After that the only open roadmap row is SL-L07's
+  remainder — the zh-TW/ko/th/vi catalogues (data + `LANGUAGES` + `font_manifest`'s script table + a
+  `format.rs` style row each), the unrouted surfaces, and the RTL screenshots that wait on a font build
+  with an Arabic face — which is the next slice.
+
 ## 2026-11-24 (seventy-sixth) — a red screenshot run hands over every scene it painted, not just the first failure
 
 - **Why this came up.** `CI` on `main` is red in `screenshots`, and the run at `40e838a` (`45543501424`) is the
