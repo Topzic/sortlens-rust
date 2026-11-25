@@ -23,6 +23,7 @@ pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Sugges
 pub use sortlens_catalog::backup::Backup;
 pub use sortlens_catalog::folder::{FolderMark, key_of as folder_key};
 pub use sortlens_catalog::history::Entry as HistoryEntry;
+pub use sortlens_catalog::integrity::{Audit as CatalogAudit, AuditPart, Headline as AuditHeadline};
 pub use sortlens_catalog::photo::now_epoch;
 pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result, TagSource};

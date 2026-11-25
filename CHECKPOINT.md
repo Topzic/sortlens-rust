@@ -1,5 +1,48 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-first) — the library-health audit speaks your language, from the catalog's own pieces
+
+- **Why this came up.** The eightieth entry's "Next" named Library health, and named the reason it had
+  to start in the engine rather than the shell: its audit headline and detail were English sentences
+  built inside `sortlens-catalog`, so translating the labels around them would have left English
+  under a translated title — the trap the export entry called out.
+- **The catalogue hands back pieces now.** `sortlens_catalog::integrity::Audit` grew
+  `headline_kind() -> Headline` (`Clean { photos, seq }`, `Recoverable { photos, replayed }`,
+  `NeedsAttention`) and `parts() -> Vec<AuditPart>` (`Snapshot(Option<u64>)`, `Replayed`, `Skipped`,
+  `LogBytes`), and its own `headline()`/`detail()` are joined from exactly those pieces — English
+  unchanged to the byte, which is what `the_headline_and_detail_are_joined_from_their_pieces` pins for
+  the clean, recoverable, snapshot-less and needs-attention cases. `sortlens-engine` re-exports both as
+  `AuditHeadline`/`AuditPart`, so the shell names them without depending on the catalog crate.
+- **What the dialog says now.** `health_dialog` paints `tl!("Library health")` and the
+  `Catalog files` section, and the audit line is worded piece by piece through `i18n::fmt` with the
+  counts grouped by `format_count` — so Arabic writes its own headline and its detail's numbers
+  (`٣`, `٣١`, `٢٠٤٨`) in Arabic-Indic digits. The last audit is kept as pieces in the new
+  `AuditView` rather than as the English sentence it used to be, so the section repaints when
+  Settings → Language moves; the toast remains worded when it is raised. Sixteen keys, both catalogues.
+- **Tests.** `the_headline_and_detail_are_joined_from_their_pieces` (catalog) fails if a piece and its
+  English diverge. `the_library_health_audit_speaks_the_interface_language` paints the real dialog in
+  English, Japanese and Arabic with a fabricated audit and asserts the English words, the Japanese
+  title/section/button with no `Library health` behind them, the Japanese headline and detail, the
+  Arabic title/section/button, the Arabic-Indic digits in both audit lines, and that painting closes
+  nothing. The catalogue audit covers all sixteen new rows.
+- **Named as not shipped.** This is the dialog's *catalog half*. Still English inside Library health:
+  the health check's own stats line and its `Checked … · … missing · … changed` toast, the changed-on-disk
+  line and Refresh, root repointing (`Point at…` and its sample note), the metadata retry section and
+  `Remove missing from library`. Then Recent changes, Quit Sortlens? (its reasons are `Engine::unsaved`
+  sentences), Cull summary, Batch applied, Suggested keywords and Keyboard shortcuts. The four remaining
+  catalogues (zh-TW, ko, th, vi) and RTL screenshots still wait on a font build with an Arabic face.
+- **Files.** `crates/catalog/src/integrity.rs` (the two piece enums, the joining, one test),
+  `crates/engine/src/lib.rs` (the re-export), `crates/ui/src/shell.rs` (`AuditView`, four wording
+  helpers, the dialog's catalog section, one test), `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (16 rows
+  each), `docs/ROADMAP.md` (Phase 4 item 2d), `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; `cargo xtask ci`,
+  `snapshot`, `deny`, `wasm` and `screenshots` run in this tick. No release workflow dispatched: this
+  slice touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Finish the dialog in the shell alone, where no new engine pieces are needed: the health
+  check's stats line and its toast as `fmt` templates, the changed-on-disk line and Refresh, the root
+  rows (`{count} photo(s) under {root}`, `Point at…`), the metadata retry lines and `Remove missing`.
+  Then Recent changes.
+
 ## 2026-11-26 (eightieth) — the rename and About dialogs speak your language, and every word in them is one a translator can reach
 
 - **Why this came up.** The seventy-ninth entry's "Next" named *Rename collection* the smallest

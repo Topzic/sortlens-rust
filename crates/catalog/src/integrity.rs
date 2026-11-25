@@ -43,26 +43,104 @@ impl Audit {
         !self.torn_tail && self.notes.is_empty()
     }
 
+    /// What the headline says, as a piece an interface can word in its own language.
+    pub fn headline_kind(&self) -> Headline {
+        if self.is_clean() {
+            Headline::Clean {
+                photos: self.photos,
+                seq: self.final_seq,
+            }
+        } else if self.torn_tail {
+            Headline::Recoverable {
+                photos: self.photos,
+                replayed: self.replayed,
+            }
+        } else {
+            Headline::NeedsAttention
+        }
+    }
+
     /// One line for a dialog title or a CLI.
     pub fn headline(&self) -> String {
-        if self.is_clean() {
-            format!("Clean · {} photos · seq {}", self.photos, self.final_seq)
-        } else if self.torn_tail {
-            format!("Recoverable · {} photos, {} record(s) replayed", self.photos, self.replayed)
-        } else {
-            "Needs attention".to_string()
-        }
+        self.headline_kind().english()
+    }
+
+    /// The detail's pieces, in reading order.
+    pub fn parts(&self) -> Vec<AuditPart> {
+        vec![
+            AuditPart::Snapshot(self.snapshot_seq),
+            AuditPart::Replayed(self.replayed),
+            AuditPart::Skipped(self.skipped),
+            AuditPart::LogBytes(self.log_bytes),
+        ]
     }
 
     /// The detail behind the headline.
     pub fn detail(&self) -> String {
-        format!(
-            "snapshot at seq {}, {} record(s) replayed, {} already covered, {} log bytes",
-            self.snapshot_seq.map_or_else(|| "none".to_string(), |seq| seq.to_string()),
-            self.replayed,
-            self.skipped,
-            self.log_bytes
-        )
+        self.parts().iter().map(AuditPart::english).collect::<Vec<_>>().join(", ")
+    }
+}
+
+/// What an [`Audit`]'s headline says: the piece a language other than English words itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Headline {
+    /// Nothing needs attention.
+    Clean {
+        /// Photos after replay.
+        photos: usize,
+        /// Sequence number reached after replay.
+        seq: u64,
+    },
+    /// The log ended in a torn record, and replay recovered everything before it.
+    Recoverable {
+        /// Photos after replay.
+        photos: usize,
+        /// Records replayed after the snapshot.
+        replayed: usize,
+    },
+    /// Something the reader has to look at.
+    NeedsAttention,
+}
+
+impl Headline {
+    /// This headline in English. The interface words [`Headline`] itself; the audit's own
+    /// `headline()` joins the same pieces, so the two cannot disagree.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            Headline::Clean { photos, seq } => format!("Clean · {photos} photos · seq {seq}"),
+            Headline::Recoverable { photos, replayed } => {
+                format!("Recoverable · {photos} photos, {replayed} record(s) replayed")
+            }
+            Headline::NeedsAttention => "Needs attention".to_string(),
+        }
+    }
+}
+
+/// One piece of an [`Audit`]'s detail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuditPart {
+    /// The snapshot's sequence number, or none when there is no snapshot.
+    Snapshot(Option<u64>),
+    /// Records replayed after the snapshot.
+    Replayed(usize),
+    /// Records already covered by the snapshot.
+    Skipped(usize),
+    /// Bytes in the log.
+    LogBytes(u64),
+}
+
+impl AuditPart {
+    /// This piece in English.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            AuditPart::Snapshot(Some(seq)) => format!("snapshot at seq {seq}"),
+            AuditPart::Snapshot(None) => "snapshot at seq none".to_string(),
+            AuditPart::Replayed(count) => format!("{count} record(s) replayed"),
+            AuditPart::Skipped(count) => format!("{count} already covered"),
+            AuditPart::LogBytes(bytes) => format!("{bytes} log bytes"),
+        }
     }
 }
 
@@ -264,5 +342,72 @@ mod tests {
         let after = super::audit(&temp.0).expect("audit");
         assert!(after.is_clean());
         assert_eq!(after.replayed, 0, "everything is in the snapshot now");
+    }
+
+    /// The headline and the detail are joined from pieces, and the English is exactly what the
+    /// pieces say — so an interface wording those same pieces cannot describe an audit the audit
+    /// did not find (SL-L07, Phase 4 item 2d).
+    #[test]
+    fn the_headline_and_detail_are_joined_from_their_pieces() {
+        let clean = Audit {
+            snapshot_seq: Some(12),
+            final_seq: 12,
+            replayed: 0,
+            skipped: 12,
+            log_bytes: 0,
+            photos: 4,
+            collections: 1,
+            torn_tail: false,
+            notes: Vec::new(),
+        };
+        assert_eq!(clean.headline_kind(), Headline::Clean { photos: 4, seq: 12 });
+        assert_eq!(clean.headline(), "Clean · 4 photos · seq 12");
+        assert_eq!(
+            clean.parts(),
+            vec![
+                AuditPart::Snapshot(Some(12)),
+                AuditPart::Replayed(0),
+                AuditPart::Skipped(12),
+                AuditPart::LogBytes(0),
+            ]
+        );
+        assert_eq!(
+            clean.detail(),
+            "snapshot at seq 12, 0 record(s) replayed, 12 already covered, 0 log bytes"
+        );
+        let joined = clean.parts().iter().map(AuditPart::english).collect::<Vec<_>>().join(", ");
+        assert_eq!(joined, clean.detail(), "the detail and its pieces disagree");
+
+        let torn = Audit {
+            torn_tail: true,
+            replayed: 3,
+            ..clean.clone()
+        };
+        assert_eq!(torn.headline_kind(), Headline::Recoverable { photos: 4, replayed: 3 });
+        assert_eq!(torn.headline(), "Recoverable · 4 photos, 3 record(s) replayed");
+        assert_eq!(
+            torn.parts().iter().map(AuditPart::english).collect::<Vec<_>>().join(", "),
+            torn.detail()
+        );
+
+        // No snapshot at all is its own piece, not an empty string a language has to dress.
+        let unsnapshotted = Audit {
+            snapshot_seq: None,
+            ..clean
+        };
+        assert_eq!(unsnapshotted.parts()[0], AuditPart::Snapshot(None), "a missing snapshot is named");
+        assert_eq!(
+            unsnapshotted.detail(),
+            "snapshot at seq none, 0 record(s) replayed, 12 already covered, 0 log bytes"
+        );
+
+        // Anything else the audit found is the third headline, and never a clean one.
+        let bothered = Audit {
+            notes: vec!["the log could not be read".into()],
+            ..Audit::default()
+        };
+        assert_eq!(bothered.headline_kind(), Headline::NeedsAttention);
+        assert_eq!(bothered.headline(), "Needs attention");
+        assert_eq!(bothered.headline_kind().english(), bothered.headline());
     }
 }

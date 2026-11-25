@@ -129,3 +129,19 @@
 	Version {version}	الإصدار {version}
 	Fast, local culling for photographers who shoot thousands of images.	فرز سريع ومحلي للمصوّرين الذين يلتقطون آلاف الصور.
 	{commands} commands, {ready} ready today.	{commands} أمرًا، منها {ready} جاهزة اليوم.
+	Library health	حالة المكتبة
+	Catalog files	ملفات الفهرس
+	Clean · {photos} photos · seq {seq}	سليم · {photos} صورة · التسلسل {seq}
+	Recoverable · {photos} photos, {records} record(s) replayed	قابل للاستعادة · {photos} صورة، وأُعيد تشغيل {records} سجل
+	Needs attention	يحتاج إلى مراجعة
+	snapshot at seq {seq}	اللقطة عند التسلسل {seq}
+	{n} record(s) replayed	أُعيد تشغيل {n} سجل
+	{n} already covered	{n} مشمول مسبقًا
+	{bytes} log bytes	{bytes} بايت في السجل
+	none	لا يوجد
+	Check integrity	فحص السلامة
+	The check replays a copy of the log, so the library itself is never touched.	الفحص يعيد تشغيل نسخة من السجل، فلا تُمَس المكتبة نفسها.
+	Compact	ضغط
+	Write a fresh snapshot and empty the log; also repairs a torn log tail	اكتب لقطة جديدة وأفرغ السجل؛ يعالج أيضًا نهاية سجل مقطوعة
+	Catalog was already compact	كان الفهرس مضغوطًا بالفعل
+	Compacted · {bytes} reclaimed	ضُغط · استُعيد {bytes}

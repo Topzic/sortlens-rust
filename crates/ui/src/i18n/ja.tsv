@@ -129,3 +129,19 @@
 	Version {version}	バージョン {version}
 	Fast, local culling for photographers who shoot thousands of images.	何千枚もの写真を撮るフォトグラファーのための、高速でローカルな選別。
 	{commands} commands, {ready} ready today.	コマンド {commands} 件、うち {ready} 件が利用可能
+	Library health	ライブラリの状態
+	Catalog files	カタログファイル
+	Clean · {photos} photos · seq {seq}	正常 · 写真 {photos} 枚 · シーケンス {seq}
+	Recoverable · {photos} photos, {records} record(s) replayed	復旧可能 · 写真 {photos} 枚、{records} 件のレコードを再生しました
+	Needs attention	確認が必要
+	snapshot at seq {seq}	スナップショットはシーケンス {seq}
+	{n} record(s) replayed	{n} 件のレコードを再生
+	{n} already covered	{n} 件は取得済み
+	{bytes} log bytes	ログ {bytes} バイト
+	none	なし
+	Check integrity	整合性を確認
+	The check replays a copy of the log, so the library itself is never touched.	確認はログの複製を再生するため、ライブラリ自体には触れません。
+	Compact	圧縮
+	Write a fresh snapshot and empty the log; also repairs a torn log tail	新しいスナップショットを書き、ログを空にします。途中で切れたログの末尾も修復します
+	Catalog was already compact	カタログはすでに圧縮されています
+	Compacted · {bytes} reclaimed	圧縮しました · {bytes} を解放

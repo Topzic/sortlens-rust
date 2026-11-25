@@ -525,6 +525,16 @@ dialogs whose every word is the shell's own — no engine sentence inside — so
 English on an otherwise translated screen, which is what `the_rename_and_about_dialogs_speak_the_interface_language`
 paints in all three languages.
 
+Library health's catalog half is routed from the catalog's own pieces: `sortlens-catalog`'s `Audit`
+returns a `Headline` (`Clean`, `Recoverable`, `NeedsAttention`, each with its counts) and a
+`Vec<AuditPart>` (`Snapshot`, `Replayed`, `Skipped`, `LogBytes`), and its own English `headline()`
+and `detail()` are joined from exactly those pieces, so the dialog cannot describe an audit the audit
+did not find. The shell words each piece through `i18n::fmt` and groups the counts with
+`format_count`, and keeps the pieces in `AuditView` rather than the English sentence, so the section
+repaints when Settings → Language moves — the same rule the export receipt follows. The rest of the
+dialog (the health check's own counts, the root repointing, the metadata retry and the remove-missing
+row) is still English and is the next slice.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

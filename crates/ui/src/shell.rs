@@ -799,6 +799,19 @@ pub fn notice_age(seconds: u64) -> String {
     }
 }
 
+/// The last catalog audit, kept as the pieces its sentences are joined from: a dialog that
+/// stored the English headline would stay English after Settings → Language changed the row above
+/// it (SL-L07).
+#[derive(Debug, Clone)]
+pub struct AuditView {
+    /// What the headline says.
+    pub headline: sortlens_engine::AuditHeadline,
+    /// The detail's pieces, in reading order.
+    pub parts: Vec<sortlens_engine::AuditPart>,
+    /// Nothing needs attention.
+    pub clean: bool,
+}
+
 /// Everything the shell remembers between frames.
 #[derive(Debug, Clone)]
 pub struct UiState {
@@ -922,8 +935,8 @@ pub struct UiState {
     pub tag_edit: Option<(String, String)>,
     /// The rejects bin is being emptied after a confirmation.
     pub empty_bin_open: bool,
-    /// The last catalog audit: (headline, detail, clean).
-    pub audit: Option<(String, String, bool)>,
+    /// The last catalog audit, as pieces.
+    pub audit: Option<AuditView>,
     /// The change viewer is open.
     pub history_open: bool,
     /// How many files the last health check found changed on disk.
@@ -8305,9 +8318,47 @@ fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     state.rename_target = if open { Some((id, name)) } else { None };
 }
 
+/// The audit's headline, worded in the interface language from the catalog's own piece.
+fn audit_headline(headline: &sortlens_engine::AuditHeadline) -> String {
+    use sortlens_engine::AuditHeadline as Headline;
+    match headline {
+        Headline::Clean { photos, seq } => crate::i18n::fmt(
+            "Clean · {photos} photos · seq {seq}",
+            &[("photos", &format_count(*photos as u64)), ("seq", &format_count(*seq))],
+        ),
+        Headline::Recoverable { photos, replayed } => crate::i18n::fmt(
+            "Recoverable · {photos} photos, {records} record(s) replayed",
+            &[
+                ("photos", &format_count(*photos as u64)),
+                ("records", &format_count(*replayed as u64)),
+            ],
+        ),
+        Headline::NeedsAttention => tl!("Needs attention").to_string(),
+    }
+}
+
+/// The audit's detail, worded piece by piece so a language places each count itself.
+fn audit_detail(parts: &[sortlens_engine::AuditPart]) -> String {
+    parts.iter().map(audit_part).collect::<Vec<_>>().join(", ")
+}
+
+/// One piece of the audit's detail.
+fn audit_part(part: &sortlens_engine::AuditPart) -> String {
+    use sortlens_engine::AuditPart as Part;
+    match part {
+        Part::Snapshot(seq) => {
+            let seq = seq.map_or_else(|| tl!("none").to_string(), format_count);
+            crate::i18n::fmt("snapshot at seq {seq}", &[("seq", &seq)])
+        }
+        Part::Replayed(count) => crate::i18n::fmt("{n} record(s) replayed", &[("n", &format_count(*count as u64))]),
+        Part::Skipped(count) => crate::i18n::fmt("{n} already covered", &[("n", &format_count(*count as u64))]),
+        Part::LogBytes(bytes) => crate::i18n::fmt("{bytes} log bytes", &[("bytes", &format_count(*bytes))]),
+    }
+}
+
 fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.health_open;
-    dialog_window("Library health")
+    dialog_window(tl!("Library health"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -8447,39 +8498,50 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                 }
             });
             ui.add_space(8.0);
-            ui.label(RichText::new("Catalog files").size(11.0).color(t.text_muted));
-            if let Some((headline, detail, clean)) = &state.audit {
+            ui.label(RichText::new(tl!("Catalog files")).size(11.0).color(t.text_muted));
+            if let Some(audit) = &state.audit {
                 ui.label(
-                    RichText::new(headline.clone())
+                    RichText::new(audit_headline(&audit.headline))
                         .size(11.5)
-                        .color(if *clean { t.text } else { t.reject }),
+                        .color(if audit.clean { t.text } else { t.reject }),
                 );
-                ui.label(RichText::new(detail.clone()).size(10.0).color(t.text_faint));
+                ui.label(RichText::new(audit_detail(&audit.parts)).size(10.0).color(t.text_faint));
             }
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("Check integrity").size(11.5)).clicked() {
+                if ui.button(RichText::new(tl!("Check integrity")).size(11.5)).clicked() {
                     match engine.audit() {
                         Ok(audit) => {
-                            state.audit = Some((audit.headline(), audit.detail(), audit.is_clean()));
-                            state.notice(audit.headline());
+                            let headline = audit.headline_kind();
+                            state.notice(audit_headline(&headline));
+                            state.audit = Some(AuditView {
+                                headline,
+                                parts: audit.parts(),
+                                clean: audit.is_clean(),
+                            });
                         }
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
                 if ui
-                    .button(RichText::new("Compact").size(11.5))
-                    .on_hover_text("Write a fresh snapshot and empty the log; also repairs a torn log tail")
+                    .button(RichText::new(tl!("Compact")).size(11.5))
+                    .on_hover_text(tl!("Write a fresh snapshot and empty the log; also repairs a torn log tail"))
                     .clicked()
                 {
                     match engine.compact() {
-                        Ok(0) => state.notice("Catalog was already compact"),
-                        Ok(bytes) => state.notice(format!("Compacted · {} reclaimed", sortlens_core::format_bytes(bytes))),
+                        Ok(0) => state.notice(tl!("Catalog was already compact")),
+                        Ok(bytes) => state.notice(crate::i18n::fmt(
+                            "Compacted · {bytes} reclaimed",
+                            &[("bytes", &sortlens_core::format_bytes(bytes))],
+                        )),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
             });
+            // One literal rather than a continued one: the catalogue audit reads a key by its
+            // opening and closing quote, and a key split across lines would demand a row no
+            // translator could write.
             ui.label(
-                RichText::new("The check replays a copy of the log, so the library itself is never touched.")
+                RichText::new(tl!("The check replays a copy of the log, so the library itself is never touched."))
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -14673,6 +14735,128 @@ mod tests {
         assert!(!tl!("About Sortlens").contains("About"), "the About title is the catalogue's");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The library-health audit speaks the interface language, from the catalog's own pieces
+    /// (SL-L07). Its headline and detail used to be English strings built inside the audit and
+    /// painted under a translated title; now `sortlens-catalog` hands the shell a `Headline` and
+    /// its `AuditPart`s, the same pieces its own English is joined from, so the check's sentence
+    /// cannot stay behind in English — and it repaints when Settings → Language moves.
+    #[test]
+    fn the_library_health_audit_speaks_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-health-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.health_open = true;
+        state.audit = Some(AuditView {
+            headline: sortlens_engine::AuditHeadline::Clean { photos: 12, seq: 34 },
+            parts: vec![
+                sortlens_engine::AuditPart::Snapshot(Some(34)),
+                sortlens_engine::AuditPart::Replayed(3),
+                sortlens_engine::AuditPart::Skipped(31),
+                sortlens_engine::AuditPart::LogBytes(2048),
+            ],
+            clean: true,
+        });
+        let audit = engine.audit().expect("audit");
+        let kept = state.audit.as_ref().expect("kept").clone();
+
+        // English first: the shell words the very pieces the audit joins, to the byte.
+        assert_eq!(audit_headline(&audit.headline_kind()), audit.headline());
+        assert_eq!(audit_detail(&audit.parts()), audit.detail());
+        assert_eq!(audit_headline(&kept.headline), "Clean · 12 photos · seq 34");
+        // The detail's numbers are the shell's to group the way the reader's region does, so the
+        // pieces carry them and the words, exactly as an export's byte count travels.
+        let english_detail = audit_detail(&kept.parts);
+        assert!(
+            english_detail.starts_with("snapshot at seq 34, 3 record(s) replayed, 31 already covered, ")
+                && english_detail.ends_with(" log bytes"),
+            "{english_detail}"
+        );
+        let digits: String = english_detail.chars().filter(char::is_ascii_digit).collect();
+        assert_eq!(
+            digits, "343312048",
+            "every number is there, grouped as the region writes it: {english_detail}"
+        );
+
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut actions: Vec<Action> = Vec::new();
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 900.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        health_dialog(ui, state, &tokens, engine, &mut actions);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            (out, actions)
+        };
+
+        // Two frames: a window settles its measured size on the first, and paints at its anchor on
+        // the second — the same reason every shell test paints before it measures.
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let (english, asked) = paint(&ctx, &mut state, &mut engine);
+        assert!(asked.is_empty(), "painting the dialog asks for nothing");
+        assert!(label_at(&english, "Library health").is_some(), "the title is painted");
+        assert!(label_at(&english, "Catalog files").is_some(), "the section is painted");
+        assert!(label_at(&english, "Check integrity").is_some(), "and its button");
+        assert!(state.health_open, "painting the dialog does not close it");
+
+        // Japanese: the title, the section and the audit's own sentence, with no English left under it.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let (japanese, _) = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&japanese, "ライブラリの状態").is_some(), "the title is the catalogue's");
+        assert!(label_at(&japanese, "カタログファイル").is_some(), "and the section");
+        assert!(label_at(&japanese, "整合性を確認").is_some(), "and the button");
+        assert!(label_at(&japanese, "Library health").is_none(), "no English title behind it");
+        let ja_headline = audit_headline(&kept.headline);
+        assert!(
+            ja_headline.contains("正常") && ja_headline.contains("12") && !ja_headline.contains("Clean"),
+            "{ja_headline}"
+        );
+        let ja_detail = audit_detail(&kept.parts);
+        assert!(
+            ja_detail.contains("スナップショットはシーケンス") && ja_detail.contains("件のレコードを再生"),
+            "{ja_detail}"
+        );
+
+        // Arabic: the same words, and the audit's numbers in the reader's own digits.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let (arabic, _) = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&arabic, "حالة المكتبة").is_some(), "the title is the catalogue's");
+        assert!(label_at(&arabic, "ملفات الفهرس").is_some(), "and the section");
+        assert!(label_at(&arabic, "فحص السلامة").is_some(), "and the button");
+        let ar_headline = audit_headline(&kept.headline);
+        assert!(
+            ar_headline.contains("سليم") && ar_headline.contains('١') && ar_headline.contains('٣'),
+            "{ar_headline}"
+        );
+        let ar_detail = audit_detail(&kept.parts);
+        assert!(
+            ar_detail.contains("اللقطة عند التسلسل") && ar_detail.contains('٣') && ar_detail.contains('٢'),
+            "{ar_detail}"
+        );
+        assert!(
+            !ar_headline.contains("Clean") && !ar_detail.contains("record"),
+            "the audit leaves no English behind"
+        );
+
+        // The "Needs attention" headline is a piece too, not an English string that escaped.
+        let bothered = sortlens_engine::AuditHeadline::NeedsAttention;
+        assert_eq!(audit_headline(&bothered), "يحتاج إلى مراجعة");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(audit_headline(&bothered), "Needs attention");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

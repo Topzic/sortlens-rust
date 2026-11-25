@@ -1417,9 +1417,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     toast and both About lines are catalogued — the version number and the command counts as `fmt`
     templates, so each language places them — and
     `the_rename_and_about_dialogs_speak_the_interface_language` paints them in all three languages.
-    Still open on this row: Library health (its audit headline and detail are engine sentences),
-    Recent changes, Quit Sortlens? (its reasons are `Engine::unsaved` sentences), Cull summary,
-    Batch applied, Suggested keywords and Keyboard shortcuts.
+    Library health's catalog half joined them the same day (eighty-first entry): `sortlens-catalog`'s
+    `Audit` now hands the shell a `Headline` and its `AuditPart`s — the pieces its English
+    `headline()`/`detail()` are joined from, pinned by `the_headline_and_detail_are_joined_from_their_pieces`
+    — and the shell words them, keeping them in `AuditView` so the section repaints on a language
+    switch; `the_library_health_audit_speaks_the_interface_language` paints it in all three languages
+    with the audit's numbers in the reader's digits. Still open on this row: the rest of Library health
+    (the health check's counts, root repointing, the metadata retry and the remove-missing row), Recent
+    changes, Quit Sortlens? (its reasons are `Engine::unsaved` sentences), Cull summary, Batch applied,
+    Suggested keywords and Keyboard shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback
