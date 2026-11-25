@@ -694,7 +694,8 @@ re-checks its own contrast pairs after applying.
   template with `{n}` in it, so a language that does not inflect the noun — Japanese and Arabic
   both write the same one — is not forced through English's plural. The dialogs joined them one
   slice at a time: export and its receipt, the delete confirmations, rename, About, Library health,
-  the cull summary, the quit guard, the change viewer and the Batch applied receipt, each worded
+  the cull summary, the quit guard, the change viewer, the Batch applied receipt and the rejects
+  bin (its title, empty state, `Restore`/`Forget`/`Empty bin…` with their hovers, and both toasts), each worded
   from the same pieces its English sentence is joined from, and the `?` shortcut overlay (its
   title, headings, notes, count lines and all forty-four action rows) joined them the same day.
   The Activity tab joined them last: each job's kind and state are catalogue words, its detail line
@@ -746,6 +747,8 @@ re-checks its own contrast pairs after applying.
   vendored face drawing its words. The frames then showed which canvas chrome was still English;
   `N shown`, the header's counts and sort value, and the filter strip's chips have since become
   catalogue rows, so the remaining open canvas chrome is the top bar's words and `New collection`.
+  `Moved` and `Rename keyword` are the two dialog titles still English by omission, and a bin row's
+  summary and mode are the engine's own sentences rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

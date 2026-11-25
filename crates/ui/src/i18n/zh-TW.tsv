@@ -798,3 +798,13 @@
 	Only photos where some keyword came from here	僅限部分關鍵字來自這裡的照片
 	Only photos rated at least this many stars	僅限評分至少這麼多星的照片
 	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	評分篩選: {stars} 星以上 — 再點一次提高下限，點超過五顆即清除
+	Nothing has been deleted yet.	尚未刪除任何項目。
+	Applying a cull batch lists it here so you can put it back.	套用篩選批次後會列在這裡，讓你能放回去。
+	Forget	忘掉記錄
+	Drop the restore record; the files stay where they are	只刪除還原記錄，檔案留在原處
+	Restore	還原
+	Empty bin…	清空資源回收筒…
+	Forget every restore record; files on disk are untouched	忘掉所有還原記錄，磁碟上的檔案不受影響
+	Files sent to the system Trash are restored from the Trash itself.	送到系統垃圾桶的檔案，從垃圾桶本身還原。
+	Restored {n} photo(s)	已還原 {n} 張照片
+	Forgot a batch of {n} file(s)	已忘掉一個含 {n} 個檔案的批次

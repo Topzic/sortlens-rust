@@ -798,3 +798,13 @@
 	Only photos where some keyword came from here	Chỉ ảnh có từ khóa đến từ đây
 	Only photos rated at least this many stars	Chỉ ảnh được đánh giá từ số sao này trở lên
 	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	Bộ lọc đánh giá: từ {stars} sao trở lên — nhấp thêm để tăng mức tối thiểu, nhấp quá năm để xóa
+	Nothing has been deleted yet.	Chưa có gì bị xóa.
+	Applying a cull batch lists it here so you can put it back.	Áp dụng một lô tuyển chọn sẽ liệt kê nó ở đây để bạn có thể đưa trở lại.
+	Forget	Quên bản ghi
+	Drop the restore record; the files stay where they are	Chỉ bỏ bản ghi khôi phục; các tệp vẫn ở nguyên chỗ.
+	Restore	Khôi phục
+	Empty bin…	Làm trống thùng…
+	Forget every restore record; files on disk are untouched	Quên mọi bản ghi khôi phục; các tệp trên đĩa không bị đụng tới.
+	Files sent to the system Trash are restored from the Trash itself.	Các tệp đã đưa vào Thùng rác của hệ thống được khôi phục từ chính Thùng rác.
+	Restored {n} photo(s)	Đã khôi phục {n} ảnh
+	Forgot a batch of {n} file(s)	Đã quên một lô gồm {n} tệp

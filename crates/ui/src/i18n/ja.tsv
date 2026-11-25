@@ -799,3 +799,13 @@
 	Only photos where some keyword came from here	キーワードの出どころがここである写真のみ
 	Only photos rated at least this many stars	この星数以上の評価の写真のみ
 	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	評価フィルター: {stars} つ星以上 — もう一度クリックで下限を上げ、5 を超えてクリックすると解除します
+	Nothing has been deleted yet.	まだ何も削除されていません。
+	Applying a cull batch lists it here so you can put it back.	選別バッチを適用するとここに表示され、元に戻せます。
+	Forget	記録を消す
+	Drop the restore record; the files stay where they are	復元記録だけを消します。ファイルはそのまま残ります
+	Restore	元に戻す
+	Empty bin…	箱を空にする…
+	Forget every restore record; files on disk are untouched	すべての復元記録を消します。ディスク上のファイルは変更されません
+	Files sent to the system Trash are restored from the Trash itself.	システムのゴミ箱へ送られたファイルは、ゴミ箱から復元します。
+	Restored {n} photo(s)	{n} 枚の写真を元に戻しました
+	Forgot a batch of {n} file(s)	{n} ファイルのバッチの記録を消しました

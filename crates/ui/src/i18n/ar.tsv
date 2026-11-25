@@ -799,3 +799,13 @@
 	Only photos where some keyword came from here	الصور التي جاء بعض كلماتها من هنا فقط
 	Only photos rated at least this many stars	الصور التي حصلت على هذا العدد من النجوم على الأقل
 	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	مرشح التقييم: {stars} نجوم فأكثر — نقرة أخرى ترفع الحد الأدنى، ونقرة بعد الخمسة تمسحه
+	Nothing has been deleted yet.	لم يُحذف شيء بعد.
+	Applying a cull batch lists it here so you can put it back.	تطبيق دفعة انتخاب يسردها هنا لتتمكن من إعادتها.
+	Forget	نسيان
+	Drop the restore record; the files stay where they are	احذف سجل الاستعادة؛ تبقى الملفات في مكانها
+	Restore	استعادة
+	Empty bin…	إفراغ السلة…
+	Forget every restore record; files on disk are untouched	انسَ كل سجل استعادة؛ الملفات على القرص لا تُمس
+	Files sent to the system Trash are restored from the Trash itself.	الملفات المرسلة إلى سلة المهملات تُستعاد من السلة نفسها.
+	Restored {n} photo(s)	استُعيدت {n} صورة
+	Forgot a batch of {n} file(s)	نُسي سجل دفعة من {n} ملفًا

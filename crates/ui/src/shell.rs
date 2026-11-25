@@ -8270,7 +8270,7 @@ fn age_label(applied_at: i64) -> String {
 
 fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     let mut open = state.deleted_open;
-    dialog_window("Recently Deleted")
+    dialog_window(tl!("Recently Deleted"))
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -8283,11 +8283,11 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                 .map(|batch| (batch.id, batch.summary(), age_label(batch.applied_at), batch.mode.clone()))
                 .collect();
             if batches.is_empty() {
-                hint(ui, t, "Nothing has been deleted yet.");
+                hint(ui, t, tl!("Nothing has been deleted yet."));
                 ui.add_space(4.0);
 
                 ui.label(
-                    RichText::new("Applying a cull batch lists it here so you can put it back.")
+                    RichText::new(tl!("Applying a cull batch lists it here so you can put it back."))
                         .size(10.5)
                         .color(t.text_faint),
                 );
@@ -8303,13 +8303,13 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui
-                            .button(RichText::new("Forget").size(11.0))
-                            .on_hover_text("Drop the restore record; the files stay where they are")
+                            .button(RichText::new(tl!("Forget")).size(11.0))
+                            .on_hover_text(tl!("Drop the restore record; the files stay where they are"))
                             .clicked()
                         {
                             forget = Some(id);
                         }
-                        if ui.button(RichText::new("Restore").size(11.0)).clicked() {
+                        if ui.button(RichText::new(tl!("Restore")).size(11.0)).clicked() {
                             restore = Some(id);
                         }
                     });
@@ -8318,28 +8318,31 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             }
             if let Some(id) = restore {
                 match engine.restore_batch(id) {
-                    Ok(count) => state.notice(format!("Restored {count} photo(s)")),
+                    Ok(count) => state.notice(crate::i18n::fmt("Restored {n} photo(s)", &[("n", &format_count(count as u64))])),
                     Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             if let Some(id) = forget {
                 match engine.forget_batch(id) {
-                    Ok(files) => state.notice(format!("Forgot a batch of {files} file(s)")),
+                    Ok(files) => state.notice(crate::i18n::fmt(
+                        "Forgot a batch of {n} file(s)",
+                        &[("n", &format_count(files as u64))],
+                    )),
                     Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 if ui
-                    .button(RichText::new("Empty bin…").size(11.0))
-                    .on_hover_text("Forget every restore record; files on disk are untouched")
+                    .button(RichText::new(tl!("Empty bin…")).size(11.0))
+                    .on_hover_text(tl!("Forget every restore record; files on disk are untouched"))
                     .clicked()
                 {
                     state.empty_bin_open = true;
                 }
             });
             ui.label(
-                RichText::new("Files sent to the system Trash are restored from the Trash itself.")
+                RichText::new(tl!("Files sent to the system Trash are restored from the Trash itself."))
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -11495,6 +11498,85 @@ mod tests {
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The Recently Deleted dialog speaks the interface language (SL-L07): its title, its empty
+    /// state and the two lines under it are catalogue rows, so a Japanese interface does not answer
+    /// the bin in English. English is pinned character for character, which is why no baseline moved.
+    #[test]
+    fn the_recently_deleted_dialog_speaks_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-deleted-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.deleted_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let input = || egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                ..egui::RawInput::default()
+            };
+            // A window measures itself on its first frame and paints from the second: the warm run
+            // is what a real frame's next frame already has.
+            let mut warm = ctx.run_ui(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    deleted_dialog(ui, state, &tokens, engine);
+                });
+            });
+            warm.textures_delta.clear();
+            let mut out = ctx.run_ui(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    deleted_dialog(ui, state, &tokens, engine);
+                });
+            });
+            out.textures_delta.clear();
+            // The dialog is a window, and a window's content arrives as nested shape groups: walk
+            // them rather than counting a window as paint-less.
+            fn walk(shape: &egui::Shape, sink: &mut Vec<String>) {
+                match shape {
+                    egui::Shape::Text(text) => sink.push(text.galley.text().to_owned()),
+                    egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, sink)),
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &out.shapes {
+                walk(&clipped.shape, &mut sink);
+            }
+            sink
+        };
+
+        // English: the words the dialog has always said, including the sentence about a cull batch.
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(english.iter().any(|text| text == "Recently Deleted"), "{english:?}");
+        assert!(english.iter().any(|text| text == "Nothing has been deleted yet."), "{english:?}");
+        assert!(
+            english
+                .iter()
+                .any(|text| text == "Applying a cull batch lists it here so you can put it back."),
+            "{english:?}"
+        );
+        assert!(state.deleted_open, "painting the dialog does not close it");
+        assert_eq!(engine.deleted_batches().len(), 0, "nothing is deleted by being shown");
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(japanese.iter().any(|text| text == "最近削除"), "{japanese:?}");
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Recently Deleted" || text == "Nothing has been deleted yet."),
+            "the bin leaves no English behind: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&ctx, &mut state, &mut engine);
+        assert!(arabic.iter().any(|text| text == "المحذوفة حديثًا"), "{arabic:?}");
+        assert!(arabic.iter().any(|text| text == "لم يُحذف شيء بعد."), "{arabic:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -7127,6 +7127,54 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   job green but `screenshots` still painting when this tick read it — that run is the next tick's first
   read, one `gh run view`, because it is the proof the lavapipe set is whole.
 
+## 2026-11-26 (seventy-seventh) — the rejects bin speaks the interface language, and a window's first frame is a measurement
+
+- **Why this came up.** The dialogs have been joining the catalogues one slice at a time, and the
+  rejects bin — the screen holding the only record of what a cull batch did — was still painted entirely
+  in English words: its title, its empty state and all three of its buttons. The catalogue already
+  carried a `Recently Deleted` row for the sidebar's foot row, but the dialog printed a bare literal, so
+  the same word was two things: a translated menu row and an untranslatable title.
+- **What was routed.** Eleven keys: the title, `Nothing has been deleted yet.`, the sentence about a cull
+  batch being listed there, `Restore`, `Forget`, `Empty bin…`, the three hover sentences, and both
+  toasts (`Restored {n} photo(s)`, `Forgot a batch of {n} file(s)`) as `i18n::fmt` templates with the
+  count in the language's digits. The title reuses the row the sidebar already had rather than adding a
+  second translation of the same words for the same surface.
+- **What stays English, and says so.** A batch row's `Batch::summary()` and its mode are
+  `sortlens-engine`'s own sentences — the same words the report prints — and the shell does not
+  re-word them. `Moved` and `Rename keyword` remain the two dialog titles that are still literals;
+  both are named in UX.md rather than implied closed.
+- **Rows.** Eleven rows in each of the six catalogues (`ar`, `ja`, `ko`, `th`, `vi`, `zh-TW`), appended
+  after the rating-filter block. The first attempt appended a `Recently Deleted` row the catalogues
+  already had; the audit's duplicate-row check caught it on the first run, which is the check doing the
+  job it was added for.
+- **Tests.** `the_recently_deleted_dialog_speaks_the_interface_language` paints the dialog at
+  1100×780 in English (title, empty state and the cull-batch sentence, character for character), then
+  Japanese (the title is the catalogue's own `最近削除` and no English is left on the screen), then
+  Arabic (`المحذوفة حديثًا` and `لم يُحذف شيء بعد.`), and asserts the dialog is not closed by being
+  painted. `catalogs_load_and_routed_keys_have_rows` now demands all eleven rows in all six languages.
+  The paint needed a lesson the other window tests had not needed: an anchored `egui::Window` measures
+  itself on its first frame and paints from the second, so the harness runs a warm frame and reads the
+  frame after it — reading the first frame alone is an empty shape list, not a missing translation.
+- **Files.** `crates/ui/src/shell.rs` (`deleted_dialog`, one test);
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (eleven rows each); `docs/UX.md`, `docs/ARCHITECTURE.md`,
+  `docs/FEATURES.md` — the routed surface and the two titles it leaves English.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the whole
+  `sortlens-ui` lib suite green (219 tests, the new one among them); `cargo xtask ci` stopped at
+  `cargo fmt --check` on one `fmt` call it wanted joined, which is fixed and re-proved with
+  `cargo fmt --all -- --check`; `cargo xtask snapshot` green. **Local `cargo xtask deny` cannot run on
+  this checkout and neither can it be fixed from here:** cargo-deny clones its advisory database onto
+  `/Volumes/Expansion` (exFAT), macOS writes a 4096-byte `._*` AppleDouble beside every file, and the
+  parser rejects the first one as invalid UTF-8. Deleting them and re-cloning reproduces them; CI's
+  `deny` job on Linux is the proof for this commit. English is
+  byte-identical, so no screenshot baseline moves, and `cargo xtask screenshots` was not spent on a
+  set this slice cannot change: it adds no English word and no layout. No release workflow was
+  dispatched: this is `crates/ui` source, catalogues, tests and docs.
+- **Next.** The top bar's own words are the last English on the canvas: `Local library`, the read-only
+  sentence and its hover, then `New collection` in the sidebar, then the `Moved` and `Rename keyword`
+  dialog titles (their bodies are routed already). The `CI` run for `62fb266` (`45667132463`) was still
+  in progress when this tick read it; the run before it, `45664188618` on `5685d9b`, was green and is
+  what says the lavapipe set is whole. No release run is in flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7135,12 +7183,12 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-twenty-first entry).** First adopt the two `lavapipe/rtl-library-*`
-frames from that commit's CI artifact (`gh run download <id> -n screenshot-set -D .ci-shots`,
-`SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`) and read them; this machine
-has no Mesa adapter. Then continue SL-L07's open canvas chrome, smallest first: the filter strip's chips
-(`All`, `Picks`, `Rated`, `Missing`, `Rejects`, `All kinds`, `Source`, `Edited`, `Clear`), then the top
-bar's `Library`, `Photos` and `New collection`. No release run is in flight.
+**Next tick (after the seventy-seventh entry).** Continue SL-L07's open canvas chrome, smallest first:
+the top bar's `Local library` and the read-only sentence with its hover, then `New collection` in the
+sidebar, then the `Moved` and `Rename keyword` dialog titles. The filter strip's chips and the header's
+counts and sort value are routed already (seventy-third to seventy-sixth entries). Read the `CI` run
+`45667132463` for `62fb266` with one `gh run view` first: it was in progress when this tick ended, and
+the run before it was green. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

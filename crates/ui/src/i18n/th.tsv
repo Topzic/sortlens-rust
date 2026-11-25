@@ -798,3 +798,13 @@
 	Only photos where some keyword came from here	เฉพาะรูปที่คำค้นบางคำมาจากที่นี่
 	Only photos rated at least this many stars	เฉพาะรูปที่ได้ดาวอย่างน้อยเท่านี้
 	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	ตัวกรองคะแนน: {stars} ดาวขึ้นไป — คลิกอีกครั้งเพื่อเพิ่มขั้นต่ำ คลิกเกินห้าครั้งเพื่อล้าง
+	Nothing has been deleted yet.	ยังไม่มีอะไรถูกลบ
+	Applying a cull batch lists it here so you can put it back.	การใช้ชุดคัดเลือกจะแสดงไว้ที่นี่เพื่อให้คุณนำกลับคืนได้
+	Forget	ลืมบันทึก
+	Drop the restore record; the files stay where they are	ลบเฉพาะบันทึกการกู้คืน ไฟล์ยังอยู่ที่เดิม
+	Restore	กู้คืน
+	Empty bin…	ทำให้ถังว่าง…
+	Forget every restore record; files on disk are untouched	ลืมบันทึกการกู้คืนทั้งหมด ไฟล์บนดิสก์ไม่ถูกแตะต้อง
+	Files sent to the system Trash are restored from the Trash itself.	ไฟล์ที่ส่งไปถังขยะของระบบจะกู้คืนจากถังขยะเอง
+	Restored {n} photo(s)	กู้คืนแล้ว {n} รูป
+	Forgot a batch of {n} file(s)	ลืมบันทึกชุดที่มี {n} ไฟล์แล้ว

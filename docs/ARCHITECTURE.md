@@ -554,6 +554,14 @@ cannot warn about different work than the report describes. The shell words each
 hover are catalogued, and `the_quit_guard_speaks_the_interface_language` paints the dialog in all
 three languages.
 
+The rejects bin is routed the same way: its title, its empty state, `Restore`, `Forget`,
+`Empty bin…` and the three hovers are `tl!` keys, and its two toasts are `i18n::fmt` templates with
+the counts as placeholders, so a restored or forgotten batch is announced in the chosen language.
+The row above the buttons is the exception it names: `Batch::summary()` and the batch's mode are
+`sortlens-engine`'s own sentences, the same words the report prints, and
+`the_recently_deleted_dialog_speaks_the_interface_language` paints the empty state in English,
+Japanese and Arabic.
+
 The change viewer is routed from the log's own pieces: `Op::description` returns a
 `sortlens_catalog::op::Description` (the counts, paths and names travel with it) and `Op::summary`
 — the English the report and the command line print — is that piece joined by `Description::english`,
