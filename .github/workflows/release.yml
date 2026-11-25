@@ -31,6 +31,11 @@ jobs:
         with:
           toolchain: "1.95.0"
           components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # The key the CI job on main already warms, so a dispatch starts from that cache instead of
+          # compiling the whole graph cold behind `needs: verify`, which every other job waits on.
+          key: ubuntu-latest
       - name: Linux windowing headers
         run: |
           sudo apt-get update
@@ -113,6 +118,9 @@ jobs:
         with:
           toolchain: "1.95.0"
           targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}
       - name: build
         run: cargo build --release -p sortlens -p sortlens-cli --target ${{ matrix.target }}
       - name: package
