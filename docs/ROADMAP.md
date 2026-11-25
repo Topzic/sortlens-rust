@@ -908,6 +908,13 @@ and none of M9 is closed until the remaining rows are ticked.
   `craft-keymap`'s `Text` trait, so the crate's 175 dialog strings, its eleven `@plural` counts and
   its read-only fixed rows paint from the same catalogues, and the crate's own `STRINGS`/`PLURALS`
   lists are the audit that keeps a new crate string from arriving in English only.
+  The cull screen's own chrome followed (ninety-fifth entry): the header's position line, the
+  pick/reject/defer/clear buttons, `Summary`, `End session`, `Up next`, `Session complete`, `Apply
+  rejects…`, `Move picks…`, `Export picks…`, `Back`, the session's counts line, the empty state's
+  sentence and start button, the keyboard hint, the keyword field's hint and both keyword toasts are
+  catalogue rows, and the position and count sentences are templates — so a Japanese cull session
+  reads `3 中 1` with `採用  P`, and an Arabic one writes `١ من ٣`. What is still English on that screen
+  is what assistive technology speaks (`crate::a11y`), which the row does not count as painted chrome.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

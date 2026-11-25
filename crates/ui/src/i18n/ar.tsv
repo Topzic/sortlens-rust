@@ -570,3 +570,33 @@
 @plural	{n} command changed|{n} commands changed	{n} أوامر تغيّرت|{n} أمر واحد تغيّر|{n} أمران تغيّرا|{n} أوامر تغيّرت|{n} أمرًا تغيّر|{n} أمر تغيّر
 @plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	{n} اختصارات تعمل أيضًا في نطاق آخر|{n} اختصار واحد يعمل أيضًا في نطاق آخر|{n} اختصاران يعملان أيضًا في نطاق آخر|{n} اختصارات تعمل أيضًا في نطاق آخر|{n} اختصارًا يعمل أيضًا في نطاق آخر|{n} اختصار يعمل أيضًا في نطاق آخر
 @plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	{n} مدخلات تم تجاهلها: أوامر كثيرة جدًا|{n} مدخل واحد تم تجاهله: أوامر كثيرة جدًا|{n} مدخلان تم تجاهلهما: أوامر كثيرة جدًا|{n} مدخلات تم تجاهلها: أوامر كثيرة جدًا|{n} مدخلًا تم تجاهله: أوامر كثيرة جدًا|{n} مدخل تم تجاهله: أوامر كثيرة جدًا
+	Cull	الفرز
+	No photos match the current filters.	لا توجد صور تطابق المرشحات الحالية.
+	{n} photos in view. Nothing moves until you apply.	{n} صورة في العرض. لا شيء يتغيّر حتى تطبّق.
+	Start culling {n} photos	ابدأ فرز {n} صورة
+	Culling {n} photos	جارٍ فرز {n} صورة
+	P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down	P اختيار · X رفض · Space تأجيل · U مسح · ◀ رجوع · T آخر كلمة مفتاحية · اسحب لأعلى/أسفل
+	{position} of {total}	{position} من {total}
+	Summary	ملخّص
+	End session	إنهاء الجلسة
+	Discard staged decisions; nothing has been written yet	تجاهل القرارات المعلّقة؛ لم يُكتب شيء بعد
+	{picked} picked · {rejected} rejected · {deferred} deferred	{picked} مختارة · {rejected} مرفوضة · {deferred} مؤجّلة
+	Up next	التالي
+	Session complete	اكتملت الجلسة
+	Pick	اختيار
+	Reject	رفض
+	Defer	تأجيل
+	Apply rejects…	تطبيق المرفوضة…
+	Reject a photo first; picks and defers need no apply	ارفض صورة أولًا؛ الاختيار والتأجيل لا يحتاجان تطبيقًا
+	Move picks…	نقل المختارة…
+	Pick a photo first	اختر صورة أولًا
+	Move the picks into a folder; keeps every rating and keyword	انقل المختارة إلى مجلد؛ يبقى كل تقييم وكلمة مفتاحية
+	Export picks…	تصدير المختارة…
+	Write the picks into a folder; the originals are not touched	اكتب المختارة في مجلد؛ الملفات الأصلية لا تُمسّ
+	Back	رجوع
+	Remove keyword from this photo	أزل الكلمة المفتاحية من هذه الصورة
+	Add keyword to this photo	أضف كلمة مفتاحية إلى هذه الصورة
+	Add	إضافة
+	That keyword is already on this photo	هذه الكلمة المفتاحية موجودة على هذه الصورة
+	Tagged “{tag}”	أُضيفت «{tag}»
+	Removed keyword {tag}	أُزيلت الكلمة المفتاحية {tag}

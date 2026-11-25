@@ -6316,58 +6316,80 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     let Some((current, decision, cursor, total, summary, up_next)) = snapshot else {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
-            ui.label(RichText::new("Cull").size(20.0).strong());
+            ui.label(RichText::new(tl!("Cull")).size(20.0).strong());
             ui.add_space(6.0);
             let photos = engine.count(&state.filter());
             if photos == 0 {
-                ui.label(RichText::new("No photos match the current filters.").size(12.0).color(t.text_muted));
+                ui.label(
+                    RichText::new(tl!("No photos match the current filters."))
+                        .size(12.0)
+                        .color(t.text_muted),
+                );
                 return;
             }
             ui.label(
-                RichText::new(format!("{photos} photos in view. Nothing moves until you apply."))
-                    .size(12.0)
-                    .color(t.text_muted),
+                RichText::new(crate::i18n::fmt(
+                    "{n} photos in view. Nothing moves until you apply.",
+                    &[("n", &format_count(photos as u64))],
+                ))
+                .size(12.0)
+                .color(t.text_muted),
             );
             ui.add_space(10.0);
             if ui
-                .add(Button::new(RichText::new(format!("Start culling {photos} photos")).size(12.5)))
+                .add(Button::new(
+                    RichText::new(crate::i18n::fmt("Start culling {n} photos", &[("n", &format_count(photos as u64))])).size(12.5),
+                ))
                 .clicked()
             {
                 match start_cull(engine, state) {
-                    Ok(total) => state.notice(format!("Culling {total} photos")),
+                    Ok(total) => state.notice(crate::i18n::fmt("Culling {n} photos", &[("n", &format_count(total as u64))])),
                     Err(error) => state.notice(error),
                 }
             }
             ui.add_space(6.0);
             ui.label(
-                RichText::new("P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down")
-                    .size(10.5)
-                    .color(t.text_faint),
+                RichText::new(tl!(
+                    "P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down"
+                ))
+                .size(10.5)
+                .color(t.text_faint),
             );
         });
         return;
     };
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Cull").size(16.0).strong());
+        ui.label(RichText::new(tl!("Cull")).size(16.0).strong());
         ui.add_space(6.0);
         let position = if total == 0 { 0 } else { (cursor + 1).min(total) };
-        ui.label(RichText::new(format!("{position} of {total}")).size(12.5).color(t.text_muted));
+        ui.label(
+            RichText::new(crate::i18n::fmt(
+                "{position} of {total}",
+                &[("position", &format_count(position as u64)), ("total", &format_count(total as u64))],
+            ))
+            .size(12.5)
+            .color(t.text_muted),
+        );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add(Button::new(RichText::new("Summary").size(11.0))).clicked() {
+            if ui.add(Button::new(RichText::new(tl!("Summary")).size(11.0))).clicked() {
                 state.summary_open = true;
             }
             if ui
-                .add(Button::new(RichText::new("End session").size(11.0)))
-                .on_hover_text("Discard staged decisions; nothing has been written yet")
+                .add(Button::new(RichText::new(tl!("End session")).size(11.0)))
+                .on_hover_text(tl!("Discard staged decisions; nothing has been written yet"))
                 .clicked()
             {
                 engine.cull_clear();
             }
             ui.label(
-                RichText::new(format!(
-                    "{} picked · {} rejected · {} deferred",
-                    summary.picks, summary.rejects, summary.deferred
+                RichText::new(crate::i18n::fmt(
+                    "{picked} picked · {rejected} rejected · {deferred} deferred",
+                    &[
+                        ("picked", &format_count(summary.picks as u64)),
+                        ("rejected", &format_count(summary.rejects as u64)),
+                        ("deferred", &format_count(summary.deferred as u64)),
+                    ],
                 ))
                 .size(11.0)
                 .color(t.text_faint),
@@ -6420,7 +6442,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             ui.add_space(ui.spacing().item_spacing.y);
             // Up next: the four photos behind the current one, for a jump without losing the queue.
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Up next").size(10.5).color(t.text_faint));
+                ui.label(RichText::new(tl!("Up next")).size(10.5).color(t.text_faint));
                 let mut jump = None;
                 for id in up_next {
                     if let Some(photo) = engine.photo(id).cloned() {
@@ -6446,17 +6468,17 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                     engine.cull_jump(id);
                 }
                 if summary.is_complete() {
-                    ui.label(RichText::new("Session complete").size(11.0).color(t.accent));
+                    ui.label(RichText::new(tl!("Session complete")).size(11.0).color(t.accent));
                 }
             });
 
             let mut decision_now = None;
             ui.horizontal(|ui| {
                 let buttons = [
-                    ("Pick", Decision::Pick, t.pick, "P"),
-                    ("Reject", Decision::Reject, t.reject, "X"),
-                    ("Defer", Decision::Deferred, t.text_muted, "Space"),
-                    ("Clear", Decision::Unjudged, t.text_faint, "U"),
+                    (tl!("Pick"), Decision::Pick, t.pick, "P"),
+                    (tl!("Reject"), Decision::Reject, t.reject, "X"),
+                    (tl!("Defer"), Decision::Deferred, t.text_muted, "Space"),
+                    (tl!("Clear"), Decision::Unjudged, t.text_faint, "U"),
                 ];
                 for (label, choice, colour, key) in buttons {
                     let text = RichText::new(format!("{label}  {key}")).size(11.5).color(colour);
@@ -6470,31 +6492,31 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if ui
-                        .add_enabled(summary.rejects > 0, Button::new(RichText::new("Apply rejects…").size(11.5)))
-                        .on_disabled_hover_text("Reject a photo first; picks and defers need no apply")
+                        .add_enabled(summary.rejects > 0, Button::new(RichText::new(tl!("Apply rejects…")).size(11.5)))
+                        .on_disabled_hover_text(tl!("Reject a photo first; picks and defers need no apply"))
                         .clicked()
                     {
                         state.apply_open = true;
                     }
                     if ui
-                        .add_enabled(summary.picks > 0, Button::new(RichText::new("Move picks…").size(11.5)))
-                        .on_disabled_hover_text("Pick a photo first")
-                        .on_hover_text("Move the picks into a folder; keeps every rating and keyword")
+                        .add_enabled(summary.picks > 0, Button::new(RichText::new(tl!("Move picks…")).size(11.5)))
+                        .on_disabled_hover_text(tl!("Pick a photo first"))
+                        .on_hover_text(tl!("Move the picks into a folder; keeps every rating and keyword"))
                         .clicked()
                     {
                         let picks = engine.cull().map(|session| session.picks()).unwrap_or_default();
                         actions.push(Action::MovePicks(picks));
                     }
                     if ui
-                        .add_enabled(summary.picks > 0, Button::new(RichText::new("Export picks…").size(11.5)))
-                        .on_disabled_hover_text("Pick a photo first")
-                        .on_hover_text("Write the picks into a folder; the originals are not touched")
+                        .add_enabled(summary.picks > 0, Button::new(RichText::new(tl!("Export picks…")).size(11.5)))
+                        .on_disabled_hover_text(tl!("Pick a photo first"))
+                        .on_hover_text(tl!("Write the picks into a folder; the originals are not touched"))
                         .clicked()
                     {
                         state.export_ids = engine.cull().map(|session| session.picks()).unwrap_or_default();
                         state.export_open = true;
                     }
-                    if ui.add(Button::new(RichText::new("Back").size(11.5))).clicked() {
+                    if ui.add(Button::new(RichText::new(tl!("Back")).size(11.5))).clicked() {
                         engine.cull_back();
                     }
                 });
@@ -6525,7 +6547,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                                         .fill(t.card)
                                         .stroke(Stroke::new(1.0, t.border))
                                         .corner_radius(t.corner());
-                                    if ui.add(chip).on_hover_text("Remove keyword from this photo").clicked() {
+                                    if ui.add(chip).on_hover_text(tl!("Remove keyword from this photo")).clicked() {
                                         remove = Some(tag.clone());
                                     }
                                 }
@@ -6536,7 +6558,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                     let field = ui.add(
                         TextEdit::singleline(&mut state.cull_tag_input)
                             .id(egui::Id::unique("cull-tag-field"))
-                            .hint_text("Add keyword to this photo")
+                            .hint_text(tl!("Add keyword to this photo"))
                             .desired_width(150.0)
                             .font(egui::TextStyle::Small),
                     );
@@ -6545,13 +6567,13 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                         state.cull_tag_focus = false;
                     }
                     let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
-                    let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
+                    let clicked = ui.add(Button::new(RichText::new(tl!("Add")).size(11.0))).clicked();
                     if (entered || clicked) && !state.cull_tag_input.trim().is_empty() {
                         let tag = state.cull_tag_input.trim().to_string();
                         match engine.set_tag(&[photo.id], &tag, true) {
-                            Ok(0) => state.notice("That keyword is already on this photo"),
+                            Ok(0) => state.notice(tl!("That keyword is already on this photo")),
                             Ok(_) => {
-                                state.notice(format!("Tagged \u{201c}{}\u{201d}", tag.to_lowercase()));
+                                state.notice(crate::i18n::fmt("Tagged “{tag}”", &[("tag", &tag.to_lowercase())]));
                                 state.cull_tag_input.clear();
                             }
                             Err(error) => state.notice_problem(error.to_string()),
@@ -6560,7 +6582,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 });
                 if let Some(tag) = remove {
                     match engine.set_tag(&[photo.id], &tag, false) {
-                        Ok(_) => state.notice(format!("Removed keyword {tag}")),
+                        Ok(_) => state.notice(crate::i18n::fmt("Removed keyword {tag}", &[("tag", &tag)])),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
@@ -12206,6 +12228,113 @@ mod tests {
         assert!(state.overlay.is_some(), "still inside the label's moment");
         paint(&mut state, &mut engine, &mut thumbs, 1.2);
         assert!(state.overlay.is_none(), "and dropped once it has been read");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The cull screen speaks the interface language (SL-L07): the header, the queue's position, the
+    /// decision buttons, the apply/move/export words and the inline keyword controls are catalogue
+    /// rows, so a Japanese or Arabic owner judges photographs in their own language. The counts are
+    /// templates, so the digits are the language's own and the number can sit where its grammar wants it.
+    #[test]
+    fn the_cull_screen_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-cull-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-cull-words");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40, 70 * index as u8, 120], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 3, "three photos are on the cull screen");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let mut paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        cull_view(ui, &tokens, state, engine, thumbs, &mut actions);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out.shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                    _ => None,
+                })
+                .collect::<Vec<String>>()
+        };
+
+        // English: the screen's own words, before a session starts and once one is running.
+        let english = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(english.iter().any(|text| text == "Cull"), "{english:?}");
+        assert!(
+            english
+                .iter()
+                .any(|text| text == "3 photos in view. Nothing moves until you apply."),
+            "{english:?}"
+        );
+        assert!(english.iter().any(|text| text == "Start culling 3 photos"), "{english:?}");
+        engine.begin_cull(&ids).expect("cull");
+        let english_session = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(english_session.iter().any(|text| text == "Summary"), "{english_session:?}");
+        assert!(english_session.iter().any(|text| text == "End session"), "{english_session:?}");
+        assert!(english_session.iter().any(|text| text == "Up next"), "{english_session:?}");
+        assert!(english_session.iter().any(|text| text == "1 of 3"), "{english_session:?}");
+        assert!(english_session.iter().any(|text| text == "Pick  P"), "{english_session:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(japanese.iter().any(|text| text == "選別"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "概要"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "セッション終了"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "次の候補"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "3 中 1"), "{japanese:?}");
+        assert!(
+            japanese.iter().any(|text| text == "採用  P"),
+            "the decision button's word is the catalogue's and its key stays the keyboard's: {japanese:?}"
+        );
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Summary" || text == "End session" || text == "Up next" || text == "Cull"),
+            "the screen leaves no English chrome behind: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(arabic.iter().any(|text| text == "ملخّص"), "{arabic:?}");
+        assert!(
+            arabic.iter().any(|text| text.contains('١') && text.contains("من")),
+            "the position is written in the language's own digits and word order: {arabic:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

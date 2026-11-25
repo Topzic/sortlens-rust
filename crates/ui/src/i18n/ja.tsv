@@ -570,3 +570,33 @@
 @plural	{n} command changed|{n} commands changed	{n} 件のコマンドを変更しました
 @plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	{n} 件のショートカットは別のスコープでも有効です
 @plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	{n} 件の項目は無視されました: コマンドが多すぎます
+	Cull	選別
+	No photos match the current filters.	現在の絞り込みに一致する写真はありません
+	{n} photos in view. Nothing moves until you apply.	表示中 {n} 枚。適用するまで何も変わりません。
+	Start culling {n} photos	{n} 枚の選別を開始
+	Culling {n} photos	{n} 枚を選別中
+	P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down	P 採用 · X 却下 · Space 保留 · U 解除 · ◀ 戻る · T 直前のキーワード · 上下ドラッグ
+	{position} of {total}	{total} 中 {position}
+	Summary	概要
+	End session	セッション終了
+	Discard staged decisions; nothing has been written yet	保留中の判定を破棄します。まだ何も書き込まれていません
+	{picked} picked · {rejected} rejected · {deferred} deferred	採用 {picked} · 却下 {rejected} · 保留 {deferred}
+	Up next	次の候補
+	Session complete	セッション完了
+	Pick	採用
+	Reject	却下
+	Defer	保留
+	Apply rejects…	却下を適用…
+	Reject a photo first; picks and defers need no apply	先に写真を却下してください。採用と保留は適用不要です
+	Move picks…	採用を移動…
+	Pick a photo first	先に写真を採用してください
+	Move the picks into a folder; keeps every rating and keyword	採用した写真をフォルダーへ移動します。評価とキーワードは保たれます
+	Export picks…	採用を書き出し…
+	Write the picks into a folder; the originals are not touched	採用した写真をフォルダーへ書き出します。元のファイルは変更されません
+	Back	戻る
+	Remove keyword from this photo	この写真からキーワードを外す
+	Add keyword to this photo	この写真にキーワードを追加
+	Add	追加
+	That keyword is already on this photo	そのキーワードはすでにこの写真に付いています
+	Tagged “{tag}”	「{tag}」を付けました
+	Removed keyword {tag}	キーワード {tag} を外しました

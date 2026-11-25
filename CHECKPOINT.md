@@ -1,5 +1,52 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-fifth) — the cull screen judges photographs in your language, and its buttons keep the keyboard's letters
+
+- **Why this came up.** The ninety-fourth entry's item was the trunk (run **45586062477** on `ff169a7` is now green on
+  all eight jobs, `screenshots` and both `mobile` legs among them), and after that it named the `craft-ipc` row's
+  reconciliation — which is prose, and the tick rules forbid a docs-only commit after Phase 0. The ninety-second
+  entry had called the i18n row finished apart from four languages and RTL shots. Reading `cull_view` said
+  otherwise: the screen an owner judges three hundred photographs on painted `Cull`, `Summary`,
+  `End session`, `Up next`, `Session complete`, `Pick`/`Reject`/`Defer`/`Clear`, `Apply rejects…`,
+  `Move picks…`, `Export picks…`, `Back`, the position line, the session's counts, the empty state, the keyboard
+  hint, the keyword field's hint and both keyword toasts in English whatever Settings → Language said. The cull
+  *summary sheet* had been routed; the cull *screen* had not, so a Japanese cull session was an English session
+  with Japanese chrome around it.
+- **What was routed.** 30 rows in each of `ar.tsv` and `ja.tsv` (31 keys, one of them — `Clear` — already had a
+  row, and the catalogue's duplicate check caught the second one at line 589, which is the audit doing its job):
+  the empty state's sentence, its start button and the notice it raises; the header's title, position, `Summary`,
+  `End session` and its hover; the four decision buttons; the anti-accident hover on `Apply rejects…`; the three
+  apply/move/export actions and their hovers; `Up next` and `Session complete`; the keyword chip's remove hover,
+  the field's hint, `Add`, the "already on this photo" notice and both tagging toasts.
+- **The counts are templates, and the position is not English's word order.** `{position} of {total}` becomes
+  `{total} 中 {position}` in Japanese and `{position} من {total}` in Arabic, and the digits are `format_count`'s, so
+  the Arabic screen writes `١ من ٣` with Arabic-Indic digits. The session's line is
+  `{picked} picked · {rejected} rejected · {deferred} deferred`, filled from the session's own counts.
+- **The keys stay the keyboard's.** `Pick  P` becomes `採用  P`: the label travels, the letter does not, because
+  `P` is the key you press. The keyboard-hint line is one row, so a language can reword the whole sequence.
+- **Tests.** `the_cull_screen_speaks_the_interface_language` paints the real `cull_view` headlessly at 1000×700
+  with three photographs: English first (the empty state's sentence and start button, then the running session's
+  `Summary`, `End session`, `Up next`, `1 of 3` and `Pick  P`), then Japanese (`選別`, `概要`, `セッション終了`,
+  `次の候補`, `3 中 1`, `採用  P`, and no English chrome left), then Arabic (`ملخّص`, and the position as `١ من ٣`).
+  The catalogue audit `catalogs_load_and_routed_keys_have_rows` now demands an ar and a ja row for all 30 new
+  keys and templates, so a route without a translation fails instead of quietly showing English.
+- **Files.** `crates/ui/src/shell.rs` (`cull_view`, one test); `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (30 rows
+  each); `docs/ROADMAP.md` (the i18n row's prose — the row stays unticked: four languages and RTL shots remain).
+- **Verified.** `cargo fmt --all` was the only thing the first `cargo xtask ci` found (the routing's formatting);
+  after it `cargo xtask ci` is green, `cargo xtask snapshot` and `cargo xtask deny` green, and
+  `cargo xtask screenshots` painted all 27 committed scenes against their baselines — byte-identical, which is the
+  proof that every English string is unchanged: a `tl!` with no row is its own English key. No release workflow was
+  dispatched: this slice touches `crates/ui` source, tests and docs, no build or release surface.
+- **Next.** Still painted English on the main views: the Insights screen (`Nothing has happened yet`, its headers),
+  the Similar view (`Match`, `Clear`, `No groups yet`, `Hash the library to find bursts and re-edits.`, the
+  select-all hovers) and Places (`No photo has a location yet`, the `places.txt` line). The Similar view is the
+  next slice — its chrome, one test in the same shape as this one. The `craft-ipc` row's reconciliation rides in
+  that commit rather than its own: its sentence ("there is no second process to talk to") was made false by
+  `sortlens-server`, and it must not be a docs-only commit.
+
+In-flight: no release dispatch (no build or release surface changed). CI for this commit is the next tick's first
+read, one `gh run view`.
+
 ## 2026-11-26 (ninety-fourth) — the two Places baselines were the old footer, and the ninety-second entry was missing its body
 
 - **Why this came up.** `CI` on `main` was red at `b43ddfc` on the `screenshots` job only; `ci` (ubuntu, macos), `deny`,
