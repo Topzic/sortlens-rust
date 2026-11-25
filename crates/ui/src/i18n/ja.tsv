@@ -647,3 +647,30 @@
 	{n} with no capture date	撮影日なし: {n}
 	Months	月別
 	Nothing dated yet	日付のある写真はまだありません
+	Busiest month	最も多い月
+	Busiest day	最も多い日
+	Most used camera	最も使われたカメラ
+	No capture date	撮影日なし
+	January	1月
+	February	2月
+	March	3月
+	April	4月
+	May	5月
+	June	6月
+	July	7月
+	August	8月
+	September	9月
+	October	10月
+	November	11月
+	December	12月
+	Winter	冬
+	Spring	春
+	Summer	夏
+	Autumn	秋
+	{month} — {count} photo(s) · mostly {season}	{month} — {count} 枚 · 主に {season}
+	{month} — {count} photo(s)	{month} — {count} 枚
+	{date} — {count} photo(s)	{date} — {count} 枚
+	{camera} — {count} photo(s)	{camera} — {count} 枚
+	{count} photo(s), {percent} of the library	写真 {count} 枚、ライブラリの {percent}
+	Busiest: {month} · mostly {season}	最多: {month} · 主に {season}
+	Busiest: {month}	最多: {month}

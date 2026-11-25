@@ -929,9 +929,12 @@ and none of M9 is closed until the remaining rows are ticked.
   line and the `{done} of {total}` template, the seven figures, the nine column headings, the three
   kinds, `Unrated` and both empty states are catalogue rows, and the undated count is a template — so a
   Japanese page reads `評価`, `タイムライン` and `日付のある写真はまだありません` where it read English.
-  Still English on that page: the highlights strip and the `Busiest: … · mostly …` line, because the
-  month, the season and the sentence are composed inside `sortlens-insights` — the next slice's engine
-  piece, not a shell literal.
+  The highlights strip followed (ninety-ninth entry): `sortlens-insights` now answers a
+  `HighlightKind`, a `Month` and a `Season` as values beside the counts, so the strip's labels, the
+  month and season words and the `photo(s)` sentences are catalogue rows and the
+  `Busiest: … · mostly …` line is worded from the same pieces — nothing on that page is English by
+  omission. The busiest day's date now goes through the shell's `format::date`, so Arabic writes
+  `١٠/٠٢/٢٠٢٤`.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

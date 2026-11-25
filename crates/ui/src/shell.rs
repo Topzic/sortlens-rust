@@ -7315,6 +7315,110 @@ fn basemap_status(
     }
 }
 
+/// A highlight's label, worded from the insights crate's own kind (SL-L07).
+fn insight_highlight_word(kind: sortlens_engine::InsightWord) -> &'static str {
+    match kind {
+        sortlens_engine::InsightWord::BusiestMonth => tl!("Busiest month"),
+        sortlens_engine::InsightWord::BusiestDay => tl!("Busiest day"),
+        sortlens_engine::InsightWord::MostUsedCamera => tl!("Most used camera"),
+        sortlens_engine::InsightWord::NoCaptureDate => tl!("No capture date"),
+    }
+}
+
+/// A month's name, worded from the crate's own month.
+fn insight_month_word(month: sortlens_engine::InsightMonth) -> &'static str {
+    use sortlens_engine::InsightMonth as Month;
+    match month {
+        Month::January => tl!("January"),
+        Month::February => tl!("February"),
+        Month::March => tl!("March"),
+        Month::April => tl!("April"),
+        Month::May => tl!("May"),
+        Month::June => tl!("June"),
+        Month::July => tl!("July"),
+        Month::August => tl!("August"),
+        Month::September => tl!("September"),
+        Month::October => tl!("October"),
+        Month::November => tl!("November"),
+        Month::December => tl!("December"),
+    }
+}
+
+/// A season's name, worded from the crate's own season.
+fn insight_season_word(season: sortlens_engine::InsightSeason) -> &'static str {
+    use sortlens_engine::InsightSeason as Season;
+    match season {
+        Season::Winter => tl!("Winter"),
+        Season::Spring => tl!("Spring"),
+        Season::Summer => tl!("Summer"),
+        Season::Autumn => tl!("Autumn"),
+    }
+}
+
+/// One highlight's value line, assembled from the fact's own values so every language places its
+/// own month, count, camera and season inside its own sentence.
+fn insight_highlight_line(fact: &sortlens_engine::InsightFact) -> String {
+    use sortlens_engine::InsightFact as Fact;
+    match fact {
+        Fact::BusiestMonth { month, count, season } => {
+            let month = insight_month_word(*month);
+            let count = format_count(*count as u64);
+            match season {
+                Some(season) => crate::i18n::fmt(
+                    "{month} — {count} photo(s) · mostly {season}",
+                    &[("month", month), ("count", &count), ("season", insight_season_word(*season))],
+                ),
+                None => crate::i18n::fmt("{month} — {count} photo(s)", &[("month", month), ("count", &count)]),
+            }
+        }
+        Fact::BusiestDay { at, count } => {
+            let date = crate::format::date(*at);
+            let count = format_count(*count as u64);
+            crate::i18n::fmt("{date} — {count} photo(s)", &[("date", &date), ("count", &count)])
+        }
+        Fact::MostUsedCamera { camera, count } => {
+            let count = format_count(*count as u64);
+            crate::i18n::fmt("{camera} — {count} photo(s)", &[("camera", camera), ("count", &count)])
+        }
+        Fact::NoCaptureDate { count, percent } => {
+            let count = format_count(*count as u64);
+            let percent = format!("{}%", format_count(percent.round() as u64));
+            crate::i18n::fmt(
+                "{count} photo(s), {percent} of the library",
+                &[("count", &count), ("percent", &percent)],
+            )
+        }
+    }
+}
+
+/// The strip of notable facts above the figures, one label and one sentence each.
+fn highlights_strip(ui: &mut Ui, t: &Tokens, highlights: &[sortlens_engine::InsightHighlight]) {
+    if highlights.is_empty() {
+        return;
+    }
+    ui.add_space(6.0);
+    ui.horizontal_wrapped(|ui| {
+        for highlight in highlights {
+            ui.label(RichText::new(insight_highlight_word(highlight.kind)).size(10.0).color(t.text_faint));
+            ui.label(RichText::new(insight_highlight_line(&highlight.fact)).size(11.0).color(t.text));
+            ui.add_space(14.0);
+        }
+    });
+}
+
+/// The line under the month chart, worded from the month and season the insights crate returns.
+fn busiest_sentence(insights: &sortlens_engine::Insights) -> Option<String> {
+    let month = insights.peak_month().and_then(sortlens_engine::InsightMonth::from_number)?;
+    let word = insight_month_word(month);
+    Some(match insights.peak_season() {
+        Some(season) => crate::i18n::fmt(
+            "Busiest: {month} · mostly {season}",
+            &[("month", word), ("season", insight_season_word(season))],
+        ),
+        None => crate::i18n::fmt("Busiest: {month}", &[("month", word)]),
+    })
+}
+
 /// Totals, distributions and breakdowns, all recomputed from the catalog.
 fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let _ = engine.poll_insights();
@@ -7344,17 +7448,7 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
-    let highlights = insights.highlights();
-    if !highlights.is_empty() {
-        ui.add_space(6.0);
-        ui.horizontal_wrapped(|ui| {
-            for highlight in &highlights {
-                ui.label(RichText::new(&highlight.label).size(10.0).color(t.text_faint));
-                ui.label(RichText::new(&highlight.value).size(11.0).color(t.text));
-                ui.add_space(14.0);
-            }
-        });
-    }
+    highlights_strip(ui, t, &insights.highlights());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             figure(ui, t, tl!("Photos"), &format_count(insights.stats.total as u64));
@@ -7446,18 +7540,9 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                         })
                         .collect();
                     charts::columns(ui, t, &month_columns, charts::COLUMN_HEIGHT);
-                    ui.label(
-                        RichText::new(format!(
-                            "Busiest: {}{}",
-                            insights.peak_month().map(sortlens_engine::month_name).unwrap_or("none"),
-                            insights
-                                .peak_season()
-                                .map(|season| format!(" · mostly {season}"))
-                                .unwrap_or_default()
-                        ))
-                        .size(10.5)
-                        .color(t.text_faint),
-                    );
+                    if let Some(sentence) = busiest_sentence(&insights) {
+                        ui.label(RichText::new(sentence).size(10.5).color(t.text_faint));
+                    }
                 }
             });
         });
@@ -16907,6 +16992,142 @@ mod tests {
 
         assert!(actions.is_empty(), "painting asks the host for nothing");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Insights highlights strip speaks the interface language (SL-L07): the insights crate
+    /// hands the shell a kind, a month, a season and the counts as values, and the shell words each
+    /// from the catalogue, so `Busiest month`, `February`, `Winter` and the `photo(s)` sentences read
+    /// in the chosen language rather than the crate's English.
+    #[test]
+    fn the_insights_highlights_speak_the_interface_language() {
+        use sortlens_engine::{InsightFact as Fact, InsightHighlight, InsightMonth as Month, InsightSeason as Season, InsightWord as Word};
+
+        // Every word is the crate's own piece under English, so a month retyped in the shell fails.
+        for month in Month::ALL {
+            assert_eq!(insight_month_word(month), month.en());
+        }
+        for season in Season::ALL {
+            assert_eq!(insight_season_word(season), season.en());
+        }
+        for kind in Word::ALL {
+            assert_eq!(insight_highlight_word(kind), kind.en());
+        }
+
+        let highlights = vec![
+            InsightHighlight {
+                kind: Word::BusiestMonth,
+                fact: Fact::BusiestMonth {
+                    month: Month::February,
+                    count: 2,
+                    season: Some(Season::Winter),
+                },
+            },
+            InsightHighlight {
+                kind: Word::BusiestDay,
+                fact: Fact::BusiestDay {
+                    at: 1_707_523_200,
+                    count: 2,
+                },
+            },
+            InsightHighlight {
+                kind: Word::MostUsedCamera,
+                fact: Fact::MostUsedCamera {
+                    camera: "X-T5".to_string(),
+                    count: 2,
+                },
+            },
+            InsightHighlight {
+                kind: Word::NoCaptureDate,
+                fact: Fact::NoCaptureDate { count: 1, percent: 25.0 },
+            },
+        ];
+
+        // `fmt` isolates a value that has to hold its direction in right-to-left text; the frame is
+        // read without those marks, so the sentence's own words are what is compared.
+        let plain = |text: &str| -> String { text.chars().filter(|ch| !matches!(ch, '\u{2068}' | '\u{2069}')).collect() };
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let painted = |highlights: &[InsightHighlight]| -> Vec<String> {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    highlights_strip(ui, &Tokens::CHARCOAL, highlights);
+                });
+            });
+            output.textures_delta.clear();
+            all_shapes(&output)
+                .into_iter()
+                .filter_map(|shape| match shape {
+                    egui::Shape::Text(text) => Some(plain(text.galley.text())),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        let english = painted(&highlights);
+        assert_painted(
+            &english,
+            &[
+                "Busiest month",
+                "February — 2 photo(s) · mostly Winter",
+                "Busiest day",
+                "2024-02-10 — 2 photo(s)",
+                "Most used camera",
+                "X-T5 — 2 photo(s)",
+                "No capture date",
+                "1 photo(s), 25% of the library",
+            ],
+        );
+
+        let mut insights = sortlens_engine::Insights::empty();
+        insights.by_month[1] = 2;
+        assert_eq!(busiest_sentence(&insights).as_deref(), Some("Busiest: February · mostly Winter"));
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = painted(&highlights);
+        assert_painted(
+            &japanese,
+            &[
+                "最も多い月",
+                "2月 — 2 枚 · 主に 冬",
+                "最も多い日",
+                "2024/02/10 — 2 枚",
+                "最も使われたカメラ",
+                "X-T5 — 2 枚",
+                "撮影日なし",
+                "写真 1 枚、ライブラリの 25%",
+            ],
+        );
+        assert_eq!(busiest_sentence(&insights).as_deref(), Some("最多: 2月 · 主に 冬"));
+        assert!(
+            !japanese.iter().any(|text| text.contains("photo(s)") || text == "Busiest month"),
+            "the English sentences are still on the Japanese strip: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = painted(&highlights);
+        assert_painted(
+            &arabic,
+            &[
+                "أكثر شهر",
+                "فبراير — ٢ صورة · غالبًا الشتاء",
+                "أكثر يوم",
+                "١٠/٠٢/٢٠٢٤ — ٢ صورة",
+                "الكاميرا الأكثر استخدامًا",
+                "X-T5 — ٢ صورة",
+                "بلا تاريخ التقاط",
+                "١ صورة، ٢٥% من المكتبة",
+            ],
+        );
+        assert_eq!(
+            busiest_sentence(&insights).as_deref().map(plain),
+            Some("الأكثر: فبراير · غالبًا الشتاء".to_string())
+        );
+        assert!(
+            !arabic.iter().any(|text| text.contains("photo(s)") || text == "Busiest month"),
+            "the English sentences are still on the Arabic strip: {arabic:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// 1280 points with both docks open leaves about 680 points of canvas. The Insights columns were

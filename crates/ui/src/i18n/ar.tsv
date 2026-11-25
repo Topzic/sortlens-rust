@@ -647,3 +647,30 @@
 	{n} with no capture date	{n} بلا تاريخ التقاط
 	Months	الأشهر
 	Nothing dated yet	لا صور مؤرَّخة بعد
+	Busiest month	أكثر شهر
+	Busiest day	أكثر يوم
+	Most used camera	الكاميرا الأكثر استخدامًا
+	No capture date	بلا تاريخ التقاط
+	January	يناير
+	February	فبراير
+	March	مارس
+	April	أبريل
+	May	مايو
+	June	يونيو
+	July	يوليو
+	August	أغسطس
+	September	سبتمبر
+	October	أكتوبر
+	November	نوفمبر
+	December	ديسمبر
+	Winter	الشتاء
+	Spring	الربيع
+	Summer	الصيف
+	Autumn	الخريف
+	{month} — {count} photo(s) · mostly {season}	{month} — {count} صورة · غالبًا {season}
+	{month} — {count} photo(s)	{month} — {count} صورة
+	{date} — {count} photo(s)	{date} — {count} صورة
+	{camera} — {count} photo(s)	{camera} — {count} صورة
+	{count} photo(s), {percent} of the library	{count} صورة، {percent} من المكتبة
+	Busiest: {month} · mostly {season}	الأكثر: {month} · غالبًا {season}
+	Busiest: {month}	الأكثر: {month}

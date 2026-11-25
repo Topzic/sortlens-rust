@@ -42,13 +42,253 @@ pub struct Day {
     pub count: usize,
 }
 
+/// A month of the year, as a value rather than a word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Month {
+    /// January.
+    January,
+    /// February.
+    February,
+    /// March.
+    March,
+    /// April.
+    April,
+    /// May.
+    May,
+    /// June.
+    June,
+    /// July.
+    July,
+    /// August.
+    August,
+    /// September.
+    September,
+    /// October.
+    October,
+    /// November.
+    November,
+    /// December.
+    December,
+}
+
+impl Month {
+    /// Every month, January first — `by_month`'s own order.
+    pub const ALL: [Month; 12] = [
+        Month::January,
+        Month::February,
+        Month::March,
+        Month::April,
+        Month::May,
+        Month::June,
+        Month::July,
+        Month::August,
+        Month::September,
+        Month::October,
+        Month::November,
+        Month::December,
+    ];
+
+    /// The month's number, 1–12, as the charts and `by_month` index it.
+    pub const fn number(self) -> u32 {
+        match self {
+            Month::January => 1,
+            Month::February => 2,
+            Month::March => 3,
+            Month::April => 4,
+            Month::May => 5,
+            Month::June => 6,
+            Month::July => 7,
+            Month::August => 8,
+            Month::September => 9,
+            Month::October => 10,
+            Month::November => 11,
+            Month::December => 12,
+        }
+    }
+
+    /// The month with this number, 1–12.
+    pub const fn from_number(month: u32) -> Option<Month> {
+        match month {
+            1 => Some(Month::January),
+            2 => Some(Month::February),
+            3 => Some(Month::March),
+            4 => Some(Month::April),
+            5 => Some(Month::May),
+            6 => Some(Month::June),
+            7 => Some(Month::July),
+            8 => Some(Month::August),
+            9 => Some(Month::September),
+            10 => Some(Month::October),
+            11 => Some(Month::November),
+            12 => Some(Month::December),
+            _ => None,
+        }
+    }
+
+    /// The English name, the catalogue key a screen translates.
+    pub const fn en(self) -> &'static str {
+        match self {
+            Month::January => "January",
+            Month::February => "February",
+            Month::March => "March",
+            Month::April => "April",
+            Month::May => "May",
+            Month::June => "June",
+            Month::July => "July",
+            Month::August => "August",
+            Month::September => "September",
+            Month::October => "October",
+            Month::November => "November",
+            Month::December => "December",
+        }
+    }
+}
+
+/// A season, northern reading, as a value rather than a word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Season {
+    /// December, January, February.
+    Winter,
+    /// March, April, May.
+    Spring,
+    /// June, July, August.
+    Summer,
+    /// September, October, November.
+    Autumn,
+}
+
+impl Season {
+    /// Every season, in calendar order.
+    pub const ALL: [Season; 4] = [Season::Winter, Season::Spring, Season::Summer, Season::Autumn];
+
+    /// The English name, the catalogue key a screen translates.
+    pub const fn en(self) -> &'static str {
+        match self {
+            Season::Winter => "Winter",
+            Season::Spring => "Spring",
+            Season::Summer => "Summer",
+            Season::Autumn => "Autumn",
+        }
+    }
+
+    /// The month numbers this season covers, 1–12.
+    pub const fn months(self) -> [u32; 3] {
+        match self {
+            Season::Winter => [12, 1, 2],
+            Season::Spring => [3, 4, 5],
+            Season::Summer => [6, 7, 8],
+            Season::Autumn => [9, 10, 11],
+        }
+    }
+}
+
+/// What a highlight is about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HighlightKind {
+    /// The month the library leans towards.
+    BusiestMonth,
+    /// The single busiest day.
+    BusiestDay,
+    /// The camera that took the most frames.
+    MostUsedCamera,
+    /// How much of the library has no capture date.
+    NoCaptureDate,
+}
+
+impl HighlightKind {
+    /// Every kind, in the strip's own order.
+    pub const ALL: [HighlightKind; 4] = [
+        HighlightKind::BusiestMonth,
+        HighlightKind::BusiestDay,
+        HighlightKind::MostUsedCamera,
+        HighlightKind::NoCaptureDate,
+    ];
+
+    /// The English label, the catalogue key a screen translates.
+    pub const fn en(self) -> &'static str {
+        match self {
+            HighlightKind::BusiestMonth => "Busiest month",
+            HighlightKind::BusiestDay => "Busiest day",
+            HighlightKind::MostUsedCamera => "Most used camera",
+            HighlightKind::NoCaptureDate => "No capture date",
+        }
+    }
+}
+
+/// The fact behind a highlight, as values rather than a sentence.
+///
+/// A screen words each kind itself, so a month, a season and a count are translated rather than
+/// parsed back out of English prose.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HighlightFact {
+    /// The month the library leans towards, its count, and the season it mostly sits in.
+    BusiestMonth {
+        /// Which month.
+        month: Month,
+        /// Photos captured then.
+        count: usize,
+        /// The season the library leans towards, when anything is dated.
+        season: Option<Season>,
+    },
+    /// The single busiest day: its first second and its count.
+    BusiestDay {
+        /// Unix seconds at midnight UTC.
+        at: i64,
+        /// Photos captured that day.
+        count: usize,
+    },
+    /// The camera that took the most frames.
+    MostUsedCamera {
+        /// The camera's name as the file records it.
+        camera: String,
+        /// Photos it took.
+        count: usize,
+    },
+    /// How much of the library has no capture date at all.
+    NoCaptureDate {
+        /// Photos with no date.
+        count: usize,
+        /// Their share of the library, 0–100.
+        percent: f32,
+    },
+}
+
+impl HighlightFact {
+    /// The fact as the English sentence the engine answers.
+    pub fn en(&self) -> String {
+        match self {
+            HighlightFact::BusiestMonth { month, count, season } => {
+                let season = season.map(|season| format!(" · mostly {}", season.en())).unwrap_or_default();
+                format!("{} — {} photo(s){season}", month.en(), count)
+            }
+            HighlightFact::BusiestDay { at, count } => format!("{} — {} photo(s)", date_label(*at), count),
+            HighlightFact::MostUsedCamera { camera, count } => format!("{camera} — {count} photo(s)"),
+            HighlightFact::NoCaptureDate { count, percent } => {
+                format!("{count} photo(s), {percent:.0}% of the library")
+            }
+        }
+    }
+}
+
 /// One notable fact, for the highlights strip.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Highlight {
     /// What it is about.
-    pub label: String,
-    /// What it says.
-    pub value: String,
+    pub kind: HighlightKind,
+    /// What it says, as the piece a screen words.
+    pub fact: HighlightFact,
+}
+
+impl Highlight {
+    /// The English label: the piece's own name, so the strip and the kind cannot disagree.
+    pub fn label(&self) -> &'static str {
+        self.kind.en()
+    }
+
+    /// The English sentence, built from the fact's own pieces.
+    pub fn value(&self) -> String {
+        self.fact.en()
+    }
 }
 
 /// Everything the insights view shows.
@@ -131,22 +371,16 @@ impl Insights {
         (*count > 0).then_some(index as u32 + 1)
     }
 
-    /// The busiest season by capture count: winter, spring, summer or autumn (northern reading).
-    pub fn peak_season(&self) -> Option<&'static str> {
-        let seasons = [
-            ("Winter", [11, 0, 1]),
-            ("Spring", [2, 3, 4]),
-            ("Summer", [5, 6, 7]),
-            ("Autumn", [8, 9, 10]),
-        ];
-        let mut best: Option<(&'static str, usize)> = None;
-        for (name, months) in seasons {
-            let count: usize = months.iter().map(|month| self.by_month[*month]).sum();
+    /// The busiest season by capture count, northern reading.
+    pub fn peak_season(&self) -> Option<Season> {
+        let mut best: Option<(Season, usize)> = None;
+        for season in Season::ALL {
+            let count: usize = season.months().iter().map(|month| self.by_month[*month as usize - 1]).sum();
             if count > 0 && best.is_none_or(|(_, peak)| count > peak) {
-                best = Some((name, count));
+                best = Some((season, count));
             }
         }
-        best.map(|(name, _)| name)
+        best.map(|(season, _)| season)
     }
 
     /// Up to four notable facts, most specific first.
@@ -156,36 +390,44 @@ impl Insights {
     /// how much has no date at all.
     pub fn highlights(&self) -> Vec<Highlight> {
         let mut highlights = Vec::new();
-        if let Some(month) = self.peak_month() {
-            let count = self.by_month[month as usize - 1];
-            let season = self.peak_season().map(|season| format!(" · mostly {season}"));
+        if let Some(month) = self.peak_month().and_then(Month::from_number) {
+            let count = self.by_month[month.number() as usize - 1];
             highlights.push(Highlight {
-                label: "Busiest month".to_string(),
-                value: format!("{} — {} photo(s){}", month_name(month), count, season.unwrap_or_default()),
+                kind: HighlightKind::BusiestMonth,
+                fact: HighlightFact::BusiestMonth {
+                    month,
+                    count,
+                    season: self.peak_season(),
+                },
             });
         }
         if let Some(day) = self.busiest_day
             && day.count > 1
         {
             highlights.push(Highlight {
-                label: "Busiest day".to_string(),
-                value: format!("{} — {} photo(s)", date_label(day.at), day.count),
+                kind: HighlightKind::BusiestDay,
+                fact: HighlightFact::BusiestDay {
+                    at: day.at,
+                    count: day.count,
+                },
             });
         }
         if let Some(camera) = self.cameras.first() {
             highlights.push(Highlight {
-                label: "Most used camera".to_string(),
-                value: format!("{} — {} photo(s)", camera.name, camera.count),
+                kind: HighlightKind::MostUsedCamera,
+                fact: HighlightFact::MostUsedCamera {
+                    camera: camera.name.clone(),
+                    count: camera.count,
+                },
             });
         }
         if self.undated > 0 {
             highlights.push(Highlight {
-                label: "No capture date".to_string(),
-                value: format!(
-                    "{} photo(s), {:.0}% of the library",
-                    self.undated,
-                    share(self.undated, self.stats.total) * 100.0
-                ),
+                kind: HighlightKind::NoCaptureDate,
+                fact: HighlightFact::NoCaptureDate {
+                    count: self.undated,
+                    percent: share(self.undated, self.stats.total) * 100.0,
+                },
             });
         }
         highlights.truncate(4);
@@ -269,23 +511,9 @@ impl Accumulator {
     }
 }
 
-/// The month name, 1–12.
+/// The month name, 1–12, as the piece's own English.
 pub fn month_name(month: u32) -> &'static str {
-    const NAMES: [&str; 12] = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ];
-    NAMES.get(month as usize - 1).copied().unwrap_or("Unknown")
+    Month::from_number(month).map_or("Unknown", Month::en)
 }
 
 /// `2024-08-14`, from unix seconds.
@@ -517,9 +745,33 @@ mod tests {
         assert_eq!(insights.by_month[6], 1);
         assert_eq!(insights.by_month[11], 1);
         assert_eq!(insights.peak_month(), Some(2));
-        assert_eq!(insights.peak_season(), Some("Winter"));
+        assert_eq!(insights.peak_season(), Some(Season::Winter));
         assert_eq!(month_name(2), "February");
         assert_eq!(month_name(99), "Unknown");
+    }
+
+    /// Every month and season answers with its own piece, so a screen can translate a value
+    /// rather than parsing English back out of a sentence.
+    #[test]
+    fn every_month_and_season_answers_through_its_own_piece() {
+        let numbers: Vec<u32> = Month::ALL.iter().map(|month| month.number()).collect();
+        assert_eq!(numbers, (1..=12).collect::<Vec<u32>>());
+        for month in Month::ALL {
+            assert_eq!(Month::from_number(month.number()), Some(month));
+            assert_eq!(month_name(month.number()), month.en());
+            assert!(!month.en().is_empty());
+        }
+        assert_eq!(Month::from_number(0), None);
+        assert_eq!(Month::from_number(13), None);
+
+        let mut covered: Vec<u32> = Season::ALL.iter().flat_map(|season| season.months()).collect();
+        covered.sort_unstable();
+        assert_eq!(covered, (1..=12).collect::<Vec<u32>>(), "the seasons tile the year once");
+        let names: Vec<&str> = Season::ALL.iter().map(|season| season.en()).collect();
+        assert_eq!(names, ["Winter", "Spring", "Summer", "Autumn"]);
+
+        let kinds: Vec<&str> = HighlightKind::ALL.iter().map(|kind| kind.en()).collect();
+        assert_eq!(kinds, ["Busiest month", "Busiest day", "Most used camera", "No capture date"]);
     }
 
     #[test]
@@ -534,16 +786,49 @@ mod tests {
 
         let insights = Insights::compute([&first, &second, &third, &undated]);
         let highlights = insights.highlights();
-        let labels: Vec<&str> = highlights.iter().map(|row| row.label.as_str()).collect();
+        let labels: Vec<&str> = highlights.iter().map(Highlight::label).collect();
         assert!(labels.contains(&"Busiest month"));
         assert!(labels.contains(&"Busiest day"));
         assert!(labels.contains(&"Most used camera"));
         assert!(labels.contains(&"No capture date"), "one photo has no date");
         assert!(highlights.len() <= 4);
-        let day = highlights.iter().find(|row| row.label == "Busiest day").expect("day row");
-        assert!(day.value.contains("2024-02-10"), "{}", day.value);
-        assert!(day.value.contains('2'), "two photos that day: {}", day.value);
+        let day = highlights
+            .iter()
+            .find(|row| row.kind == HighlightKind::BusiestDay)
+            .expect("day row");
+        assert_eq!(
+            day.fact,
+            HighlightFact::BusiestDay {
+                at: 1_707_523_200,
+                count: 2
+            },
+            "the day is a date and a count, not a sentence"
+        );
+        assert!(day.value().contains("2024-02-10"), "{}", day.value());
+        assert!(day.value().contains('2'), "two photos that day: {}", day.value());
+        // The strip's labels are the kind's own English, so the two cannot drift apart.
+        for highlight in &highlights {
+            assert_eq!(highlight.label(), highlight.kind.en());
+        }
         assert_eq!(date_label(0), "unknown");
+        // The month fact keeps its month and season as values, which is what a screen translates.
+        let month = highlights
+            .iter()
+            .find(|row| row.kind == HighlightKind::BusiestMonth)
+            .expect("month row");
+        assert_eq!(
+            month.fact,
+            HighlightFact::BusiestMonth {
+                month: Month::February,
+                count: 3,
+                season: Some(Season::Winter),
+            }
+        );
+        assert_eq!(
+            month.value(),
+            "February — 3 photo(s) · mostly Winter",
+            "English is still built from the same pieces"
+        );
     }
 
     #[test]

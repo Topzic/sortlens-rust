@@ -1,5 +1,59 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-ninth) — the Insights highlights name their months and seasons in your language
+
+- **Why this came up.** The ninety-eighth entry's Next named it: the highlights strip above the
+  figures and the `Busiest: … · mostly …` line were English composed inside `sortlens-insights`,
+  so the month, the season, the labels and the `photo(s)` sentences were the last prose on the page
+  that Settings → Language could not reach.
+- **The piece, not the sentence.** `sortlens-insights` gained `Month` (twelve values, `number`,
+  `from_number`, `en`), `Season` (four values, `months`, `en`), `HighlightKind` (the four things
+  the strip can say, `en`) and `HighlightFact` (month + count + season, day + count, camera + count,
+  undated + percent). `Highlight` is now `{ kind, fact }`; `label()`/`value()` are built from the
+  pieces, so the engine's JSON and the screen word the same words by construction. `peak_season`
+  now returns `Option<Season>`, `month_name` delegates to `Month::en`, and the engine re-exports
+  `InsightMonth`/`InsightSeason`/`InsightWord`/`InsightFact` beside `InsightHighlight`. The MCP
+  `insights.stats` payload keeps its `label`/`value` strings and its `peakSeason` is the English
+  word `Season::en` — a shape change nobody's client has to notice.
+- **The shell matches on the piece, never on the text.** `insight_highlight_word`,
+  `insight_month_word`, `insight_season_word` and `insight_highlight_line` are exhaustive matches
+  whose arms are `tl!`/`crate::i18n::fmt` literals; `highlights_strip` and `busiest_sentence` are
+  small pure painters/worders, so the test drives the strip with synthetic facts instead of
+  building a library. 27 new rows in each of `ar.tsv` and `ja.tsv`: the four labels, the twelve
+  month names, the four seasons, and seven templates (month-with-season, month, day, camera,
+  undated, `Busiest:` with and without a season).
+- **The date follows the language too.** The busiest day used the engine's ISO `date_label`, which
+  Arabic would have painted in Latin digits. `crates/ui/src/format.rs` gained `date`/`date_in`,
+  and `date_time_in` now builds on `date_in` so a date and its date-time cannot disagree; Arabic
+  reads `١٠/٠٢/٢٠٢٤`, Japanese `2024/02/10`.
+- **Tests that fail when the behaviour is absent.** `every_month_and_season_answers_through_its_own_piece`
+  in the insights crate: the twelve numbers round-trip through `from_number`, `month_name` equals
+  `Month::en`, the seasons tile the year exactly once, and the four kind names are the strip's.
+  `the_insights_highlights_speak_the_interface_language` in the shell: every English month, season
+  and label equals the crate's own `en()` (retype a month in the shell and it fails), then a painted
+  strip and a worded busiest line in English, Japanese and Arabic, with the English sentences
+  asserted absent. `fmt` isolates values in right-to-left text, so the test reads the frame without
+  the FSI/PDI marks; the Arabic undated row also proves the percent's digits are the reader's.
+- **Named as not shipped.** The month chart's twelve axis ticks keep the English initials
+  (`J F M A M J …`): a column is one character wide, so it is a tick rather than prose, and the
+  localized month words live in the strip and the busiest line. Recorded in the ROADMAP row and
+  UX.md rather than implied done.
+- **Files.** `crates/insights/src/lib.rs` (the pieces, `highlights()`, two tests),
+  `crates/engine/src/lib.rs` (re-exports, the JSON builder, one test), `crates/ui/src/format.rs`
+  (`date`/`date_in`, one test), `crates/ui/src/shell.rs` (four worders, the strip, the busiest
+  line, one test), `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (27 rows each), `docs/ROADMAP.md`
+  and `docs/UX.md` (the "still English" paragraph replaced with what shipped).
+- **Verified.** `cargo clippy -p sortlens-insights -p sortlens-engine -p sortlens-ui --all-targets
+  -- -D warnings` clean; the insights crate's 9 tests, the engine's insights tests and the UI's
+  three insights tests pass; `cargo xtask ci`, `cargo xtask snapshot`, `cargo xtask deny`,
+  `cargo xtask wasm` and `cargo xtask screenshots` each exit 0, the last painting all 27
+  committed scenes against their baselines, which is the proof that the English strip and busiest
+  line are byte-identical (English has no catalogue). No release
+  dispatch: this slice touches crates, catalogues and docs, no build or release surface.
+- **Next.** Places: `No photo has a location yet` and the `places.txt` line, the last plainly
+  English surface the ninety-sixth entry named. Then a language sweep of the remaining views before
+  the four catalogues (zh-TW/ko/th/vi) and the RTL screenshots.
+
 ## 2026-11-26 (ninety-eighth) — the Insights page counts, names and heads its columns in your language
 
 - **Why this came up.** The ninety-seventh entry's Next named it: the Insights page was the next surface

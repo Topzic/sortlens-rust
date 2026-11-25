@@ -1360,7 +1360,7 @@ fn run() -> Result<(), String> {
                 }
             }
             for highlight in insights.highlights() {
-                println!("{:<18} {}", highlight.label.to_lowercase(), highlight.value);
+                println!("{:<18} {}", highlight.label().to_lowercase(), highlight.value());
             }
             Ok(())
         }

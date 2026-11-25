@@ -108,19 +108,30 @@ pub(crate) fn date_time(seconds: i64) -> String {
 /// [`date_time`] in an explicit style.
 pub(crate) fn date_time_in(style: &Style, seconds: i64) -> String {
     let at = sortlens_meta::civil_time(seconds);
+    format!(
+        "{} {}:{}",
+        date_in(style, seconds),
+        digits_in(style, at.hour.unsigned_abs(), 2),
+        digits_in(style, at.minute.unsigned_abs(), 2)
+    )
+}
+
+/// A civil date without the time: `2026-11-21`, `2026/11/21`, `٢١/١١/٢٠٢٦`.
+pub(crate) fn date(seconds: i64) -> String {
+    date_in(current(), seconds)
+}
+
+/// [`date`] in an explicit style.
+pub(crate) fn date_in(style: &Style, seconds: i64) -> String {
+    let at = sortlens_meta::civil_time(seconds);
     let year = digits_in(style, at.year.unsigned_abs(), 4);
     let month = digits_in(style, at.month.unsigned_abs(), 2);
     let day = digits_in(style, at.day.unsigned_abs(), 2);
     let sep = style.date_sep;
-    let date = match style.order {
+    match style.order {
         Order::YearMonthDay => format!("{year}{sep}{month}{sep}{day}"),
         Order::DayMonthYear => format!("{day}{sep}{month}{sep}{year}"),
-    };
-    format!(
-        "{date} {}:{}",
-        digits_in(style, at.hour.unsigned_abs(), 2),
-        digits_in(style, at.minute.unsigned_abs(), 2)
-    )
+    }
 }
 
 /// `value` in this style's digits, left-padded with its zero to `width` digits.
@@ -225,6 +236,10 @@ mod tests {
         assert_eq!(date_time_in(style("en"), seconds), "2026-10-03 04:00");
         assert_eq!(date_time_in(style("ja"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦ ٠٤:٠٠");
+        // A date on its own is the same day, written the same way, with the time left off.
+        assert_eq!(date_in(style("en"), seconds), "2026-10-03");
+        assert_eq!(date_in(style("ja"), seconds), "2026/10/03");
+        assert_eq!(date_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦");
         // An epoch second far in the past still writes its year at four digits.
         assert_eq!(date_time_in(style("en"), -1_000_000_000), "1938-04-24 22:13");
     }

@@ -36,7 +36,10 @@ pub use sortlens_export::{
     Collision, Format as ExportFormat, Report as ExportReport, ReportPart as ExportReportPart, Spec as ExportSpec,
     SpecPart as ExportSpecPart,
 };
-pub use sortlens_insights::{Highlight as InsightHighlight, Insights, Row as InsightRow, month_name};
+pub use sortlens_insights::{
+    Highlight as InsightHighlight, HighlightFact as InsightFact, HighlightKind as InsightWord, Insights, Month as InsightMonth,
+    Row as InsightRow, Season as InsightSeason, month_name,
+};
 pub use sortlens_similar::{
     DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Match as SimilarMatch,
     MatchSense as SimilarSense, MatchWord as SimilarWord, Member as SimilarMember,
@@ -3502,9 +3505,9 @@ impl Engine {
                 "years": insights.years.iter().map(|year| json!({ "year": year.year, "count": year.count })).collect::<Vec<_>>(),
                 "byMonth": insights.by_month,
                 "peakMonth": insights.peak_month(),
-                "peakSeason": insights.peak_season(),
+                "peakSeason": insights.peak_season().map(sortlens_insights::Season::en),
                 "busiestDay": insights.busiest_day.map(|day| json!({ "at": day.at, "count": day.count })),
-                "highlights": insights.highlights().iter().map(|highlight| json!({ "label": highlight.label, "value": highlight.value })).collect::<Vec<_>>(),
+                "highlights": insights.highlights().iter().map(|highlight| json!({ "label": highlight.label(), "value": highlight.value() })).collect::<Vec<_>>(),
                 }))
             }
             "library.subfolders" => {
@@ -7131,7 +7134,7 @@ mod tests {
         assert_eq!(insights.stats.total, 3);
         assert_eq!(insights.stats.rated, 1);
         assert_eq!(insights.highlights().len(), 1, "three undated photos and no camera");
-        assert_eq!(insights.highlights()[0].label, "No capture date");
+        assert_eq!(insights.highlights()[0].label(), "No capture date");
 
         let progress = engine.run("insights.progress", &json!({})).expect("progress");
         assert_eq!(progress["running"], false);

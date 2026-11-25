@@ -671,9 +671,12 @@ re-checks its own contrast pairs after applying.
   row and the whole-library `Suggested keywords` dialog all read in the chosen language. The cull
   screen, the Similar view and the Insights page joined them the same day, screen by screen (cull
   chrome and its counts, similarity chrome, its mode picker, then Insights' figures, headings, kinds
-  and empty states). Still English by omission: the Insights highlights strip and its
-  `Busiest: … · mostly …` line, whose month, season and sentence are composed inside
-  `sortlens-insights`.
+  and empty states). The Insights highlights strip joined them the next day: `sortlens-insights`
+  hands the shell a `HighlightKind`, a `Month` and a `Season` as values beside the counts, so the
+  strip's four labels, the twelve month names, the four seasons and the `photo(s)` sentences are
+  catalogue rows, and the `Busiest: … · mostly …` line is worded from the same pieces. The busiest
+  day's date goes through `format::date`, so Arabic writes `١٠/٠٢/٢٠٢٤` rather than a Latin stamp.
+  Nothing on that page is English by omission now.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
