@@ -1,5 +1,39 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-eighteenth) — the lavapipe set adopts CI's own paint, and the trunk goes green on the RTL sidebar
+
+- **Why this came up.** `CI` on `main` was red on `3104271` (run `45649689136`) with exactly one failing
+  job, `screenshots`; the other seven — `ci` on Windows, Ubuntu and macOS, `deny`, `snapshot` and both
+  `mobile` legs — were green. A red trunk is the tick's slice, not a new roadmap row.
+- **One artifact, two frames.** `gh run download 45649689136 -n screenshot-set -D .ci-shots` wrote exactly
+  `lavapipe/rtl-library-{charcoal,paper}.new.png` and nothing else, so the only scenes that differ are the two
+  the hundred-and-seventeenth entry repainted, and only under Mesa. `SORTLENS_SNAPSHOT_SET=lavapipe cargo
+  xtask screenshots --adopt .ci-shots` copied them into `crates/ui/tests/snapshots/lavapipe/`; each adopted
+  file hashes byte-identical to the artifact's frame (`7680b185…`, `c459891f…`), so the committed baseline is
+  the paint the comparing run reported and not a second paint from this machine.
+- **The diff is the adapter's colour, not the layout.** `618402→661526` and `620988→664312` bytes; both frames
+  were opened at 1440×900 and carry the hundred-and-seventeenth entry's fix intact — `الكلمات المفتاحية` at the
+  sidebar's right edge, the toggle `الأكثر استخدامًا` at its left with no overlap, and every Arabic-Indic count
+  (`١٢`, `٢٧`, `٢٥`) wholly inside the panel, the keyword rows below unmoved. The default set does not move:
+  these two scenes are compared only when `SORTLENS_SNAPSHOT_SET=lavapipe`, and the `rtl-library` frames this
+  machine paints in the default set are untouched by the adoption.
+- **Verified.** `cargo xtask ci` green from start to finish (fmt, clippy on every target, the workspace suite,
+  layers, roots, assets, fonts, version, attribution, a11y, docs, templates, workflows); `cargo xtask snapshot`
+  (5 pass) and `cargo xtask deny` (advisories, bans, licenses, sources) green. The first invocation ran as a
+  background job and settled exit 1 with its captured output ending mid doc-tests and no failing assertion in
+  it; the same command re-run with its whole log written to a file exited 0 with every gate at `ok`, so this is
+  recorded as the harness cutting a capture rather than a red gate. No `cargo xtask screenshots` run of the
+  default set: no code changed. No release workflow dispatched — two baselines and this file touch no workflow,
+  `apps/**`, a `Cargo.toml` or release code.
+- **Files.** `crates/ui/tests/snapshots/lavapipe/rtl-library-{charcoal,paper}.png`; this file. No `docs/ROADMAP.md`
+  row moves: the adoption repaints a baseline rather than shipping a row.
+- **Not verified by hand**: nothing past the frames — nobody has driven the Arabic shell with a mouse.
+- **Next.** Read this commit's `CI` run first — `gh run list --workflow CI --limit 1 --json
+  databaseId,conclusion,headSha` — then the SL-L07 row's open canvas chrome, smallest first: route the filter
+  strip's `{n} shown` summary and the canvas header's count (`12 photos`) through the catalogues, then its sort
+  value (`Added order`), then the top bar's `Library` and `New collection`. Every one needs a frame, so extend
+  `the_arabic_interface_paints_right_to_left_in_both_themes`'s assertions or add a headless `run_ui` test, and
+  repaint the two `rtl-library-*` scenes in both the default and the `lavapipe` set. No release run is in flight.
 ## 2026-11-26 (hundred-and-seventeenth) — the RTL sidebar's Keywords row gives its heading and its toggle their own ends
 
 - **Why this came up.** The hundred-and-sixteenth entry's Next was the RTL frame's two visible defects, and
