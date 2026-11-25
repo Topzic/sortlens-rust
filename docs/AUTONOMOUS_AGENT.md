@@ -65,7 +65,11 @@ ends the attempt with a comment on the issue saying where it stopped.
 5. **Run the gates.** `. scripts/env.sh && cargo xtask ci`, `cargo xtask snapshot` and
    `cargo xtask deny`; `cargo xtask mobile` when `crates/core`, `crates/ui` or a phone-facing crate
    changed; `cargo xtask screenshots` when `crates/ui` changed. A red gate is never committed and
-   never worked around.
+   never worked around. A `screenshots` job compared against `tests/snapshots/<set>/` is fixed from
+   its own paint and not from this machine's: `gh run download <id> -n screenshot-set -D .ci-shots`,
+   then `SORTLENS_SNAPSHOT_SET=<set> cargo xtask screenshots --adopt .ci-shots`, then read
+   `git diff --stat` and open the images. `--update` rewrites the local set, which is the wrong tool
+   for a runner's paint.
 6. **Open a Draft pull request** from a branch named after the issue, with the template's linked
    issue, the failing-then-passing test name, the gate confirmations, the `cargo xtask perf` delta
    for scan/catalog/thumbs and before-and-after screenshots for `crates/ui`. The draft is the

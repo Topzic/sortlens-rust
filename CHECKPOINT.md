@@ -1,5 +1,55 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventh) — a red screenshots run is fixed from its own paint, in one command
+
+- **Why this came up.** The trunk was red on `ef1627b` (`45619063394`) with four lavapipe baselines
+  behind the language row, and the fix is mechanical: the failing run uploads what it painted as
+  `*.new.png`, so the set is repaired by adopting that paint. It was done by hand — download, four
+  renames into `crates/ui/tests/snapshots/lavapipe/`, and a hash check to be sure the file being
+  adopted was the paint the run reported — which is why the same four files were fetched twice.
+  This tick had the artifact open and a byte-identical result to the fix commit when `5e3ff04`
+  landed, so the ritual is now a command instead of a paragraph someone has to remember.
+- **What ships.** `cargo xtask screenshots --adopt <dir>` takes the folder `gh run download` wrote and
+  copies every `*.new.png` under it to `crates/ui/tests/snapshots/<set>/<name>.png`. It refuses
+  three things rather than guessing: a folder that does not exist (named in the error), a folder with
+  no frame in it (a run that matched uploads none), and `--update` in the same breath (`--update`
+  rewrites the set from *this* machine's adapter, `--adopt` from the runner's). It also requires
+  `SORTLENS_SNAPSHOT_SET`, so a runner's paint cannot be mistaken for the committed reference set,
+  and it normalises that name with the harness's own rule (`Mesa LLVM 15.0` → `mesa-llvm-15-0`,
+  `../..` → no set) so a frame lands in the folder the comparing run actually reads.
+- **The rule is copied, and the copy is held to it.** The harness owns `set_dir` in
+  `crates/ui/tests/screenshots.rs`, a test binary `xtask` cannot link, so `xtask`'s copy is asserted
+  against the same cases; a set name that spelled a different folder would adopt frames the gate never
+  reads, which is the one way this command could be worse than doing it by hand.
+- **Tests that fail when the behaviour is absent.**
+  `an_adopted_frame_lands_where_the_comparing_run_looks` (a frame keeps its scene's name and loses
+  `.new`, a `.diff.png` is a report and not a baseline, an already-committed `.png` is not a
+  hand-over), `a_set_name_is_a_directory_like_the_harness_spells_it`,
+  `adopting_a_downloaded_folder_writes_the_sets_baselines` (a real folder with one frame, one diff
+  image and one note: exactly one file lands, byte for byte, and the diff image does not), and
+  `a_missing_download_folder_names_the_folder_it_was_given`. `cargo test -p xtask` is 53 tests.
+- **Files.** `xtask/src/main.rs` (argument parsing, `adopt_screenshots`, `adopt_frames`,
+  `adopted_baseline`, `set_dir`, `frames_under`, the `--adopt` line in `--help`, four tests);
+  `docs/AUTONOMOUS_AGENT.md` (the gate step names the command); this entry.
+- **Not shipped, named.** The command replaces the tool's `screenshots` subcommand only: nothing here
+  changes which adapter a committed set belongs to, and the reference set is still painted by this
+  machine. The Korean catalogue (`ko.tsv`) is untouched — see Next.
+- **Two runs on the trunk, and one is in flight.** `45619063394` on `ef1627b` is red in
+  `screenshots` only (the four Settings baselines). `5e3ff04` adopted exactly those four frames —
+  this tick hashed its artifact `screenshot-set` against the committed files and they are identical,
+  which is the proof that fix is complete and not a guess — and `45620147702` on `5e3ff04` was
+  still painting when this tick read the list. That run is the next tick's first read, one
+  `gh run view 45620147702 --json status,conclusion,jobs`.
+- **Verified.** `cargo clippy -p xtask --all-targets -- -D warnings` and `cargo test -p xtask` (53
+  pass, four new) clean; `cargo xtask ci`, `cargo xtask snapshot` and `cargo xtask deny` green. No
+  baseline moved, so no `screenshots` run was needed and no image was read: this slice paints
+  nothing. No release workflow was dispatched — `xtask/src/main.rs` is not
+  `.github/workflows/**`, `xtask/src/workflow.rs`, `apps/**`, a `Cargo.toml` or release code.
+- **Next.** The Korean catalogue (`ko.tsv`, script `Hang`): the same 754 keys and 11 `@plural`
+  counts as `zh-TW.tsv` in the audit's order, then its `CATALOGS`/`LANGUAGES`/`STYLES`/
+  `font_manifest` rows, then `th` and `vi`. Read `45620147702` first, and if it is red, adopt its
+  frames with the command this tick shipped rather than fetching them twice.
+
 ## 2026-11-26 (hundred-and-sixth) — the Traditional Chinese catalogue ships, and the language row gains 繁體中文
 
 - **Why this came up.** The hundred-and-fifth entry's Next named it first: `zh-TW` was the next of the

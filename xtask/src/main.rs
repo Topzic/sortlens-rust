@@ -93,7 +93,8 @@ fn help() {
   fonts    report the embedded face set and refuse one that misses a script the interface ships
   deny     check licences, advisories, bans and sources against deny.toml
   snapshot golden CLI output; --update rewrites the goldens, then read the diff
-  screenshots  paint the shell through egui_kittest and diff the baselines; --update rewrites them
+  screenshots  paint the shell through egui_kittest and diff the baselines; --update rewrites them,
+               --adopt <dir> takes the frames a red CI run uploaded as this adapter's set
   version  one version for the workspace, declared once
   attribution  every dependency attributed, and the document honest about what is linked
   a11y     every custom-painted clickable region registers a name
@@ -426,7 +427,31 @@ fn snapshot() -> Result<(), String> {
 /// Tests run one at a time: each one creates a wgpu device, and six devices at once is a way to make
 /// a screenshot fail for a reason that has nothing to do with the UI.
 fn screenshots() -> Result<(), String> {
-    let update = std::env::args().any(|arg| arg == "--update");
+    let mut update = false;
+    let mut adopt: Option<String> = None;
+    // args[1] is the task itself; everything after it belongs to this one.
+    let mut rest = std::env::args().skip(2);
+    while let Some(arg) = rest.next() {
+        match arg.as_str() {
+            "--update" => update = true,
+            "--adopt" => {
+                adopt = Some(
+                    rest.next()
+                        .ok_or("--adopt needs the directory `gh run download <run-id> -n screenshot-set -D <dir>` wrote")?,
+                );
+            }
+            other => return Err(format!("screenshots does not take `{other}`")),
+        }
+    }
+    if let Some(dir) = adopt {
+        if update {
+            return Err(
+                "--adopt and --update disagree: one adopts the paint an adapter uploaded, the other rewrites from this machine's"
+                    .to_string(),
+            );
+        }
+        return adopt_screenshots(Path::new(&dir));
+    }
     if update {
         println!("xtask screenshots: rewriting baselines — read `git diff --stat` and open the images");
     }
@@ -450,6 +475,117 @@ fn screenshots() -> Result<(), String> {
         return Err("the screenshot baselines do not match (see crates/ui/tests/snapshots)".to_string());
     }
     Ok(())
+}
+
+/// Adopt the frames a red CI run handed over as the baseline set this run names.
+///
+/// A run whose adapter paints differently from the committed set compares against
+/// `tests/snapshots/<set>/` and, when a scene does not match, writes what it painted as
+/// `<scene>.new.png` beside the baselines; the workflow uploads them. Downloading them and copying
+/// them in by hand is four renames, a directory that has to be right, and a hash check to be sure the
+/// file being adopted is the paint the run reported — the ritual that cost two red trunks. This is
+/// that step, once, from the folder `gh run download` wrote:
+///
+/// ```text
+/// gh run download <run-id> -n screenshot-set -D .ci-shots
+/// SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots
+/// ```
+fn adopt_screenshots(dir: &Path) -> Result<(), String> {
+    let set = set_dir(&std::env::var("SORTLENS_SNAPSHOT_SET").unwrap_or_default());
+    if set.is_empty() {
+        return Err(
+            "--adopt needs SORTLENS_SNAPSHOT_SET to name the set these frames were painted for, so one machine's paint cannot land in the committed baselines"
+                .to_string(),
+        );
+    }
+    if !dir.is_dir() {
+        return Err(format!(
+            "{} is not a directory: pass the folder `gh run download` wrote",
+            dir.display()
+        ));
+    }
+    let adopted = adopt_frames(Path::new(SNAPSHOT_ROOT), dir, &set)?;
+    if adopted == 0 {
+        return Err(format!(
+            "no `.new.png` frame under {}: a run whose paint matched its baselines uploads none",
+            dir.display()
+        ));
+    }
+    println!("adopted {adopted} frame(s) into {SNAPSHOT_ROOT}/{set}; read `git diff --stat` and open the images");
+    Ok(())
+}
+
+/// Copy every frame under `dir` into `root/<set>`, answering how many landed.
+///
+/// The root is a parameter so the rule can be tested without touching the committed baselines; the
+/// command passes the crate's own directory.
+fn adopt_frames(root: &Path, dir: &Path, set: &str) -> Result<usize, String> {
+    let mut adopted = 0usize;
+    for frame in frames_under(dir)? {
+        let Some(destination) = adopted_baseline(root, set, &frame) else {
+            continue;
+        };
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|err| format!("could not make {}: {err}", parent.display()))?;
+        }
+        fs::copy(&frame, &destination).map_err(|err| format!("could not write {}: {err}", destination.display()))?;
+        println!("adopted {} -> {}", frame.display(), destination.display());
+        adopted += 1;
+    }
+    Ok(adopted)
+}
+
+/// Where one downloaded frame belongs: the set's own directory under the crate's baselines.
+///
+/// The harness names a baseline `tests/snapshots/<set>/<scene>.png` and hands a run that did not
+/// match the paint as `<scene>.new.png` beside it, under the same set folder. So a frame keeps its own
+/// name minus `.new`, and anything that is not a frame (`.diff.png`, a notes file) is not adopted.
+fn adopted_baseline(root: &Path, set: &str, painted: &Path) -> Option<PathBuf> {
+    let name = painted.file_name()?.to_str()?.strip_suffix(".new.png")?;
+    if name.is_empty() {
+        return None;
+    }
+    Some(root.join(set).join(format!("{name}.png")))
+}
+
+/// The crate's baselines, where the harness reads them.
+const SNAPSHOT_ROOT: &str = "crates/ui/tests/snapshots";
+
+/// A set name as a directory, spelled exactly as the harness spells it.
+///
+/// The rule lives in `crates/ui/tests/screenshots.rs`, which is a test binary this crate cannot link,
+/// so it is copied rather than shared — and `a_set_name_is_a_directory_like_the_harness_spells_it`
+/// holds the same cases, because a frame adopted into a folder the comparing run never reads is a fix
+/// that changes nothing.
+fn set_dir(set: &str) -> String {
+    let mut out = String::new();
+    for ch in set.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_end_matches('-').to_string()
+}
+
+/// Every file under a directory, in a stable order, so one download adopts the same way twice.
+fn frames_under(dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut files = Vec::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let entries = fs::read_dir(&next).map_err(|err| format!("could not read {}: {err}", next.display()))?;
+        for entry in entries {
+            let path = entry.map_err(|err| format!("could not read {}: {err}", next.display()))?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
 }
 
 /// Run cargo-deny against the allow-list in `deny.toml`.
@@ -1023,5 +1159,75 @@ mod tests {
         assert!(env[1].1.replace(std::path::MAIN_SEPARATOR, "/").ends_with("/ndk/bin/llvm-ar"));
         let win = android_cc_env_in(Path::new("/ndk/bin"), "aarch64-linux-android", 26, true);
         assert!(win[0].1.ends_with("aarch64-linux-android26-clang.cmd"));
+    }
+
+    /// The set name the harness turns into a folder is the folder a frame is adopted into.
+    ///
+    /// The cases are `crates/ui/tests/screenshots.rs`'s own, because this copy must land a frame where
+    /// that run reads it: a capital letter, a space, a dot or `../..` must not become a second folder.
+    #[test]
+    fn a_set_name_is_a_directory_like_the_harness_spells_it() {
+        assert_eq!(set_dir("lavapipe"), "lavapipe");
+        assert_eq!(set_dir("  LavaPipe  "), "lavapipe");
+        assert_eq!(set_dir("Mesa LLVM 15.0"), "mesa-llvm-15-0");
+        assert_eq!(set_dir("   "), "", "a blank name is no set");
+        assert_eq!(set_dir("../.."), "", "a set cannot climb out of the baselines");
+        assert_eq!(set_dir("  //  "), "", "a name with no letter or digit is no set");
+    }
+
+    /// A frame keeps its scene's name and loses `.new`; a diff image or a note is not a frame.
+    #[test]
+    fn an_adopted_frame_lands_where_the_comparing_run_looks() {
+        let root = Path::new("crates/ui/tests/snapshots");
+        assert_eq!(
+            adopted_baseline(root, "lavapipe", Path::new(".ci-shots/lavapipe/settings-sync-charcoal.new.png")),
+            Some(root.join("lavapipe").join("settings-sync-charcoal.png"))
+        );
+        assert_eq!(
+            adopted_baseline(root, "lavapipe", Path::new("settings-sync-charcoal.new.png")),
+            Some(root.join("lavapipe").join("settings-sync-charcoal.png")),
+            "a frame with no folder still lands in the set this run names"
+        );
+        assert_eq!(
+            adopted_baseline(root, "lavapipe", Path::new(".ci-shots/lavapipe/x.diff.png")),
+            None,
+            "a diff image is a report, not a baseline"
+        );
+        assert_eq!(
+            adopted_baseline(root, "lavapipe", Path::new(".ci-shots/lavapipe/x.png")),
+            None,
+            "a committed baseline is not a hand-over"
+        );
+    }
+
+    /// One download is adopted once: only the frames land, and they land as the set's files.
+    #[test]
+    fn adopting_a_downloaded_folder_writes_the_sets_baselines() {
+        let workspace = std::env::temp_dir().join(format!("sortlens-adopt-{}", std::process::id()));
+        let root = workspace.join("snapshots");
+        let download = workspace.join("download").join("lavapipe");
+        fs::create_dir_all(&download).expect("the download folder");
+        fs::write(download.join("settings-short-charcoal.new.png"), b"painted charcoal").expect("the frame");
+        fs::write(download.join("settings-short-charcoal.diff.png"), b"a diff report").expect("the diff");
+        fs::write(workspace.join("download").join("notes.txt"), b"not a frame").expect("the note");
+
+        let adopted = adopt_frames(&root, &workspace.join("download"), "lavapipe").expect("the folder adopts");
+        assert_eq!(adopted, 1, "one frame, not the diff image and not the note");
+        assert_eq!(
+            fs::read(root.join("lavapipe").join("settings-short-charcoal.png")).expect("the baseline"),
+            b"painted charcoal",
+            "the adopted file is the run's own paint, byte for byte"
+        );
+        assert!(!root.join("lavapipe").join("settings-short-charcoal.diff.png").exists());
+
+        fs::remove_dir_all(&workspace).ok();
+    }
+
+    /// A folder that is not there names itself instead of adopting nothing quietly.
+    #[test]
+    fn a_missing_download_folder_names_the_folder_it_was_given() {
+        let missing = std::env::temp_dir().join("sortlens-adopt-not-really-here");
+        let err = frames_under(&missing).expect_err("a missing folder is an error");
+        assert!(err.contains("sortlens-adopt-not-really-here"), "{err}");
     }
 }
