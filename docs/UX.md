@@ -743,9 +743,9 @@ re-checks its own contrast pairs after applying.
   phone's filter already names `Latn` — the six languages the design names are all shipped now.
   The RTL screenshots shipped (hundred-and-fifteenth entry): `rtl-library-charcoal` and
   `rtl-library-paper` paint the Arabic shell right-to-left, the sidebar at the reading start and the
-  vendored face drawing its words — and the frames also show which canvas chrome is still English
-  (the filter strip's chips, `N shown`), which is the open part of the language row rather than a
-  hidden gap.
+  vendored face drawing its words. The frames then showed which canvas chrome was still English;
+  `N shown`, the header's counts and sort value, and the filter strip's chips have since become
+  catalogue rows, so the remaining open canvas chrome is the top bar's words and `New collection`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

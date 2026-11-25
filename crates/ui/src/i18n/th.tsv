@@ -779,3 +779,22 @@
 	Oldest first	เก่าที่สุดก่อน
 	Largest first	ใหญ่ที่สุดก่อน
 	Highest rated	คะแนนสูงสุด
+	Flags	ธง
+	Unflagged	ไม่ติดธง
+	All kinds	ทุกชนิด
+	Videos	วิดีโอ
+	RAW	ไฟล์ RAW
+	Source	แหล่งที่มา
+	Edited	แก้ไขแล้ว
+	Edited only	เฉพาะที่แก้ไข
+	Unedited	ยังไม่แก้ไข
+	+ keyword	+ คำค้น
+	Find a keyword	ค้นหาคำค้น
+	No keywords	ไม่มีคำค้น
+	match {mode}	ตรงกันแบบ {mode}
+	any	อย่างใดก็ได้
+	all	ทั้งหมด
+	{source} keywords	คำค้นจาก {source}
+	Only photos where some keyword came from here	เฉพาะรูปที่คำค้นบางคำมาจากที่นี่
+	Only photos rated at least this many stars	เฉพาะรูปที่ได้ดาวอย่างน้อยเท่านี้
+	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	ตัวกรองคะแนน: {stars} ดาวขึ้นไป — คลิกอีกครั้งเพื่อเพิ่มขั้นต่ำ คลิกเกินห้าครั้งเพื่อล้าง

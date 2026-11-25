@@ -1,5 +1,57 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-third) — the filter strip's chips name themselves in the interface language
+
+- **Why this came up.** The hundred-and-twenty-second entry's Next named SL-L07's open canvas chrome,
+  smallest first: the filter strip's chips. `CI` on `main` was green on `5685d9b` (run `45664188618`,
+  all eight jobs), so this is a roadmap slice rather than a repair.
+- **What was routed.** Every word the strip paints is now a catalogue row: at rest `Rating`, `Flags`,
+  `Colour`, `All kinds`, `Source`, `Edited`, `Missing`, `Clear` and `+ keyword`; and every state
+  the chips cycle through — `Picks`/`Rejects`/`Unflagged`, `Photos`/`RAW`/`Videos`,
+  `Edited only`/`Unedited`, the keyword menu's `Find a keyword` and `No keywords`, the
+  `match {mode}` toggle with its `any`/`all` values, the `{source} keywords` template and
+  the two hovers. The flag, kind, source, edit and keyword-mode labels moved out of inline
+  `match` expressions into `flag_filter_word`, `kind_filter_word`, `source_filter_word`,
+  `edited_filter_word`, `tag_mode_word` and `match_chip_word`, so each state is a value a test can
+  ask for rather than a literal buried in the paint. The source value itself (`Manual`, `AI`, `XMP`)
+  stays the crate's recorded data word, the same one the filter JSON carries.
+- **Nineteen rows in six catalogues.** `ar`, `ja`, `ko`, `th`, `vi` and `zh-TW` each gained
+  `Flags`, `Unflagged`, `All kinds`, `Videos`, `RAW`, `Source`, `Edited`, `Edited only`,
+  `Unedited`, `+ keyword`, `Find a keyword`, `No keywords`, `match {mode}`, `any`, `all`,
+  `{source} keywords`, the source hover, the rating hover and the five-star hover template; the
+  words that already had rows (`Picks`, `Rejects`, `Missing`, `Clear`, `Photos`, `Rating`,
+  `Colour`) reuse them instead of growing a second spelling. The source-reading audit now demands
+  all of them, so a chip that falls back to English fails the suite.
+- **The frame proves it.** `the_canvas_chrome_reads_in_the_interface_language` now also requires
+  the Arabic strip's `التقييم`, `العلامات`, `اللون`, `كل الأنواع`, `المصدر`, `معدّلة`, `مفقودة`
+  and `+ كلمة` on the painted frame, and requires the English words to be absent. A new
+  `every_filter_chip_state_speaks_the_interface_language` walks every cycle position in Arabic
+  (including the bidi-isolated `match any`/`match all`) and checks English still reads its own
+  words.
+- **Verified.** `cargo xtask ci` green after one `cargo fmt --all` pass (the first run stopped at
+  `fmt --check`); `cargo xtask snapshot` (5 pass) and `cargo xtask deny` green with
+  `CARGO_HOME=/tmp/sortlens-cargo-deny`. The two `rtl-library-*` scenes were repainted with
+  `UPDATE_SNAPSHOTS=1` and the same test then compared them byte for byte; both frames were opened
+  at 1440×900: the strip reads `مسح`, `مفقودة`, `معدّلة`, `المصدر`, `كل الأنواع`, `اللون`,
+  `العلامات`, `التقييم` and `+ كلمة`, while the top bar's `Library`, `1 active`, `All Photos`,
+  the canvas head's `Photos` and `+ New collection` are still English — the next slice, unchanged.
+  No full default-set `cargo xtask screenshots` run: 22 of the other scenes are red on this machine
+  for the known rasteriser difference, and only these two scenes changed. The `lavapipe` pair is
+  deliberately left for the next tick's CI artifact, because this machine has no Mesa adapter.
+- **Files.** `crates/ui/src/shell.rs` (the six helpers, the strip's call sites, the two hovers, the
+  extended frame test and the new state test), `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv`
+  (nineteen rows each), `crates/ui/tests/snapshots/rtl-library-{charcoal,paper}.png`,
+  `docs/ROADMAP.md` (the SL-L07 Open line and a shipped paragraph), `docs/UX.md` (the RTL-prose
+  reconciliation) and this file.
+- **Not verified by hand**: the open keyword menu, the flag/kind/edit cycles and the source chip were
+  tested as values, not clicked; the painted frame proves the at-rest words only.
+- **Next.** Read this commit's `CI` run first: its `screenshots` job is expected red on the two
+  `lavapipe/rtl-library-*` frames. `gh run download <id> -n screenshot-set -D .ci-shots`, then
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, and read the two frames.
+  After that, SL-L07's remaining canvas chrome, smallest first: the top bar's `Library`, `Photos` and
+  `New collection`, then the canvas head's `Photos` and `1 active`. No release run was dispatched:
+  this slice touches no workflow, `apps/**`, a `Cargo.toml` or release code.
+
 ## 2026-11-26 (hundred-and-twenty-second) — the lavapipe set adopts the sort value's paint, and the trunk goes green
 
 - **Why this came up.** `CI` on `main` was red on `0d68218` (run `45662554285`) with exactly one failing job,

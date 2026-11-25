@@ -779,3 +779,22 @@
 	Oldest first	最舊優先
 	Largest first	最大優先
 	Highest rated	評分最高
+	Flags	旗標
+	Unflagged	未標旗
+	All kinds	所有類型
+	Videos	影片
+	RAW	RAW 檔
+	Source	來源
+	Edited	已編輯
+	Edited only	僅已編輯
+	Unedited	未編輯
+	+ keyword	+ 關鍵字
+	Find a keyword	尋找關鍵字
+	No keywords	沒有關鍵字
+	match {mode}	符合方式 {mode}
+	any	任一
+	all	全部
+	{source} keywords	{source} 關鍵字
+	Only photos where some keyword came from here	僅限部分關鍵字來自這裡的照片
+	Only photos rated at least this many stars	僅限評分至少這麼多星的照片
+	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	評分篩選: {stars} 星以上 — 再點一次提高下限，點超過五顆即清除

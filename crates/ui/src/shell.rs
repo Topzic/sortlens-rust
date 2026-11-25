@@ -4717,6 +4717,62 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     }
 }
 
+/// The flag chip's word, in the interface language: a pick, a reject, no flag and "no
+/// constraint" are four states, and the chip names the one it is in rather than only tinting its glyph.
+fn flag_filter_word(flag: Option<Flag>) -> String {
+    match flag {
+        None => tl!("Flags"),
+        Some(Flag::Pick) => tl!("Picks"),
+        Some(Flag::Reject) => tl!("Rejects"),
+        Some(Flag::None) => tl!("Unflagged"),
+    }
+    .to_string()
+}
+
+/// The kind chip's word: every kind, or the one it currently narrows to.
+fn kind_filter_word(kind: Option<MediaKind>) -> String {
+    match kind {
+        None => tl!("All kinds"),
+        Some(MediaKind::Image) => tl!("Photos"),
+        Some(MediaKind::Raw) => tl!("RAW"),
+        Some(MediaKind::Video) => tl!("Videos"),
+    }
+    .to_string()
+}
+
+/// The keyword-source chip's word. The template is a catalogue row, so a language can put the
+/// source word where its grammar wants it; the source value itself (`Manual`, `AI`, `XMP`) is
+/// the crate's recorded data word, the same one the filter JSON carries.
+fn source_filter_word(source: Option<sortlens_core::TagSource>) -> String {
+    match source {
+        None => tl!("Source").to_string(),
+        Some(source) => crate::i18n::fmt("{source} keywords", &[("source", source.label())]),
+    }
+}
+
+/// The edit chip's word: no constraint, edited only, or unedited only.
+fn edited_filter_word(edited: Option<bool>) -> String {
+    match edited {
+        None => tl!("Edited"),
+        Some(true) => tl!("Edited only"),
+        Some(false) => tl!("Unedited"),
+    }
+    .to_string()
+}
+
+/// How several keyword filters combine: the crate's `any`/`all` values, each a catalogue row.
+fn tag_mode_word(mode: sortlens_engine::TagMode) -> &'static str {
+    match mode {
+        sortlens_engine::TagMode::Any => tl!("any"),
+        sortlens_engine::TagMode::All => tl!("all"),
+    }
+}
+
+/// The multi-keyword chip: `match any` / `match all`, with the mode word placed by the template.
+fn match_chip_word(mode: sortlens_engine::TagMode) -> String {
+    crate::i18n::fmt("match {mode}", &[("mode", tag_mode_word(mode))])
+}
+
 fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, total: usize) {
     Frame::NONE
         .fill(t.card)
@@ -4778,13 +4834,13 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 }
                 ui.menu_button(
                     (
-                        RichText::new("+ keyword").size(10.5),
+                        RichText::new(tl!("+ keyword")).size(10.5),
                         crate::icons::image(crate::icons::Icon::Chevron, 10.0).tint(t.text_muted),
                     ),
                     |ui| {
                         ui.add(
                             TextEdit::singleline(&mut state.tag_picker_query)
-                                .hint_text("Find a keyword")
+                                .hint_text(tl!("Find a keyword"))
                                 .desired_width(180.0),
                         );
                         ui.separator();
@@ -4795,7 +4851,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                             .filter(|(tag, _)| needle.is_empty() || tag.contains(&needle))
                             .collect();
                         if vocabulary.is_empty() {
-                            ui.label(RichText::new("No keywords").size(10.5));
+                            ui.label(RichText::new(tl!("No keywords")).size(10.5));
                         }
                         for (tag, count) in vocabulary.iter().take(24) {
                             let active = state.tag_filters.iter().any(|chosen| chosen == tag);
@@ -4815,7 +4871,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     },
                 );
                 if state.tag_filters.len() > 1 {
-                    let label = format!("match {}", state.tag_mode.label());
+                    let label = match_chip_word(state.tag_mode);
                     if chip(
                         ui,
                         t,
@@ -4832,12 +4888,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     state.min_rating = (state.min_rating + 1) % 6;
                 }
 
-                let flag_label = match state.flag_filter {
-                    None => "Flags".to_string(),
-                    Some(Flag::Pick) => "Picks".to_string(),
-                    Some(Flag::Reject) => "Rejects".to_string(),
-                    Some(Flag::None) => "Unflagged".to_string(),
-                };
+                let flag_label = flag_filter_word(state.flag_filter);
                 // The flag's own state is a glyph, not only a word: a pick is the pick tick and a
                 // reject is the reject cross, the same two the bottom bar's pill wears, so the chip
                 // says which of the four states it is in before you read it.
@@ -4868,12 +4919,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     };
                 }
 
-                let kind_label = match state.kind_filter {
-                    None => "All kinds".to_string(),
-                    Some(MediaKind::Image) => "Photos".to_string(),
-                    Some(MediaKind::Raw) => "RAW".to_string(),
-                    Some(MediaKind::Video) => "Videos".to_string(),
-                };
+                let kind_label = kind_filter_word(state.kind_filter);
                 if chip(ui, t, Some(crate::icons::Icon::Film), &kind_label, state.kind_filter.is_some()).clicked() {
                     state.kind_filter = match state.kind_filter {
                         None => Some(MediaKind::Image),
@@ -4886,10 +4932,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 // Where a keyword came from. The chip cycles through the recorded sources and back to no
                 // constraint; "Not recorded" is offered too, because a library written before sources existed
                 // has to be findable — that is the difference between an honest answer and a hidden one.
-                let source_label = match state.source_filter {
-                    None => "Source".to_string(),
-                    Some(source) => format!("{} keywords", source.label()),
-                };
+                let source_label = source_filter_word(state.source_filter);
                 let source_chip = chip(
                     ui,
                     t,
@@ -4899,7 +4942,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 );
                 let source_chip = match state.source_filter {
                     Some(source) => source_chip.on_hover_text(source.explanation()),
-                    None => source_chip.on_hover_text("Only photos where some keyword came from here"),
+                    None => source_chip.on_hover_text(tl!("Only photos where some keyword came from here")),
                 };
                 if source_chip.clicked() {
                     state.source_filter = match state.source_filter {
@@ -4915,11 +4958,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     };
                 }
 
-                let edited_label = match state.edited_filter {
-                    None => "Edited".to_string(),
-                    Some(true) => "Edited only".to_string(),
-                    Some(false) => "Unedited".to_string(),
-                };
+                let edited_label = edited_filter_word(state.edited_filter);
                 if chip(
                     ui,
                     t,
@@ -4941,12 +4980,12 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 // view to include it. Turning it off clears both, because a chip that says "on" while the
                 // grid shows only missing files is the kind of disagreement a filter bar cannot have.
                 let missing_shown = state.show_missing || state.missing_only;
-                if chip(ui, t, Some(crate::icons::Icon::Warning), "Missing", missing_shown).clicked() {
+                if chip(ui, t, Some(crate::icons::Icon::Warning), tl!("Missing"), missing_shown).clicked() {
                     state.show_missing = !missing_shown;
                     state.missing_only = false;
                 }
 
-                if state.has_filters() && chip(ui, t, Some(crate::icons::Icon::Close), "Clear", true).clicked() {
+                if state.has_filters() && chip(ui, t, Some(crate::icons::Icon::Close), tl!("Clear"), true).clicked() {
                     state.search.clear();
                     state.clear_filters();
                 }
@@ -5052,13 +5091,13 @@ fn rating_chip(ui: &mut Ui, t: &Tokens, stars: u8) -> egui::Response {
         let response = ui.add(
             Button::new((
                 crate::icons::image(crate::icons::Icon::Star, STAR_GLYPH).tint(colour),
-                RichText::new("Rating").size(11.0).color(colour),
+                RichText::new(tl!("Rating")).size(11.0).color(colour),
             ))
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::NONE),
         );
         a11y::label_widget(ui, &response, egui::Role::Button, "Rating filter: any rating", false);
-        return response.on_hover_text("Only photos rated at least this many stars");
+        return response.on_hover_text(tl!("Only photos rated at least this many stars"));
     }
     let spoken = format!("Rating filter: {stars} star{} and up", if stars == 1 { "" } else { "s" });
     let response = ui.add(
@@ -5067,7 +5106,10 @@ fn rating_chip(ui: &mut Ui, t: &Tokens, stars: u8) -> egui::Response {
             .stroke(Stroke::new(1.0, t.accent)),
     );
     a11y::label_widget(ui, &response, egui::Role::Button, &spoken, true);
-    response.on_hover_text(format!("{spoken} — one more click raises the minimum, a click past five clears it"))
+    response.on_hover_text(crate::i18n::fmt(
+        "Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it",
+        &[("stars", &stars.to_string())],
+    ))
 }
 
 /// Which glyph a flag filter wears: the state's own, so the four states are pictures and not just words.
@@ -11296,9 +11338,61 @@ mod tests {
             !painted.iter().any(|text| text == "Added order"),
             "no English sort value is left on the canvas, painted {painted:#?}"
         );
+        for chip in ["التقييم", "العلامات", "اللون", "كل الأنواع", "المصدر", "معدّلة", "مفقودة"]
+        {
+            assert!(
+                painted.iter().any(|text| text == chip),
+                "the strip paints {chip:?}, painted {painted:#?}"
+            );
+        }
+        assert!(
+            painted.iter().any(|text| text == "+ كلمة"),
+            "the keyword chip paints, painted {painted:#?}"
+        );
+        for english in ["Rating", "Flags", "Colour", "All kinds", "Source", "Edited", "Missing", "+ keyword"] {
+            assert!(
+                !painted.iter().any(|text| text == english),
+                "no English filter chip {english:?} is left on the strip, painted {painted:#?}"
+            );
+        }
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every state of the filter strip's chips is a catalogue row, not only the at-rest word: the flag
+    /// chip cycles through pick/reject/unflagged, the kind chip through photos/RAW/video, the edit chip
+    /// through edited/unedited and the keyword chip through any/all. A language has to name all of them,
+    /// so these helpers are checked in Arabic and English rather than only in the frame the canvas paints.
+    #[test]
+    fn every_filter_chip_state_speaks_the_interface_language() {
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        assert_eq!(flag_filter_word(None), "العلامات");
+        assert_eq!(flag_filter_word(Some(Flag::Pick)), "المختارات");
+        assert_eq!(flag_filter_word(Some(Flag::Reject)), "المستبعدات");
+        assert_eq!(flag_filter_word(Some(Flag::None)), "بلا علامة");
+        assert_eq!(kind_filter_word(None), "كل الأنواع");
+        assert_eq!(kind_filter_word(Some(MediaKind::Image)), "الصور");
+        assert_eq!(kind_filter_word(Some(MediaKind::Raw)), "خام");
+        assert_eq!(kind_filter_word(Some(MediaKind::Video)), "فيديو");
+        assert_eq!(edited_filter_word(None), "معدّلة");
+        assert_eq!(edited_filter_word(Some(true)), "المعدّلة فقط");
+        assert_eq!(edited_filter_word(Some(false)), "غير معدّلة");
+        assert_eq!(source_filter_word(None), "المصدر");
+        assert!(source_filter_word(Some(sortlens_core::TagSource::Manual)).contains("كلمات"));
+        let any = match_chip_word(sortlens_engine::TagMode::Any);
+        assert!(any.contains("مطابقة") && any.contains("أي"), "the any mode reads {any:?}");
+        let all = match_chip_word(sortlens_engine::TagMode::All);
+        assert!(all.contains("مطابقة") && all.contains("كل"), "the all mode reads {all:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(flag_filter_word(None), "Flags");
+        assert_eq!(kind_filter_word(Some(MediaKind::Raw)), "RAW");
+        assert_eq!(edited_filter_word(Some(false)), "Unedited");
+        assert_eq!(source_filter_word(None), "Source");
+        assert_eq!(match_chip_word(sortlens_engine::TagMode::All), "match all");
+        crate::i18n::set_current(previous);
     }
 
     /// The Vietnamese leg of the language test: the sixth catalogue paints the sidebar's own words

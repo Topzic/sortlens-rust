@@ -779,3 +779,22 @@
 	Oldest first	오래된순
 	Largest first	큰 파일순
 	Highest rated	별점 높은순
+	Flags	플래그
+	Unflagged	표시 없음
+	All kinds	모든 종류
+	Videos	동영상
+	RAW	RAW 원본
+	Source	출처
+	Edited	편집됨
+	Edited only	편집된 것만
+	Unedited	편집 안 됨
+	+ keyword	+ 키워드
+	Find a keyword	키워드 찾기
+	No keywords	키워드 없음
+	match {mode}	{mode} 일치
+	any	하나라도
+	all	모두
+	{source} keywords	{source} 키워드
+	Only photos where some keyword came from here	일부 키워드의 출처가 여기인 사진만
+	Only photos rated at least this many stars	이 별점 이상인 사진만
+	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	별점 필터: {stars}개 이상 — 한 번 더 누르면 최솟값이 올라가고, 다섯을 넘겨 누르면 해제됩니다

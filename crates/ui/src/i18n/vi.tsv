@@ -779,3 +779,22 @@
 	Oldest first	Cũ nhất trước
 	Largest first	Lớn nhất trước
 	Highest rated	Đánh giá cao nhất
+	Flags	Cờ
+	Unflagged	Không cờ
+	All kinds	Mọi loại
+	Videos	Video
+	RAW	Ảnh RAW
+	Source	Nguồn
+	Edited	Đã chỉnh sửa
+	Edited only	Chỉ ảnh đã chỉnh
+	Unedited	Chưa chỉnh sửa
+	+ keyword	+ từ khóa
+	Find a keyword	Tìm từ khóa
+	No keywords	Không có từ khóa
+	match {mode}	khớp {mode}
+	any	bất kỳ
+	all	tất cả
+	{source} keywords	từ khóa {source}
+	Only photos where some keyword came from here	Chỉ ảnh có từ khóa đến từ đây
+	Only photos rated at least this many stars	Chỉ ảnh được đánh giá từ số sao này trở lên
+	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	Bộ lọc đánh giá: từ {stars} sao trở lên — nhấp thêm để tăng mức tối thiểu, nhấp quá năm để xóa

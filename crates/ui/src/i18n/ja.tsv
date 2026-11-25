@@ -780,3 +780,22 @@
 	Oldest first	古い順
 	Largest first	大きい順
 	Highest rated	評価が高い順
+	Flags	フラグ
+	Unflagged	フラグなし
+	All kinds	すべての種類
+	Videos	動画
+	RAW	RAW画像
+	Source	ソース
+	Edited	編集済み
+	Edited only	編集済みのみ
+	Unedited	未編集
+	+ keyword	+ キーワード
+	Find a keyword	キーワードを検索
+	No keywords	キーワードなし
+	match {mode}	{mode} で一致
+	any	いずれか
+	all	すべて
+	{source} keywords	{source} のキーワード
+	Only photos where some keyword came from here	キーワードの出どころがここである写真のみ
+	Only photos rated at least this many stars	この星数以上の評価の写真のみ
+	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	評価フィルター: {stars} つ星以上 — もう一度クリックで下限を上げ、5 を超えてクリックすると解除します

@@ -1011,8 +1011,8 @@ and none of M9 is closed until the remaining rows are ticked.
   `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
-  Open: the canvas chrome the RTL frames still paint in English — the top bar's words, the filter
-  strip's chips, and `New collection` — which the row's earlier entries call the unrouted surfaces.
+  Open: the canvas chrome the RTL frames still paint in English — the top bar's words and
+  `New collection` — which the row's earlier entries call the unrouted surfaces.
   The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
   `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
   mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
@@ -1035,6 +1035,13 @@ and none of M9 is closed until the remaining rows are ticked.
   the catalogue audit requires in all six languages. The two `rtl-library-*` frames were repainted
   in the default set; the `lavapipe` set is adopted from CI's next artifact because this machine
   has no Mesa adapter.
+  The filter strip's chips followed (hundred-and-twenty-third entry): the at-rest words
+  (`Rating`, `Flags`, `Colour`, `All kinds`, `Source`, `Edited`, `Missing`, `Clear`, `+ keyword`)
+  and every state they cycle through — pick/reject/unflagged, photos/RAW/video, edited/unedited,
+  the keyword menu's `Find a keyword`/`No keywords`, the `match any`/`match all` toggle, and the
+  source chip's `{source} keywords` template — are catalogue rows in all six languages, so an Arabic
+  canvas names its filters in Arabic instead of English. The source value itself (`Manual`, `AI`,
+  `XMP`) stays the crate's recorded data word, the same one the filter JSON carries.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

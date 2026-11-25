@@ -780,3 +780,22 @@
 	Oldest first	الأقدم أولًا
 	Largest first	الأكبر أولًا
 	Highest rated	الأعلى تقييمًا
+	Flags	العلامات
+	Unflagged	بلا علامة
+	All kinds	كل الأنواع
+	Videos	فيديو
+	RAW	خام
+	Source	المصدر
+	Edited	معدّلة
+	Edited only	المعدّلة فقط
+	Unedited	غير معدّلة
+	+ keyword	+ كلمة
+	Find a keyword	ابحث عن كلمة
+	No keywords	لا كلمات
+	match {mode}	مطابقة {mode}
+	any	أي
+	all	كل
+	{source} keywords	كلمات {source}
+	Only photos where some keyword came from here	الصور التي جاء بعض كلماتها من هنا فقط
+	Only photos rated at least this many stars	الصور التي حصلت على هذا العدد من النجوم على الأقل
+	Rating filter: {stars} stars and up — one more click raises the minimum, a click past five clears it	مرشح التقييم: {stars} نجوم فأكثر — نقرة أخرى ترفع الحد الأدنى، ونقرة بعد الخمسة تمسحه
