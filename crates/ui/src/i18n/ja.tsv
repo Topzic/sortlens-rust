@@ -277,3 +277,60 @@
 	No colour label.	色ラベルはありません。
 	Cleared the label	ラベルを解除しました
 	Cleared the label on {n} photos	{n} 枚の写真のラベルを解除しました
+	Show every shortcut	すべてのショートカットを表示
+	Close the dialog, overlay or detail view	ダイアログ・オーバーレイ・詳細ビューを閉じる
+	Add a folder to the library	ライブラリにフォルダーを追加
+	Rescan the library for changes	ライブラリを再スキャンして変更を反映
+	New collection	新しいコレクション
+	Open the command palette, or close it	コマンドパレットを開く／閉じる
+	Open settings	設定を開く
+	Quit, asking about unsaved work	終了（未保存の作業を確認）
+	Undo the last change	最後の変更を元に戻す
+	Redo the last undone change	元に戻した変更をやり直す
+	Flag as picked	ピックとしてマーク
+	Flag as rejected	却下としてマーク
+	Clear the flag	マークを解除
+	Set the star rating, 0 clearing it	星評価を設定（0 で解除）
+	Colour label: red, yellow, green, blue; again to clear	色ラベル：赤・黄・緑・青（もう一度で解除）
+	Jump to the keyword field	キーワード欄に移動
+	Apply the keyword you last added to the selection	最後に追加したキーワードを選択範囲に適用
+	Select one photo; ⌘-click adds or removes, Shift-click takes the run	写真を1枚選択。⌘クリックで追加・解除、Shiftクリックで範囲選択
+	Select every photo in view	表示中の写真をすべて選択
+	Marquee-select from the grid background	グリッドの背景から範囲選択
+	Grid layout: justified rows or a square lattice	グリッド配置：ジャスティファイド行または正方形格子
+	Open the detail view	詳細ビューを開く
+	Start a cull session from the filters	現在のフィルターで選別セッションを開始
+	Open insights	インサイトを開く
+	Open the map	地図を開く
+	Open the similar-photo search	類似写真の検索を開く
+	Next photo in the sorted order	並び順の次の写真
+	Previous photo in the sorted order	並び順の前の写真
+	Zoom to fit or 1:1	フィット表示と等倍を切り替え
+	Compare with the next photo	次の写真と比較
+	Close the detail view	詳細ビューを閉じる
+	Keep this photo	この写真を採用
+	Reject this photo	この写真を却下
+	Leave it undecided and move on	未決定のまま次へ
+	Mark undecided again	未決定に戻す
+	Step back one photo	1枚前に戻る
+	Apply the keyword you last added to this photo	最後に追加したキーワードをこの写真に適用
+	Apply the staged rejections	ステージした却下を適用
+	Zoom to fit or 2×	フィット表示と2倍を切り替え
+	Pan while zoomed	拡大時にパン
+	Close the compare	比較を閉じる
+	Swap the two sides	左右を入れ替え
+	Step the pair together	ペアを一緒に進める
+	Detail view	詳細ビュー
+	Cull session	選別セッション
+	Compare	比較
+	Anywhere	どこでも
+	Nothing focused, no dialog open.	フォーカスなし、ダイアログなし。
+	D from the grid; Esc closes it.	グリッドで D、Esc で閉じます。
+	C starts a session from the current filters.	C で現在のフィルターからセッションを開始します。
+	C in the detail view; S swaps sides.	詳細ビューで C、S で左右を入れ替えます。
+	Also works with a dialog open.	ダイアログを開いたままでも使えます。
+	Keyboard shortcuts	キーボードショートカット
+	Search keys or actions	キーまたは操作を検索
+	{n} bindings	{n} 件の割り当て
+	{bound} of {total} bound	{total} 件中 {bound} 件が割り当て済み
+	Nothing is bound to that.	それに割り当てられたキーはありません。

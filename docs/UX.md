@@ -659,9 +659,10 @@ re-checks its own contrast pairs after applying.
   both write the same one — is not forced through English's plural. The dialogs joined them one
   slice at a time: export and its receipt, the delete confirmations, rename, About, Library health,
   the cull summary, the quit guard, the change viewer and the Batch applied receipt, each worded
-  from the same pieces its English sentence is joined from. Still English by omission: Suggested
-  keywords, Keyboard shortcuts, and the sentences the engine composes for the support report and
-  the activity row's job lines.
+  from the same pieces its English sentence is joined from, and the `?` shortcut overlay (its
+  title, headings, notes, count lines and all forty-four action rows) joined them the same day.
+  Still English by omission: Suggested keywords, the craft-keymap editor's own chrome, and the
+  sentences the engine composes for the support report and the activity row's job lines.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

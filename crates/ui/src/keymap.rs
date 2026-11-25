@@ -66,6 +66,17 @@ impl Context {
         }
     }
 
+    /// The heading in the interface language. `label` stays the English source: it names the
+    /// scope in the editor's catalog, which is `craft-keymap`'s own English surface.
+    pub fn localized_label(self) -> &'static str {
+        crate::i18n::I18N.t(crate::i18n::current(), self.label())
+    }
+
+    /// The note under the heading in the interface language.
+    pub fn localized_note(self) -> &'static str {
+        crate::i18n::I18N.t(crate::i18n::current(), self.note())
+    }
+
     /// Every context, in overlay order.
     pub const ALL: [Self; 5] = [Self::Any, Self::Library, Self::Detail, Self::Cull, Self::Compare];
 }
@@ -92,7 +103,15 @@ impl Binding {
         }
         self.keys.to_lowercase().contains(&needle)
             || self.action.to_lowercase().contains(&needle)
+            || self.localized_action().to_lowercase().contains(&needle)
             || self.context.label().to_lowercase().contains(&needle)
+            || self.context.localized_label().to_lowercase().contains(&needle)
+    }
+
+    /// What pressing them does, in the interface language: the action's English text is the
+    /// catalogue key, so a row with no translation shows the English it always showed.
+    pub fn localized_action(&self) -> &'static str {
+        crate::i18n::I18N.t(crate::i18n::current(), self.action)
     }
 }
 

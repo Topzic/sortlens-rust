@@ -1,5 +1,41 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-eighth) — the shortcut overlay speaks the interface language, and a new binding cannot arrive untranslated
+
+- **Why this came up.** The eighty-seventh entry's "Next" named Keyboard shortcuts: the overlay's
+  title, search hint, count lines and every row of `crates/ui/src/keymap.rs`'s table were English
+  literals, so a Japanese screen opened a catalogued dialog and found an English table inside it.
+- **The table is looked up, not copied.** `Binding::localized_action`, `Context::localized_label`
+  and `Context::localized_note` read their English text as the catalogue key at paint time, and
+  `Binding::matches` searches the localized words as well as the English ones, so the search field
+  works in the interface language. The English stays the source of truth — the editor's catalog and
+  the fixed rows keep it, because `craft-keymap`'s own dialog is English — so the overlay cannot
+  drift from the table it documents.
+- **The overlay is routed end to end.** The title, `Search keys or actions`, `{n} bindings`,
+  `{bound} of {total} bound` and `Nothing is bound to that.` are `tl!`/`fmt` keys with both
+  counts as placeholders; the five headings, their five notes and all forty-four action rows are
+  catalogue rows. 57 new rows in each catalogue (`Library` reuses the sidebar's own row).
+- **Tests.** `every_shortcut_row_is_in_both_catalogues` walks `BINDINGS` and `Context::ALL` against
+  both catalogues and fails on a row with no translation — the guard the source-reading audit cannot
+  provide, because these keys are looked up at runtime. `the_shortcuts_dialog_speaks_the_interface_language`
+  paints the real dialog: English (`Keyboard shortcuts`, `Flag as picked`), Japanese
+  (`キーボードショートカット`, `ピックとしてマーク`, no English title, row or heading behind it)
+  and Arabic (`اختصارات لوحة المفاتيح`, `وضع علامة «مختارة»`).
+- **Files.** `crates/ui/src/keymap.rs` (the three accessors, the search), `crates/ui/src/shell.rs`
+  (the routed overlay, two tests), `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (57 rows each),
+  `docs/ROADMAP.md` (Phase 4 item 2d), `docs/ARCHITECTURE.md` (8.4), `docs/UX.md` and
+  `docs/FEATURES.md` (SL-L07).
+- **Verified.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings`
+  clean (exit 0); the shortcut filter's five tests pass, the two new ones among them; `cargo xtask ci`,
+  `snapshot`, `deny` and `screenshots` green (exit 0 each; 27 scenes painted against the committed
+  baselines with none moved, because the only scene that paints the overlay — `shortcuts-*`, searched
+  to `◀` — is English and its English rows are unchanged byte for byte). No release workflow
+  dispatched: this slice touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Suggested keywords still needs `sortlens-ai`'s own suggestion wording and a piece per
+  proposal shape before its panel can be translated; the `craft-keymap` editor's chrome stays
+  English in the dependency until it offers keys; the sentences the engine composes for the support
+  report and the activity row's job lines are the same shape as the change viewer's pieces.
+
 ## 2026-11-26 (eighty-seventh) — every colour word is the catalogue's, from the chip to the status line
 
 - **Why this came up.** The eighty-sixth entry's "Next" named the sidebar's colour chips and the label

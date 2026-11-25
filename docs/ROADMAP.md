@@ -1463,7 +1463,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     lines all read `colour_word`, and the status templates' `{colour}`/`{n}` placeholders keep a count
     in the reader's digits; `every_colour_word_is_the_catalogues` pins the English byte for byte and the
     Japanese and Arabic words, and `the_colour_chip_speaks_the_interface_language` paints the chip in
-    all three. Still open on this row: Suggested keywords and Keyboard shortcuts.
+    all three. The shortcut overlay joined them in the next tick (eighty-eighth entry): the keymap
+    table's forty-four action rows, its five context headings and their notes are looked up by
+    their English text through `Binding::localized_action` / `Context::localized_label`, so a new
+    row cannot ship untranslated — `every_shortcut_row_is_in_both_catalogues` fails if one does —
+    and the title, search hint, both count lines and the empty-search line are `tl!`/`fmt` keys
+    with the counts as placeholders; `the_shortcuts_dialog_speaks_the_interface_language` paints
+    the overlay in all three. Still open on this row: Suggested keywords (it needs `sortlens-ai`'s
+    own suggestion wording), the craft-keymap editor's own English chrome, and the sentences the
+    engine composes for the support report and job lines.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

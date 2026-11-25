@@ -10009,7 +10009,7 @@ fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
 /// Every shortcut, searchable, grouped by where it applies.
 fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
     let mut open = state.shortcuts_open;
-    dialog_window("Keyboard shortcuts")
+    dialog_window(tl!("Keyboard shortcuts"))
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -10018,7 +10018,7 @@ fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
         .show(ui.ctx(), |ui| {
             let field = ui.add(
                 TextEdit::singleline(&mut state.shortcut_query)
-                    .hint_text("Search keys or actions")
+                    .hint_text(tl!("Search keys or actions"))
                     .desired_width(f32::INFINITY),
             );
             if !field.has_focus() && state.shortcut_query.is_empty() {
@@ -10029,9 +10029,15 @@ fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
             ui.add_space(4.0);
             ui.label(
                 RichText::new(if query.is_empty() {
-                    format!("{} bindings", keymap::len())
+                    crate::i18n::fmt("{n} bindings", &[("n", &format_count(keymap::len() as u64))])
                 } else {
-                    format!("{} of {} bound", matches.len(), keymap::len())
+                    crate::i18n::fmt(
+                        "{bound} of {total} bound",
+                        &[
+                            ("bound", &format_count(matches.len() as u64)),
+                            ("total", &format_count(keymap::len() as u64)),
+                        ],
+                    )
                 })
                 .size(10.0)
                 .color(t.text_faint),
@@ -10039,7 +10045,7 @@ fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
             ui.separator();
             egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
                 if matches.is_empty() {
-                    hint(ui, t, "Nothing is bound to that.");
+                    hint(ui, t, tl!("Nothing is bound to that."));
                     return;
                 }
                 for context in Context::ALL {
@@ -10048,8 +10054,8 @@ fn shortcuts_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
                         continue;
                     }
                     ui.add_space(6.0);
-                    ui.label(RichText::new(context.label()).size(11.0).strong().color(t.text));
-                    ui.label(RichText::new(context.note()).size(9.5).color(t.text_faint));
+                    ui.label(RichText::new(context.localized_label()).size(11.0).strong().color(t.text));
+                    ui.label(RichText::new(context.localized_note()).size(9.5).color(t.text_faint));
                     for binding in rows {
                         // A rebindable row paints the command's current bindings, so the help
                         // cannot go stale after the editor changes one.
@@ -10084,7 +10090,7 @@ fn keymap_row(ui: &mut Ui, t: &Tokens, keys: &str, binding: &keymap::Binding) {
                 .text(key.center(), Align2::CENTER_CENTER, keys, FontId::monospace(10.5), t.text);
             ui.allocate_space(vec2(width + 10.0, 18.0));
         });
-        ui.label(RichText::new(binding.action).size(11.5).color(t.text_muted));
+        ui.label(RichText::new(binding.localized_action()).size(11.5).color(t.text_muted));
     });
 }
 
@@ -16954,6 +16960,84 @@ mod tests {
         }
         assert!(painted > 0, "the dialog painted something");
         assert!(missing.is_empty(), "these strings have no glyphs in the bundled faces: {missing:?}");
+    }
+
+    /// Every row the overlay can paint has a translation in both catalogues. The catalogue audit
+    /// reads `tl!`/`fmt` literals out of the source; the keymap's rows are looked up by their
+    /// English text at runtime, so this test is the guard that a new binding cannot slip in
+    /// untranslated.
+    #[test]
+    fn every_shortcut_row_is_in_both_catalogues() {
+        let mut missing: Vec<String> = Vec::new();
+        for code in ["ja", "ar"] {
+            let lang = crate::i18n::from_code(code).expect("the catalogue is offered");
+            for binding in keymap::BINDINGS {
+                if crate::i18n::I18N.t(lang, binding.action) == binding.action {
+                    missing.push(format!("{code}: {}", binding.action));
+                }
+            }
+            for context in Context::ALL {
+                for text in [context.label(), context.note()] {
+                    if crate::i18n::I18N.t(lang, text) == text {
+                        missing.push(format!("{code}: {text}"));
+                    }
+                }
+            }
+        }
+        assert!(missing.is_empty(), "these rows have no translation: {missing:#?}");
+    }
+
+    /// The overlay speaks the interface language: its title, its headings and their notes, its
+    /// count and every action row, so a Japanese screen never shows "Flag as picked".
+    #[test]
+    fn the_shortcuts_dialog_speaks_the_interface_language() {
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.shortcuts_open = true;
+        let t = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let screen = Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0));
+        let paint = |state: &mut UiState| {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            };
+            // A window is laid out on its first frame and painted on the next, so settle it.
+            let mut settled = None;
+            for _ in 0..3 {
+                let mut output = ctx.run_ui(input.clone(), |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        shortcuts_dialog(ui, state, &t);
+                    });
+                });
+                output.textures_delta.clear();
+                settled = Some(output);
+            }
+            settled.expect("three frames were painted")
+        };
+
+        // English first: the words the table has always painted.
+        let english = paint(&mut state);
+        assert!(label_at(&english, "Keyboard shortcuts").is_some(), "the title is named");
+        assert!(label_at(&english, "Flag as picked").is_some(), "and the rows");
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state);
+        assert!(
+            label_at(&japanese, "キーボードショートカット").is_some(),
+            "the title is the catalogue's"
+        );
+        assert!(label_at(&japanese, "ピックとしてマーク").is_some(), "and the rows");
+        assert!(label_at(&japanese, "Keyboard shortcuts").is_none(), "no English title behind it");
+        assert!(label_at(&japanese, "Flag as picked").is_none(), "no English row behind it");
+        assert!(label_at(&japanese, "Library").is_none(), "no English heading behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state);
+        assert!(label_at(&arabic, "اختصارات لوحة المفاتيح").is_some(), "and in Arabic");
+        assert!(label_at(&arabic, "وضع علامة «مختارة»").is_some(), "with the row's own words");
+        assert!(label_at(&arabic, "Flag as picked").is_none(), "no English row behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// Paint only the bottom bar and hand back what it drew.

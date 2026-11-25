@@ -582,6 +582,15 @@ count is written in the reader's digits and a sentence cannot word the colour di
 menu that set it. English writes the word lowercase inside a sentence and unchanged as a menu item;
 a language without case is untouched either way.
 
+The `?` overlay is catalogued the same way: every row of `crates/ui/src/keymap.rs`'s table paints
+through `Binding::localized_action`, and every section through `Context::localized_label` and
+`Context::localized_note`, which look the English text up at paint time; the title, the search hint,
+both count lines and the empty-search line are `tl!`/`fmt` keys. `every_shortcut_row_is_in_both_catalogues`
+reads the whole table and fails on a binding with no Japanese or Arabic row, so a new shortcut is a
+translation debt the suite names. `the_shortcuts_dialog_speaks_the_interface_language` paints the
+overlay in all three languages. `craft-keymap`'s editor dialog behind Settings → Shortcuts is still
+its own English chrome.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a
