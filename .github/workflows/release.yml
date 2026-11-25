@@ -2,7 +2,10 @@ name: release
 
 # Written in the block style `cargo xtask workflows` reads: block lists only (no flow lists), so the
 # small YAML reader that checks this file can parse it. The `verify` job runs the same gates a pull
-# request runs before anything is built; `android` builds the phone's APK — no signing identity is
+# request runs, and it runs beside the builds rather than in front of them: `publish` waits for it, so
+# a tree that would fail the gates still never reaches a release, but the fifteen minutes it spends
+# compiling no longer sit in front of a twenty-minute Windows build that was going to run anyway.
+# `android` builds the phone's APK — no signing identity is
 # needed, because a sideloaded APK is signed with a self-signed keystore generated for the run, named
 # to `cargo apk` through `CARGO_APK_RELEASE_KEYSTORE` and its password (a release build stops before
 # it signs without them) and verified with `apksigner` afterwards; and `publish` runs only on a tag,
@@ -48,7 +51,6 @@ jobs:
 
   android:
     name: the Android APK
-    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,7 +102,6 @@ jobs:
 
   build:
     name: ${{ matrix.target }}
-    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -158,6 +159,7 @@ jobs:
   publish:
     name: attach to the release
     needs:
+      - verify
       - build
       - android
     # A manual run from `main` must not create a release: it stops here, its artefacts stay workflow
