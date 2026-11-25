@@ -1,5 +1,56 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifth) — the bottom bar's destinations speak the interface language
+
+- **Why this came up.** The hundred-and-fourth entry's Next named it, and so did the ROADMAP's SL-L07 row:
+  every view's own chrome was a catalogue row, but the nine names that switch between them still came from
+  `View::label()`, so a Japanese window read `比較` in the canvas header and `Compare` on the tab beside it,
+  and the narrow bar's menu was English over a translated screen.
+- **One word, one source.** `View::label()` stays the English source of truth — it is also what the command
+  palette searches and the reports name — and a new `view_word(view)` looks its catalogue row up, exactly
+  as `family_word`/`source_word` do for the Suggestions tab. The tab row's four painted names, the collapsed
+  menu's button and its nine rows, the `Views, now {view}` assistive name and the canvas header that repeats
+  the current destination all read that one function, so the bar and the header cannot describe different
+  places.
+- **Measured from the words, not the window.** `bottom_bar` measures its tabs from the labels it is about to
+  paint, so routing the names means the collapse threshold follows the language: `ソフトフォーカス` is wider than
+  `Soft Focus`, and the row collapses at the width where the translated row genuinely stops fitting. That is
+  the behaviour the bar was built for; no constant moved.
+- **Seven rows already existed, two were added.** `Library`, `For You`, `Cull`, `Compare`, `Similar`,
+  `Insights` and `Soft Focus` were already rows because each view's own title is painted from one. `Detail`
+  and `Places` were not, so `ar.tsv`/`ja.tsv` each gained them (`تفاصيل`/詳細, `الأماكن`/場所), nine rows per language in total.
+- **English is unchanged, which is why no baseline moved.** The tabs paint the same Latin strings in the same
+  order at the same widths; the 27 committed scenes are byte-identical.
+- **Named as not shipped.** The composed assistive sentence (`Views, now …`) keeps its English wrapper while
+  the destination inside it is the catalogue's word, and the `… arrives in {milestone}` notice stays English
+  by the notices' own call (and never shows: every destination opens today). The four remaining catalogues
+  (zh-TW/ko/th/vi) and the RTL screenshots are still the SL-L07 row's open items, and the phone builds still
+  need a device.
+- **Tests that fail when the behaviour is absent.** `the_bottom_bar_destinations_speak_the_interface_language`
+  first holds every `View::ALL` entry to a row in each catalogue, so a tenth destination cannot arrive
+  English-only. It then paints the real `bottom_bar` at 1440×300 in English (all nine names, unchanged),
+  at 1600 in Japanese and Arabic (each of the nine in that language, with the English name asserted absent),
+  and at 820 in Japanese, where the collapsed tab is `ライブラリ` and a click on it opens a menu that still
+  names all nine in Japanese. Finally it paints the whole shell at 1280×800 with the docks closed, so the
+  only two places `詳細` can be are the canvas header and the bar: a new `word_rects` helper proves one sits
+  in the top 150 points and one below 600, that no `Detail` is painted behind the Japanese frame, and that
+  English still names the header. Revert the routing and the Japanese frame goes English — every assertion
+  above fails.
+- **Files.** `crates/ui/src/shell.rs` (`view_word`; `bottom_bar`, `view_tab`, `view_menu` and `canvas`'s
+  title; `word_rects` and one test), `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (2 rows each), `docs/ROADMAP.md`
+  (the SL-L07 row, including the two stale `what stays English` clauses it had accumulated), `docs/UX.md`
+  (§7), this entry.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test, the catalogue
+  audit and the existing collapse test pass. `cargo xtask ci` green through every gate (fmt --check after
+  `cargo fmt --all`, clippy `--workspace --all-targets` with `-D warnings`, the full test suite, layers,
+  roots, assets, version, attribution, a11y, docs, templates and workflows); `cargo xtask snapshot` (5 tests),
+  `cargo xtask deny` (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask screenshots`
+  (27 scenes, byte-identical because English has no catalogue). There is no `cargo xtask wasm` in this
+  workspace, so no wasm gate ran. No release dispatch: this slice touches `crates/ui` source, catalogues,
+  tests and docs, so no build or release surface changed. No release run in flight.
+- **Next.** The four remaining catalogues (zh-TW/ko/th/vi), starting with zh-TW: the same 175-odd routed keys
+  as `ar.tsv`/`ja.tsv`, added as `crates/ui/src/i18n/zh-TW.tsv` and offered in `LANGUAGES`; then the RTL
+  screenshots, which need a font build with an Arabic face. No release run in flight.
 ## 2026-11-26 (hundred-and-fourth) — the For You view speaks the interface language, and its cards are worded from the crate's own pieces
 
 - **Why this came up.** The hundred-and-third entry's Next named it: after Soft Focus, For You was the last

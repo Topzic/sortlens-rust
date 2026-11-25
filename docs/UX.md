@@ -542,6 +542,11 @@ Insights — each with its own icon and its name. The row is measured, not guess
 plus the controls beside them no longer fit, the row collapses to the current destination plus a
 caret that opens the same nine items. A narrow window loses width, never a destination.
 
+Each name is a catalogue row (SL-L07): `View::label()` is the English key, and the tab, the collapsed
+menu and the canvas header that repeats the current destination look up the same row, so the bar reads in
+the interface language and is measured from those words - a longer name collapses the row at the width
+where it really stops fitting.
+
 Centre: the annotation pill. Five stars (clicking the lit star clears the rating), Pick/Unflag/
 Reject, the primary's keyword count when it has keywords, and "N selected". The stars and flags
 call the same operations as `0–5` and `P`/`X`/`U`, and act on the whole selection.

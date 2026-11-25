@@ -963,14 +963,20 @@ and none of M9 is closed until the remaining rows are ticked.
   percentage and the two scores go through `format::count`/`format::decimal`, so an Arabic review reads
   `الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠` and `تحديد ١ صورة`. What stays English on that view is its notices
   (`Measured … photo(s)`, `Selected the … softest`) and the slider's assistive name, which the row does not
-  count as painted chrome, plus the bottom bar's destination names, which still come from `View::label()`.
+  count as painted chrome.
   The For You view followed (hundred-and-fourth entry): its title, its hint and its empty state are rows,
   and the `N card(s): …` headline, a card's heading and its detail line are worded from `sortlens-memories`'
   own pieces (`Memories::headline_parts`, `Card::title_parts`, `Card::detail_parts`) rather than its English
   sentence — so the `June 24` heading is a month row plus the language's digits (`6月24日`), the counts are
   `{shown} of {total} photos` filled through `format::count`, and `since {year}` is its own clause. An Arabic
   card writes `١ صورة · منذ ٢٠٢٠` where it wrote English. What stays English on that view is each photograph's
-  own file name, which is a value, and the bottom bar's destination names above.
+  own file name, which is a value.
+  The bottom bar followed (hundred-and-fifth entry): every destination's name is a catalogue row looked up
+  by `View::label()`, which stays the English source of truth the palette searches by - so the tab row, the
+  collapsed menu at a narrow width, the header that repeats the current destination and the tab's own
+  assistive name all say one word in the chosen language, and the row's collapse threshold is measured
+  from the translated label, so a longer word collapses at the width where it really stops fitting. What
+  stays English there is the composed assistive sentence (`Views, now …`).
   What stays English there is each side's own value (a colour token, the engine's exposure sentence,
   `format_bytes`) and the notices that open a compare.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL

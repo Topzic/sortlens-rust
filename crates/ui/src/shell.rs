@@ -69,7 +69,8 @@ impl View {
         Self::Insights,
     ];
 
-    /// Label for the bottom bar and the contextual header.
+    /// The English name of the destination: the catalogue key the bottom bar and the contextual
+    /// header look up through [`view_word`], and the word the palette searches by.
     pub const fn label(self) -> &'static str {
         match self {
             Self::Library => "Library",
@@ -207,6 +208,14 @@ fn family_word(kind: SuggestKind) -> &'static str {
 /// it is also the report's and the JSON's word — and the catalogue row is looked up by it.
 fn source_word(source: sortlens_engine::SuggestionSource) -> &'static str {
     tl!(source.label())
+}
+
+/// A destination's name in the reader's language (SL-L07). `View::label` stays the English
+/// source of truth — it is also what the palette searches and the reports name — and the catalogue
+/// row is looked up by it, so the bottom bar's tabs, its collapsed menu and the canvas header that
+/// repeats the name cannot disagree about what a destination is called.
+fn view_word(view: View) -> &'static str {
+    tl!(view.label())
 }
 
 /// A confidence as a percentage in the reader's own digits.
@@ -2613,7 +2622,7 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 // few would be a tab bar lying about what the app can do. The width is measured from the
                 // labels rather than guessed from the window, so a wider face or a translated label
                 // collapses at the width where the row really stops fitting.
-                let tabs: f32 = View::ALL.iter().map(|view| tab_width(ui, view.label())).sum();
+                let tabs: f32 = View::ALL.iter().map(|view| tab_width(ui, view_word(*view))).sum();
                 if tabs_collapse(ui.available_width(), tabs) {
                     view_menu(ui, t, state, engine, actions);
                 } else {
@@ -2712,12 +2721,12 @@ fn view_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, v
     let selected = state.view == view;
     let response = ui.add_enabled(
         view.milestone().is_none() || selected,
-        Button::image_and_text(crate::icons::image(view.icon(), 14.0), RichText::new(view.label()).size(12.0))
+        Button::image_and_text(crate::icons::image(view.icon(), 14.0), RichText::new(view_word(view)).size(12.0))
             .image_tint_follows_text_color(true)
             .fill(if selected { t.selection } else { Color32::TRANSPARENT })
             .stroke(Stroke::NONE),
     );
-    crate::a11y::label_widget(ui, &response, egui::Role::Button, view.label(), selected);
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, view_word(view), selected);
     if response.clicked() {
         match view.milestone() {
             Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
@@ -2736,7 +2745,7 @@ fn view_menu(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
     // menu button that paints tofu teaches the person to distrust the bar.
     let button = Button::new((
         crate::icons::image(state.view.icon(), 14.0).tint(t.text),
-        RichText::new(state.view.label()).size(12.0),
+        RichText::new(view_word(state.view)).size(12.0),
         crate::icons::image(crate::icons::Icon::Chevron, 10.0).tint(t.text_faint),
     ))
     .fill(t.selection)
@@ -2747,12 +2756,12 @@ fn view_menu(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         for view in View::ALL {
             let selected = state.view == view;
             let row = ui.add(
-                Button::image_and_text(crate::icons::image(view.icon(), 13.0), RichText::new(view.label()).size(12.0))
+                Button::image_and_text(crate::icons::image(view.icon(), 13.0), RichText::new(view_word(view)).size(12.0))
                     .image_tint_follows_text_color(true)
                     .fill(if selected { t.selection } else { Color32::TRANSPARENT })
                     .stroke(Stroke::NONE),
             );
-            crate::a11y::label_widget(ui, &row, egui::Role::Button, view.label(), selected);
+            crate::a11y::label_widget(ui, &row, egui::Role::Button, view_word(view), selected);
             if row.clicked() {
                 chosen = Some(view);
                 ui.close();
@@ -2763,7 +2772,7 @@ fn view_menu(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         ui,
         &response,
         egui::Role::Button,
-        &format!("Views, now {}", state.view.label()),
+        &format!("Views, now {}", view_word(state.view)),
         true,
     );
     response.on_hover_text("Every destination. The row returns when the window is wide enough.");
@@ -3748,7 +3757,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             // width: the combos and chips keep their size and the words give way, never the reverse.
             // The header's left block is read before the row is laid out: the two closures share `state`,
             // and the right one edits it.
-            let title = state.view.label();
+            let title = view_word(state.view);
             let status = crate::a11y::library_status(total, state.selection.len());
             // The count is measured before it is offered: "does it fit" is an answer rather than a hope. The
             // title is what the row is about; the count is a statement the filter strip repeats and the live
@@ -16028,6 +16037,28 @@ mod tests {
         output.shapes.iter().find_map(|clipped| walk(&clipped.shape, needle))
     }
 
+    /// Every rect where exactly `word` was painted, through layout shapes — the same walk
+    /// [`label_at`] makes, kept rather than first-match so a test can tell the bottom bar from the
+    /// canvas header that repeats the same word.
+    fn word_rects(output: &egui::FullOutput, word: &str) -> Vec<Rect> {
+        fn walk(shape: &egui::Shape, word: &str, sink: &mut Vec<Rect>) {
+            match shape {
+                egui::Shape::Text(text) if text.galley.job.text == word => sink.push(text.visual_bounding_rect()),
+                egui::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        walk(shape, word, sink);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut sink = Vec::new();
+        for clipped in &output.shapes {
+            walk(&clipped.shape, word, &mut sink);
+        }
+        sink
+    }
+
     /// Every shape in the output, flattened through layout shapes.
     ///
     /// A widget paints its contents inside an `egui::Shape::Vec`, so a test that only looked at the top level
@@ -19739,6 +19770,134 @@ mod tests {
             "the menu behind the collapsed tab still holds every destination"
         );
         assert!(actions.is_empty(), "opening the menu asks for nothing");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The bottom bar's destinations speak the interface language (SL-L07).
+    ///
+    /// `View::label()` stays the English source of truth; [`view_word`] looks its catalogue row up, so
+    /// the tab row, the collapsed menu and the canvas header that repeats the name are one word in one
+    /// language. A destination added later cannot arrive English-only: the row audit below fails for it
+    /// in both catalogues before a frame is painted.
+    #[test]
+    fn the_bottom_bar_destinations_speak_the_interface_language() {
+        for code in ["ar", "ja"] {
+            let lang = crate::i18n::from_code(code).expect("the language is offered");
+            for view in View::ALL {
+                assert_ne!(
+                    crate::i18n::I18N.t(lang, view.label()),
+                    view.label(),
+                    "{code} has no row for the {} destination",
+                    view.label()
+                );
+            }
+        }
+
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-destinations-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+
+        // English is unchanged, which is why no committed scene moved.
+        let english = paint_bar(&ctx, vec2(1440.0, 300.0), &mut state, &mut engine, &mut actions);
+        for view in View::ALL {
+            assert!(label_at(&english, view.label()).is_some(), "{} is named in English", view.label());
+        }
+
+        // Every destination in each catalogue's own words, with no English left behind.
+        for (code, words) in [
+            (
+                "ja",
+                [
+                    "ライブラリ",
+                    "あなたへ",
+                    "選別",
+                    "詳細",
+                    "比較",
+                    "場所",
+                    "インサイト",
+                    "ソフトフォーカス",
+                    "類似",
+                ],
+            ),
+            (
+                "ar",
+                [
+                    "المكتبة",
+                    "لك",
+                    "الفرز",
+                    "تفاصيل",
+                    "المقارنة",
+                    "الأماكن",
+                    "رؤى",
+                    "تركيز ناعم",
+                    "مشابهة",
+                ],
+            ),
+        ] {
+            crate::i18n::set_current(crate::i18n::from_code(code).expect("the language is offered"));
+            // Wide enough that every destination keeps its tab in either script; the collapse itself
+            // is the next assertion's subject, not this one's.
+            let bar = paint_bar(&ctx, vec2(1600.0, 300.0), &mut state, &mut engine, &mut actions);
+            for (view, word) in View::ALL.iter().zip(words) {
+                assert!(
+                    label_at(&bar, word).is_some(),
+                    "{code}: {word} is not painted in place of {}",
+                    view.label()
+                );
+                assert!(
+                    label_at(&bar, view.label()).is_none(),
+                    "{code} keeps the English destination {}: {words:?}",
+                    view.label()
+                );
+            }
+        }
+
+        // A narrow bar loses width, not language: the collapsed tab is the current destination's own
+        // word, and the menu behind it still names every destination.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        state.view = View::Library;
+        let narrow = paint_bar(&ctx, vec2(820.0, 300.0), &mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&narrow, "ライブラリ").is_some(),
+            "the collapsed tab is the current destination"
+        );
+        assert!(label_at(&narrow, "ソフトフォーカス").is_none(), "and not the whole row");
+        let current = label_at(&narrow, "ライブラリ").expect("the current destination is named");
+        click_frames(&ctx, vec2(820.0, 300.0), current.center(), &mut state, &mut engine, &mut actions);
+        let opened = paint_bar(&ctx, vec2(820.0, 300.0), &mut state, &mut engine, &mut actions);
+        for word in ["あなたへ", "選別", "詳細", "比較", "場所", "インサイト", "ソフトフォーカス", "類似"] {
+            assert!(label_at(&opened, word).is_some(), "the menu holds {word}");
+        }
+
+        // The canvas header repeats the word from the same row: one at the top of the canvas, one at the
+        // foot of the window, and not a Latin letter between them.
+        state.view = View::Detail;
+        state.left_open = false;
+        state.right_open = false;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let japanese = paint_shell(&ctx, vec2(1280.0, 800.0), &mut state, &mut engine, &mut thumbs, &mut actions);
+        let header = word_rects(&japanese, "詳細");
+        assert!(
+            header.iter().any(|rect| rect.center().y < 150.0),
+            "the header names the view in Japanese: {header:?}"
+        );
+        assert!(
+            header.iter().any(|rect| rect.center().y > 600.0),
+            "and the bar does too: {header:?}"
+        );
+        assert!(label_at(&japanese, "Detail").is_none(), "no English header behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let english = paint_shell(&ctx, vec2(1280.0, 800.0), &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(
+            word_rects(&english, "Detail").iter().any(|rect| rect.center().y < 150.0),
+            "English still names it in the header"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
