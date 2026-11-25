@@ -1,5 +1,38 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-ninth) — the red trunk is adopted from its own paint, and the lavapipe set gains the fifth name
+
+- **Why this came up.** The trunk was red on `0ece80e` (`45624521129`) with exactly one failing job, `screenshots`;
+  the hundred-and-eighth entry's Next named that read first, and a red trunk is the tick's slice rather than a
+  new roadmap row. The other eight jobs — `ci` on Windows, Ubuntu and macOS, `deny`, `snapshot` and both `mobile`
+  legs — were green, so the red was the baseline set and nothing else.
+- **One artifact, one command.** `gh run download 45624521129 -n screenshot-set` wrote four frames and nothing else —
+  `lavapipe/settings-{short,sync}-{charcoal,paper}.new.png` — the four Settings scenes the failing run reported, so
+  no scene was left behind and no frame that matched was handed over. `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask
+  screenshots --adopt <dir>` copied them into `crates/ui/tests/snapshots/lavapipe/`. The adopted
+  `settings-short-charcoal.png` hashes `1f15a028…632ee`, byte-identical to the artifact's frame, so the committed
+  baseline is the paint the comparing run reported and not a second paint from this machine.
+- **Read, all four.** Each paints the Language row with five entries — English plus the four names — inside the
+  dialog at 900 px, in both themes, with no clipping and no overlap; the two `sync` scenes still scroll their
+  eleven sections with the row intact. Nothing else in any frame moved: the row grew into room it had.
+- **A claim corrected, not repeated.** The hundred-and-eighth entry said CI's lavapipe set "embeds craft-fonts and
+  paints them"; this artifact proves the runner paints the four non-Latin names as boxes, exactly as this machine
+  does. That sentence now carries the correction in place, and no other doc makes the claim.
+- **What the diff is.** Four PNGs, `88938→89386`, `93541→94097`, `232992→233440` and `245784→246335` bytes: one more
+  entry in the Language row on each scene.
+- **Verified.** `cargo xtask ci` green (fmt, clippy, 212 workspace tests, layers, roots, assets, fonts, version,
+  attribution, a11y, docs, templates, workflows), `cargo xtask snapshot` (5 pass) and `cargo xtask deny`
+  (advisories, bans, licenses, sources) green. No `cargo xtask screenshots` run was needed: no code changed and the
+  default set this machine compares against is untouched — the lavapipe set only compares under Mesa, which is CI's
+  job. No release workflow was dispatched: four baselines and this file touch no workflow, `apps/**`, a `Cargo.toml`
+  or release code.
+- **Next.** `th.tsv`: the same 754 keys, 11 `@plural` counts and `@id` row as `ko.tsv`, in the audit's order; then the
+  `CATALOGS`/`LANGUAGES`/`STYLES` rows, `("th", "Thai")` in `SHIPPED_LANGUAGE_SCRIPTS` with `Thai` in `PHONE_SCRIPTS`
+  and `fonts::TRANSLATED_SCRIPTS`, the picker/format/headless language tests, the four Settings baselines in the
+  default set via `--update`, and this commit's CI run read first — `gh run list --workflow CI --limit 1 --json
+  databaseId,conclusion,headSha`; its `screenshots` leg is the red that gets adopted the same way. No release run is
+  in flight.
+
 ## 2026-11-26 (hundred-and-eighth) — the Korean catalogue ships, and the language row gains 한국어
 
 - **Why this came up.** The hundred-and-seventh entry's Next named `ko.tsv` first: the same 754 keys and
@@ -26,8 +59,8 @@
   (`settings-short-{charcoal,paper}`, `settings-sync-{charcoal,paper}`); both frames were read: the
   Language row now carries English plus four names and does not overflow. This machine has no CJK or
   Hangul face embedded, so the four non-English names paint as boxes in the committed reference set —
-  the same honest state `ar`/`ja`/`zh-TW` have always had here; CI's lavapipe set embeds craft-fonts and
-  paints them.
+  the same honest state `ar`/`ja`/`zh-TW` have always had here. *(Corrected in the hundred-and-ninth entry:
+  the runner's lavapipe set paints them as boxes too, so the claim that CI embeds craft-fonts here was wrong.)*
 - **Docs reconciled in the same commit.** ROADMAP's SL-L07 row gained the Korean paragraph and now names
   only `th`/`vi` as open; its M9 state line and Phase 4 history dropped `zh-TW`/`ko`; UX.md §11 gained the
   Korean paragraph and the same two-language remainder.
