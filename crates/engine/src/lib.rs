@@ -4029,8 +4029,10 @@ impl Engine {
                     .get("on")
                     .and_then(Value::as_bool)
                     .ok_or_else(|| Error::Invalid("on (true or false) is required".into()))?;
-                self.set_models_consent(on);
-                Ok(json!({ "consent": self.models_consent() }))
+                // `changed` is the same promise every other write keeps: a switch that was already in
+                // that position reports false, so a caller can tell the write from a no-op.
+                let changed = self.set_models_consent(on);
+                Ok(json!({ "consent": self.models_consent(), "changed": changed }))
             }
             "update.status" => Ok(json!({
                 "consent": self.update_consent(),
@@ -4052,8 +4054,8 @@ impl Engine {
                     .get("on")
                     .and_then(Value::as_bool)
                     .ok_or_else(|| Error::Invalid("on (true or false) is required".into()))?;
-                self.set_update_consent(on);
-                Ok(json!({ "consent": self.update_consent() }))
+                let changed = self.set_update_consent(on);
+                Ok(json!({ "consent": self.update_consent(), "changed": changed }))
             }
             other => Err(Error::Invalid(format!("command has no handler: {other}"))),
         };
@@ -8399,9 +8401,13 @@ mod tests {
         let (_temp, mut engine) = library("update-consent-cmd");
         let on = engine.run("update.consent", &json!({ "on": true })).expect("on");
         assert_eq!(on["consent"], true);
+        assert_eq!(on["changed"], true, "the first switch is a change");
         assert!(engine.update_consent());
+        let again = engine.run("update.consent", &json!({ "on": true })).expect("again");
+        assert_eq!(again["changed"], false, "already on is not a change");
         let off = engine.run("update.consent", &json!({ "on": false })).expect("off");
         assert_eq!(off["consent"], false);
+        assert_eq!(off["changed"], true);
         assert!(!engine.update_consent(), "consent can be withdrawn mid-session");
     }
 
@@ -8550,9 +8556,13 @@ mod tests {
         let (_temp, mut engine) = library("model-consent-cmd");
         let on = engine.run("model.consent", &json!({ "on": true })).expect("on");
         assert_eq!(on["consent"], true);
+        assert_eq!(on["changed"], true, "the first switch is a change");
         assert!(engine.models_consent());
+        let again = engine.run("model.consent", &json!({ "on": true })).expect("again");
+        assert_eq!(again["changed"], false, "already on is not a change");
         let off = engine.run("model.consent", &json!({ "on": false })).expect("off");
         assert_eq!(off["consent"], false);
+        assert_eq!(off["changed"], true);
         assert!(!engine.models_consent(), "consent can be withdrawn mid-session");
     }
 

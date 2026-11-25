@@ -1,0 +1,7 @@
+exit 0
+--- stdout
+{
+  "moved": 2,
+  "rev": 29
+}
+--- stderr

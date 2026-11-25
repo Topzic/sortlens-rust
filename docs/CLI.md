@@ -32,25 +32,42 @@ it with a note that is a sentence rather than a placeholder.
   depended on indentation would break the day it changed.
 - **Timings, paths and versions** are included where they are useful (`roots`, `stats`) but are values, not
   schema: the `root` string is whatever the library was opened with.
-- **Progress.** Long work (`export`, `sharpen`, `relocate`, a scan) reports through `jobs`, not by streaming
-  JSON. There is no `--json` for `export` or `sharpen`: each is a job with progress and a cancel, and pretending a
-  job is one object would hide the cancel. Both refuse `--json` and name the verbs that have a schema; the golden
-  harness pins that refusal so "no schema" stays a decision rather than an oversight.
+- **Progress.** Long work (`export`, `sharpen`, a scan) reports through `jobs`, not by streaming JSON.
+  `add`, `rescan`, `batchsuggest`, `sharpen`, `export`, `model-install`, `model-remove` and `update-check`
+  each start a pass with progress and a cancel, and pretending a pass is one object would hide the cancel: they
+  refuse `--json` and name the verbs that do answer. `diagnostics` refuses too, because its answer is the
+  redacted text bundle a person attaches to a report, not an object a script parses. The refusal is a decision
+  recorded in the tests, not an omission: the golden harness pins one, and the contract test names every pass.
 
 ## The verbs
 
-Read: `roots`, `keywords`, `stats`, `list`, `folders`, `check`, `moves`, `changed`, `history`, `audit`,
-`memories`, `shortcuts`, `registry`, `packs`, `jobs`, `suggest`, `relocate`, `schemas`.
+Read: `roots`, `keywords`, `stats`, `insights`, `list`, `page`, `folders`, `check`, `moves`, `changed`,
+`history`, `audit`, `memories`, `shortcuts`, `registry`, `packs`, `jobs`, `suggest`, `models`, `update`,
+`report`, `marks`, `relocate`, `schemas`.
 
 Write: `rate`, `flag`, `label`, `tag`, `untag`, `date`, `rename`, `alias`, `accept`, `pack`, `undo`, `retry`,
-`remap`, `mark`, `delete`.
+`remap`, `mark`, `delete`, `move`, `unmove`, `refresh`, `compact`, `backup`, `restore`, `model-consent`,
+`update-consent`.
+
+`page` is the same answer as `list --json`, with `--offset`; `report` prints the support report's object with or
+without `--json`, so a script can ask for it either way. `backup` and `restore` write an archive rather than the
+catalog, which is why they are writes: running one twice is safe for the library but is still an effect. `move`
+takes an absolute destination folder and refuses a relative one rather than guessing which folder was meant.
+
+### The same flags
+
+A verb's JSON form reads the same flags its plain form reads, and refuses a value it cannot honour. That is a
+contract, not an implementation detail: `list --json --tag coast` must be the filtered page, not the whole
+library with a keyword somebody forgot to apply. `--source` takes `manual`, `ai`, `xmp` or `unrecorded`, and
+an unknown word is refused with the list of real ones.
 
 `delete <ids> [--mode trash|tag|move --target F]` goes through the same audited batch a cull applies: every chosen
 file is checked against the size and modification time the catalog recorded, and one changed file refuses the whole
 batch rather than deleting the others. `--mode tag` moves nothing — it flags the photos as rejects, which is what a
 script that wants to review before acting should use.
 
-Passes (no `--json`): `export`, `sharpen`. `sharpen` measures every photo whose score is missing or came from
+Passes (no `--json`): `add`, `rescan`, `batchsuggest`, `sharpen`, `export`, `model-install`, `model-remove`,
+`update-check`; `diagnostics` is text for the same kind of reason. `sharpen` measures every photo whose score is missing or came from
 another `SCORE_VERSION`, stores them as one undoable change, and prints how many frames could not be judged —
 an undecodable or near-black frame is left unscored rather than called sharp.
 
@@ -76,5 +93,10 @@ so a repeat reports `0` — and `retry` answers `updated` and `remaining`.
 - `every_write_verb_has_a_json_schema_and_a_stated_contract` — every mutating verb answers `--json` instead of
   refusing, every schema's note is a sentence, and the table marks writes as writes. It was proved to bite by
   renaming a verb in the table: the test fails naming the verb and quoting the refusal.
-- The golden steps `40`–`49` in `apps/sortlens-cli/tests/golden.rs` record real answers, including a repeat
-  write that reports `{"changed": 0}` and a verb that has no schema.
+- The golden steps `40`–`69` in `apps/sortlens-cli/tests/golden.rs` record real answers, including a repeat
+  write that reports `{"changed": 0}`, a keyword-filtered page that fails if `--tag` stops being applied, and a
+  pass that still has no schema on purpose.
+- The contract test's lists are the whole surface: 23 one-object writes must have a schema, eight passes and
+  `diagnostics` must refuse one, and every note must be a sentence.
+- `the_usage_text_names_every_verb_the_table_offers` reads the help text a person sees and requires every
+  schema verb to appear in it — the check that would have caught the stale usage text this change rewrote.

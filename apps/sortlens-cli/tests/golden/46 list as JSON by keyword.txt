@@ -1,0 +1,55 @@
+exit 0
+--- stdout
+{
+  "offset": 0,
+  "photos": [
+    {
+      "added": <epoch>,
+      "aperture": null,
+      "camera": "",
+      "captured": 1685577600,
+      "duration_ms": null,
+      "edited": false,
+      "flag": "none",
+      "focal": null,
+      "fps": null,
+      "height": 0,
+      "id": 1,
+      "iso": null,
+      "key": 1315972314630689838,
+      "kind": "image",
+      "label": null,
+      "lens": "",
+      "missing": false,
+      "modified": <epoch>,
+      "name": "d.jpg",
+      "rating": 4,
+      "rel": "Studio/d.jpg",
+      "retry": false,
+      "rev": 10,
+      "root": "Photos",
+      "sharpness": {
+        "value": 0.0,
+        "version": 1
+      },
+      "shutter": null,
+      "size": 322,
+      "tag_sources": {
+        "beach": "manual",
+        "dunes": "manual",
+        "low light": "ai"
+      },
+      "tags": [
+        "beach",
+        "dunes",
+        "low light"
+      ],
+      "video_codec": null,
+      "width": 0
+    }
+  ],
+  "rev": 26,
+  "sort": "added",
+  "total": 1
+}
+--- stderr

@@ -1,0 +1,4 @@
+exit 0
+--- stdout
+Photos/Trip: favourite, colour red, sorted by rating, search "trip"
+--- stderr

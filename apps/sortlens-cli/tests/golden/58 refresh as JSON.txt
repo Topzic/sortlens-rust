@@ -1,0 +1,7 @@
+exit 0
+--- stdout
+{
+  "refreshed": 0,
+  "rev": 28
+}
+--- stderr

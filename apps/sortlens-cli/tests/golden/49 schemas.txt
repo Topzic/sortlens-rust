@@ -20,10 +20,22 @@ exit 0
     "verb": "stats"
   },
   {
+    "command": "view.insights",
+    "kind": "read",
+    "note": "the Insights destination as one object: counters, cameras, lenses, keywords, years and months",
+    "verb": "insights"
+  },
+  {
     "command": "library.page",
     "kind": "read",
     "note": "a page of photos with the ids that `rate` and `flag` accept; `total` is the filtered total",
     "verb": "list"
+  },
+  {
+    "command": "library.page",
+    "kind": "read",
+    "note": "the same page as `list`, with `--offset`; `sort` echoes the order the page was taken in",
+    "verb": "page"
   },
   {
     "command": "library.health",
@@ -38,10 +50,28 @@ exit 0
     "verb": "moves"
   },
   {
+    "command": "edit.movePicks",
+    "kind": "write",
+    "note": "`moved` is files that left their folder; one changed since it was indexed refuses the whole batch, and the destination is absolute",
+    "verb": "move"
+  },
+  {
+    "command": "edit.undoMove",
+    "kind": "write",
+    "note": "`restored` is files put back where they came from; an unknown move id is a refusal, not 0",
+    "verb": "unmove"
+  },
+  {
     "command": "library.changed",
     "kind": "read",
     "note": "files whose size or modification time disagrees with the catalog",
     "verb": "changed"
+  },
+  {
+    "command": "library.refreshChanged",
+    "kind": "write",
+    "note": "`refreshed` is files re-read because their size or time moved; an unchanged library reports 0",
+    "verb": "refresh"
   },
   {
     "command": "library.history",
@@ -54,6 +84,24 @@ exit 0
     "kind": "read",
     "note": "the replay audit; `clean` is the verdict, the rest is evidence",
     "verb": "audit"
+  },
+  {
+    "command": "library.compact",
+    "kind": "write",
+    "note": "`reclaimed` is bytes of log the snapshot made unnecessary, not photos; a second run reports 0",
+    "verb": "compact"
+  },
+  {
+    "command": "library.backup",
+    "kind": "write",
+    "note": "`files` is how many files the archive at the given path holds; the library itself is not changed",
+    "verb": "backup"
+  },
+  {
+    "command": "library.restoreBackup",
+    "kind": "write",
+    "note": "`files` is how many were unpacked into the new folder; nothing is restored over an existing library",
+    "verb": "restore"
   },
   {
     "command": "memories.list",
@@ -92,10 +140,28 @@ exit 0
     "verb": "models"
   },
   {
+    "command": "model.consent",
+    "kind": "write",
+    "note": "`consent` is the switch's new state and `changed` whether it moved; the CLI keeps it for this run only",
+    "verb": "model-consent"
+  },
+  {
     "command": "update.status",
     "kind": "read",
     "note": "the running version, the consent switch, and the last check's answer with its release notes headline",
     "verb": "update"
+  },
+  {
+    "command": "update.consent",
+    "kind": "write",
+    "note": "`consent` is the switch's new state and `changed` whether it moved; the CLI keeps it for this run only",
+    "verb": "update-consent"
+  },
+  {
+    "command": "app.supportReport",
+    "kind": "read",
+    "note": "versions, command counts, roots and warnings for a bug report; `report` prints the same object without the flag",
+    "verb": "report"
   },
   {
     "command": "suggest.list",
@@ -118,7 +184,7 @@ exit 0
   {
     "command": "folder.marks",
     "kind": "read",
-    "note": "`folders`: every marked folder as {key, favourite, colour}, keyed by path identity",
+    "note": "`folders`: every marked folder as {key, favourite, colour, sort, search}, keyed by path identity",
     "verb": "marks"
   },
   {

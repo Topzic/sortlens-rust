@@ -1,0 +1,12 @@
+exit 0
+--- stdout
+{
+  "changed": false,
+  "colour": "red",
+  "favourite": true,
+  "key": "Photos/Trip",
+  "rev": 27,
+  "search": "trip",
+  "sort": "rating"
+}
+--- stderr

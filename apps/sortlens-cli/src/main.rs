@@ -20,11 +20,17 @@ Commands:
   add <folder>              index a folder
   rescan <folder>           re-index an existing root
   roots                     list roots with photo counts
-  list [--limit N]          list photos (default 20)
+  list [--limit N] [--tag KW] [--source SRC]
+                            list photos (default 20); filter by keyword, or by where a
+                            keyword came from (manual, ai, xmp, unrecorded)
+  page [--offset N] [--limit N] [--sort KEY] [--tag KW] [--source SRC]
+                            one page of photos as JSON, for scripts
   stats                     library counters
   insights                  counters, cameras, lenses, keywords and years
   rate <id[,id...]> <0-5>   set stars
   flag <id> pick|reject|none
+  label <id[,id...]> <colour|none>
+                            set the colour label
   date <id> <YYYY-MM-DD|->  set (or clear, with -) the capture date
   tag <id> <keyword>        add a keyword
   untag <id> <keyword>      remove a keyword
@@ -43,8 +49,9 @@ Commands:
   mcp                       serve the command registry over MCP on stdio, then exit
   reveal <id>               show the file in the desktop's file manager
   open <id>                 hand the file to the desktop's default application
-  page [--offset N] [--limit N] [--sort KEY]
-                            one page of photos as JSON, for scripts
+  mark <folder>             remember a folder's favourite, colour, sort and search
+                            [--favourite on|off] [--colour NAME|none] [--sort KEY] [--search TEXT]
+  marks                     every remembered folder
   memories [--today D]      resurfacing cards; D is YYYY-MM-DD, default today
   shortcuts                 every command that has a keyboard shortcut
   registry                  keywords, the names they swallowed, and orphaned aliases
@@ -52,10 +59,10 @@ Commands:
   folders [--root R] [--in PREFIX]
                             list subfolders with recursive counts
   check                     verify every indexed file is still on disk
+  changed                   list files whose size or time no longer matches the index
+  refresh                   re-read exactly the changed files
   relocate                  find missing files elsewhere under their root
-  list [--tag KW] [--source SRC]
-                            filter the listing by keyword, or by where a keyword came from
-                            (manual, ai, xmp, unrecorded)
+  retry [--all]             re-read metadata for photos that failed, or for all without EXIF
   models                    the pinned models, with licence, size and install state
   model-consent on|off      the opt-in switch for downloading models (network)
   model-install <id>        download a pinned model; resumable, digest-checked
@@ -66,25 +73,25 @@ Commands:
   undo                      undo the last change
   remap <old> <new>         repoint a moved or renamed root, sample checked
   history [--limit N]       recent changes, newest first
-  retry [--all]             re-read metadata for photos that failed, or for all without EXIF
-  move <dest> <id...>       move photos into a folder, keeping their review state
+  move <abs-dir> <id...>    move photos into a folder, keeping their review state;
+                            the destination is absolute, and a relative one is refused
   moves                     list recent moves with their ids
   unmove <id>               put a moved batch back where it came from
   export <dest> [ids...]    write picks out; no ids means the whole library
                             --format original|jpeg|png --max N --quality N
                             --collision skip|rename|overwrite --no-metadata
-  changed                   list files whose size or time no longer matches the index
-  refresh                   re-read exactly the changed files
   audit                     check the catalog files read back cleanly
   compact                   snapshot and empty the log
+  jobs                      the long-running work from this run, with its progress
   diagnostics [--out F]     a report to attach to a bug report; absolute paths are redacted
   backup <file>             write a verified backup of the index
-
---json prints the engine's own answer instead of prose, for the read verbs: roots, list, stats,
-  keywords, folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs,
-  suggest, jobs, models. The shape of each is the schema; it changes only with a compatibility note.
   restore <file> <folder>   verify a backup and unpack it into a new folder
   report                    support report
+
+--json prints the engine's own answer instead of prose for every verb that answers one object,
+  with the same flags its plain form takes. `--json schemas` is that table. A pass with progress
+  and a cancel — add, rescan, batchsuggest, sharpen, export, model-install, model-remove,
+  update-check — refuses `--json` and names the verbs that do answer.
 ";
 
 /// Star, flag, capture date or keyword, on one photo.
@@ -105,6 +112,32 @@ fn edit_photo(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(),
             };
             engine.flag(&[id], flag).map_err(|error| error.to_string())?;
             println!("flagged {id} as {}", flag.id());
+        }
+        "label" => {
+            let name = rest.get(1).map(String::as_str).unwrap_or("none");
+            let label = if name == "none" {
+                None
+            } else {
+                Some(
+                    sortlens_core::ColorLabel::ALL
+                        .into_iter()
+                        .find(|label| label.id() == name)
+                        .ok_or_else(|| {
+                            let offered = sortlens_core::ColorLabel::ALL
+                                .iter()
+                                .map(|label| label.id())
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            format!("{name} is not a colour label; use {offered}, or none")
+                        })?,
+                )
+            };
+            let changed = engine.label(&[id], label).map_err(|error| error.to_string())?;
+            match (label, changed) {
+                (Some(label), 1) => println!("labelled {id} {}", label.id()),
+                (None, 1) => println!("{id}: label cleared"),
+                _ => println!("{id}: no change"),
+            }
         }
         "date" => {
             let text = rest.get(1).ok_or("a date or - is required")?;
@@ -560,7 +593,7 @@ fn export(engine: &mut Engine, rest: &[String]) -> Result<(), String> {
 enum Kind {
     /// Reports; writes nothing.
     Read,
-    /// Changes the library. Running it twice is not the same as running it once.
+    /// Changes the library, or writes an artefact outside it. Running it twice is not the same as running it once.
     Write,
 }
 
@@ -601,10 +634,22 @@ const SCHEMAS: &[Schema] = &[
         note: "library counters; `total` is every indexed photo, including missing ones",
     },
     Schema {
+        verb: "insights",
+        command: "view.insights",
+        kind: Kind::Read,
+        note: "the Insights destination as one object: counters, cameras, lenses, keywords, years and months",
+    },
+    Schema {
         verb: "list",
         command: "library.page",
         kind: Kind::Read,
         note: "a page of photos with the ids that `rate` and `flag` accept; `total` is the filtered total",
+    },
+    Schema {
+        verb: "page",
+        command: "library.page",
+        kind: Kind::Read,
+        note: "the same page as `list`, with `--offset`; `sort` echoes the order the page was taken in",
     },
     Schema {
         verb: "check",
@@ -619,10 +664,28 @@ const SCHEMAS: &[Schema] = &[
         note: "move receipts, newest last; `count` is files, not bytes",
     },
     Schema {
+        verb: "move",
+        command: "edit.movePicks",
+        kind: Kind::Write,
+        note: "`moved` is files that left their folder; one changed since it was indexed refuses the whole batch, and the destination is absolute",
+    },
+    Schema {
+        verb: "unmove",
+        command: "edit.undoMove",
+        kind: Kind::Write,
+        note: "`restored` is files put back where they came from; an unknown move id is a refusal, not 0",
+    },
+    Schema {
         verb: "changed",
         command: "library.changed",
         kind: Kind::Read,
         note: "files whose size or modification time disagrees with the catalog",
+    },
+    Schema {
+        verb: "refresh",
+        command: "library.refreshChanged",
+        kind: Kind::Write,
+        note: "`refreshed` is files re-read because their size or time moved; an unchanged library reports 0",
     },
     Schema {
         verb: "history",
@@ -635,6 +698,24 @@ const SCHEMAS: &[Schema] = &[
         command: "library.audit",
         kind: Kind::Read,
         note: "the replay audit; `clean` is the verdict, the rest is evidence",
+    },
+    Schema {
+        verb: "compact",
+        command: "library.compact",
+        kind: Kind::Write,
+        note: "`reclaimed` is bytes of log the snapshot made unnecessary, not photos; a second run reports 0",
+    },
+    Schema {
+        verb: "backup",
+        command: "library.backup",
+        kind: Kind::Write,
+        note: "`files` is how many files the archive at the given path holds; the library itself is not changed",
+    },
+    Schema {
+        verb: "restore",
+        command: "library.restoreBackup",
+        kind: Kind::Write,
+        note: "`files` is how many were unpacked into the new folder; nothing is restored over an existing library",
     },
     Schema {
         verb: "memories",
@@ -673,10 +754,28 @@ const SCHEMAS: &[Schema] = &[
         note: "every pinned model with its licence, size and digest-checked install state; `consent` says whether downloads are allowed",
     },
     Schema {
+        verb: "model-consent",
+        command: "model.consent",
+        kind: Kind::Write,
+        note: "`consent` is the switch's new state and `changed` whether it moved; the CLI keeps it for this run only",
+    },
+    Schema {
         verb: "update",
         command: "update.status",
         kind: Kind::Read,
         note: "the running version, the consent switch, and the last check's answer with its release notes headline",
+    },
+    Schema {
+        verb: "update-consent",
+        command: "update.consent",
+        kind: Kind::Write,
+        note: "`consent` is the switch's new state and `changed` whether it moved; the CLI keeps it for this run only",
+    },
+    Schema {
+        verb: "report",
+        command: "app.supportReport",
+        kind: Kind::Read,
+        note: "versions, command counts, roots and warnings for a bug report; `report` prints the same object without the flag",
     },
     Schema {
         verb: "suggest",
@@ -700,7 +799,7 @@ const SCHEMAS: &[Schema] = &[
         verb: "marks",
         command: "folder.marks",
         kind: Kind::Read,
-        note: "`folders`: every marked folder as {key, favourite, colour}, keyed by path identity",
+        note: "`folders`: every marked folder as {key, favourite, colour, sort, search}, keyed by path identity",
     },
     Schema {
         verb: "rate",
@@ -855,14 +954,24 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
         Ok(parse_ids(text)?.iter().map(|id| id.0).collect())
     };
     let args = match schema.verb {
-        "list" => {
+        "list" | "page" => {
             let limit = flag_value(rest, "--limit").unwrap_or(20);
-            let mut args = serde_json::json!({ "offset": flag_value(rest, "--offset").unwrap_or(0), "limit": limit });
+            // The plain form honours `--tag` and `--source`, so this one must too: a JSON verb that
+            // took a flag and dropped it would answer a different question than the one that was asked.
+            let mut filter = serde_json::json!({});
+            if let Some(tag) = text_value(rest, "--tag") {
+                filter["tags"] = serde_json::json!([tag]);
+            }
+            if let Some(source) = source_flag(rest)? {
+                filter["tag_source"] = serde_json::Value::String(source.id().to_string());
+            }
+            let mut args = serde_json::json!({
+                "offset": flag_value(rest, "--offset").unwrap_or(0),
+                "limit": limit,
+                "filter": filter,
+            });
             if let Some(sort) = text_value(rest, "--sort") {
                 args["sort"] = serde_json::Value::String(sort);
-            }
-            if let Some(tag) = text_value(rest, "--tag") {
-                args["tag"] = serde_json::Value::String(tag);
             }
             args
         }
@@ -984,10 +1093,126 @@ fn json_verb(engine: &mut Engine, verb: &str, rest: &[String]) -> Result<(), Str
             let to = rest.get(1).ok_or("the new root is required")?;
             serde_json::json!({ "from": from, "to": to })
         }
+        "backup" => {
+            let path = rest.first().ok_or("a destination file is required")?;
+            serde_json::json!({ "path": path })
+        }
+        "restore" => {
+            let path = rest.first().ok_or("a backup file is required")?;
+            let dest = rest.get(1).ok_or("a destination folder is required")?;
+            serde_json::json!({ "path": path, "dest": dest })
+        }
+        "move" => {
+            let dest = rest.first().ok_or("a destination folder is required")?;
+            let ids = parse_ids(&rest.get(1..).unwrap_or_default().join(","))?;
+            serde_json::json!({ "dest": dest, "ids": ids.iter().map(|id| id.0).collect::<Vec<u64>>() })
+        }
+        "unmove" => {
+            let id = parse_id(rest.first())?;
+            serde_json::json!({ "id": id.0 })
+        }
+        "model-consent" | "update-consent" => {
+            let on = match rest.first().map(String::as_str).unwrap_or("on") {
+                "on" => true,
+                "off" => false,
+                other => return Err(format!("expected on or off, not {other}")),
+            };
+            serde_json::json!({ "on": on })
+        }
         _ => serde_json::json!({}),
     };
     let value = engine.run(schema.command, &args).map_err(|error| error.to_string())?;
     println!("{}", serde_json::to_string_pretty(&value).map_err(|error| error.to_string())?);
+    Ok(())
+}
+
+/// Remember a folder's view (favourite, colour, sort, search), or list what is remembered.
+///
+/// The same flags `--json mark` reads: a folder's mark is one object, so the plain form prints the
+/// object's facts on one line rather than a table a person has to line up by eye.
+fn folder_marks(engine: &mut Engine, command: &str, rest: &[String]) -> Result<(), String> {
+    if command == "marks" {
+        let value = engine
+            .run("folder.marks", &serde_json::json!({}))
+            .map_err(|error| error.to_string())?;
+        let rows = value["folders"].as_array().map(Vec::as_slice).unwrap_or_default();
+        if rows.is_empty() {
+            println!("no marked folders");
+        }
+        for row in rows {
+            println!(
+                "{}  {}{}",
+                row["key"].as_str().unwrap_or("-"),
+                if row["favourite"].as_bool().unwrap_or(false) {
+                    "favourite"
+                } else {
+                    "-"
+                },
+                row["colour"].as_str().map(|colour| format!("  {colour}")).unwrap_or_default()
+            );
+        }
+        return Ok(());
+    }
+    let path = rest.first().ok_or("a folder path is required")?;
+    let mut args = serde_json::json!({ "path": path });
+    if let Some(state) = text_value(rest, "--favourite") {
+        args["favourite"] = serde_json::Value::Bool(matches!(state.as_str(), "on" | "true" | "yes"));
+    }
+    if let Some(colour) = text_value(rest, "--colour") {
+        args["colour"] = if colour == "none" {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::String(colour)
+        };
+    }
+    if let Some(sort) = text_value(rest, "--sort") {
+        args["sort"] = serde_json::Value::String(sort);
+    }
+    if let Some(search) = text_value(rest, "--search") {
+        args["search"] = serde_json::Value::String(search);
+    }
+    let value = engine.run("folder.mark", &args).map_err(|error| error.to_string())?;
+    let mut line = format!("{path}: ");
+    line.push_str(if value["favourite"].as_bool().unwrap_or(false) {
+        "favourite"
+    } else {
+        "not favourite"
+    });
+    line.push_str(&format!(", colour {}", value["colour"].as_str().unwrap_or("none")));
+    if let Some(sort) = value["sort"].as_str() {
+        line.push_str(&format!(", sorted by {sort}"));
+    }
+    if let Some(search) = value["search"].as_str() {
+        line.push_str(&format!(", search \"{search}\""));
+    }
+    if !value["changed"].as_bool().unwrap_or(false) {
+        line.push_str(" (unchanged)");
+    }
+    println!("{line}");
+    Ok(())
+}
+
+/// The long-running work this run started, with its progress.
+///
+/// A pass that outlives one command reports through `jobs`; the rows are the same object
+/// `--json jobs` answers, so a person and a script read the same facts.
+fn jobs(engine: &mut Engine) -> Result<(), String> {
+    let value = engine
+        .run("library.jobs", &serde_json::json!({}))
+        .map_err(|error| error.to_string())?;
+    let rows = value["jobs"].as_array().map(Vec::as_slice).unwrap_or_default();
+    if rows.is_empty() {
+        println!("no jobs");
+    }
+    for job in rows {
+        println!(
+            "#{:<4} {:<9} {:<14} {}",
+            job["id"],
+            job["status"].as_str().unwrap_or("-"),
+            job["kind"].as_str().unwrap_or("-"),
+            job["detail"].as_str().unwrap_or("")
+        );
+    }
     Ok(())
 }
 
@@ -1141,7 +1366,7 @@ fn run() -> Result<(), String> {
         }
         // The photo-field verbs are all "read the id, read the value, write it" — one helper, so the
         // command table stays a table.
-        "rate" | "flag" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
+        "rate" | "flag" | "label" | "date" | "tag" | "untag" => edit_photo(&mut engine, &command, rest),
         "suggest" | "accept" | "dismiss" => suggestions(&mut engine, &command, rest),
         "packs" | "pack" => packs(&mut engine, &command, rest),
         "models" | "model-consent" | "model-install" | "model-remove" => models(&mut engine, &command, rest),
@@ -1307,6 +1532,8 @@ fn run() -> Result<(), String> {
             println!("restored {files} file(s) into {dest}");
             Ok(())
         }
+        "mark" | "marks" => folder_marks(&mut engine, &command, rest),
+        "jobs" => jobs(&mut engine),
         "mcp" => {
             // One line in, one line out, until the client closes the pipe. Nothing is printed to
             // stdout except protocol messages: a stray println would corrupt the stream.
@@ -1343,25 +1570,9 @@ fn run() -> Result<(), String> {
             }
             Ok(())
         }
-        "page" => {
-            let flag = |name: &str| rest.windows(2).find(|pair| pair[0] == name).map(|pair| pair[1].clone());
-            let offset = flag("--offset").and_then(|value| value.parse::<u64>().ok()).unwrap_or(0);
-            let limit = flag("--limit").and_then(|value| value.parse::<u64>().ok()).unwrap_or(20);
-            let sort = flag("--sort");
-            let value = engine
-                .run(
-                    "library.page",
-                    &serde_json::json!({
-                        "offset": offset,
-                        "limit": limit,
-                        "sort": sort,
-                        "filter": { "tag_source": source_flag(rest)? },
-                    }),
-                )
-                .map_err(|error| error.to_string())?;
-            println!("{value}");
-            Ok(())
-        }
+        // `page` is the plain-form spelling of the same answer `--json page` gives: one mapper, so the
+        // two cannot drift on which flags they read.
+        "page" => json_verb(&mut engine, "page", rest),
         "memories" => print_memories(&mut engine, rest),
         "shortcuts" => {
             let value = engine.run("app.shortcuts", &Value::Null).map_err(|error| error.to_string())?;

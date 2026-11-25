@@ -1,0 +1,7 @@
+exit 0
+--- stdout
+{
+  "reclaimed": 3383,
+  "rev": 28
+}
+--- stderr

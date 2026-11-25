@@ -322,6 +322,156 @@ const STEPS: &[Step] = &[
         args: &["diagnostics"],
         file: None,
     },
+    // The one-object verbs that answered only in prose until now, and the filter the JSON path used to
+    // accept and drop: `39` and `46` fail if either regresses.
+    Step {
+        name: "45 tag for the JSON filter",
+        args: &["tag", "1", "dunes"],
+        file: None,
+    },
+    Step {
+        name: "46 list as JSON by keyword",
+        args: &["--json", "list", "--tag", "dunes"],
+        file: None,
+    },
+    Step {
+        name: "47 list as JSON by source",
+        args: &["--json", "list", "--source", "manual"],
+        file: None,
+    },
+    Step {
+        name: "48 list as JSON by a source nothing has",
+        args: &["--json", "list", "--source", "unrecorded"],
+        file: None,
+    },
+    Step {
+        name: "49 an unknown source is refused",
+        args: &["--json", "list", "--source", "guessed"],
+        file: None,
+    },
+    Step {
+        name: "50 page as JSON",
+        args: &["--json", "page", "--offset", "1", "--limit", "2"],
+        file: None,
+    },
+    Step {
+        name: "51 jobs",
+        args: &["jobs"],
+        file: None,
+    },
+    Step {
+        name: "52 jobs as JSON",
+        args: &["--json", "jobs"],
+        file: None,
+    },
+    Step {
+        name: "53 mark a folder",
+        args: &[
+            "mark",
+            "Photos/Trip",
+            "--favourite",
+            "on",
+            "--colour",
+            "red",
+            "--sort",
+            "rating",
+            "--search",
+            "trip",
+        ],
+        file: None,
+    },
+    Step {
+        name: "54 marks",
+        args: &["marks"],
+        file: None,
+    },
+    Step {
+        name: "55 the same mark as JSON",
+        args: &[
+            "--json",
+            "mark",
+            "Photos/Trip",
+            "--favourite",
+            "on",
+            "--colour",
+            "red",
+            "--sort",
+            "rating",
+            "--search",
+            "trip",
+        ],
+        file: None,
+    },
+    Step {
+        name: "56 marks as JSON",
+        args: &["--json", "marks"],
+        file: None,
+    },
+    Step {
+        name: "57 label",
+        args: &["label", "1", "green"],
+        file: None,
+    },
+    Step {
+        name: "58 refresh as JSON",
+        args: &["--json", "refresh"],
+        file: None,
+    },
+    Step {
+        name: "59 compact as JSON",
+        args: &["--json", "compact"],
+        file: None,
+    },
+    Step {
+        name: "60 backup as JSON",
+        args: &["--json", "backup", "%PHOTOS%/Golden.zip"],
+        file: None,
+    },
+    Step {
+        name: "61 restore as JSON",
+        args: &["--json", "restore", "%PHOTOS%/Golden.zip", "%PHOTOS%/Restored"],
+        file: None,
+    },
+    Step {
+        name: "62 move as JSON",
+        args: &["--json", "move", "%PHOTOS%/JsonMoved", "3", "4"],
+        file: None,
+    },
+    Step {
+        name: "63 unmove as JSON",
+        args: &["--json", "unmove", "1"],
+        file: None,
+    },
+    Step {
+        name: "64 model-consent as JSON",
+        args: &["--json", "model-consent", "on"],
+        file: None,
+    },
+    Step {
+        name: "65 model-consent off is a no-op",
+        args: &["--json", "model-consent", "off"],
+        file: None,
+    },
+    Step {
+        name: "66 update-consent as JSON",
+        args: &["--json", "update-consent", "on"],
+        file: None,
+    },
+    Step {
+        name: "67 a pass still refuses JSON",
+        args: &["--json", "batchsuggest"],
+        file: None,
+    },
+    Step {
+        name: "68 insights as JSON",
+        args: &["--json", "insights"],
+        file: None,
+    },
+    Step {
+        name: "69 report as JSON",
+        args: &["--json", "report"],
+        file: None,
+    },
 ];
 
 fn golden_dir() -> PathBuf {
@@ -370,9 +520,38 @@ fn normalise_epoch_keys(text: &str, keys: &[&str]) -> String {
     out
 }
 
+/// Replace the quoted string value after each of these JSON keys with `<host>`.
+fn normalise_string_values(text: &str, keys: &[&str]) -> String {
+    let mut out = text.to_string();
+    for key in keys {
+        let mut stable = String::new();
+        let mut rest = out.as_str();
+        while let Some(index) = rest.find(key) {
+            stable.push_str(&rest[..index + key.len()]);
+            let tail = &rest[index + key.len()..];
+            let value = tail.trim_start();
+            stable.push_str(&tail[..tail.len() - value.len()]);
+            match value.strip_prefix('"').and_then(|after| after.find('"').map(|end| (after, end))) {
+                Some((after, end)) => {
+                    stable.push_str("\"<host>\"");
+                    rest = &after[end + 1..];
+                }
+                None => rest = tail,
+            }
+        }
+        stable.push_str(rest);
+        out = stable;
+    }
+    out
+}
+
 fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
     let mut out = text.replace(&library.display().to_string(), "<library>");
     out = out.replace(&fixture.display().to_string(), "<photos>");
+    // Inside JSON a Windows path is escaped, so the text holds `C:\\…` and the plain replace above misses it.
+    for (path, label) in [(&fixture, "<photos>"), (&library, "<library>")] {
+        out = out.replace(&path.display().to_string().replace('\\', "\\\\"), label);
+    }
     // `… in 0.0s` and `… in 2.4s` are the same fact measured twice.
     let mut cleaned = String::new();
     let mut rest = out.as_str();
@@ -392,6 +571,9 @@ fn normalise(text: &str, fixture: &Path, library: &Path) -> String {
     }
     cleaned.push_str(rest);
     let stable_input = normalise_epoch_keys(&cleaned, &["\"modified\":", "\"added\":"]);
+    // The support report names the machine it ran on in JSON, the diagnostics bundle in prose. Both are a
+    // property of the run rather than of the tool, so the golden keeps the key and not the value.
+    let stable_input = normalise_string_values(&stable_input, &["\"os\": ", "\"arch\": "]);
     // The diagnostics report records what the machine is, not what the library is: a golden that pinned
     // "os = macos" would fail on the ubuntu job for a reason that says nothing about the code.
     let mut portable = String::new();
@@ -597,12 +779,46 @@ fn every_published_output_is_unchanged() {
 fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
     // The mutating verbs the CLI accepts. A read verb can be added without ceremony; a write one cannot.
     let write_verbs = [
-        "rate", "flag", "label", "tag", "untag", "date", "rename", "alias", "accept", "pack", "undo", "retry", "remap", "mark", "delete",
+        "rate",
+        "flag",
+        "label",
+        "tag",
+        "untag",
+        "date",
+        "rename",
+        "alias",
+        "accept",
+        "pack",
+        "undo",
+        "retry",
+        "remap",
+        "mark",
+        "delete",
+        "move",
+        "unmove",
+        "compact",
+        "backup",
+        "restore",
+        "refresh",
+        "model-consent",
+        "update-consent",
     ];
     // Writes that are passes rather than single changes: each starts a job, reports progress and can be cancelled, so
     // there is no single object for `--json` to return. They are named here — and required to *refuse* `--json` — so
     // that "no schema" stays a decision someone made instead of an omission nobody noticed.
-    let progress_verbs = ["export", "sharpen"];
+    let progress_verbs = [
+        "add",
+        "rescan",
+        "export",
+        "sharpen",
+        "batchsuggest",
+        "model-install",
+        "model-remove",
+        "update-check",
+    ];
+    // And the one read whose answer is a redacted text bundle to attach to a report, not an object a
+    // script parses. It refuses too, for the same reason and with the same sentence.
+    let text_verbs = ["diagnostics"];
     // A throwaway library: the point is which verbs answer, not what they answer.
     let library = std::env::temp_dir().join(format!("sortlens-cli-schemas-{}", std::process::id()));
     let _ = fs::remove_dir_all(&library);
@@ -619,8 +835,8 @@ fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
         );
         found += 1;
     }
-    assert_eq!(found, 15, "the list above is the list: no verb was skipped by accident");
-    for verb in progress_verbs {
+    assert_eq!(found, 23, "the list above is the list: no verb was skipped by accident");
+    for verb in progress_verbs.into_iter().chain(text_verbs) {
         let output = Command::new(binary())
             .args(["--json", "--library", &library.display().to_string(), verb])
             .output()
@@ -653,4 +869,42 @@ fn every_write_verb_has_a_json_schema_and_a_stated_contract() {
             assert!(!row["command"].as_str().unwrap_or_default().is_empty(), "{verb}: no command");
         }
     }
+}
+
+/// The usage text is what a person reads, and it went stale without anyone noticing: verbs had answers
+/// and no line. Every verb the schema table offers must be named in the usage text.
+#[test]
+fn the_usage_text_names_every_verb_the_table_offers() {
+    let library = std::env::temp_dir().join(format!("sortlens-cli-usage-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&library);
+    let run = |args: &[&str]| {
+        Command::new(binary())
+            .arg("--library")
+            .arg(library.display().to_string())
+            .args(args)
+            .output()
+            .expect("run")
+    };
+    let usage = String::from_utf8_lossy(&run(&["not-a-verb"]).stderr).to_string();
+    let offered: Vec<String> = usage
+        .lines()
+        .filter_map(|line| line.strip_prefix("  "))
+        .filter_map(|line| line.split_whitespace().next())
+        .map(|word| word.trim_end_matches(',').to_string())
+        .filter(|word| !word.is_empty() && word.chars().all(|c| c.is_ascii_lowercase() || c == '-'))
+        .collect();
+    assert!(offered.len() > 20, "the usage text should list the verbs:\n{usage}");
+    let table: serde_json::Value = serde_json::from_slice(&run(&["--json", "schemas"]).stdout).expect("the table is JSON");
+    for row in table.as_array().expect("an array of schemas") {
+        let verb = row["verb"].as_str().expect("a verb");
+        // The table's own row is reached as `--json schemas`, which the usage text names twice.
+        if verb == "schemas" {
+            continue;
+        }
+        assert!(
+            offered.iter().any(|word| word == verb),
+            "{verb} answers --json but the usage text never names it:\n{usage}"
+        );
+    }
+    let _ = fs::remove_dir_all(&library);
 }

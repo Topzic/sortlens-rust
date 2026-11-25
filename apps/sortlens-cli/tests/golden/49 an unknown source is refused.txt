@@ -1,0 +1,4 @@
+exit 1
+--- stdout
+--- stderr
+sortlens-cli: --source guessed is not a source; use manual, ai, xmp, unrecorded

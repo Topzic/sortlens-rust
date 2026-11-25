@@ -4754,6 +4754,57 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   library, an `.ipa` (Apple identity), an AAB (Play tooling), and a release key the owner can add so one
   APK updates another in place.
 
+## 2026-11-26 (seventy-fourth) — every verb that answers one object answers `--json`, and the flags it reads are the flags it honours
+
+- **Why this came up.** The roadmap row said `page` prints JSON and "there is no `--json` for the other
+  verbs". That was half stale — forty schemas already existed — and half a live bug, and the bug was the
+  expensive half: the JSON form of `list` put `--tag` at the top level of the request, and
+  `library.page` reads only `args["filter"]`, so `list --json --tag dunes` answered **the whole
+  library**. `--source` was not read at all on that path. The plain form built a real `Filter` and
+  filtered; the JSON form silently answered a different question than the one asked. The plain `page`
+  arm dropped `--tag` the same way (its filter carried only `tag_source`).
+- **One mapper, so the two spellings cannot drift.** The `list`/`page` arm of `json_verb` builds the
+  same `Filter` the plain `list` does — `tags`, `tag_source`, offset/limit/sort — and the plain
+  `page` arm now just calls the mapper. An unknown source is refused with the real ones rather than
+  treated as "no filter": the class of bug a filter must not have. Golden steps `45`–`49` pin the
+  behaviour: `tag 1 dunes` → `list --json --tag dunes` is 1 photo, `--source manual` is 1,
+  `--source unrecorded` is 0, and `--source guessed` is a refusal naming `manual, ai, xmp, unrecorded`.
+- **The eleven verbs that had no schema now have one**, each the engine answer it already produced:
+  `page`, `insights`, `report`, `refresh`, `compact`, `backup`, `restore`, `move`, `unmove`,
+  `model-consent` and `update-consent`. `report` already printed its object as JSON without the flag;
+  it now answers it with the flag too. The two consent switches gained `changed` like every other write,
+  which exposed a truth worth stating in the golden: the CLI keeps consent for the run only, so a fresh
+  process setting `off` (the default) reports `changed: false` — the engine test pins the in-session
+  repeat that reports `false` the second time.
+- **Four verbs were reachable only through `--json`** — `label`, `mark`, `marks`, `jobs` — and now
+  print prose like the rest. `move`'s schema note now says the destination is absolute (the engine
+  refuses a relative one, and the existing golden `25` pins that refusal; the new golden uses an absolute
+  path and follows it with `unmove`, so the move/unmove pair is exercised end to end for the first time).
+- **The usage text was wrong, not just thin.** Its `--json` paragraph sat *between* `backup` and
+  `restore`, three verbs were missing, and it named none of the newer commands; it is rewritten, and its
+  final paragraph now says the JSON form takes the same flags as the plain form and lists the passes that
+  refuse.
+- **Tests.** Twenty-five new golden steps (`45`–`69`) cover every new schema, the keyword-filtered page,
+  the unknown-source refusal, a pass that still refuses, a no-op consent switch, and the move/unmove pair.
+  The contract test now names 23 one-object writes (up from 15), eight passes and `diagnostics` as verbs
+  that must *refuse* `--json`, so "no schema" is a decision with a test rather than an omission. The
+  support report's `os`/`arch` strings are normalised like the diagnostics bundle's, so the new golden is
+  portable; JSON-escaped Windows paths are normalised too. A new contract test reads the help text a person
+  sees and requires every schema verb to appear in it — it failed on `schemas` itself before the row was
+  exempted, which is the proof it bites.
+- **Reconciled.** `docs/CLI.md` (verb lists, the pass list, a "the same flags" paragraph, the test
+  section), `docs/TOOLING.md` (the "pin five schemas" claim and a refusal example that quoted a verb list
+  from before forty schemas existed), `docs/ROADMAP.md` (the row ticked with what it really was; the
+  "pin five of the schemas" parenthetical corrected).
+- **Verified.** Clippy `-D warnings` on the two changed crates; the engine's five consent-filtered tests;
+  the goldens regenerated and **read**, which is how the `--source ai` step was found to be named "a
+  source nothing has" while the fixture did have an AI tag (it now asks for `unrecorded`), and how the
+  relative `move` destination was found to be refused rather than moved. `cargo xtask ci`, `snapshot`
+  and `deny` green; no screenshot change, since nothing painted changed.
+- **Next.** `docs/ROADMAP.md`'s last buildable honest row: **SL-L08, localised numbers and dates** —
+  counts, file sizes and dates are formatted with English rules whatever the picker says. The four other
+  catalogues and the RTL screenshots still wait for a translation pass and an Arabic font build.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test

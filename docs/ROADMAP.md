@@ -320,7 +320,23 @@ what they need.
   MCP-over-stdio path needs, because the client starts the server. **Unblocker**: a real second consumer that
   wants to drive a *running* window (a menu-bar helper, a browser extension, two windows on one library).
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
-- [ ] `page` prints JSON and the MCP server returns JSON; there is no `--json` for the other verbs (E)
+- [x] `--json` for every verb that answers one object (E) — **done 2026-11-26**, see the seventy-fourth
+  entry. `page` printed JSON and the MCP server returned it, but a script could not ask for the same answer from
+  `insights`, `report`, `jobs`, `mark`/`marks`, `refresh`, `compact`, `backup`, `restore`, `move`,
+  `unmove` or the two consent switches; those eleven answer `--json` now, and `model-consent`/`update-consent`
+  report `changed` like every other write.
+  - The row was half stale and half a bug: 40 schemas already existed, and the verbs above were the remainder —
+    except that `list --json --tag KW` and `list --json --source SRC` were *accepted and dropped*, because the
+    JSON path put the keyword in a key the engine does not read. A script asking the filtered question got the
+    whole library; the plain form filtered, the JSON form did not. Both forms now build the same `Filter`, an
+    unknown source is refused with the list of real ones, and golden steps `46`–`49` fail if it regresses.
+  - `label`, `mark`, `marks` and `jobs` had no plain form at all — reachable only through `--json` — and now
+    print prose like every other verb. The usage text was rewritten: its `--json` paragraph sat *between*
+    `backup` and `restore`, and it named neither those four verbs nor `page`/`insights`/`model-*`/`update*`.
+  - The passes that deliberately keep no schema — `add`, `rescan`, `batchsuggest`, `sharpen`, `export`,
+    `model-install`, `model-remove`, `update-check` — and `diagnostics`, whose answer is a redacted text
+    bundle, are named in the contract test and required to refuse; "no schema" is a decision with a test, not
+    an omission.
 - [x] Benchmarks, part 1 — **measured**: `cargo xtask perf` (a release-mode binary, deliberately outside
   `ci`) reports scan, index, cold/warm thumbnail, the two-worker thumbnail service, the suggestion pass,
   library open and headless grid frames; `docs/PERF.md` records two thousand and ten thousand photo runs
@@ -848,7 +864,7 @@ and none of M9 is closed until the remaining rows are ticked.
 - [x] CLI parity and stable JSON schemas: `--json` on the read verbs (roots, keywords, stats, list,
   folders, check, moves, changed, history, audit, memories, shortcuts, registry, packs, suggest, jobs)
   prints the engine's own answer, a verb without a schema says so and lists the ones that have one
-  instead of printing prose, and the golden files pin five of the schemas plus the refusal (E)
+  instead of printing prose, and the golden files pin every schema and its answer plus the refusal (E)
   — SL-K03/K06
 - [x] `--json` for the write verbs, and a written compatibility note per schema (E)
   - The table stopped being a list of names and became a list of **schemas**: verb, command, read or write, and

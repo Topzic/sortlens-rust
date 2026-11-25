@@ -1,0 +1,8 @@
+exit 0
+--- stdout
+{
+  "changed": true,
+  "consent": true,
+  "rev": 30
+}
+--- stderr

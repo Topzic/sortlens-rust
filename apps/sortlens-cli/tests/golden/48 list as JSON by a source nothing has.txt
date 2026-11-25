@@ -1,0 +1,10 @@
+exit 0
+--- stdout
+{
+  "offset": 0,
+  "photos": [],
+  "rev": 26,
+  "sort": "added",
+  "total": 0
+}
+--- stderr

@@ -1,0 +1,93 @@
+exit 0
+--- stdout
+{
+  "busiestDay": {
+    "at": 1685577600,
+    "count": 1
+  },
+  "byKind": [
+    6,
+    0,
+    0
+  ],
+  "byLabel": [
+    0,
+    0,
+    1,
+    0,
+    0
+  ],
+  "byMonth": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "byRating": [
+    4,
+    0,
+    0,
+    0,
+    2,
+    0
+  ],
+  "bytes": 1950,
+  "cameras": [],
+  "highlights": [
+    {
+      "label": "Busiest month",
+      "value": "June — 1 photo(s) · mostly Summer"
+    },
+    {
+      "label": "No capture date",
+      "value": "5 photo(s), 83% of the library"
+    }
+  ],
+  "keywords": [
+    {
+      "count": 1,
+      "name": "beach"
+    },
+    {
+      "count": 1,
+      "name": "dunes"
+    },
+    {
+      "count": 1,
+      "name": "harbour"
+    },
+    {
+      "count": 1,
+      "name": "low light"
+    }
+  ],
+  "labelled": 1,
+  "lenses": [],
+  "missing": 0,
+  "peakMonth": 6,
+  "peakSeason": "Summer",
+  "picks": 1,
+  "rated": 2,
+  "rejects": 1,
+  "rev": 30,
+  "tagged": 2,
+  "total": 6,
+  "undated": 5,
+  "unknownCamera": 6,
+  "view": "insights",
+  "years": [
+    {
+      "count": 1,
+      "year": 2023
+    }
+  ]
+}
+--- stderr

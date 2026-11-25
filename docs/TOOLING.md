@@ -380,18 +380,20 @@ sortlens-cli --json list --limit 50 --sort date
 ```
 
 The shape is the schema: the keys are the contract, and the golden files under
-`apps/sortlens-cli/tests/golden/` pin five of them plus the refusal below, so a rename is a visible diff
-in review rather than a surprise in someone's script. A verb without a schema refuses instead of
-printing prose into a JSON stream:
+`apps/sortlens-cli/tests/golden/` pin every verb that has one plus the refusal below, so a rename is a
+visible diff in review rather than a surprise in someone's script. A verb without a schema refuses instead
+of printing prose into a JSON stream, and names every verb that does have one (the full list is always
+`sortlens-cli --json schemas`):
 
 ```text
-sortlens-cli: undo has no JSON schema yet; --json works for: roots, keywords, stats, list, folders,
-check, moves, changed, history, audit, memories, shortcuts, registry, packs, jobs
+sortlens-cli: add has no JSON schema yet; --json works for: roots, keywords, stats, list, page, …
 ```
 
-MCP is the same registry over stdio, so anything an agent can do there, `--json` can do from a shell —
-and `batchsuggest` deliberately has no schema yet, because a pass that writes nothing is better read as a
-list of proposals than parsed as one.
+A verb's JSON form reads the flags its plain form reads — `list --json --tag coast` is the filtered page,
+not the whole library. MCP is the same registry over stdio, so anything an agent can do there, `--json`
+can do from a shell — and `batchsuggest` deliberately has no schema, because it is a pass with progress
+and a cancel whose proposals are read from `suggest`, the same way `export` refuses and reports through
+`jobs`.
 
 ## Reporting a bug
 

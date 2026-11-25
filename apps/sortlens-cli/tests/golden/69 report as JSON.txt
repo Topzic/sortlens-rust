@@ -1,0 +1,20 @@
+exit 0
+--- stdout
+{
+  "arch": "<host>",
+  "commands": 104,
+  "engine": "0.1.0",
+  "os": "<host>",
+  "photos": 6,
+  "planned": 2,
+  "reason": "user request",
+  "rev": 30,
+  "roots": [
+    "Photos",
+    "Archive",
+    "<photos>/JsonMoved"
+  ],
+  "sortlens": "0.1.0",
+  "warnings": []
+}
+--- stderr

@@ -1,0 +1,4 @@
+exit 1
+--- stdout
+--- stderr
+sortlens-cli: batchsuggest has no JSON schema yet; --json works for: roots, keywords, stats, insights, list, page, check, moves, move, unmove, changed, refresh, history, audit, compact, backup, restore, memories, shortcuts, registry, packs, jobs, models, model-consent, update, update-consent, report, suggest, folders, mark, marks, rate, flag, label, tag, untag, date, rename, alias, accept, dismiss, pack, delete, undo, retry, relocate, remap, schemas

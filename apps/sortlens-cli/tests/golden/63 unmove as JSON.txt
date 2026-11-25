@@ -1,0 +1,7 @@
+exit 0
+--- stdout
+{
+  "restored": 2,
+  "rev": 30
+}
+--- stderr
