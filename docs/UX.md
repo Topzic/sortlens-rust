@@ -257,7 +257,7 @@ colour-label swatches · kind (All/Photos/RAW/Videos) · source (Manual / AI / X
 
 Shipped today: the minimum-rating chip prints its answer as lit star glyphs (`3★ and up` is gone — a typed
 `★` is a per-face speck, not the app's star), the colour chip paints the chosen label's own swatch and an
-empty ring for "any colour", the flag chip wears the state's own glyph (`pick`, `reject`, `flag`), and the
+empty ring for "any colour" and names the label in the interface language, the flag chip wears the state's own glyph (`pick`, `reject`, `flag`), and the
 keyword menu ends in a chevron. Every one of them is still a cycling toggle with a spoken name, so the
 pictures changed and the behaviour did not. The row **wraps** rather than overflowing: at 1200 points with
 both docks open, a five-star minimum plus the other chips used to push `Clear` past the canvas edge, and a

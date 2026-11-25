@@ -573,6 +573,15 @@ placeholder; `receipt_headline` and `receipt_detail` are the wording helpers, an
 `the_batch_applied_receipt_speaks_the_interface_language` paints the dialog in all three
 languages.
 
+A colour label is one worded piece: `colour_word` reads the `Red`…`Purple` rows, and every
+surface that paints one goes through it — the filter chip's word and its spoken name, the folder
+and collection `Colour` menus, the inspector's Label row and Tags tab, Library insights' label
+bars, and the status lines a recolour or a folder mark raises (`folder_mark_notice`,
+`collection_colour_notice`, `label_notice`), whose `{colour}` and `{n}` are placeholders so a
+count is written in the reader's digits and a sentence cannot word the colour differently from the
+menu that set it. English writes the word lowercase inside a sentence and unchanged as a menu item;
+a language without case is untouched either way.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

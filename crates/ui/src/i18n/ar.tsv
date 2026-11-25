@@ -259,3 +259,21 @@
 	Put them back	أعِدها
 	Done	تم
 	Restored the batch	استُعيدت الدفعة
+	Colour	اللون
+	None	بلا
+	Pinned and {colour}	ثُبّت و{colour}
+	Pinned to the top	ثُبّت في الأعلى
+	Folder is {colour}	لون المجلد {colour}
+	Folder mark cleared	أُزيلت علامة المجلد
+	Collection is {colour}	لون المجموعة {colour}
+	{n} collections are {colour}	لون {n} مجموعات {colour}
+	Collection colour cleared	أُزيل لون المجموعة
+	Colour cleared on {n} collections	أُزيل اللون عن {n} مجموعات
+	{colour} label	ملصق {colour}
+	{colour} label on {n} photos	ملصق {colour} على {n} صورة
+	Colour filter: {colour}	مرشّح اللون: {colour}
+	Colour filter: any colour	مرشّح اللون: كل الألوان
+	Only photos with this colour label — an empty ring means every colour	صور تحمل ملصق هذا اللون فقط — الحلقة الفارغة تعني كل الألوان
+	No colour label.	لا يوجد ملصق لون.
+	Cleared the label	أُزيل الملصق
+	Cleared the label on {n} photos	أُزيل الملصق عن {n} صورة

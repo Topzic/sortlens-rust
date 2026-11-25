@@ -259,3 +259,21 @@
 	Put them back	元に戻す
 	Done	完了
 	Restored the batch	バッチを復元しました
+	Colour	色
+	None	なし
+	Pinned and {colour}	{colour}でピン留めしました
+	Pinned to the top	先頭に固定しました
+	Folder is {colour}	フォルダーの色は{colour}
+	Folder mark cleared	フォルダーの印を解除しました
+	Collection is {colour}	コレクションの色は{colour}
+	{n} collections are {colour}	{n} 件のコレクションは{colour}
+	Collection colour cleared	コレクションの色を解除しました
+	Colour cleared on {n} collections	{n} 件のコレクションの色を解除しました
+	{colour} label	{colour}ラベル
+	{colour} label on {n} photos	{n} 枚の写真に{colour}ラベル
+	Colour filter: {colour}	色フィルター: {colour}
+	Colour filter: any colour	色フィルター: すべての色
+	Only photos with this colour label — an empty ring means every colour	この色ラベルの写真のみ — 空の輪はすべての色を意味します
+	No colour label.	色ラベルはありません。
+	Cleared the label	ラベルを解除しました
+	Cleared the label on {n} photos	{n} 枚の写真のラベルを解除しました

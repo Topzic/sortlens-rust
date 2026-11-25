@@ -1,5 +1,37 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-seventh) — every colour word is the catalogue's, from the chip to the status line
+
+- **Why this came up.** The eighty-sixth entry's "Next" named the sidebar's colour chips and the label
+  menu: they painted `Red`…`Purple` literally, and `colour_word` already existed one panel away for the
+  change viewer, so a Japanese screen said 最近の変更 above a filter chip that still said `Red`.
+- **One piece, one helper.** `colour_word` is now the only place a label is named; `colour_in_sentence`
+  lowercases it for English prose and leaves Japanese and Arabic exactly as the translator wrote them.
+  Three wording helpers — `folder_mark_notice`, `collection_colour_notice` and `label_notice` — word the
+  status lines from the same piece with `{colour}` and `{n}` placeholders, so a toast cannot name a colour
+  differently from the menu that set it and a count is written in the reader's digits.
+- **Every surface is routed.** The filter chip's word and its spoken name (and the hover
+  `Only photos with this colour label — an empty ring means every colour`), both sidebar `Colour` menus
+  (`Colour`, `None`, then the five words), the inspector's Label row and Tags tab (`No colour label.`),
+  Library insights' label bars, and the recolour or folder-mark status lines. Eighteen rows in each
+  catalogue; English is unchanged to the byte, except the folder notice's stray trailing space, now gone.
+- **Tests.** `every_colour_word_is_the_catalogues` pins the English wording byte for byte and the Japanese
+  and Arabic words in the menus and all three sentence helpers; the catalogue audit demanded both
+  catalogues' eighteen rows and passed first try. `the_colour_chip_speaks_the_interface_language` paints
+  the real filter strip with a colour chosen: English `Red`, then Japanese `赤` with no `Red` behind it,
+  then Arabic `أحمر`.
+- **Files.** `crates/ui/src/shell.rs` (the helpers, ten routed surfaces, two tests),
+  `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (18 rows each), `docs/ROADMAP.md` (Phase 4 item 2d),
+  `docs/ARCHITECTURE.md` (8.4), `docs/FEATURES.md` (SL-L07) and `docs/UX.md` (5.2).
+- **Verified.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean;
+  `cargo xtask ci` green; the UI crate's 193 tests pass and `snapshot`/`deny` are green (exit 0);
+  `wasm` green and `screenshots` green (27 scenes, no baseline moved, because no scene paints the chip
+  in a language other than English). No release workflow dispatched: this slice touches no workflow,
+  `xtask`, `Cargo.toml` or release code.
+- **Next.** Keyboard shortcuts still paints the keymap table's labels literally (the colour rows at
+  `(Key::Num6, ColorLabel::Red)` and their siblings), so that dialog is next; Suggested keywords needs
+  `sortlens-ai`'s own suggestion wording and a piece per proposal shape before its panel can be translated.
+
 ## 2026-11-26 (eighty-sixth) — the Batch applied receipt is worded from the batch's own pieces
 
 - **Why this came up.** The eighty-fifth entry's "Next" named Batch applied first: its headline and

@@ -1457,8 +1457,13 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     `the_receipt_english_is_joined_from_its_pieces`; the title, the two count lines, the destination
     line, the pick and failure counts, `Put them back`, `Done` and the restored toast are `tl!`/`fmt`
     keys with every count a placeholder, and `the_batch_applied_receipt_speaks_the_interface_language`
-    paints it in all three languages. Still open on this row: Suggested keywords and Keyboard
-    shortcuts.
+    paints it in all three languages. The colour words joined them in the next tick (eighty-seventh
+    entry): the filter chip's word and its spoken name, the folder and collection `Colour` menus, the
+    inspector's Label row and Tags tab, Library insights' label bars and the recolour/folder-mark status
+    lines all read `colour_word`, and the status templates' `{colour}`/`{n}` placeholders keep a count
+    in the reader's digits; `every_colour_word_is_the_catalogues` pins the English byte for byte and the
+    Japanese and Arabic words, and `the_colour_chip_speaks_the_interface_language` paints the chip in
+    all three. Still open on this row: Suggested keywords and Keyboard shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

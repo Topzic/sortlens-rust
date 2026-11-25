@@ -2952,13 +2952,13 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
                 ));
                 ui.close();
             }
-            ui.menu_button("Colour", |ui| {
+            ui.menu_button(tl!("Colour"), |ui| {
                 let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
-                if ui.button("None").clicked() {
+                if ui.button(tl!("None")).clicked() {
                     chosen = Some(None);
                 }
                 for label in sortlens_core::ColorLabel::ALL {
-                    if ui.button(label.label()).clicked() {
+                    if ui.button(colour_word(label)).clicked() {
                         chosen = Some(Some(label));
                     }
                 }
@@ -2979,12 +2979,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     }
     if let Some((path, mark)) = remark {
         match engine.set_folder_mark(&path, mark.clone()) {
-            Ok(_) => state.notice(match (mark.favourite, mark.colour) {
-                (true, Some(colour)) => format!("Pinned and {} ", colour.label().to_lowercase()),
-                (true, None) => "Pinned to the top".to_string(),
-                (false, Some(colour)) => format!("Folder is {}", colour.label().to_lowercase()),
-                (false, None) => "Folder mark cleared".to_string(),
-            }),
+            Ok(_) => state.notice(folder_mark_notice(mark.favourite, mark.colour)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -3401,7 +3396,8 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
     }
     detail_row(ui, t, "Rating", &format!("{} of 5", photo.rating));
     detail_row(ui, t, "Flag", photo.flag.id());
-    detail_row(ui, t, "Label", photo.label.map(|label| label.label()).unwrap_or("—"));
+    let label = photo.label.map(colour_word).unwrap_or_else(|| "—".to_string());
+    detail_row(ui, t, "Label", &label);
     detail_row(ui, t, "Status", if photo.missing { "missing" } else { "present" });
     ui.add_space(8.0);
     ui.label(
@@ -3414,9 +3410,9 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
 fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo: &Photo) {
     match photo.label {
         Some(label) => {
-            ui.label(RichText::new(label.label()).size(12.0).color(t.text));
+            ui.label(RichText::new(colour_word(label)).size(12.0).color(t.text));
         }
-        None => hint(ui, t, "No colour label."),
+        None => hint(ui, t, tl!("No colour label.")),
     }
     ui.add_space(8.0);
 
@@ -4611,12 +4607,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         let cleared = engine.photo(id).and_then(|photo| photo.label) == colour;
         let wanted = if cleared { None } else { colour };
         match engine.label(&targets, wanted) {
-            Ok(_) => state.notice(match (wanted, count) {
-                (Some(colour), 1) => format!("{} label", colour.label()),
-                (Some(colour), many) => format!("{} label on {many} photos", colour.label()),
-                (None, 1) => "Cleared the label".to_string(),
-                (None, many) => format!("Cleared the label on {many} photos"),
-            }),
+            Ok(_) => state.notice(label_notice(wanted, count)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -4764,8 +4755,8 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                 }
 
                 let label_text = match state.label_filter {
-                    None => "Colour".to_string(),
-                    Some(label) => label.label().to_string(),
+                    None => tl!("Colour").to_string(),
+                    Some(label) => colour_word(label),
                 };
                 if colour_chip(ui, t, state.label_filter, &label_text).clicked() {
                     state.label_filter = match state.label_filter {
@@ -5014,11 +5005,11 @@ fn colour_chip(ui: &mut Ui, t: &Tokens, label: Option<sortlens_core::ColorLabel>
             .stroke(if active { Stroke::new(1.0, t.accent) } else { Stroke::NONE }),
     );
     let spoken = match label {
-        Some(label) => format!("Colour filter: {}", label.label()),
-        None => "Colour filter: any colour".to_string(),
+        Some(label) => crate::i18n::fmt("Colour filter: {colour}", &[("colour", &colour_word(label))]),
+        None => tl!("Colour filter: any colour").to_string(),
     };
     a11y::label_widget(ui, &response, egui::Role::Button, &spoken, active);
-    response.on_hover_text("Only photos with this colour label — an empty ring means every colour")
+    response.on_hover_text(tl!("Only photos with this colour label — an empty ring means every colour"))
 }
 
 /// What the canvas says when it has no photographs to draw.
@@ -7260,7 +7251,7 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
                 ui.add_space(12.0);
                 ui.label(RichText::new("Labels").size(12.0).strong());
                 for (index, label) in sortlens_core::ColorLabel::ALL.iter().enumerate() {
-                    bar_row(ui, t, label.label(), insights.by_label[index], insights.stats.total);
+                    bar_row(ui, t, &colour_word(*label), insights.by_label[index], insights.stats.total);
                 }
                 ui.add_space(12.0);
                 ui.label(RichText::new("Kinds").size(12.0).strong());
@@ -7627,13 +7618,13 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
                 pin = Some((targets.clone(), !collection.favourite));
                 ui.close();
             }
-            ui.menu_button("Colour", |ui| {
+            ui.menu_button(tl!("Colour"), |ui| {
                 let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
-                if ui.button("None").clicked() {
+                if ui.button(tl!("None")).clicked() {
                     chosen = Some(None);
                 }
                 for label in sortlens_core::ColorLabel::ALL {
-                    if ui.button(label.label()).clicked() {
+                    if ui.button(colour_word(label)).clicked() {
                         chosen = Some(Some(label));
                     }
                 }
@@ -7661,12 +7652,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     if let Some((ids, colour)) = recolour {
         let many = ids.len();
         match engine.set_collections_colour(&ids, colour) {
-            Ok(_) => state.notice(match (colour, many) {
-                (Some(label), 1) => format!("Collection is {}", label.label().to_lowercase()),
-                (Some(label), many) => format!("{many} collections are {}", label.label().to_lowercase()),
-                (None, 1) => "Collection colour cleared".to_string(),
-                (None, many) => format!("Colour cleared on {many} collections"),
-            }),
+            Ok(_) => state.notice(collection_colour_notice(colour, many)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -8850,6 +8836,49 @@ fn colour_word(colour: ColorLabel) -> String {
         ColorLabel::Purple => tl!("Purple"),
     }
     .to_string()
+}
+
+/// The same word inside a sentence, where English writes it lowercase: Japanese and Arabic have no
+/// case, so lowercasing their catalogue row leaves it exactly as the translator wrote it.
+fn colour_in_sentence(colour: ColorLabel) -> String {
+    colour_word(colour).to_lowercase()
+}
+
+/// What the sidebar says after a folder's mark changes, in the interface language: the colour is a
+/// piece, so a translated status line and the menu that set it cannot word the colour differently.
+fn folder_mark_notice(favourite: bool, colour: Option<ColorLabel>) -> String {
+    match (favourite, colour) {
+        (true, Some(colour)) => crate::i18n::fmt("Pinned and {colour}", &[("colour", &colour_in_sentence(colour))]),
+        (true, None) => tl!("Pinned to the top").to_string(),
+        (false, Some(colour)) => crate::i18n::fmt("Folder is {colour}", &[("colour", &colour_in_sentence(colour))]),
+        (false, None) => tl!("Folder mark cleared").to_string(),
+    }
+}
+
+/// What the sidebar says after one or more collections are recoloured (or their colour cleared).
+fn collection_colour_notice(colour: Option<ColorLabel>, count: usize) -> String {
+    match (colour, count) {
+        (Some(colour), 1) => crate::i18n::fmt("Collection is {colour}", &[("colour", &colour_in_sentence(colour))]),
+        (Some(colour), many) => crate::i18n::fmt(
+            "{n} collections are {colour}",
+            &[("n", &format_count(many as u64)), ("colour", &colour_in_sentence(colour))],
+        ),
+        (None, 1) => tl!("Collection colour cleared").to_string(),
+        (None, many) => crate::i18n::fmt("Colour cleared on {n} collections", &[("n", &format_count(many as u64))]),
+    }
+}
+
+/// What the status line says after a labelled selection, or a cleared one.
+fn label_notice(colour: Option<ColorLabel>, count: usize) -> String {
+    match (colour, count) {
+        (Some(colour), 1) => crate::i18n::fmt("{colour} label", &[("colour", &colour_word(colour))]),
+        (Some(colour), many) => crate::i18n::fmt(
+            "{colour} label on {n} photos",
+            &[("colour", &colour_word(colour)), ("n", &format_count(many as u64))],
+        ),
+        (None, 1) => tl!("Cleared the label").to_string(),
+        (None, many) => crate::i18n::fmt("Cleared the label on {n} photos", &[("n", &format_count(many as u64))]),
+    }
 }
 
 fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
@@ -16724,6 +16753,101 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
     }
+    /// A colour's name is the catalogue's wherever the interface paints one: the filter chip's word
+    /// and accessibility name, both sidebar menus, the inspector's row and Tags tab, and the status
+    /// line after a recolour all come from `colour_word`. English is unchanged to the byte.
+    #[test]
+    fn every_colour_word_is_the_catalogues() {
+        use crate::i18n::{from_code, set_current};
+
+        assert_eq!(colour_word(ColorLabel::Red), "Red");
+        assert_eq!(colour_in_sentence(ColorLabel::Purple), "purple");
+        assert_eq!(folder_mark_notice(true, Some(ColorLabel::Red)), "Pinned and red");
+        assert_eq!(folder_mark_notice(true, None), "Pinned to the top");
+        assert_eq!(folder_mark_notice(false, Some(ColorLabel::Blue)), "Folder is blue");
+        assert_eq!(folder_mark_notice(false, None), "Folder mark cleared");
+        assert_eq!(collection_colour_notice(Some(ColorLabel::Green), 1), "Collection is green");
+        assert_eq!(collection_colour_notice(Some(ColorLabel::Green), 3), "3 collections are green");
+        assert_eq!(collection_colour_notice(None, 1), "Collection colour cleared");
+        assert_eq!(collection_colour_notice(None, 3), "Colour cleared on 3 collections");
+        assert_eq!(label_notice(Some(ColorLabel::Yellow), 1), "Yellow label");
+        assert_eq!(label_notice(Some(ColorLabel::Yellow), 4), "Yellow label on 4 photos");
+        assert_eq!(label_notice(None, 1), "Cleared the label");
+        assert_eq!(label_notice(None, 4), "Cleared the label on 4 photos");
+
+        // Japanese: the colour is its own row, and no English word survives beside it.
+        set_current(from_code("ja").expect("Japanese is offered"));
+        assert_eq!(colour_word(ColorLabel::Red), "赤");
+        let pinned = folder_mark_notice(true, Some(ColorLabel::Red));
+        assert!(pinned.contains("赤") && !pinned.contains("Pinned"), "{pinned}");
+        let many = collection_colour_notice(Some(ColorLabel::Purple), 3);
+        assert!(many.contains('紫') && many.contains('3') && !many.contains("purple"), "{many}");
+        let photo = label_notice(Some(ColorLabel::Blue), 2);
+        assert!(photo.contains('青') && !photo.contains("Blue"), "{photo}");
+
+        // Arabic: the same, in its own script and its own digits.
+        set_current(from_code("ar").expect("Arabic is offered"));
+        assert_eq!(colour_word(ColorLabel::Red), "أحمر");
+        let arabic = collection_colour_notice(Some(ColorLabel::Red), 3);
+        assert!(arabic.contains("أحمر") && !arabic.contains("red"), "{arabic}");
+        let many = label_notice(Some(ColorLabel::Green), 2);
+        assert!(many.contains("أخضر") && !many.contains("Green"), "{many}");
+
+        set_current(from_code("en").expect("English is offered"));
+    }
+
+    /// The filter strip's colour chip speaks the interface language, in the same word the sidebar's
+    /// menus paint, so a Japanese screen never shows "Red".
+    #[test]
+    fn the_colour_chip_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-colour-chip-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-colour-chip-i18n");
+        std::fs::copy(fixture.jpeg("a.jpg", [200, 40, 40], 64, 64), root.join("a.jpg")).expect("copy a");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ctx = egui::Context::default();
+        let t = Tokens::CHARCOAL;
+        crate::icons::install(&ctx);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.label_filter = Some(ColorLabel::Red);
+        let paint = |state: &mut UiState, engine: &Engine| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    filter_strip(ui, &t, state, engine, 1);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // English first: the chip names the colour the menus name.
+        let english = paint(&mut state, &engine);
+        assert!(label_at(&english, "Red").is_some(), "the chip says the colour");
+
+        // Japanese, then Arabic: the same chip, the catalogue's word, no English behind it.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state, &engine);
+        assert!(label_at(&japanese, "赤").is_some(), "the chip is the catalogue's");
+        assert!(label_at(&japanese, "Red").is_none(), "no English colour behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state, &engine);
+        assert!(label_at(&arabic, "أحمر").is_some(), "and in Arabic");
+        assert!(label_at(&arabic, "Red").is_none(), "no English colour behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     ///
     /// The same audit the detail view gets, aimed at the strings this slice introduced: the palette's
     /// "Up/Down choose · Enter run" footer, the ⌘ in the search hint, and every registry label it can
