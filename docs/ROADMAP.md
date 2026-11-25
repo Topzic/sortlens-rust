@@ -951,6 +951,12 @@ and none of M9 is closed until the remaining rows are ticked.
   its state values (`missing`/`present`) and its empty-state hint are rows, so a Japanese inspector reads
   `評価` where it read `Rating`. What stays English on the view is the facts line (a camera, an exposure
   and a size are values) and its assistive names, which the row does not count as painted chrome.
+  The Compare view followed (hundred-and-second entry): its facts row — the six fact names (`stars`,
+  `label`, `exposure`, `length`, `size`, `pixels`), the join (`{left} vs {right}`) and the pixel pair
+  (`{left_width}×{left_height} vs {right_width}×{right_height}`) — is catalogue rows and templates, and
+  the ratings are `format_count` digits, so an Arabic compare reads `٥ مقابل ٣` where it read `5 vs 3`.
+  What stays English there is each side's own value (a colour token, the engine's exposure sentence,
+  `format_bytes`) and the notices that open a compare.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

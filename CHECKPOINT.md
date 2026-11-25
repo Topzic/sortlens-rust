@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-second) — the Compare view speaks the interface language
+
+- **Why this came up.** The hundred-and-first entry's Next named Compare and Soft Focus as the two views still
+  painting English. Compare's facts row — the one line under the two panes that says what actually differs — was
+  composed in the shell out of English words: `stars 5 vs 3`, `label none vs none`, `pixels 3000×2000 vs
+  2000×2000`, whatever Settings → Language said.
+- **What is routed.** Seven new rows in each of `ar.tsv` and `ja.tsv`: the six fact names (`stars`, `label`,
+  `exposure`, `length`, `size`, `pixels`), the join `{left} vs {right}` and the pixel pair
+  `{left_width}×{left_height} vs {right_width}×{right_height}`. A photograph with no colour label reuses the
+  existing `none` row, and the ratings go through `format_count`, so English still writes `5 vs 3`, Japanese
+  writes `5 対 3`, and Arabic writes `٥ مقابل ٣` with its own digits.
+- **The pair is a template, not a sentence.** `compare_pair` fills `{left} vs {right}` through
+  `crate::i18n::fmt`, which isolates each side so a value cannot reorder the join around itself; the pixel pair is
+  one template with four placeholders rather than two joined cells, because a language may put the × where it wants.
+  Dimensions keep their raw digits (`3000×2000`), the way the Details tab's `Dimensions` row already prints them;
+  the ratings, which that tab already writes in the language's digits, follow suit.
+- **Named as not shipped.** Each side's value is still the engine's own word: a colour token (`red`), an exposure
+  sentence, `format_bytes` and the `—` of a still. The notices that open a compare (`Pick a photo first`,
+  `Nothing to compare with`, `Compare needs two photos…`) stay English — they belong to the notice class, not the
+  view chrome, the call the Places entry recorded. Both are in the ROADMAP row and UX.md rather than implied done.
+- **Tests that fail when the behaviour is absent.** `the_compare_view_speaks_the_interface_language` paints the real
+  `detail_view` at 1000×760 over two photographs with the second pane set and `View::Compare`, and reads the facts
+  row in English (`stars`, `0 vs 0`, `label`, `none vs none`, `pixels`, `0×0 vs 0×0`), then Japanese
+  (`星`, `0 対 0`, `ラベル`, `なし 対 なし`, `ピクセル`, `0×0 対 0×0`) and Arabic (`النجوم`,
+  `٠ مقابل ٠`, `التسمية`, `لا يوجد مقابل لا يوجد`, `البكسلات`, `0×0 مقابل 0×0`), with the English names and
+  joins asserted absent from the last two. `fmt` isolates values, so the frame is read through the same isolate
+  filter the Detail and Places tests use. `a_compare_names_what_actually_differs` still holds the English values
+  (`5 vs 3`, `none vs none`, `3000×2000 vs 2000×2000`) and the "two copies say little" claim, so a template
+  that stopped filling or a name that stopped being a row is caught. The catalogue audit reads the seven new
+  `tl!`/`fmt` literals and fails if either catalogue loses a row.
+- **Files.** `crates/ui/src/shell.rs` (`compare_facts`, `compare_pair`, one test), `crates/ui/src/i18n/ar.tsv`
+  and `ja.tsv` (seven rows each), `docs/ROADMAP.md` (the SL-L07 row), `docs/UX.md` (§5.4, §5.6 and the i18n
+  paragraph), this entry.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test,
+  `a_compare_names_what_actually_differs` and `catalogs_load_and_routed_keys_have_rows` pass. `cargo xtask ci`
+  green through every gate (fmt --check, clippy `--workspace --all-targets` with `-D warnings`, the full test
+  suite, layers, roots, assets, version, attribution, a11y, docs, templates and workflows); `cargo xtask snapshot`
+  (5 tests), `cargo xtask deny` (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask screenshots`
+  (27 scenes, `detail_and_compare_paint_in_both_themes` among them, byte-identical to the committed baselines —
+  English has no catalogue, so a `tl!` with no row is its own key, and the routed facts row paints the same
+  glyphs). There is no `cargo xtask wasm` in this workspace (removed in the sixty-first entry), so no wasm gate
+  ran. No release dispatch: this slice touches `crates/ui` source, catalogues, tests and docs, so no build or
+  release surface changed.
+- **Next.** Soft Focus — its measure button, its score words, its histogram and its select action — then For You,
+  then the four catalogues (zh-TW/ko/th/vi) and the RTL screenshots. No release run in flight.
+
 ## 2026-11-26 (hundred-and-first) — the Detail view and the Details tab speak the interface language
 
 - **Why this came up.** The hundredth entry's Next named it: after Places, the Detail view still painted

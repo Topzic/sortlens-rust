@@ -726,4 +726,12 @@
 	reject	却下
 	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	1–5 で評価、0 で解除、P で採用、X で却下、U でフラグ解除。
 	Select a photo to see camera, exposure and file details.	カメラ、露出、ファイルの詳細を見るには写真を選んでください。
+	stars	星
+	label	ラベル
+	exposure	露出
+	length	長さ
+	size	サイズ
+	pixels	ピクセル
+	{left} vs {right}	{left} 対 {right}
+	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} 対 {right_width}×{right_height}
 

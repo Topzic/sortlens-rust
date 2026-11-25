@@ -726,4 +726,12 @@
 	reject	مرفوضة
 	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	اضغط 1–5 للتقييم، و0 للمسح، وP للاختيار، وX للرفض، وU لإزالة الوسم.
 	Select a photo to see camera, exposure and file details.	اختر صورة لعرض الكاميرا والتعريض وتفاصيل الملف.
+	stars	النجوم
+	label	التسمية
+	exposure	التعريض
+	length	المدة
+	size	الحجم
+	pixels	البكسلات
+	{left} vs {right}	{left} مقابل {right}
+	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} مقابل {right_width}×{right_height}
 

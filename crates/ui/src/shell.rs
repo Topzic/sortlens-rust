@@ -5541,52 +5541,57 @@ fn aspect_of(photo: &Photo) -> f32 {
     }
 }
 
+/// The two sides of one comparison, joined the way this language joins a pair.
+///
+/// The word between them is prose, so it is a catalogue row like any other: English writes `vs`,
+/// Arabic writes `مقابل`, and each side is isolated so a value cannot reorder the join around itself.
+fn compare_pair(left: &str, right: &str) -> String {
+    crate::i18n::fmt("{left} vs {right}", &[("left", left), ("right", right)])
+}
+
 /// What differs between two photos, in the order a photographer compares them.
-fn compare_facts(left: &Photo, right: &Photo) -> Vec<(&'static str, String)> {
+///
+/// The row is a named fact, not a sentence composed inside the engine: the name is a catalogue row
+/// (`stars`, `pixels`…) and the value is a template filled with `format_count`, so a language that
+/// writes its own digits writes them here too.
+fn compare_facts(left: &Photo, right: &Photo) -> Vec<(String, String)> {
     let mut facts = Vec::new();
-    facts.push(("stars", format!("{} vs {}", left.rating, right.rating)));
     facts.push((
-        "label",
-        format!(
-            "{} vs {}",
-            left.label.map_or("none", |label| label.id()),
-            right.label.map_or("none", |label| label.id())
-        ),
+        tl!("stars").to_owned(),
+        compare_pair(&format_count(u64::from(left.rating)), &format_count(u64::from(right.rating))),
     ));
+    let colour = |label: Option<ColorLabel>| label.map_or_else(|| tl!("none").to_owned(), |label| label.id().to_owned());
+    facts.push((tl!("label").to_owned(), compare_pair(&colour(left.label), &colour(right.label))));
     if left.exposure() != right.exposure() {
-        facts.push(("exposure", format!("{} vs {}", left.exposure(), right.exposure())));
+        facts.push((tl!("exposure").to_owned(), compare_pair(&left.exposure(), &right.exposure())));
     }
     if !left.duration_label().is_empty() || !right.duration_label().is_empty() {
-        facts.push((
-            "length",
-            format!(
-                "{} vs {}",
-                if left.duration_label().is_empty() {
-                    "—".to_string()
-                } else {
-                    left.duration_label()
-                },
-                if right.duration_label().is_empty() {
-                    "—".to_string()
-                } else {
-                    right.duration_label()
-                }
-            ),
-        ));
+        let length = |photo: &Photo| {
+            if photo.duration_label().is_empty() {
+                "—".to_owned()
+            } else {
+                photo.duration_label()
+            }
+        };
+        facts.push((tl!("length").to_owned(), compare_pair(&length(left), &length(right))));
     }
     if left.size != right.size {
         facts.push((
-            "size",
-            format!(
-                "{} vs {}",
-                sortlens_core::format_bytes(left.size),
-                sortlens_core::format_bytes(right.size)
-            ),
+            tl!("size").to_owned(),
+            compare_pair(&sortlens_core::format_bytes(left.size), &sortlens_core::format_bytes(right.size)),
         ));
     }
     facts.push((
-        "pixels",
-        format!("{}×{} vs {}×{}", left.width, left.height, right.width, right.height),
+        tl!("pixels").to_owned(),
+        crate::i18n::fmt(
+            "{left_width}×{left_height} vs {right_width}×{right_height}",
+            &[
+                ("left_width", &left.width.to_string()),
+                ("left_height", &left.height.to_string()),
+                ("right_width", &right.width.to_string()),
+                ("right_height", &right.height.to_string()),
+            ],
+        ),
     ));
     facts
 }
@@ -14283,6 +14288,93 @@ mod tests {
                 "الحالة",
                 "موجودة",
             ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Compare view speaks the interface language (SL-L07): the facts row that is the whole
+    /// reason to put two photographs side by side — the names of the facts and the word that joins
+    /// each pair — is catalogue rows and templates, so a Japanese or Arabic owner reads what differs
+    /// between the two frames in their own words and digits.
+    #[test]
+    fn the_compare_view_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-compare-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-compare-words");
+        for (name, phase) in [("IMG_0001.jpg", 3), ("IMG_0002.jpg", 9)] {
+            std::fs::copy(fixture.jpeg(name, [phase * 20, 120, 200], 64, 48), root.join(name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let page = engine.page(&Filter::default(), Sort::Natural, 0, 2);
+        let id = page.photos[0].id;
+        let second = page.photos[1].id;
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 760.0))),
+            ..egui::RawInput::default()
+        };
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.replace(id);
+        state.compare = Some(second);
+        state.view = View::Compare;
+
+        // `fmt` isolates a value that has to hold its direction in right-to-left text; the frame is
+        // read without those marks, so a pair is compared by its words and its digits.
+        let plain = |texts: Vec<String>| -> Vec<String> {
+            texts
+                .into_iter()
+                .map(|text| {
+                    text.chars()
+                        .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                        .collect()
+                })
+                .collect()
+        };
+        let mut paint = |state: &mut UiState, engine: &mut Engine| -> Vec<String> {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    detail_view(ui, &tokens, state, engine, &mut thumbs, &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            plain(painted_texts(&output))
+        };
+
+        let english = paint(&mut state, &mut engine);
+        assert_painted(&english, &["stars", "0 vs 0", "label", "none vs none", "pixels", "0×0 vs 0×0"]);
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state, &mut engine);
+        assert_painted(&japanese, &["星", "0 対 0", "ラベル", "なし 対 なし", "ピクセル", "0×0 対 0×0"]);
+        assert!(
+            !japanese.iter().any(|text| text == "stars" || text.contains(" vs ")),
+            "the Japanese compare keeps no English fact names or joins: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state, &mut engine);
+        assert_painted(
+            &arabic,
+            &["النجوم", "٠ مقابل ٠", "التسمية", "لا يوجد مقابل لا يوجد", "البكسلات", "0×0 مقابل 0×0"],
+        );
+        assert!(
+            !arabic.iter().any(|text| text == "stars" || text.contains(" vs ")),
+            "the Arabic compare keeps no English fact names or joins: {arabic:?}"
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
