@@ -1,5 +1,41 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-fourth) — the quit guard warns in your language, from the engine's own account of what is in flight
+
+- **Why this came up.** The eighty-third entry's "Next" listed Recent changes, Quit Sortlens?, Batch
+  applied, Suggested keywords and Keyboard shortcuts. Recent changes needs the log's twenty-five
+  `Op::summary` sentences turned into pieces before a word of it can be translated; the quit guard's
+  reasons are three engine-owned sentences, so this tick finished the guard outright instead of
+  starting that one.
+- **The engine hands back a piece.** `UnsavedReason` is `Scanning`, `StagedCull { staged }` or
+  `Hashing`, and `Engine::unsaved_reasons` builds the list. `Engine::unsaved` — the sentences the
+  support report and the command line print — is now that list mapped through `english()`, so the
+  guard and the report cannot describe different work; `has_unsaved` reads the pieces too.
+- **The guard is routed end to end.** `unsaved_line` words each piece: the scan and the similarity
+  pass through `tl!`, the staged line through `i18n::fmt` with `{staged}` filled by `format_count`,
+  so Arabic writes `١`. The title, `Keep working`, `Quit anyway` and its hover are `tl!` keys (7 rows
+  in each catalogue).
+- **Tests.** `the_quit_guard_sentences_are_joined_from_their_pieces` pins the three English
+  sentences byte for byte; `the_quit_guard_names_work_in_flight` now asserts the list *is* the piece
+  (`Scanning` during a scan, `StagedCull { staged: 1 }` after one pick) and that `unsaved()` equals
+  the joined pieces. `the_quit_guard_speaks_the_interface_language` opens a real scanned library,
+  stages one pick and paints the guard: English first (the title, the exact staged sentence, both
+  buttons), then Japanese (`Sortlens を終了しますか？`, `作業を続ける`, the reason in kana with no
+  `staged` left behind), then Arabic (`إنهاء Sortlens؟`, `الإنهاء على أي حال`, and `١` inside the
+  Arabic sentence). The catalogue audit reads the new `tl!`/`fmt` keys and demands both rows.
+- **Files.** `crates/engine/src/lib.rs` (the `UnsavedReason` piece, `unsaved_reasons`, one new test
+  and one extended), `crates/ui/src/shell.rs` (`unsaved_line`, the routed guard, one paint test),
+  `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (7 rows each), `docs/ROADMAP.md` (M9 and Phase 4 item 2d),
+  `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo clippy -p sortlens-engine -p sortlens-ui --all-targets -- -D warnings` clean;
+  the two engine tests and the UI paint test pass; `cargo xtask ci`, `snapshot`, `deny` and
+  `screenshots` are green (each exit 0) after `cargo fmt --all`, and no baseline moved. No release
+  workflow dispatched:
+  this slice touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Recent changes — its rows are the log's own `Op::summary` English, so it needs the same
+  pieces-before-labels treatment (a description enum per op, with `summary()` joined from it) before
+  a word of that dialog can be translated; then Batch applied, Suggested keywords and Keyboard
+  shortcuts.
 ## 2026-11-26 (eighty-third) — the cull sheet is worded from the session's own piece, and every count is a placeholder a language places
 
 - **Why this came up.** The eighty-second entry's "Next" listed the unrouted surfaces, and the cull

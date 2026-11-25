@@ -190,3 +190,10 @@
 	Discard	破棄
 	Drop every staged decision and restore the flags	保留中の判定をすべて捨て、フラグを元に戻します
 	Cull discarded	選別を破棄しました
+	Quit Sortlens?	Sortlens を終了しますか？
+	An index scan is running; the files found so far are not saved yet.	索引スキャンを実行中です。これまでに見つかったファイルはまだ保存されていません。
+	{staged} staged cull decision(s) have not been applied. The session is kept for next time.	保留中の選別判定が {staged} 件あり、まだ適用されていません。セッションは次回のために保存されます。
+	A similarity pass is running; hashes finished so far are kept.	類似度パスを実行中です。完了したハッシュは保持されます。
+	Keep working	作業を続ける
+	Quit anyway	終了する
+	Close the window now; unstaged work is dropped	今すぐウィンドウを閉じます。未適用の作業は破棄されます

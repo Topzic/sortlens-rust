@@ -896,10 +896,12 @@ and none of M9 is closed until the remaining rows are ticked.
   followed (seventy-ninth entry): the similar-view delete, the cull batch's Apply and the
   rejects-bin emptying word their counts, their modes, their changed-on-disk warning and their
   toasts through the catalogues, and the catalogue audit now reads `fmt` templates as well as `tl!`
-  literals, so a template with no row fails the test instead of showing English. The remaining
-  dialogs are English by omission, not by decision.
-  Open: the other four languages, the remaining dialogs (rename, health, moves, changes, quit,
-  summary, suggestions, shortcuts, about) and engine-composed sentences, and RTL screenshots,
+  literals, so a template with no row fails the test instead of showing English. The quit guard
+  followed (eighty-fourth entry), worded from `sortlens-engine`'s own `UnsavedReason` pieces rather
+  than its English sentences, so the guard and the support report cannot describe different work.
+  The remaining dialogs are English by omission, not by decision.
+  Open: the other four languages, the remaining dialogs (moves, changes, suggestions, shortcuts,
+  about) and engine-composed sentences, and RTL screenshots,
   which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
@@ -1435,8 +1437,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     sheet's title, four rows, Apply/Keep culling/Jump to next/Discard buttons and their hovers, the
     `{changed} … {deferred} …` foot line and the discarded toast are `tl!`/`fmt` keys with both counts
     as placeholders, and `the_cull_summary_speaks_the_interface_language` paints the sheet in all
-    three languages. Still open on this row: Recent changes, Quit Sortlens? (its reasons are
-    `Engine::unsaved` sentences), Batch applied, Suggested keywords and Keyboard shortcuts.
+    three languages. The quit guard joined them in the next tick (eighty-fourth entry):
+    `Engine::unsaved_reasons` returns an `UnsavedReason` (`Scanning`, `StagedCull { staged }`,
+    `Hashing`) and `Engine::unsaved` — the sentences the support report prints — is joined from
+    exactly those pieces, pinned by `the_quit_guard_sentences_are_joined_from_their_pieces`; the
+    title, both buttons, the hover and the three reasons are `tl!`/`fmt` keys with the staged count a
+    placeholder, and `the_quit_guard_speaks_the_interface_language` paints the guard in all three
+    languages. Still open on this row: Recent changes (its rows are the log's own `Op::summary`
+    sentences, so it needs the pieces-before-labels treatment first), Batch applied, Suggested
+    keywords and Keyboard shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

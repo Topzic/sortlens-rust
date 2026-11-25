@@ -546,6 +546,13 @@ culling, Jump to next and Discard buttons with their hovers, the `{changed} … 
 line and the discarded toast are `tl!`/`fmt` keys — `cull_headline` and `cull_foot` are the
 wording helpers the paint test reads.
 
+The quit guard is routed from the engine's own pieces: `Engine::unsaved_reasons` returns an
+`UnsavedReason` (`Scanning`, `StagedCull { staged }`, `Hashing`) and `Engine::unsaved` — the
+sentences the support report prints — is joined from exactly those pieces, so a translated guard
+cannot warn about different work than the report describes. The shell words each piece through
+`tl!`/`i18n::fmt` and the staged count through `format_count`; the title, both buttons and the
+hover are catalogued, and `the_quit_guard_speaks_the_interface_language` paints the dialog in all
+three languages.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

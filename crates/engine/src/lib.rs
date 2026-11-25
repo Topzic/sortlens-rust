@@ -187,6 +187,38 @@ pub struct RootVolume {
     pub mounted: Option<bool>,
 }
 
+/// Work that would be lost if the window closed now, as the pieces a sentence is joined from.
+///
+/// The shell words these in the interface language and [`Engine::unsaved`] joins the English
+/// sentences from them, so a translated quit guard and the support report the same library writes
+/// cannot describe different work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnsavedReason {
+    /// An index scan is running.
+    Scanning,
+    /// Cull decisions are staged but not applied.
+    StagedCull {
+        /// How many decisions are waiting for Apply.
+        staged: usize,
+    },
+    /// A similarity pass is running.
+    Hashing,
+}
+
+impl UnsavedReason {
+    /// The English sentence, byte for byte what the guard said before it took a piece.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            Self::Scanning => "An index scan is running; the files found so far are not saved yet.".to_string(),
+            Self::StagedCull { staged } => {
+                format!("{staged} staged cull decision(s) have not been applied. The session is kept for next time.")
+            }
+            Self::Hashing => "A similarity pass is running; hashes finished so far are kept.".to_string(),
+        }
+    }
+}
+
 /// The command engine.
 pub struct Engine {
     registry: Registry,
@@ -2891,34 +2923,38 @@ impl Engine {
         }
     }
 
-    /// Work that would be lost if the window closed now.
+    /// Work that would be lost if the window closed now, as the pieces a sentence is joined from.
     ///
     /// A cull session's staged decisions are only persisted as a session file, so quitting mid-cull
     /// loses the queue rather than the decisions; this names what is in flight so the guard can say
     /// something specific instead of "are you sure?".
-    pub fn unsaved(&self) -> Vec<String> {
+    pub fn unsaved_reasons(&self) -> Vec<UnsavedReason> {
         let mut reasons = Vec::new();
         if self.pending.is_some() {
-            reasons.push("An index scan is running; the files found so far are not saved yet.".to_string());
+            reasons.push(UnsavedReason::Scanning);
         }
         if let Some(session) = &self.cull {
-            let summary = session.summary();
-            let staged = summary.changed();
+            let staged = session.summary().changed();
             if staged > 0 {
-                reasons.push(format!(
-                    "{staged} staged cull decision(s) have not been applied. The session is kept for next time."
-                ));
+                reasons.push(UnsavedReason::StagedCull { staged });
             }
         }
         if self.pending_hash.is_some() {
-            reasons.push("A similarity pass is running; hashes finished so far are kept.".to_string());
+            reasons.push(UnsavedReason::Hashing);
         }
         reasons
     }
 
+    /// What would be lost if the window closed now, as sentences the support report and the command
+    /// line can print. Joined from [`Engine::unsaved_reasons`], so the guard and the report cannot
+    /// describe different work.
+    pub fn unsaved(&self) -> Vec<String> {
+        self.unsaved_reasons().into_iter().map(|reason| reason.english()).collect()
+    }
+
     /// Whether closing the window would drop something worth asking about.
     pub fn has_unsaved(&self) -> bool {
-        !self.unsaved().is_empty()
+        !self.unsaved_reasons().is_empty()
     }
 
     /// What the last finished Apply did, for the receipt dialog.
@@ -7445,6 +7481,11 @@ mod tests {
 
         engine.begin_scan(folder.0.to_string_lossy().to_string()).expect("scan");
         assert!(engine.has_unsaved(), "a running scan counts");
+        assert_eq!(
+            engine.unsaved_reasons(),
+            vec![UnsavedReason::Scanning],
+            "the scan is a piece, not a sentence"
+        );
         wait_for_scan(&mut engine);
         let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
 
@@ -7454,9 +7495,41 @@ mod tests {
         let reasons = engine.unsaved();
         assert_eq!(reasons.len(), 1);
         assert!(reasons[0].contains("staged cull"), "{}", reasons[0]);
+        assert_eq!(
+            engine.unsaved_reasons(),
+            vec![UnsavedReason::StagedCull { staged: 1 }],
+            "the guard's piece carries the count, not just the words"
+        );
+        assert_eq!(
+            engine.unsaved(),
+            engine
+                .unsaved_reasons()
+                .into_iter()
+                .map(|reason| reason.english())
+                .collect::<Vec<_>>(),
+            "the sentences are joined from the pieces, so they cannot disagree"
+        );
 
         engine.cull_clear();
         assert!(!engine.has_unsaved(), "discarding the session clears the warning");
+    }
+
+    #[test]
+    fn the_quit_guard_sentences_are_joined_from_their_pieces() {
+        // Byte for byte what the guard said before it took a piece: the support report and the
+        // command line still read these sentences, and a translated shell joins the same pieces.
+        assert_eq!(
+            UnsavedReason::Scanning.english(),
+            "An index scan is running; the files found so far are not saved yet."
+        );
+        assert_eq!(
+            UnsavedReason::StagedCull { staged: 2 }.english(),
+            "2 staged cull decision(s) have not been applied. The session is kept for next time."
+        );
+        assert_eq!(
+            UnsavedReason::Hashing.english(),
+            "A similarity pass is running; hashes finished so far are kept."
+        );
     }
 
     #[test]

@@ -8943,26 +8943,26 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 
 /// The quit guard: what would be lost, and the two ways out.
 fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
-    let reasons = engine.unsaved();
+    let reasons = engine.unsaved_reasons();
     let mut open = state.quit_open;
-    dialog_window("Quit Sortlens?")
+    dialog_window(tl!("Quit Sortlens?"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(380.0)
         .show(ui.ctx(), |ui| {
             for reason in &reasons {
-                ui.label(RichText::new(reason).size(11.5).color(t.text_muted));
+                ui.label(RichText::new(unsaved_line(reason)).size(11.5).color(t.text_muted));
                 ui.add_space(4.0);
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("Keep working").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Keep working")).size(12.0)).clicked() {
                     state.quit_open = false;
                 }
                 if ui
-                    .button(RichText::new("Quit anyway").size(12.0))
-                    .on_hover_text("Close the window now; unstaged work is dropped")
+                    .button(RichText::new(tl!("Quit anyway")).size(12.0))
+                    .on_hover_text(tl!("Close the window now; unstaged work is dropped"))
                     .clicked()
                 {
                     state.quit_open = false;
@@ -8971,6 +8971,19 @@ fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, ac
             });
         });
     state.quit_open = open;
+}
+
+/// One reason the quit guard gives, worded in the interface language from the engine's own piece.
+fn unsaved_line(reason: &sortlens_engine::UnsavedReason) -> String {
+    use sortlens_engine::UnsavedReason as Reason;
+    match reason {
+        Reason::Scanning => tl!("An index scan is running; the files found so far are not saved yet.").to_string(),
+        Reason::StagedCull { staged } => crate::i18n::fmt(
+            "{staged} staged cull decision(s) have not been applied. The session is kept for next time.",
+            &[("staged", &format_count(*staged as u64))],
+        ),
+        Reason::Hashing => tl!("A similarity pass is running; hashes finished so far are kept.").to_string(),
+    }
 }
 
 /// The session's headline, worded in the interface language from the session's own piece.
@@ -14928,6 +14941,114 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The quit guard speaks the interface language, from the engine's own pieces (SL-L07).
+    ///
+    /// Its three reasons used to be English sentences built inside `sortlens-engine`, painted under
+    /// a translated title; now the engine hands the shell an `UnsavedReason`, the same piece its own
+    /// English is joined from, so the guard's sentence and the count it names cannot disagree in a
+    /// language that writes its digits differently.
+    #[test]
+    fn the_quit_guard_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-quit-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-quit-i18n");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [30, 60, 140], 64, 48), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("cull");
+        engine.cull_decide(Decision::Pick);
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.quit_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &Engine| {
+            let mut actions: Vec<Action> = Vec::new();
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        quit_dialog(ui, state, &tokens, engine, &mut actions);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            (out, actions)
+        };
+
+        // English first: the guard's very sentence, joined from the piece the engine hands over.
+        let reasons = engine.unsaved_reasons();
+        assert_eq!(reasons, vec![sortlens_engine::UnsavedReason::StagedCull { staged: 1 }]);
+        assert_eq!(unsaved_line(&reasons[0]), engine.unsaved()[0]);
+        assert_eq!(
+            unsaved_line(&reasons[0]),
+            "1 staged cull decision(s) have not been applied. The session is kept for next time."
+        );
+        // The two reasons this library cannot stage are worded from the same pieces.
+        assert_eq!(
+            unsaved_line(&sortlens_engine::UnsavedReason::Scanning),
+            "An index scan is running; the files found so far are not saved yet."
+        );
+        assert_eq!(
+            unsaved_line(&sortlens_engine::UnsavedReason::Hashing),
+            "A similarity pass is running; hashes finished so far are kept."
+        );
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let (out, actions) = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&out, "Quit Sortlens?").is_some(), "the title paints");
+        assert!(label_at(&out, "Keep working").is_some(), "the two ways out paint");
+        assert!(label_at(&out, "Quit anyway").is_some());
+        assert!(state.quit_open, "painting the guard does not close it");
+        assert!(actions.is_empty(), "showing the guard chooses nothing");
+
+        // Japanese: the title, the reason and the button words are the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = unsaved_line(&reasons[0]);
+        assert!(
+            japanese.contains("保留中の選別判定") && japanese.contains('1') && !japanese.contains("staged"),
+            "{japanese}"
+        );
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let (out, _) = paint(&ctx, &mut state, &mut engine);
+        assert!(
+            label_at(&out, "Sortlens を終了しますか？").is_some(),
+            "the title is the catalogue's"
+        );
+        assert!(label_at(&out, "作業を続ける").is_some(), "and so are the buttons");
+
+        // Arabic: the count is written in Arabic-Indic digits, inside the Arabic sentence, and no
+        // English word is left in the reason.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = unsaved_line(&reasons[0]);
+        assert!(
+            arabic.contains('١') && arabic.contains("قرارات") && !arabic.contains("staged"),
+            "{arabic}"
+        );
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let (out, _) = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&out, "إنهاء Sortlens؟").is_some(), "the title is the catalogue's");
+        assert!(label_at(&out, "الإنهاء على أي حال").is_some(), "and so is the way out");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     /// The library-health audit speaks the interface language, from the catalog's own pieces
     /// (SL-L07). Its headline and detail used to be English strings built inside the audit and
     /// painted under a translated title; now `sortlens-catalog` hands the shell a `Headline` and

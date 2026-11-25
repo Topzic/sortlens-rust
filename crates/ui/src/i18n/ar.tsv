@@ -190,3 +190,10 @@
 	Discard	تجاهل
 	Drop every staged decision and restore the flags	إسقاط كل قرار معلّق واستعادة الأعلام
 	Cull discarded	تم تجاهل الفرز
+	Quit Sortlens?	إنهاء Sortlens؟
+	An index scan is running; the files found so far are not saved yet.	جارٍ فحص الفهرس؛ الملفات التي عُثر عليها حتى الآن لم تُحفظ بعد.
+	{staged} staged cull decision(s) have not been applied. The session is kept for next time.	لم تُطبَّق {staged} من قرارات الفرز المعلّقة. تُحفظ الجلسة للمرة القادمة.
+	A similarity pass is running; hashes finished so far are kept.	جارٍ تمرير التشابه؛ تُحفظ البصمات المكتملة حتى الآن.
+	Keep working	متابعة العمل
+	Quit anyway	الإنهاء على أي حال
+	Close the window now; unstaged work is dropped	إغلاق النافذة الآن؛ سيُفقد العمل غير المطبَّق
