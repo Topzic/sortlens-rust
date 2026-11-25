@@ -893,7 +893,11 @@ and none of M9 is closed until the remaining rows are ticked.
     the refusal).
 - [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07 — the scaffolding is in:
   embedded ar/ja catalogues, Settings → Language, the reading-start/end panels and the mirrored rows
-  (see the Phase 4 item 2d row). The Welcome card, the indexing screen and the empty-filter screen
+  (see the Phase 4 item 2d row). The Arabic face ships in the crate (2026-11-26, hundred-and-fourteenth
+  entry): `assets/fonts/NotoSansArabic.ttf` is embedded by `crates/ui/src/fonts.rs` and appended last
+  when the optional craft-fonts set has no Arabic face, so the `ar` catalogue paints words instead of
+  boxes on CI and on every clone; **the RTL baselines remain open** — the harness has no Arabic scene
+  yet, which is the next slice. The Welcome card, the indexing screen and the empty-filter screen
   went through the catalogues on 2026-11-26 (seventy-sixth entry), so a first launch and a filter
   that hides everything read in the chosen language; the export dialog and its receipt followed
   later that day (seventy-eighth entry) by describing a spec from `sortlens-export`'s own

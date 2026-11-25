@@ -1,5 +1,53 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fourteenth) — the Arabic interface ships the face it has always named, and `العربية` stops being a box
+
+- **Why this came up.** The hundred-and-thirteenth entry's Next named SL-L07's last item, the RTL screenshots,
+  and said they needed "a font build that embeds an Arabic face". Reading the code first (as the rule asks)
+  found a product defect behind the test gap: `ar` is a shipped interface language and the picker offers it,
+  but every Arabic glyph came from the *optional* craft-fonts checkout — `crates/ui/src/fonts.rs` embedded
+  `CRAFT_FONTS` and nothing else, that table is empty whenever `CRAFT_FONTS_DIR` is unset (CI, and every fresh
+  clone), and `install()` even returned early in that case. So an Arabic interface painted every word as a
+  replacement box on the configuration the project treats as normal.
+- **One face, vendored, last.** `assets/fonts/NotoSansArabic.ttf` (Noto Sans Arabic, variable, 844,676 bytes,
+  OFL-1.1, licence text in `assets/fonts/OFL.txt`) is embedded as `fonts::BUILTIN_ARABIC`. `stack()` appends
+  it to each family **after** the craft faces — and only when the craft set has no face tagged `Arab`, so a
+  developer's checkout keeps its own face and no build carries two. `install()` no longer returns early: it
+  always installs the stack and reports how many faces it added, which is `1` without a checkout now.
+  `fonts::arabic()` answers whether this build can paint Arabic at all.
+- **The test asks the fonts, not the table.** `the_arabic_interface_paints_without_the_checkout` installs the
+  stack on a bare context and asks inside one painted frame (`Context::run_ui`, its `textures_delta` drained)
+  whether the *installed* fonts have the glyphs of `العربية`, `الكل` and `٣ صور` — three strings from the
+  catalogue's own words. Without the face the first assert fails; with a face that is present in the table
+  but fails to parse it also fails. The same test pins that each default family still starts with the face
+  it started with, so the Arabic face is a fallback and cannot take Latin text over.
+- **No baseline moved, and that is measured, not assumed.** The screenshot harness paints egui's own defaults:
+  `crates/ui/tests/screenshots.rs` never calls `fonts::install`, which is why the Settings row's other
+  non-Latin names are boxes in the committed frames. Installing the real stack there would make every frame
+  depend on whichever craft-fonts checkout the machine has, so it stays a separate decision — and it is the
+  first thing the next tick needs, because an Arabic frame painted through the harness still has no face.
+- **Files.** `assets/fonts/NotoSansArabic.ttf` and `assets/fonts/OFL.txt` (new); `crates/ui/src/fonts.rs`;
+  `docs/ATTRIBUTION.md` (the one vendored face, its licence, and why it is not a build input); `docs/ROADMAP.md`
+  (SL-L07 names what now ships and keeps the RTL baselines open); `docs/UX.md` (the picker's `العربية` prints
+  Arabic words on every build); `fonts/embedded.txt` (the record says the built-in face is not a craft face).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean and the six `fonts` tests
+  pass. The new test **bites**: with the face not appended, it fails on the first string
+  (`العربية has no glyphs in the installed stack`), then passes again when it is restored. `cargo xtask ci`
+  green (fmt, clippy, the whole workspace test suite, layers, roots, assets, fonts, version, attribution,
+  a11y, docs, templates, workflows), `cargo xtask snapshot` (five pass) and `cargo xtask deny`
+  (advisories, bans, licenses, sources) green. No `cargo xtask screenshots` run: no baseline moved, because
+  the harness does not install the stack (see above). No release workflow was dispatched: `crates/ui`
+  source, one vendored asset, docs and the font record touch no workflow, `apps/**`, a `Cargo.toml` or
+  release code.
+- **Next.** The RTL baselines, and the first step is the harness's font story rather than the scene:
+  `crates/ui/tests/screenshots.rs` paints egui's defaults, so give it the built-in face only
+  (`sortlens_ui::fonts::BUILTIN_ARABIC`, never the machine's craft set) so a frame is machine-independent,
+  then add an Arabic scene that switches the language and paints the shell right-to-left, and read the
+  frame. Expect the four `settings-*` baselines to repaint with real Arabic glyphs in the Language row, and
+  expect the lavapipe set to need one adoption from the runner's own paint — the same two-step the last
+  three language slices used. Read this commit's CI run first (`gh run list --workflow CI --limit 1`) and
+  adopt its `screenshots` frames with `SORTLENS_SNAPSHOT_SET=lavapipe` if the runner disagrees. No release
+  run is in flight.
 ## 2026-11-26 (hundred-and-thirteenth) — the Vietnamese row's own paint goes into the lavapipe set
 
 - **Why this came up.** The trunk was red on `b753c97` (`45634449220`) with exactly one failing job,

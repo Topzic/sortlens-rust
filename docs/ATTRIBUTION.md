@@ -84,7 +84,13 @@ promise nobody intends to keep.
 
 ## Fonts
 
-`craft-fonts` is a **build input, not a dependency**: `crates/ui/build.rs` reads a clone at `CRAFT_FONTS_DIR`
+One face is vendored, because a shipped interface language cannot depend on an optional build input:
+`assets/fonts/NotoSansArabic.ttf` is Noto Sans Arabic (variable, 844,676 bytes) under OFL-1.1, with the
+licence text beside it in `assets/fonts/OFL.txt`. `crates/ui/src/fonts.rs` embeds it and appends it to
+each family last, and only when the embedded craft set has no Arabic face of its own — so the `ar`
+translation paints instead of painting boxes on a clone with no `CRAFT_FONTS_DIR`.
+
+Everything else is a build input. `craft-fonts` is a **build input, not a dependency**: `crates/ui/build.rs` reads a clone at `CRAFT_FONTS_DIR`
 and embeds what it finds, so a build with no clone is a supported configuration and simply uses egui's own
 faces. Nothing from that repository is vendored here, and `.fonts/` is gitignored.
 

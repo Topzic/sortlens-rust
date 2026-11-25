@@ -4,7 +4,8 @@
 //!
 //! - **A build without craft-fonts works.** `CRAFT_FONTS` comes from `build.rs` and is empty unless
 //!   the machine has a craft-fonts checkout (`CRAFT_FONTS_DIR`). CI has none, so the empty table is
-//!   the configuration under test, not an accident.
+//!   the configuration under test, not an accident — and one face ships inside the crate anyway:
+//!   [`BUILTIN_ARABIC`], because `ar` is a language the picker offers and the checkout is optional.
 //! - **Craft faces go last.** They are fallbacks for scripts egui's bundled face does not draw:
 //!   Japanese, Korean, Hebrew, the Indian scripts and the UI symbols. Putting them first would change
 //!   Latin text, which is the one thing a font fallback must never do.
@@ -30,6 +31,24 @@ pub struct CraftFont {
 }
 
 include!(concat!(env!("OUT_DIR"), "/craft_fonts.rs"));
+
+/// The Arabic face the shipped `ar` catalogue needs, embedded in this crate rather than left to the
+/// optional craft-fonts checkout.
+///
+/// Arabic is a shipped interface language, and the checkout is optional: CI and every fresh clone
+/// build with `CRAFT_FONTS_DIR` unset, so without this face an Arabic interface painted every word
+/// as a box. The craft-face table still wins when it has an Arabic face of its own — this one is
+/// only registered when it does not, so one build never carries two.
+pub const BUILTIN_ARABIC: &[u8] = include_bytes!("../../../assets/fonts/NotoSansArabic.ttf");
+
+/// The key the built-in Arabic face is registered under, beside the craft faces' `family::style` keys.
+const BUILTIN_ARABIC_KEY: &str = "builtin::Noto Sans Arabic";
+
+/// Whether the embedded craft-fonts table already covers Arabic, in which case its face is kept and
+/// the built-in one is not registered.
+fn craft_covers_arabic() -> bool {
+    CRAFT_FONTS.iter().any(|font| font.scripts.contains(&"Arab"))
+}
 
 /// Scripts the interface needs a face for, defined with the manifest reader both build-time
 /// consumers share.
@@ -94,11 +113,13 @@ pub fn coverage() -> (Vec<&'static str>, Vec<&'static str>) {
 /// Returns how many faces were added, which the app logs rather than showing — a font count is a
 /// build fact, not something a photographer needs in the status bar.
 pub fn install(ctx: &egui::Context) -> usize {
-    if CRAFT_FONTS.is_empty() {
-        return 0;
-    }
-    ctx.set_fonts(stack());
-    CRAFT_FONTS.len()
+    let definitions = stack();
+    let added = definitions
+        .font_data
+        .len()
+        .saturating_sub(FontDefinitions::default().font_data.len());
+    ctx.set_fonts(definitions);
+    added
 }
 
 /// The font definitions this build would install: egui's defaults, with craft faces appended.
@@ -106,47 +127,102 @@ pub fn install(ctx: &egui::Context) -> usize {
 /// Separate from [`install`] so the stack itself can be asserted in a test without a context.
 pub fn stack() -> FontDefinitions {
     let mut definitions = FontDefinitions::default();
-    for font in CRAFT_FONTS {
-        let key = format!("{}::{}", font.family, font.style);
+    let append = |definitions: &mut FontDefinitions, key: String, bytes: &'static [u8]| {
         definitions
             .font_data
-            .insert(key.clone(), std::sync::Arc::new(FontData::from_static(font.bytes)));
+            .insert(key.clone(), std::sync::Arc::new(FontData::from_static(bytes)));
         // Appended, never prepended: a fallback that takes over Latin text is a bug.
         for family in [FontFamily::Proportional, FontFamily::Monospace] {
             definitions.families.entry(family).or_default().push(key.clone());
         }
+    };
+    for font in CRAFT_FONTS {
+        append(&mut definitions, format!("{}::{}", font.family, font.style), font.bytes);
+    }
+    // Last of all, because the craft set is the better face when a machine has it: the built-in
+    // Arabic face exists so an Arabic interface is legible without that checkout.
+    if !craft_covers_arabic() {
+        append(&mut definitions, BUILTIN_ARABIC_KEY.to_owned(), BUILTIN_ARABIC);
     }
     definitions
+}
+
+/// Whether this build's stack has the Arabic face: the craft one when the checkout is present,
+/// the built-in one otherwise. A status line or a test can ask without inspecting the table.
+pub fn arabic() -> bool {
+    craft_covers_arabic() || !BUILTIN_ARABIC.is_empty()
 }
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+    use egui::FontId;
 
     #[test]
     fn a_build_without_the_checkout_still_has_a_stack() {
-        // CI has no craft-fonts checkout, so this is the configuration that runs. It must install
-        // nothing, report nothing embedded, and leave egui's own fonts alone.
+        // CI has no craft-fonts checkout, so this is the configuration that runs: no craft family,
+        // no required-script coverage, and the one built-in face Arabic needs.
         if embedded() {
             // A developer with CRAFT_FONTS_DIR set: assert the stronger property instead.
             let (covered, _) = coverage();
             assert!(!covered.is_empty(), "an embedded build should cover Latn and Zsym");
+            assert!(arabic(), "an embedded build paints Arabic from the craft set");
             return;
         }
         let ctx = egui::Context::default();
-        assert_eq!(install(&ctx), 0);
-        assert!(families().is_empty());
+        assert_eq!(install(&ctx), 1, "the Arabic face is installed without the checkout");
+        assert!(families().is_empty(), "no craft family is claimed");
+        assert!(arabic());
         let (covered, missing) = coverage();
         assert!(covered.is_empty());
         assert_eq!(missing, REQUIRED_SCRIPTS.to_vec());
+    }
+
+    /// The defect this face fixes: every Arabic word in the interface was a replacement box on a
+    /// build without the optional checkout, which is every clone and CI. The assertion is on the
+    /// glyphs egui can actually draw, not on the table, so a face that fails to load fails here.
+    #[test]
+    fn the_arabic_interface_paints_without_the_checkout() {
+        let ctx = egui::Context::default();
+        install(&ctx);
+        let font = FontId::proportional(14.0);
+        // The fonts are only available to a context that has painted a frame, so the coverage is
+        // asked for from inside one: this is the same call the shell's labels make.
+        let mut covered = Vec::new();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ctx| {
+            for text in ["العربية", "الكل", "٣ صور"] {
+                covered.push((text, ctx.fonts_mut(|fonts| fonts.has_glyphs(&font, text))));
+            }
+        });
+        output.textures_delta.clear();
+        for (text, has) in covered {
+            assert!(has, "{text} has no glyphs in the installed stack");
+        }
+        // And the face is a fallback, not a replacement: Latin keeps the leading face.
+        let defaults = FontDefinitions::default();
+        let installed = stack();
+        for family in [FontFamily::Proportional, FontFamily::Monospace] {
+            assert_eq!(
+                installed.families.get(&family).and_then(|names| names.first()),
+                defaults.families.get(&family).and_then(|names| names.first()),
+                "{family:?} lost its leading face to the Arabic fallback"
+            );
+        }
     }
 
     #[test]
     fn installing_keeps_the_default_family_and_appends_fallbacks() {
         let defaults = FontDefinitions::default();
         let installed = stack();
-        assert_eq!(install(&egui::Context::default()), CRAFT_FONTS.len());
+        assert_eq!(
+            install(&egui::Context::default()),
+            CRAFT_FONTS.len() + usize::from(!craft_covers_arabic())
+        );
         for (family, names) in &defaults.families {
             let installed = installed.families.get(family).expect("every default family survives");
             assert!(

@@ -686,6 +686,9 @@ re-checks its own contrast pairs after applying.
   ships Arabic, Japanese, Korean, Thai, Vietnamese and Traditional Chinese (Settings → Language, persisted) with the direction plumbing: RTL
   mirrors the shell's chrome — the sidebar sits at the reading start, the tool strip and right
   panel at the reading end, rows read from their reading start — and the photo is never mirrored.
+  The Arabic face ships in the app since the hundred-and-fourteenth entry (`assets/fonts/NotoSansArabic.ttf`,
+  embedded by `crates/ui/src/fonts.rs`), so `العربية` paints Arabic words on every build, including the
+  ones with no craft-fonts checkout; the picker's other non-Latin names still need that checkout's faces.
   The Welcome card, the indexing screen and the "Nothing matches these filters" screen are
   catalogued (2026-11-26): a Japanese first launch reads in Japanese, and the count sentence is one
   template with `{n}` in it, so a language that does not inflect the noun — Japanese and Arabic

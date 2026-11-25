@@ -7,3 +7,5 @@ NanumGothic | Regular | Hang,Kore
 Noto Sans Symbols | Regular | Zsym
 Noto Sans Symbols 2 | Regular | Zsym
 # Native builds embed the whole manifest; the web build keeps only the five faces above.
+# Not listed here, because it is not a craft face: the Arabic face vendored at
+# assets/fonts/NotoSansArabic.ttf, embedded by crates/ui/src/fonts.rs when this set has no Arab face.
