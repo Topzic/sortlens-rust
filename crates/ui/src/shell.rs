@@ -7643,21 +7643,36 @@ fn highlights_strip(ui: &mut Ui, t: &Tokens, highlights: &[sortlens_engine::Insi
 /// line and the figures at whatever width a label happened to take. One card with a rule between
 /// the two groups gives the numbers a place to start from and keeps the facts and figures together
 /// instead of one floating above the other.
-fn insights_summary(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
+fn insights_summary(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights, recount: bool) -> bool {
     Frame::NONE
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.border))
         .corner_radius(t.corner())
         .inner_margin(Margin::symmetric(14, 12))
         .show(ui, |ui| {
-            ui.label(RichText::new(tl!("Summary")).size(12.0).strong());
+            let mut asked = false;
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(tl!("Summary")).size(12.0).strong());
+                if recount {
+                    // The refresh belongs to the numbers it refreshes, not to a loose button above
+                    // them; at the card's far edge it stays out of the facts' way.
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let button = ui
+                            .button(RichText::new(tl!("Recount")).size(10.5))
+                            .on_hover_text(tl!("Count the library again on a worker, reporting progress as it goes"));
+                        asked = button.clicked();
+                    });
+                }
+            });
             ui.add_space(10.0);
             highlights_strip(ui, t, &insights.highlights());
             ui.add_space(12.0);
             ui.separator();
             ui.add_space(12.0);
             figures_grid(ui, t, insights);
-        });
+            asked
+        })
+        .inner
 }
 
 /// The line under the month chart, worded from the month and season the insights crate returns.
@@ -7677,7 +7692,8 @@ fn busiest_sentence(insights: &sortlens_engine::Insights) -> Option<String> {
 fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let _ = engine.poll_insights();
     let insights = engine.insights();
-    if let Some((done, total)) = engine.insights_progress() {
+    let progress = engine.insights_progress();
+    if let Some((done, total)) = progress {
         // A library of thousands is not instant, so the pass says how far it has come instead of
         // freezing the view.
         ui.horizontal(|ui| {
@@ -7688,22 +7704,10 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
             ui.label(RichText::new(progress).size(10.5).color(t.text_faint));
         });
         ui.add_space(8.0);
-    } else if ui
-        .button(RichText::new(tl!("Recount")).size(11.0))
-        .on_hover_text(tl!("Count the library again on a worker, reporting progress as it goes"))
-        .clicked()
-    {
-        match engine.begin_insights() {
-            Ok(count) => {
-                if count == 0 {
-                    // Nothing to do: the numbers on screen are already final.
-                }
-            }
-            Err(error) => state.notice_problem(error.to_string()),
-        }
     }
+    let mut recount = false;
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        insights_summary(ui, t, &insights);
+        recount = insights_summary(ui, t, &insights, progress.is_none());
         ui.add_space(16.0);
 
         // Three columns while they fit. The widths come from the room the canvas has rather than
@@ -7792,6 +7796,9 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
             });
         });
     });
+    if recount && let Err(error) = engine.begin_insights() {
+        state.notice_problem(error.to_string());
+    }
 }
 
 /// Soft Focus: the sharpness review as its own destination rather than the last thing you scroll to.
@@ -18851,7 +18858,7 @@ mod tests {
             |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.set_width(680.0);
-                    insights_summary(ui, &t, &insights);
+                    insights_summary(ui, &t, &insights, false);
                 });
             },
         );
