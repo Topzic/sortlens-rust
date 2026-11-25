@@ -10,6 +10,7 @@ pub mod a11y;
 pub mod charts;
 pub mod font_manifest;
 pub mod fonts;
+mod format;
 pub mod i18n;
 pub mod icons;
 pub mod keymap;

@@ -889,7 +889,14 @@ and none of M9 is closed until the remaining rows are ticked.
   embedded ar/ja catalogues, Settings → Language, the reading-start/end panels and the mirrored rows
   (see the Phase 4 item 2d row). Open: the other four languages, the unrouted surfaces, and RTL
   screenshots, which need a font build with an Arabic face
-- [ ] Localised numbers/dates (B) — SL-L08
+- [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
+  writes the shell's counts, file sizes and dates the way the interface language writes them — English
+  keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
+  writes `2026/10/03 04:00`, Arabic writes Arabic-Indic digits with `٬` grouping and `٫` decimal, and
+  dates day-first (`٠٣/١٠/٢٠٢٦ ٠٤:٠٠`). The style table is held to the picker by a test, so a language
+  added without its numbers and dates fails rather than painting English shapes. The formatting region
+  is the interface language, not the operating system: another machine's regional settings cannot move
+  a committed scene.
 - [x] `craft-keymap` editor + import/export (B) — SL-I09 — **done 2026-11-24**, see Phase 4 item 1: the
   rebindable catalog is the single-chord command rows of `crates/ui/src/keymap.rs`'s own table (the two
   flag rows are one command with two parameterised refs), Settings → Shortcuts opens craft-keymap's dialog

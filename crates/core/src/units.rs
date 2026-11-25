@@ -5,9 +5,22 @@
 ///
 /// Decimal units (1 kB = 1000 B) because camera cards and operating systems report decimals.
 pub fn format_bytes(bytes: u64) -> String {
+    let (value, unit, places) = byte_measure(bytes);
+    match places {
+        1 => format!("{value:.1} {unit}"),
+        _ => format!("{value:.0} {unit}"),
+    }
+}
+
+/// The number a byte count is written as, its unit, and the digits after the decimal mark.
+///
+/// [`format_bytes`] writes that number with a `.`; an interface that writes numbers its own
+/// way (SL-L08) asks for the parts instead of parsing the sentence back apart.
+#[must_use]
+pub fn byte_measure(bytes: u64) -> (f64, &'static str, usize) {
     const UNITS: [&str; 5] = ["B", "kB", "MB", "GB", "TB"];
     if bytes < 1000 {
-        return format!("{bytes} B");
+        return (bytes as f64, "B", 0);
     }
     let mut value = bytes as f64;
     let mut unit = 0;
@@ -15,11 +28,7 @@ pub fn format_bytes(bytes: u64) -> String {
         value /= 1000.0;
         unit += 1;
     }
-    if value < 10.0 {
-        format!("{value:.1} {}", UNITS[unit])
-    } else {
-        format!("{value:.0} {}", UNITS[unit])
-    }
+    (value, UNITS[unit], usize::from(value < 10.0))
 }
 
 /// Format a count with thin thousands separators: `12 408`.

@@ -1,5 +1,55 @@
 # Checkpoint
 
+## 2026-11-25 (seventy-second) — the shell writes numbers and dates the reader's language (SL-L08)
+
+- **Why this came up.** The last row left open in M9 by the sixty-eighth tick's scaffolding was
+  the arithmetic: every count in the shell went through `sortlens_core::format_count` (thin spaces,
+  Latin digits), every file size through `format_bytes` (`1.4 MB`), and the detail panel's date
+  through `Photo::captured_label` (`2026-11-21 14:32`) — one universal shape regardless of whether
+  the interface was English, Japanese or Arabic. An Arabic interface that mirrors its rows into
+  the reading start but writes `12,408` and `21/11/2026` in Latin digits is translated, not localised.
+- **One table, held to the picker.** `crates/ui/src/format.rs` is the whole slice: a `Style` per
+  offered language (digit zero, grouping mark, decimal mark, date field order and separator), the
+  three functions the shell calls (`count`, `size`, `date_time`), and explicit `_in(style, …)`
+  forms so tests never switch the thread-local language. The table is English (Latin, `1 234 567`
+  with the narrow no-break space, `.` decimal, `2026-11-21 14:32`), Japanese (Latin, `12,408`,
+  `2026/10/03 04:00`) and Arabic (Arabic-Indic `١٢٬٤٠٨`, `٫` decimal, day first
+  `٠٣/١٠/٢٠٢٦ ٠٤:٠٠`). The formatting region is the interface language on purpose: the operating
+  system's regional settings would make a committed scene read differently on two machines.
+- **English is byte-identical.** The English style reproduces what the app painted before, and a
+  test compares it against `format_count`/`format_epoch` across the counts and the epoch both
+  modules were tested on — so routing the shell through the new module moved no committed scene.
+  The shell changes are three one-line wires, not 30 call-site edits: `format_count` (the single
+  funnel every sidebar, figure, notice and status count already used) now calls `format::count`;
+  the detail panel's Size row calls `format::size`; its Captured row formats the epoch through
+  `format::date_time` instead of `captured_label`.
+- **The layers it needed.** `sortlens_meta::CivilTime` and `civil_time(seconds)` take an epoch apart
+  (`format_epoch` is now written in terms of it) so an interface can order the fields itself
+  instead of parsing the ISO sentence back apart; `sortlens_core::byte_measure(bytes)` returns the
+  scaled value, unit and decimal digits `format_bytes` writes, so `format::size` can put those
+  digits in the language's set and mark without duplicating the unit thresholds. `crates/ui` now
+  depends on `sortlens-meta` for the date parts.
+- **Files.** `crates/ui/src/format.rs` (new); `crates/ui/src/lib.rs` (`mod format`);
+  `crates/ui/src/shell.rs` (the three wires, the language test's digit assertion);
+  `crates/meta/src/lib.rs` (`CivilTime`, `civil_time`); `crates/core/src/units.rs` (`byte_measure`);
+  `crates/core/src/lib.rs` (the re-export); `crates/ui/Cargo.toml`; `docs/ROADMAP.md` (SL-L08 row
+  ticked with the shipped shape); `docs/FEATURES.md` (SL-L08); `docs/UX.md` (the i18n bullet);
+  `docs/ARCHITECTURE.md` §8.4 (the formatting region and the table test; the stale "all 19
+  baselines" sentence corrected).
+- **Tests that fail when the behaviour is absent** (six new): each offered language has exactly
+  one style and every style belongs to an offered language; English reproduces `format_count`/
+  `format_epoch`; grouping, digits and decimal marks per language; date field order per language
+  including a pre-1970 epoch; an unknown code falls back to English. Headless in the existing
+  Settings → Language test: after clicking العربية, the sidebar's count galley contains `٠`
+  (`U+0660`), which fails when the count funnel goes back to Latin digits.
+- **Verified.** `cargo xtask ci` green (the first run failed only `cargo fmt --check`, reformatted
+  and rerun); `cargo xtask snapshot`, `deny`, `wasm` and `screenshots` run for this commit.
+- **Next.** The trunk first: CI run `45542266937` was still running for `cec3f94` when this tick
+  began, so read it with one `gh run view 45542266937 --json status,conclusion,jobs` before
+  anything else. Then the only open roadmap row is SL-L07's remainder: zh-TW/ko/th/vi catalogues
+  (data + `LANGUAGES` + `font_manifest`'s script table + a style row), the unrouted surfaces, and
+  RTL screenshots, which still wait on a font build with an Arabic face. If that run is red, fixing
+  it is the tick's slice instead.
 ## 2026-11-25 (seventy-first) — a frame the app draws has the window's three buttons (Phase 3, 3B.6 (i))
 
 - **Why this came up.** The shell has been able to run under its own frame since `craft-window`'s

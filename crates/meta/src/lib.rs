@@ -326,14 +326,37 @@ fn epoch_seconds(time: &craft_metadata::DateTime) -> Option<i64> {
     Some(seconds)
 }
 
-/// Format an epoch second as `2026-11-21 14:32` in UTC.
-pub fn format_epoch(seconds: i64) -> String {
+/// A civil date and time of day, in UTC, taken apart so a caller can write it the way its
+/// region does (SL-L08) instead of in one universal shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CivilTime {
+    pub year: i64,
+    pub month: i64,
+    pub day: i64,
+    pub hour: i64,
+    pub minute: i64,
+}
+
+/// The UTC civil date and time of an epoch second.
+#[must_use]
+pub fn civil_time(seconds: i64) -> CivilTime {
     let days = seconds.div_euclid(86_400);
     let remainder = seconds.rem_euclid(86_400);
     let (year, month, day) = civil_from_days(days);
-    let hour = remainder / 3_600;
-    let minute = (remainder % 3_600) / 60;
-    format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}")
+    CivilTime {
+        year,
+        month,
+        day,
+        hour: remainder / 3_600,
+        minute: (remainder % 3_600) / 60,
+    }
+}
+
+/// Format an epoch second as `2026-11-21 14:32` in UTC.
+#[must_use]
+pub fn format_epoch(seconds: i64) -> String {
+    let at = civil_time(seconds);
+    format!("{:04}-{:02}-{:02} {:02}:{:02}", at.year, at.month, at.day, at.hour, at.minute)
 }
 
 /// Civil date from days since the epoch (Howard Hinnant's algorithm).

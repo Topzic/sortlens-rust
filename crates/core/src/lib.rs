@@ -21,7 +21,7 @@ pub use ids::{CollectionId, FolderId, JobId, PhotoId, TagId, VolumeId};
 pub use labels::{ColorLabel, Flag, MediaKind, Review, TagSource};
 pub use media::{is_raw_path, kind_from_extension};
 pub use reveal::{Command, Desktop};
-pub use units::{format_bytes, format_count};
+pub use units::{byte_measure, format_bytes, format_count};
 pub use volume::{MountPoint, Volume, mounted, parse_mounts, probe, volume_of};
 
 /// Crate version, from `Cargo.toml`.

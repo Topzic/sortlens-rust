@@ -496,7 +496,14 @@ before a right-to-left catalogue exists) and installs it on the context every fr
 chrome mirrors through the fork's `Style::right_to_left`, the sidebar sits at the reading start
 and the tool strip and right panel at the reading end, and `nav_row` paints its glyph, label and
 count from the reading start. A left-to-right interface paints byte for byte what it painted
-before the scaffold existed — the screenshot baselines are the proof, all 19 unchanged.
+before the scaffold existed — the screenshot baselines are the proof.
+
+`crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
+language's own convention: an explicit style per offered language fixes the digit set, the grouping
+and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a
+new language needs its numbers and dates decided. The formatting region is the interface language
+rather than the operating system's, so a committed scene reads the same on every machine; English
+is the shape the app has always painted, byte for byte.
 
 ### 8.5 Keymap and menus
 

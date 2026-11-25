@@ -417,7 +417,7 @@ ArtCraft standards make these release-blocking, not polish.
 | SL-L05 | Colour is not the only signal | Flags/labels carry icon or text, not just hue | P0 | M3 |
 | SL-L06 | Reduced motion | Swipe/zoom animations honour the preference | P1 | M6 |
 | SL-L07 | Translations | English keys, TSV catalogs, CJK/Arabic/Thai/Vietnamese coverage. Scaffolding shipped 2026-11-24 (Phase 4 item 2d): ar/ja catalogues, the language picker, and the RTL direction plumbing; the remaining four languages, the unrouted surfaces and RTL screenshots are open | P1 | M9 |
-| SL-L08 | Localised numbers and dates | Region digits, decimal mark, date order | P2 | M9 |
+| SL-L08 | Localised numbers and dates | Region digits, decimal mark, date order. Shipped 2026-11-25 (Phase 4 item 2e): the shell's counts, sizes and dates follow the interface language — Arabic-Indic digits and day-first dates in Arabic, comma grouping and slash dates in Japanese, English unchanged | P2 | M9 |
 | SL-L09 | High-contrast theme | A fifth preset with maximum separation | P2 | M9 |
 
 ---

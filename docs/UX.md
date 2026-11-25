@@ -655,6 +655,11 @@ re-checks its own contrast pairs after applying.
   panel at the reading end, rows read from their reading start — and the photo is never mirrored.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
+  Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
+  sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
+  mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
+  year-first, Arabic day-first: `٠٣/١٠/٢٠٢٦ ٠٤:٠٠`). English is byte-identical to what shipped
+  before, because the committed scenes are English.
 
 ---
 

@@ -3374,7 +3374,7 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
     };
     detail_row(ui, t, "Kind", kind);
     detail_row(ui, t, "Folder", if photo.folder().is_empty() { "—" } else { photo.folder() });
-    detail_row(ui, t, "Size", &sortlens_core::format_bytes(photo.size));
+    detail_row(ui, t, "Size", &crate::format::size(photo.size));
     if photo.width > 0 && photo.height > 0 {
         detail_row(ui, t, "Dimensions", &format!("{} × {}", photo.width, photo.height));
     }
@@ -3383,8 +3383,8 @@ fn details(ui: &mut Ui, t: &Tokens, photo: &Photo) {
         detail_row(ui, t, "Lens", if photo.lens.is_empty() { "—" } else { &photo.lens });
         detail_row(ui, t, "Exposure", &photo.exposure());
     }
-    if let Some(captured) = photo.captured_label() {
-        detail_row(ui, t, "Captured", &captured);
+    if let Some(captured) = photo.captured {
+        detail_row(ui, t, "Captured", &crate::format::date_time(captured));
     }
     detail_row(ui, t, "Rating", &format!("{} of 5", photo.rating));
     detail_row(ui, t, "Flag", photo.flag.id());
@@ -9786,7 +9786,7 @@ fn truncate(text: &str, max_chars: usize) -> String {
 }
 
 fn format_count(count: u64) -> String {
-    sortlens_core::format_count(count)
+    crate::format::count(count)
 }
 
 #[allow(dead_code)]
@@ -10017,6 +10017,12 @@ mod tests {
         assert!(
             text_rect(&output, "كل الصور").is_some(),
             "the All Photos row reads in the interface language"
+        );
+        // The row's count is a number, and an Arabic interface writes it in Arabic-Indic digits
+        // (SL-L08): the empty library's zero is \u{660}, not \u{30}.
+        assert!(
+            text_rect(&output, "\u{660}").is_some(),
+            "the sidebar's counts are written in the language's digits"
         );
 
         // And back: English restores the left edge exactly.
