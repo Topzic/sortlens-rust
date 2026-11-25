@@ -1,5 +1,39 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-eleventh) — the trunk goes green on the Thai row's own paint
+
+- **Why this came up.** The trunk was red on `4912da8` (`45629163245`) with exactly one failing job,
+  `screenshots`; the hundred-and-tenth entry's Next named that read first, and a red trunk is the tick's
+  slice rather than a new roadmap row. The other seven jobs — `ci` on Windows, Ubuntu and macOS, `deny`,
+  `snapshot` and both `mobile` legs — were green, so the red was the baseline set and nothing else.
+- **One artifact, one command.** `gh run download 45629163245 -n screenshot-set` wrote four frames and
+  nothing else — `lavapipe/settings-{short,sync}-{charcoal,paper}.new.png` — the four Settings scenes the
+  failing run reported, so no scene was left behind and no frame that matched was handed over.
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt <dir>` copied them into
+  `crates/ui/tests/snapshots/lavapipe/`. All four adopted files hash byte-identical to the artifact's frames
+  (`035ce88f…`, `d56c4c83…`, `88658beb…`, `f39a2156…`), so each committed baseline is the paint the comparing
+  run reported and not a second paint from this machine.
+- **Read, all four.** Each paints the Language row with six entries — English plus the five non-Latin names —
+  inside the dialog at 900 px, in both themes, with no clipping and no overlap; the two `sync` scenes still
+  scroll their eleven sections with the row intact. Nothing else in any frame moved: the row grew into room it
+  had. As the hundred-and-ninth entry established, the runner paints the non-Latin names as boxes
+  (`CRAFT_FONTS_DIR` unset), so this set carries the same honest boxes this machine does.
+- **What the diff is.** Four PNGs, `89386→89857`, `94097→94686`, `233440→233910` and `246335→246882` bytes:
+  one more entry in the Language row on each scene.
+- **Verified.** `cargo xtask ci` green (fmt, clippy, 212 workspace tests, layers, roots, assets, fonts, version,
+  attribution, a11y, docs, templates, workflows), `cargo xtask snapshot` (5 pass) and `cargo xtask deny`
+  (advisories, bans, licenses, sources) green. No `cargo xtask screenshots` run was needed: no code changed and
+  the default set this machine compares against is untouched — the lavapipe set only compares under Mesa, which
+  is CI's job. No release workflow was dispatched: four baselines and this file touch no workflow, `apps/**`, a
+  `Cargo.toml` or release code.
+- **Files.** The four `crates/ui/tests/snapshots/lavapipe/settings-{short,sync}-{charcoal,paper}.png`; this file.
+- **Next.** `vi.tsv`: Vietnamese is Latin-script, so it needs no new face — the same 754 keys, 11 `@plural`
+  counts and `@id` row as `th.tsv`, in the audit's order; then the `CATALOGS`/`LANGUAGES`/`STYLES` rows
+  (Vietnamese groups with `.` and writes `12.408`, `1,4 MB`, `03/10/2026 04:00`), `("vi", "Latn")` in
+  `SHIPPED_LANGUAGE_SCRIPTS` (`Latn` is already in `PHONE_SCRIPTS`), the picker/format/headless language
+  tests, and the four Settings baselines in the default set via `--update`. Read this commit's CI run first —
+  `gh run list --workflow CI --limit 1 --json databaseId,conclusion,headSha` — and adopt its `screenshots`
+  frames with `SORTLENS_SNAPSHOT_SET=lavapipe` if it is red. No release run is in flight.
 ## 2026-11-26 (hundred-and-tenth) — the Thai catalogue ships, and the language row gains ไทย
 
 - **Why this came up.** The hundred-and-ninth entry's Next named `th.tsv` first: the same 754 key rows and
