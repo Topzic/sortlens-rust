@@ -8973,6 +8973,31 @@ fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, ac
     state.quit_open = open;
 }
 
+/// The session's headline, worded in the interface language from the session's own piece.
+fn cull_headline(headline: &sortlens_engine::CullHeadline) -> String {
+    use sortlens_engine::CullHeadline as Headline;
+    match headline {
+        Headline::Nothing => tl!("Nothing to cull").to_string(),
+        Headline::AllJudged { total } => crate::i18n::fmt("Judged all {total} photos", &[("total", &format_count(*total as u64))]),
+        Headline::Partial { judged, total } => crate::i18n::fmt(
+            "{judged} of {total} judged",
+            &[("judged", &format_count(*judged as u64)), ("total", &format_count(*total as u64))],
+        ),
+    }
+}
+
+/// What Apply would write, and what it never writes, with each count a placeholder a
+/// language places itself.
+fn cull_foot(changed: usize, deferred: usize) -> String {
+    crate::i18n::fmt(
+        "{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.",
+        &[
+            ("changed", &format_count(changed as u64)),
+            ("deferred", &format_count(deferred as u64)),
+        ],
+    )
+}
+
 /// What the session came to, and what can be done with it.
 fn summary_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     let Some(session) = engine.cull() else {
@@ -8981,19 +9006,19 @@ fn summary_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
     };
     let summary = session.summary();
     let mut open = state.summary_open;
-    dialog_window("Cull summary")
+    dialog_window(tl!("Cull summary"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(340.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(summary.headline()).size(14.0).strong());
+            ui.label(RichText::new(cull_headline(&summary.headline_kind())).size(14.0).strong());
             ui.add_space(8.0);
             for (label, count) in [
-                ("Picks", summary.picks),
-                ("Rejects", summary.rejects),
-                ("Deferred", summary.deferred),
-                ("Not judged", summary.unjudged),
+                (tl!("Picks"), summary.picks),
+                (tl!("Rejects"), summary.rejects),
+                (tl!("Deferred"), summary.deferred),
+                (tl!("Not judged"), summary.unjudged),
             ] {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(label).size(11.5).color(t.text_muted));
@@ -9004,45 +9029,41 @@ fn summary_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             }
             ui.add_space(8.0);
             ui.label(
-                RichText::new(format!(
-                    "{} photo(s) will change on Apply; {} deferral(s) are never written.",
-                    summary.changed(),
-                    summary.deferred
-                ))
-                .size(10.5)
-                .color(t.text_faint),
+                RichText::new(cull_foot(summary.changed(), summary.deferred))
+                    .size(10.5)
+                    .color(t.text_faint),
             );
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(summary.changed() > 0, Button::new(RichText::new("Apply…").size(12.0)))
+                    .add_enabled(summary.changed() > 0, Button::new(RichText::new(tl!("Apply…")).size(12.0)))
                     .clicked()
                 {
                     state.apply_open = true;
                     state.summary_open = false;
                 }
                 if ui
-                    .add_enabled(summary.unjudged > 0, Button::new(RichText::new("Keep culling").size(12.0)))
+                    .add_enabled(summary.unjudged > 0, Button::new(RichText::new(tl!("Keep culling")).size(12.0)))
                     .clicked()
                 {
                     state.summary_open = false;
                 }
                 if ui
-                    .add_enabled(!summary.is_complete(), Button::new(RichText::new("Jump to next").size(12.0)))
-                    .on_hover_text("Skip to the first photo without a decision")
+                    .add_enabled(!summary.is_complete(), Button::new(RichText::new(tl!("Jump to next")).size(12.0)))
+                    .on_hover_text(tl!("Skip to the first photo without a decision"))
                     .clicked()
                 {
                     engine.cull_next_unjudged();
                     state.summary_open = false;
                 }
                 if ui
-                    .button(RichText::new("Discard").size(12.0))
-                    .on_hover_text("Drop every staged decision and restore the flags")
+                    .button(RichText::new(tl!("Discard")).size(12.0))
+                    .on_hover_text(tl!("Drop every staged decision and restore the flags"))
                     .clicked()
                 {
                     engine.cull_clear();
                     state.summary_open = false;
-                    state.notice("Cull discarded".to_string());
+                    state.notice(tl!("Cull discarded").to_string());
                 }
             });
         });
@@ -14803,6 +14824,105 @@ mod tests {
             "{commands}"
         );
         assert!(!tl!("About Sortlens").contains("About"), "the About title is the catalogue's");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The cull summary speaks the interface language, from the session's own pieces (SL-L07).
+    ///
+    /// Its headline used to be an English sentence built inside `sortlens-cull`, painted under a
+    /// translated title; now the session hands the shell a `Headline`, the same piece its own
+    /// English is joined from, so the sheet's sentence and its counts cannot disagree in a
+    /// language that puts them in another order.
+    #[test]
+    fn the_cull_summary_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-cull-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-cull-i18n");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30, 60 * index as u8, 140], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("cull");
+        // One pick, one reject, one photo left undecided: the three counts the sheet shows.
+        engine.cull_decide(Decision::Pick);
+        engine.cull_decide(Decision::Reject);
+        let summary = engine.cull().expect("session").summary();
+        assert_eq!((summary.picks, summary.rejects, summary.unjudged), (1, 1, 1));
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.summary_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        summary_dialog(ui, state, &tokens, engine);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+
+        // English first: the sheet's very sentence, joined from the piece the session hands over.
+        assert_eq!(cull_headline(&summary.headline_kind()), summary.headline());
+        assert_eq!(summary.headline(), "2 of 3 judged");
+        assert_eq!(cull_foot(2, 0), "2 photo(s) will change on Apply; 0 deferral(s) are never written.");
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&english, "Cull summary").is_some(), "the title paints");
+        assert!(label_at(&english, "2 of 3 judged").is_some(), "and its headline");
+        assert!(label_at(&english, "Not judged").is_some(), "and the undecided row");
+        assert!(state.summary_open, "painting the sheet does not close it");
+
+        // Japanese: every word, including the headline the session builds, is the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&japanese, "選別のまとめ").is_some(), "the title is the catalogue's");
+        assert!(label_at(&japanese, "3 枚中 2 枚を判定").is_some(), "and the headline");
+        assert!(label_at(&japanese, "未判定").is_some(), "and the undecided row");
+        assert!(label_at(&japanese, "適用…").is_some(), "and the Apply button");
+        assert!(label_at(&japanese, "選別を続ける").is_some(), "and Keep culling");
+        assert!(label_at(&japanese, "Cull summary").is_none(), "no English title behind it");
+        assert!(label_at(&japanese, "Not judged").is_none(), "no English row behind it");
+
+        // Arabic: the same words, and both counts in the reader's own digits.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let arabic = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&arabic, "ملخص الفرز").is_some(), "the title is the catalogue's");
+        let headline = cull_headline(&summary.headline_kind());
+        assert!(
+            headline.contains('٢') && headline.contains('٣') && !headline.contains("judged"),
+            "{headline}"
+        );
+        let foot = cull_foot(summary.changed(), summary.deferred);
+        assert!(foot.contains('٢') && foot.contains('٠') && !foot.contains("photo(s)"), "{foot}");
+        assert!(label_at(&arabic, "تجاهل").is_some(), "and the Discard button");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

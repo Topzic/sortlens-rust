@@ -1429,8 +1429,14 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     Arabic writes its own digits there too; `every_word_in_the_library_health_dialog_is_a_catalogued_one`,
     `the_library_health_dialog_speaks_japanese` and `the_library_health_dialog_speaks_arabic_with_its_own_digits`
     are the wording tests, and the audit test now also sees `Check library` and `Not checked yet.` painted
-    in Japanese. Still open on this row: Recent changes, Quit Sortlens? (its reasons are `Engine::unsaved`
-    sentences), Cull summary, Batch applied, Suggested keywords and Keyboard shortcuts.
+    in Japanese. The cull summary joined them in the next tick (eighty-third entry): `sortlens-cull`'s
+    `Summary::headline_kind` returns a `Headline` (`Nothing`, `AllJudged`, `Partial`) and its own
+    `headline()` is joined from that piece, pinned by `the_headline_is_joined_from_its_piece`; the
+    sheet's title, four rows, Apply/Keep culling/Jump to next/Discard buttons and their hovers, the
+    `{changed} … {deferred} …` foot line and the discarded toast are `tl!`/`fmt` keys with both counts
+    as placeholders, and `the_cull_summary_speaks_the_interface_language` paints the sheet in all
+    three languages. Still open on this row: Recent changes, Quit Sortlens? (its reasons are
+    `Engine::unsaved` sentences), Batch applied, Suggested keywords and Keyboard shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

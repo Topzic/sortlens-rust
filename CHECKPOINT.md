@@ -1,5 +1,47 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-third) — the cull sheet is worded from the session's own piece, and every count is a placeholder a language places
+
+- **Why this came up.** The eighty-second entry's "Next" listed the unrouted surfaces, and the cull
+  summary is the one whose only engine sentence is a single line — so it could be finished outright
+  rather than started, the way Library health needed two ticks (eighty-first and eighty-second).
+- **The session hands back a piece now.** `sortlens_cull::Summary` grew
+  `headline_kind() -> Headline` (`Nothing`, `AllJudged { total }`, `Partial { judged, total }`), and
+  `headline()` is now `headline_kind().english()` — English unchanged to the byte, which
+  `the_headline_is_joined_from_its_piece` pins for the empty, all-judged and partly-judged cases.
+  `sortlens-engine` re-exports it as `CullHeadline`, so the shell names the piece without depending
+  on the cull crate. This is the same shape `sortlens-catalog`'s audit `Headline` gave Library health:
+  a translated sheet cannot join an English sentence with its own labels without contradicting the
+  counts beneath it.
+- **The sheet is routed end to end.** `cull_headline` words the piece (`Judged all {total} photos`,
+  `{judged} of {total} judged`) and `cull_foot` words
+  `{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.`, both through
+  `i18n::fmt` with every count a placeholder, so Arabic writes its own digits. The title, the four
+  rows (`Deferred`, `Not judged`; `Picks`/`Rejects` already had rows), `Apply…`, `Keep culling`,
+  `Jump to next`, `Discard`, both hover texts and the `Cull discarded` toast are `tl!` keys.
+- **Tests.** `the_headline_is_joined_from_its_piece` (cull crate) checks the piece and the sentence
+  agree for all three shapes. `the_cull_summary_speaks_the_interface_language` opens a real scanned
+  library, stages one pick and one reject so the sheet reads `2 of 3 judged`, and paints the dialog:
+  English first (`Cull summary`, the headline, `Not judged`, the exact foot sentence), then Japanese
+  (`選別のまとめ`, `3 枚中 2 枚を判定`, `未判定`, `適用…`, `選別を続ける`, with no English title or row
+  behind them), then Arabic (`ملخص الفرز`, `تجاهل`, and both counts in Arabic-Indic digits with no
+  English left in the foot line). The catalogue audit
+  (`catalogs_load_and_routed_keys_have_rows`) reads the new `tl!`/`fmt` keys and demands a row in both
+  languages.
+- **Files.** `crates/cull/src/lib.rs` (the `Headline` piece, `headline_kind`, one test),
+  `crates/engine/src/lib.rs` (the re-export), `crates/ui/src/shell.rs` (`cull_headline`, `cull_foot`,
+  the routed sheet and one paint test), `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (14 rows each),
+  `docs/ROADMAP.md` (Phase 4 item 2d) and `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo fmt --all` — `cargo xtask ci` first stopped at its opening `cargo fmt --all -- --check` on
+  the hand-wrapped helper signatures and the new test's `std::fs::copy` call; `cargo fmt --all` fixed
+  exactly those and the re-run is green (clippy, workspace tests, layers, roots, assets, fonts,
+  version, attribution, a11y, docs, templates, workflows). `cargo xtask snapshot`, `deny`, `wasm` and
+  `screenshots` green (27 scenes, no baseline moved, which is the proof English is unchanged); the
+  i18n paint test and the catalogue audit pass. No release workflow dispatched: this slice touches no
+  workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Recent changes — its rows are the log's own English sentences, so it needs the same
+  pieces-before-labels treatment the audit and this sheet got; then Quit Sortlens? (its reasons are
+  `Engine::unsaved` sentences), Batch applied, Suggested keywords and Keyboard shortcuts.
 ## 2026-11-26 (eighty-second) — every word in Library health is a translator's, and the toast is a sentence the catalogue words
 
 - **Why this came up.** The eighty-first entry left the dialog half-routed and named the exact half: the

@@ -538,6 +538,14 @@ remove-missing lines are `tl!` keys or `fmt` templates, so every count in them i
 language places — and a language whose digits are not ASCII writes them (`health_stats` and its
 siblings are the wording helpers the tests read).
 
+The cull summary is routed from `sortlens-cull`'s own pieces: `Summary::headline_kind` returns a
+`Headline` (`Nothing`, `AllJudged { total }`, `Partial { judged, total }`) and the session's own
+`headline()` is joined from that piece, so the sheet's sentence and the counts beneath it cannot
+disagree. The shell words it with `format_count`, and the sheet's four rows, its Apply, Keep
+culling, Jump to next and Discard buttons with their hovers, the `{changed} … {deferred} …` foot
+line and the discarded toast are `tl!`/`fmt` keys — `cull_headline` and `cull_foot` are the
+wording helpers the paint test reads.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

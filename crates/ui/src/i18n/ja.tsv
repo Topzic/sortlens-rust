@@ -176,3 +176,17 @@
 	Nothing is marked missing	欠落として記録された写真はありません
 	Removed {n} missing photo(s) — undo restores them	欠落した {n} 件の写真を削除しました — 取り消すと復元されます
 	Removes catalog entries only; the files are already gone.	カタログの項目だけを削除します。ファイルはすでに存在しません。
+	Cull summary	選別のまとめ
+	Nothing to cull	選別する写真がありません
+	Judged all {total} photos	写真 {total} 枚すべてを判定しました
+	{judged} of {total} judged	{total} 枚中 {judged} 枚を判定
+	Deferred	保留
+	Not judged	未判定
+	{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.	適用すると {changed} 枚の写真が変更されます。{deferred} 件の保留は書き込まれません。
+	Apply…	適用…
+	Keep culling	選別を続ける
+	Jump to next	次の未判定へ
+	Skip to the first photo without a decision	判定のない最初の写真へ移動します
+	Discard	破棄
+	Drop every staged decision and restore the flags	保留中の判定をすべて捨て、フラグを元に戻します
+	Cull discarded	選別を破棄しました

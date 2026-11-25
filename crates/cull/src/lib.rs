@@ -101,14 +101,60 @@ impl Summary {
     }
 
     /// One line for the summary sheet.
+    ///
+    /// Joined from [`Self::headline_kind`], so the English sentence and the piece a language
+    /// other than English words for itself cannot disagree.
     pub fn headline(&self) -> String {
+        self.headline_kind().english()
+    }
+
+    /// The headline as a piece: what a language other than English words for itself.
+    pub const fn headline_kind(&self) -> Headline {
         if self.total == 0 {
-            return "Nothing to cull".to_string();
-        }
-        if self.is_complete() {
-            format!("Judged all {} photos", self.total)
+            Headline::Nothing
+        } else if self.is_complete() {
+            Headline::AllJudged { total: self.total }
         } else {
-            format!("{} of {} judged", self.total - self.unjudged, self.total)
+            Headline::Partial {
+                judged: self.total - self.unjudged,
+                total: self.total,
+            }
+        }
+    }
+}
+
+/// What a [`Summary`]'s headline says.
+///
+/// A translated summary sheet cannot join an English sentence with its own labels without
+/// contradicting the count underneath it, so the sheet is handed this piece instead - the same
+/// shape `sortlens-catalog`'s audit `Headline` gave the library-health dialog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Headline {
+    /// The session has no photos.
+    Nothing,
+    /// Every photo in the session has a decision.
+    AllJudged {
+        /// Photos in the session.
+        total: usize,
+    },
+    /// Some photos are still undecided.
+    Partial {
+        /// Photos that carry a decision.
+        judged: usize,
+        /// Photos in the session.
+        total: usize,
+    },
+}
+
+impl Headline {
+    /// This headline in English. The interface words `Headline` itself; `Summary::headline`
+    /// joins the same piece, so the two cannot disagree.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            Headline::Nothing => "Nothing to cull".to_string(),
+            Headline::AllJudged { total } => format!("Judged all {total} photos"),
+            Headline::Partial { judged, total } => format!("{judged} of {total} judged"),
         }
     }
 }
@@ -352,6 +398,41 @@ mod tests {
         assert_eq!(session.current(), Some(PhotoId(1)));
         assert_eq!(session.summary().unjudged, 3);
         assert!(session.changed().is_empty());
+    }
+
+    #[test]
+    fn the_headline_is_joined_from_its_piece() {
+        let empty = Summary::default();
+        assert_eq!(empty.headline_kind(), Headline::Nothing);
+        assert_eq!(empty.headline(), "Nothing to cull");
+
+        let all = Summary {
+            total: 4,
+            picks: 3,
+            rejects: 1,
+            deferred: 0,
+            unjudged: 0,
+        };
+        assert_eq!(all.headline_kind(), Headline::AllJudged { total: 4 });
+        assert_eq!(all.headline(), "Judged all 4 photos");
+
+        let some = Summary {
+            total: 5,
+            picks: 2,
+            rejects: 0,
+            deferred: 1,
+            unjudged: 2,
+        };
+        assert_eq!(some.headline_kind(), Headline::Partial { judged: 3, total: 5 });
+        assert_eq!(some.headline(), "3 of 5 judged");
+
+        for summary in [empty, all, some] {
+            assert_eq!(
+                summary.headline(),
+                summary.headline_kind().english(),
+                "the summary sheet's sentence and the piece it is joined from agree"
+            );
+        }
     }
 
     #[test]

@@ -176,3 +176,17 @@
 	Nothing is marked missing	لا شيء موسوم كمفقود
 	Removed {n} missing photo(s) — undo restores them	أُزيلت {n} صورة مفقودة — التراجع يعيدها
 	Removes catalog entries only; the files are already gone.	يزيل مدخلات الفهرس فقط؛ الملفات ذهبت بالفعل.
+	Cull summary	ملخص الفرز
+	Nothing to cull	لا توجد صور لفرزها
+	Judged all {total} photos	تم فرز جميع الصور البالغ عددها {total}
+	{judged} of {total} judged	تم فرز {judged} من {total}
+	Deferred	مؤجلة
+	Not judged	لم تُفرز
+	{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.	ستتغير {changed} صورة عند التطبيق؛ ولن تُكتب {deferred} صورة مؤجلة.
+	Apply…	تطبيق…
+	Keep culling	متابعة الفرز
+	Jump to next	الانتقال إلى التالية
+	Skip to the first photo without a decision	الانتقال إلى أول صورة بلا قرار
+	Discard	تجاهل
+	Drop every staged decision and restore the flags	إسقاط كل قرار معلّق واستعادة الأعلام
+	Cull discarded	تم تجاهل الفرز
