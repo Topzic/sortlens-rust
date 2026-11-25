@@ -681,8 +681,8 @@
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	カメラは撮影場所をファイルの EXIF に記録します。位置情報サービスをオフにして撮った写真や、別のツールで削除された写真には記録がありません。
 	zoom {zoom}	ズーム {zoom}
 	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	位置情報のある写真 {located} 枚 · {pins} ピン · ドラッグで移動、スクロールでズーム
-	No places.txt — dots show their coordinates	places.txt がないため、地点は座標で表示されます
-	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	places.txt から命名 · {named} 地点 · {km} km 以内の地点は名前を借用
+	No places.txt — pins show their coordinates	places.txt がないため、ピンは座標で表示されます
+	Named from places.txt · {named} place(s) · pins within {km} km borrow a name	places.txt から命名 · {named} 地点 · {km} km 以内のピンは名前を借用
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	略式の海岸線 · 実際の地図にするにはタイルフォルダーか MBTiles アーカイブを配置
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	{dir} に {z}/{x}/{y}.png タイルと attribution.txt を置くか、`attribution` メタデータ行を持つ tiles.mbtiles アーカイブを隣に置くと、1:110m の輪郭を置き換えられます。ダウンロードは行いません。
 	The basemap cannot be used	地図を利用できません
@@ -810,3 +810,14 @@
 	Files sent to the system Trash are restored from the Trash itself.	システムのゴミ箱へ送られたファイルは、ゴミ箱から復元します。
 	Restored {n} photo(s)	{n} 枚の写真を元に戻しました
 	Forgot a batch of {n} file(s)	{n} ファイルのバッチの記録を消しました
+	Fit	全体
+	Fit all photos	すべての写真を表示
+	Map style	地図スタイル
+	Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap	Natural Earth の陸地と海岸線 · タイルフォルダーか MBTiles アーカイブを入れると本物のベースマップになります
+	Zoom in	拡大
+	Zoom out	縮小
+	Auto	自動
+	Ink	インク
+	Paper	紙
+	Blueprint	設計図
+	Mono	モノクロ

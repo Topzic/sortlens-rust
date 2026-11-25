@@ -681,8 +681,8 @@
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	Máy ảnh ghi nơi chụp vào EXIF của tệp. Ảnh chụp khi tắt dịch vụ định vị, hoặc bị công cụ khác xóa, sẽ không có.
 	zoom {zoom}	thu phóng {zoom}
 	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	{located} ảnh có vị trí · {pins} ghim · kéo để di chuyển, cuộn để thu phóng
-	No places.txt — dots show their coordinates	Không có places.txt — các điểm hiện tọa độ của chúng
-	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	Đặt tên từ places.txt · {named} địa điểm · điểm trong {km} km mượn tên
+	No places.txt — pins show their coordinates	Không có places.txt — các ghim hiện tọa độ của chúng
+	Named from places.txt · {named} place(s) · pins within {km} km borrow a name	Đặt tên từ places.txt · {named} địa điểm · ghim trong {km} km mượn tên
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	Đường bờ biển sơ lược · cài một thư mục ô bản đồ hoặc một kho MBTiles để có bản đồ nền thật
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	Đặt các ô {z}/{x}/{y}.png và một attribution.txt trong {dir} — hoặc một kho tiles.mbtiles với một dòng siêu dữ liệu `attribution` bên cạnh — để thay đường viền 1:110m. Không có gì được tải xuống.
 	The basemap cannot be used	Không dùng được bản đồ nền
@@ -809,3 +809,14 @@
 	Files sent to the system Trash are restored from the Trash itself.	Các tệp đã đưa vào Thùng rác của hệ thống được khôi phục từ chính Thùng rác.
 	Restored {n} photo(s)	Đã khôi phục {n} ảnh
 	Forgot a batch of {n} file(s)	Đã quên một lô gồm {n} tệp
+	Fit	Vừa
+	Fit all photos	Vừa tất cả ảnh
+	Map style	Kiểu bản đồ
+	Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap	Đất liền và đường bờ Natural Earth · thêm thư mục ô bản đồ hoặc tệp MBTiles để có bản đồ nền thật
+	Zoom in	Phóng to
+	Zoom out	Thu nhỏ
+	Auto	Tự động
+	Ink	Mực
+	Paper	Giấy
+	Blueprint	Bản thiết kế
+	Mono	Đơn sắc

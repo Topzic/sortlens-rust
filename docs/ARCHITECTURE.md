@@ -44,7 +44,7 @@ L2  sortlens-thumbs      tiered preview cache + job scheduler
 L1  sortlens-meta        craft-metadata → neutral PhotoMeta
     sortlens-media       format routing, embedded previews, video posters
     sortlens-sidecar     XMP read/merge/write
-    sortlens-geo         Web Mercator, clusters, offline gazetteer, shipped coastline, tile folder (+ credits)
+    sortlens-geo         Web Mercator, clusters, offline gazetteer, shipped land + coastline, tile folder (+ credits)
     sortlens-ai          manifest, digest-verified store, NMS + label map, EXIF hints, suggestion merge
 L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-hash        dHash/pHash, Hamming, LSH
@@ -932,10 +932,13 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
   Updates and `update.status`. Nothing downloads or installs automatically; self-update stays out
   until the installer work in M10's absence table exists.
 - Phones: an APK/AAB from `cargo-apk` and an iOS app linking the `sortlens-mobile` staticlib; no network at runtime.
-- Geography: `assets/coastline.txt` — the Natural Earth 1:110m coastline (public domain), embedded in
-  `sortlens-geo` with `include_str!` and stroked under the Places dots with its credit on screen. A `tiles/`
-  folder or a `tiles.mbtiles` archive (read-only SQLite, credit in `metadata` or beside it) the person supplies
-  replaces it; nothing is fetched at run time.
+- Geography: `assets/land.txt` and `assets/coastline.txt` — the Natural Earth 1:110m land polygons and
+  coastline (public domain), embedded in `sortlens-geo` with `include_str!`. The land is triangulated once with
+  `earcutr` and painted as one filled mesh under the Places pins; the coast is stroked over it. Both carry their
+  credit on screen. A `tiles/` folder or a `tiles.mbtiles` archive (read-only SQLite, credit in `metadata` or
+  beside it) the person supplies replaces them; nothing is fetched at run time. `walkers` is built with its default
+  features off and is given a disk-backed `Tiles` adapter; no HTTP tile source is ever constructed, so the map never
+  opens a socket even though the crate's client code is linked.
 - Icons: our own SVG set (40 monochrome glyphs in `assets/icons/`, prepared by
   `craft_ui::icons::SvgIconSet` and rasterised by `egui_extras`' SVG loader — the one image loader this
   app links), one brand icon in `assets/` whose geometry in `sortlens-icon` is rendered three ways — the
@@ -954,7 +957,7 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 | Image decode | craft-libs decoders (`craft-jpeg`, `craft-image-codecs`, `craft-raw`, `craft-heif`) | `image` crate | Control, purity, bounded hostile input, RAW/HEIC |
 | HEIC | `craft-heif` (pure Rust `heic-rs`, panic-guarded, libheif colour) | libheif (C) | No C dependency; 16-bit samples so a 10-bit photo is not clipped |
 | AI runtime | `tract` (pure Rust ONNX) | `ort` (C++), Burn+Candle | Licence/portability; revisit only on a benchmark |
-| Map | Offline vector world, opt-in tiles | Online tiles by default | Privacy promise is the product |
+| Map | `walkers` gestures + offline Natural Earth land, opt-in tiles | Online tiles by default; custom pan/zoom | Privacy promise is the product; one proven gesture implementation |
 | Similarity | dHash + pHash | CNN embeddings only | Works before any model download, milliseconds per 100k |
 | Thumbnail format | JPEG | WebP/AVIF | Encoder maturity and speed; WebP optional later |
 | Phones | Native Rust app (`sortlens-mobile`) + optional Rust server | React Native, Swift/Kotlin UIs | The vendor ships native phone apps; the Rust engine and UI are reused, no handwritten UI code |

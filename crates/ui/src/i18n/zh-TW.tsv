@@ -681,8 +681,8 @@
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	相機會把所在位置記錄在檔案的 EXIF 中。關閉定位服務拍攝的照片，或被其他工具移除位置資訊的照片，不會有位置。
 	zoom {zoom}	縮放 {zoom}
 	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	有位置的照片 {located} 張 · {pins} 個圖釘 · 拖曳平移，捲動縮放
-	No places.txt — dots show their coordinates	沒有 places.txt — 各點顯示其座標
-	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	依 places.txt 命名 · {named} 個地點 · {km} 公里內的點會借用名稱
+	No places.txt — pins show their coordinates	沒有 places.txt — 圖釘顯示座標
+	Named from places.txt · {named} place(s) · pins within {km} km borrow a name	依 places.txt 命名 · {named} 個地點 · {km} 公里內的圖釘會借用名稱
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	概略海岸線 · 安裝圖磚資料夾或 MBTiles 封存檔即可使用真實底圖
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	在 {dir} 放入 {z}/{x}/{y}.png 圖磚與 attribution.txt — 或在旁邊放入帶有 `attribution` 中繼資料列的 tiles.mbtiles 封存檔 — 即可取代 1:110m 輪廓。不會下載任何東西。
 	The basemap cannot be used	無法使用底圖
@@ -809,3 +809,14 @@
 	Files sent to the system Trash are restored from the Trash itself.	送到系統垃圾桶的檔案，從垃圾桶本身還原。
 	Restored {n} photo(s)	已還原 {n} 張照片
 	Forgot a batch of {n} file(s)	已忘掉一個含 {n} 個檔案的批次
+	Fit	全部
+	Fit all photos	顯示全部照片
+	Map style	地圖樣式
+	Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap	Natural Earth 陸地與海岸線 · 安裝圖磚資料夾或 MBTiles 壓縮檔即可使用真實底圖
+	Zoom in	放大
+	Zoom out	縮小
+	Auto	自動
+	Ink	墨
+	Paper	紙
+	Blueprint	藍圖
+	Mono	單色

@@ -12,6 +12,7 @@ repository.workspace = true
 sortlens-core = { workspace = true }
 serde = { workspace = true }
 rusqlite = { workspace = true }
+earcutr = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

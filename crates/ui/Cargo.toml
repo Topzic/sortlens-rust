@@ -19,6 +19,8 @@ sortlens-cull = { workspace = true }
 # The app mark: the top bar paints the same generated geometry as the window icon.
 sortlens-icon = { workspace = true }
 egui = { workspace = true }
+# The Places map: slippy-map widget, projection and tile loading.
+walkers = { workspace = true }
 # SVG rasterisation for the monochrome icon set: `craft_ui::icons` prepares the bytes, this loads them.
 egui_extras = { workspace = true }
 craft-ui = { workspace = true }

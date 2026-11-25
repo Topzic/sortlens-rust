@@ -57,9 +57,11 @@ phases"), and the list shrinks as those rows are ticked.
   source is printed on the keyword chip, rides in the same undo step as the word, and is a filter in the window
   and in the CLI (`list --source ai`).
 - **Export is Original, JPEG and PNG.** TIFF and WebP export are not planned.
-- **The map is schematic until you supply tiles.** Places ships the public-domain Natural Earth 1:110m coastline,
-  so there is geography with no setup, and it opens fitted to your photographs. A real basemap is a `tiles/`
-  folder or a `tiles.mbtiles` archive you supply, and names are a `places.txt` you supply; nothing is downloaded.
+- **The map is schematic until you supply tiles.** Places ships the public-domain Natural Earth 1:110m land
+  polygons and coastline, so there is geography with no setup, and it opens fitted to your photographs. A single
+  photograph is its own thumbnail pin; clumps are count discs, and the style menu has Auto, Original, Ink, Paper,
+  Blueprint and Mono. A real basemap is a `tiles/` folder or a `tiles.mbtiles` archive you supply, and names are a
+  `places.txt` you supply; nothing is downloaded.
 - **The remote half exists and the phone can use it; nothing is packaged for a phone yet.** A
   token-authenticated server (`apps/sortlens-server`), a pairing code, scoped device tokens and resumable
   uploads ship, and Settings → Sync & devices spawns and follows that server. `apps/sortlens-mobile` is the

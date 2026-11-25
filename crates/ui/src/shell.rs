@@ -959,6 +959,15 @@ pub struct UiState {
     pub places_zoom: u8,
     /// Whether [`Self::places_zoom`] is the person's choice rather than the view's fit.
     pub places_zoom_chosen: bool,
+    /// The map's zoom as walkers holds it, including the fraction between two levels.
+    ///
+    /// [`Self::places_zoom`] is this rounded for menus and tests; keeping the exact value means a trackpad pinch is
+    /// smooth rather than snapping to the nearest whole level every frame.
+    pub places_zoom_exact: f64,
+    /// Walkers' pan and zoom state: the centre, whether it is detached from a GPS fix, and the exact zoom.
+    pub places_map: walkers::MapMemory,
+    /// The chosen basemap treatment. Auto follows the theme and a supplied tile set is left alone.
+    pub places_style: places::MapStyle,
     /// Decoded basemap tiles, so panning and repainting do not decode the same tile again.
     pub places_tiles: places::TileCache,
     /// Place names from the library's own `places.txt`, re-read when the file changes.
@@ -971,8 +980,6 @@ pub struct UiState {
     pub places_centre: Option<sortlens_geo::LatLon>,
     /// The photographs a pin opened, shown as a strip over the bottom of the map.
     pub places_tray: Option<places::Tray>,
-    /// Wheel and pinch travel not yet spent on one whole zoom step.
-    pub places_zoom_accum: f32,
     /// Where a marquee drag started, while the pointer is still down.
     pub marquee: Option<egui::Pos2>,
     /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
@@ -1248,11 +1255,17 @@ impl UiState {
             sharpness_percentile: sharpness::DEFAULT_PERCENTILE,
             places_zoom: places::DEFAULT_ZOOM,
             places_zoom_chosen: false,
+            places_zoom_exact: f64::from(places::DEFAULT_ZOOM),
+            places_map: {
+                let mut map = walkers::MapMemory::default();
+                let _ = map.set_zoom(f64::from(places::DEFAULT_ZOOM));
+                map
+            },
+            places_style: places::MapStyle::Auto,
             places_tiles: places::TileCache::new(),
             places_names: places::Names::new(),
             places_centre: None,
             places_tray: None,
-            places_zoom_accum: 0.0,
             similar_delete_open: false,
         }
     }
@@ -7217,15 +7230,15 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     }
 }
 
-/// Where the photographs were taken: a coastline under the dots, and the credit on top of it.
+/// Where the photographs were taken: walkers hands the gestures, and the pins sit on top of the basemap.
 ///
 /// The basemap has three sources, in order. A **tile folder the person supplies** (see `sortlens_geo::tiles`) is a real
 /// map and wins, and an **MBTiles archive** beside the catalog is read when there is no folder; either way the map is
 /// drawn with its own credit line printed over it every frame, and neither source can exist without one. Otherwise the
-/// **shipped coastline** — the public-domain Natural Earth 1:110m outline, embedded in
-/// `sortlens_geo::coastline` — is stroked under the dots, so a first-run library is geography rather than a field of
-/// dots on a blank rectangle. A tile that is missing from a set is painted as background: a hole in a basemap is a
-/// hole, not an error to shout about.
+/// **shipped land and coastline** — the public-domain Natural Earth 1:110m polygons and outlines, embedded in
+/// `sortlens_geo::land` and `sortlens_geo::coastline` — are painted under the pins, so a first-run library is
+/// geography rather than a field of dots on a blank rectangle. A tile that is missing from a set is painted as
+/// background: a hole in a basemap is a hole, not an error to shout about.
 ///
 /// The map opens **fitted to the library's own photographs**: centred on the middle of their spread and zoomed to the
 /// deepest level that still shows all of them. The old fixed zoom 5 opened over the Atlantic with both clusters off
@@ -7237,7 +7250,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
 
     ui.add_space(8.0);
     // The map gets the space; the counts and the credit share what is left.
-    let footer = if usable { 74.0 } else { 96.0 };
+    let footer = if usable { 86.0 } else { 108.0 };
     let map_height = (ui.available_height() - footer).max(120.0);
     let map_size = vec2(ui.available_width(), map_height);
 
@@ -7262,92 +7275,145 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         _ => None,
     };
     let located_photos = engine.located();
-    // Every located photograph is a point to fit the view around, whether or not it clusters into a pin of its own.
     let centres: Vec<sortlens_geo::LatLon> = located_photos.iter().map(|(_, at)| *at).collect();
-    // A tileset's top zoom is the deepest that can be drawn; with the shipped coastline the fit's own ceiling applies.
-    let highest = range.map_or(sortlens_geo::coastline::MAX_FIT_ZOOM, |(_, high)| high);
+    let highest = range
+        .map_or(sortlens_geo::coastline::MAX_FIT_ZOOM, |(_, high)| high)
+        .min(places::MAX_ZOOM);
     let fitted_centre = sortlens_geo::coastline::bounds_centre(&centres).unwrap_or(located_photos[0].1);
+    let (low, high) = range.map_or((1, places::MAX_ZOOM), |(low, high)| {
+        let low = low.clamp(1, places::MAX_ZOOM);
+        (low, high.max(low).min(places::MAX_ZOOM))
+    });
+
     if !state.places_zoom_chosen {
-        // With the shipped outline the fitted view can be so deep that an inland library has no coast on screen, which
-        // is a blank rectangle with a pin on it rather than a map. The outline fit widens the view until a shoreline
-        // is in it; a person's own tiles are already geography at any zoom, so they keep the plain fit.
-        state.places_zoom = if range.is_none() {
-            sortlens_geo::coastline::fit_zoom_with_outline(&centres, f64::from(map_size.x), f64::from(map_size.y), highest)
-        } else {
-            sortlens_geo::coastline::fit_zoom(&centres, f64::from(map_size.x), f64::from(map_size.y), highest)
-        };
+        // The map opens fitted to the library: the deepest level that still shows every located photograph. A chosen
+        // view is never overridden by a scan that adds a picture elsewhere.
+        state.places_zoom_exact = f64::from(sortlens_geo::coastline::fit_zoom(
+            &centres,
+            f64::from(map_size.x),
+            f64::from(map_size.y),
+            highest.min(high),
+        ));
     }
-    if let Some(range) = range {
-        state.places_zoom = places::clamp_zoom(state.places_zoom, range);
+    let low_exact = f64::from(low);
+    let high_exact = f64::from(high);
+    state.places_zoom_exact = state.places_zoom_exact.clamp(low_exact, high_exact);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    {
+        state.places_zoom = state.places_zoom_exact.round().clamp(low_exact, high_exact) as u8;
     }
-    let (low, high) = range.unwrap_or((0, places::MAX_ZOOM));
-    state.places_zoom = state.places_zoom.clamp(low, high);
-
-    let (rect, response) = ui.allocate_exact_size(map_size, Sense::click_and_drag());
-    let mut centre = state.places_centre.unwrap_or(fitted_centre);
-
-    // Panning follows the pointer: the world under the finger stays under the finger. `pointer.delta` is the movement
-    // since the last frame, not since the drag began, so applying it every frame does not multiply the gesture.
-    if response.dragged_by(egui::PointerButton::Primary) {
-        let delta = ui.input(|input| input.pointer.delta());
-        if delta != Vec2::ZERO
-            && let Some(moved) = places::pan_centre(centre, state.places_zoom, (f64::from(delta.x), f64::from(delta.y)))
-        {
-            state.places_centre = Some(moved);
-            state.places_zoom_chosen = true;
-            centre = moved;
-        }
-    }
-
-    // Wheel and pinch are gathered into whole zoom levels. A trackpad reports tens of small scrolls for one nudge;
-    // spending one level on each would cross the whole range before the fingers stopped moving.
-    let pointer_at = ui.ctx().pointer_hover_pos().filter(|at| rect.contains(*at));
-    if response.hovered() && !response.dragged() {
-        let (scroll, pinch) = ui.input(|input| (input.smooth_scroll_delta.y, input.zoom_delta()));
-        if scroll.abs() > 0.0 {
-            state.places_zoom_accum += scroll / 40.0;
-        }
-        if (pinch - 1.0).abs() > 0.0001 {
-            state.places_zoom_accum += pinch.ln() / 0.40;
-        }
+    let centre = if state.places_zoom_chosen {
+        state.places_centre.unwrap_or(fitted_centre)
     } else {
-        state.places_zoom_accum = 0.0;
+        fitted_centre
+    };
+
+    // Walkers holds the live centre and zoom. Everything is written into it at the start of the frame and read back
+    // after the map has seen the pointer, so a drag or a pinch is never overwritten by stale state on the next frame.
+    state.places_map.center_at(walkers::lon_lat(centre.lon, centre.lat));
+    let _ = state.places_map.set_zoom(state.places_zoom_exact);
+
+    let map_rect = ui.allocate_exact_size(map_size, Sense::hover()).0;
+    let style = state.places_style.resolve(t, usable);
+    let palette = style.palette(t);
+    // The thumb colour is the map's ground; tests and tile holes both read it. The style's water is painted over it
+    // before tiles, so a missing tile shows sea rather than the panel behind the map.
+    ui.painter().rect_filled(map_rect, 0.0, t.thumb_bg);
+    if usable {
+        ui.painter().rect_filled(map_rect, 0.0, palette.water);
     }
-    #[allow(clippy::cast_possible_truncation)]
-    let steps = state.places_zoom_accum.trunc().clamp(-3.0, 3.0) as i32;
-    state.places_zoom_accum -= steps as f32;
-    if steps != 0 {
-        let anchor = pointer_at.map_or((map_size.x / 2.0, map_size.y / 2.0), |at| (at.x - rect.min.x, at.y - rect.min.y));
-        let wanted = (i32::from(state.places_zoom) + steps).clamp(i32::from(low), i32::from(high));
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let wanted = wanted as u8;
-        if wanted != state.places_zoom {
-            if let Some(moved) = places::zoom_centre(
-                centre,
-                state.places_zoom,
-                wanted,
-                (f64::from(map_size.x), f64::from(map_size.y)),
-                (f64::from(anchor.0), f64::from(anchor.1)),
-            ) {
-                state.places_centre = Some(moved);
-                centre = moved;
-            }
-            state.places_zoom = wanted;
-            state.places_zoom_chosen = true;
-            ui.ctx().request_repaint();
+
+    let map_response = {
+        let ctx = ui.ctx().clone();
+        let mut map_ui = ui.new_child(egui::UiBuilder::new().max_rect(map_rect));
+        let position = walkers::lon_lat(centre.lon, centre.lat);
+        if let Some(Ok(set)) = &tileset {
+            let mut tiles = places::PlacesTiles {
+                set,
+                cache: &mut state.places_tiles,
+                ctx,
+                style,
+            };
+            walkers::Map::new(Some(&mut tiles), &mut state.places_map, position)
+                .zoom_with_ctrl(false)
+                .double_click_to_zoom(false)
+                .panning(true)
+                .drag_pan_buttons(egui::DragPanButtons::PRIMARY)
+                .show(&mut map_ui, |_, _, _, _| ())
+                .response
         } else {
-            // Already at the near or far end: do not keep a backlog that would jump when the map turns around.
-            state.places_zoom_accum = 0.0;
+            walkers::Map::new(None, &mut state.places_map, position)
+                .zoom_with_ctrl(false)
+                .double_click_to_zoom(false)
+                .panning(true)
+                .drag_pan_buttons(egui::DragPanButtons::PRIMARY)
+                .show(&mut map_ui, |_, _, _, _| ())
+                .response
         }
+    };
+
+    let before = centre;
+    let before_zoom = state.places_zoom_exact;
+    let zoom_now = state.places_map.zoom().clamp(low_exact, high_exact);
+    if (state.places_map.zoom() - zoom_now).abs() > 0.001 {
+        let _ = state.places_map.set_zoom(zoom_now);
     }
+    let centre_now = state.places_map.detached().and_then(map_centre).unwrap_or(centre);
+    let user_moved =
+        (centre_now.lat - before.lat).abs() > 1e-9 || (centre_now.lon - before.lon).abs() > 1e-9 || (zoom_now - before_zoom).abs() > 1e-9;
+    state.places_zoom_exact = zoom_now;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    {
+        state.places_zoom = zoom_now.round().clamp(low_exact, high_exact) as u8;
+    }
+    state.places_centre = Some(centre_now);
+    if user_moved {
+        state.places_zoom_chosen = true;
+    }
+
     let zoom = state.places_zoom;
-    let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map_size.x), f64::from(map_size.y));
+    let zoom_f = state.places_zoom_exact;
+    let scale = zoom_f.exp2();
+    let Some(centre_world) = sortlens_geo::project(centre_now, 0) else {
+        return;
+    };
+    let to_local = |place: sortlens_geo::LatLon| {
+        let world = sortlens_geo::project(place, 0)?;
+        let mut dx = world.x - centre_world.x;
+        // The short way round the world: a photograph just across the antimeridian is beside the centre, not a whole
+        // world away, and a pin at the edge of the map must still be clickable.
+        while dx > 128.0 {
+            dx -= 256.0;
+        }
+        while dx < -128.0 {
+            dx += 256.0;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        Some((
+            (f64::from(map_rect.width()) / 2.0 + dx * scale) as f32,
+            (f64::from(map_rect.height()) / 2.0 + (world.y - centre_world.y) * scale) as f32,
+        ))
+    };
     let clusters = engine.places(zoom);
-    let dots = origin.map_or_else(Vec::new, |origin| places::dots(&clusters, zoom, origin, map_size.x, map_size.y));
-    let pointer_local = pointer_at.map(|at| (at.x - rect.min.x, at.y - rect.min.y));
+    let dots = places::dots(&clusters, to_local, map_rect.width(), map_rect.height());
+    let pointer = ui.ctx().pointer_hover_pos().filter(|at| map_rect.contains(*at));
+    let pointer_local = pointer.map(|at| (at.x - map_rect.min.x, at.y - map_rect.min.y));
     let hovered_dot = pointer_local.and_then(|at| places::dot_at(&dots, at));
-    if response.hovered() || response.dragged() {
-        let cursor = if response.dragged_by(egui::PointerButton::Primary) {
+    let tray_zone = places_tray_rect(map_rect);
+    let over_tray = pointer.is_some_and(|at| tray_zone.is_some_and(|zone| zone.contains(at)));
+    // A click on a control is not a click on the map beneath it. The style chip's width depends on the language,
+    // so its zone is generous; the zoom pill and Fit zones are the rectangles the controls paint.
+    let over_controls = pointer.is_some_and(|at| {
+        let style = Rect::from_min_size(map_rect.left_top() + vec2(8.0, 6.0), vec2(200.0, 30.0));
+        let zoom = Rect::from_min_max(
+            pos2(map_rect.right() - 44.0, map_rect.top() + 6.0),
+            pos2(map_rect.right() - 4.0, map_rect.top() + 100.0),
+        );
+        let fit = Rect::from_min_size(pos2(map_rect.right() - 40.0, map_rect.bottom() - 42.0), vec2(32.0, 32.0));
+        style.contains(at) || zoom.contains(at) || fit.contains(at)
+    });
+    if map_response.hovered() || map_response.dragged() {
+        let cursor = if map_response.dragged_by(egui::PointerButton::Primary) {
             egui::CursorIcon::Grabbing
         } else if hovered_dot.is_some() {
             egui::CursorIcon::PointingHand
@@ -7361,7 +7427,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
     let dot_count = clusters.len();
     a11y::label_widget(
         ui,
-        &response,
+        &map_response,
         egui::Role::Canvas,
         &format!(
             "Map of {located} photo(s) with a location, in {dot_count} pin(s) at zoom {zoom}. \
@@ -7369,47 +7435,14 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         ),
         false,
     );
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 0.0, t.thumb_bg);
 
-    // Tiles first, then the shipped coastline if there are none, then pins: the coastline is the backdrop, not a
-    // participant. The credit for whichever was drawn is printed below.
-    if let (Some(Ok(set)), Some(origin)) = (&tileset, origin) {
-        for cell in sortlens_geo::visible_tiles(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
-            let place = sortlens_geo::tile_rect(cell, origin);
-            let tile_rect = egui::Rect::from_min_size(
-                rect.min + vec2(place.x as f32, place.y as f32),
-                vec2(place.w as f32, place.h as f32),
-            );
-            // A tile that is missing or will not decode is a hole, painted as background rather than as a broken
-            // image: a partial tile set is a normal thing, and a toast for every gap would bury the map in noise.
-            let texture = state.places_tiles.texture(ui.ctx(), set, cell).map(egui::TextureHandle::id);
-            if let Some(id) = texture {
-                painter.image(
-                    id,
-                    tile_rect,
-                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-            } else {
-                painter.rect_filled(tile_rect, 0.0, t.thumb_bg);
-            }
-        }
-    } else if let Some(origin) = origin {
-        // No tile folder, so the embedded outline is the basemap. One stroke per run of visible coast, painted before
-        // the pins so a pin always sits on top of the land it is on.
-        let coastline = sortlens_geo::coastline::Coastline::shipped();
-        for line in coastline.screen_lines(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
-            if line.len() < 2 {
-                continue;
-            }
-            let points: Vec<egui::Pos2> = line
-                .iter()
-                .map(|at| egui::pos2(rect.min.x + at.x as f32, rect.min.y + at.y as f32))
-                .collect();
-            painter.add(egui::Shape::line(points, egui::Stroke::new(1.0, t.map_coast)));
-        }
+    if !usable {
+        places::paint_geography(&ui.painter_at(map_rect), map_rect, style, t, centre_now, zoom_f);
     }
+
+    // The border is drawn after the geography but before the pins, so a thumbnail at the edge is not cut by it.
+    ui.painter()
+        .rect_stroke(map_rect, t.corner(), Stroke::new(1.0, palette.frame), StrokeKind::Inside);
 
     // Names are resolved once, before the pins, so the strip and the labels cannot disagree about where a pin is.
     let places_file = engine.places_file();
@@ -7436,29 +7469,51 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
             clusters: &clusters,
             dots: &dots,
             labels: &labels,
-            map: rect,
+            map: map_rect,
             hovered: hovered_dot,
         },
     );
 
     // A click opens the photographs a pin stands for; a double-click goes closer on a group, or into Detail on a
-    // single frame. Clicking the sea still selects nothing: a click on the map is not a way to clear a deliberate
-    // selection.
-    let hit = response
-        .interact_pointer_pos()
-        .filter(|_| response.clicked() || response.double_clicked())
-        .and_then(|pointer| places::dot_at(&dots, (pointer.x - rect.min.x, pointer.y - rect.min.y)))
-        .map(|index| dots[index].cluster);
-    if let Some(index) = hit {
-        let cluster = &clusters[index];
-        let name = labels.get(index).and_then(Option::as_ref);
-        handle_places_pin_click(ui, state, cluster, name, zoom, high, response.double_clicked());
+    // single frame. Tapping the map dismisses the strip, as a map does in a place app; dragging never does.
+    if map_response.double_clicked() && !over_tray && !over_controls {
+        if let Some(index) = hovered_dot {
+            let cluster = &clusters[dots[index].cluster];
+            let name = labels.get(dots[index].cluster).and_then(Option::as_ref);
+            handle_places_pin_click(ui, state, cluster, name, zoom, high, true);
+        } else if zoom_f + 1.0 <= high_exact {
+            let target = pointer.and_then(|at| {
+                let world = sortlens_geo::Point {
+                    x: centre_world.x + f64::from(at.x - map_rect.center().x) / scale,
+                    y: centre_world.y + f64::from(at.y - map_rect.center().y) / scale,
+                };
+                sortlens_geo::unproject(world, 0)
+            });
+            state.places_zoom_exact = (zoom_f + 1.0).min(high_exact);
+            state.places_zoom_chosen = true;
+            if let Some(target) = target {
+                state.places_centre = Some(target);
+                state.places_map.center_at(walkers::lon_lat(target.lon, target.lat));
+            }
+            let _ = state.places_map.set_zoom(state.places_zoom_exact);
+            ui.ctx().request_repaint();
+        }
+    } else if map_response.clicked() && !over_tray && !over_controls {
+        match hovered_dot {
+            Some(index) => {
+                let cluster = &clusters[dots[index].cluster];
+                let name = labels.get(dots[index].cluster).and_then(Option::as_ref);
+                handle_places_pin_click(ui, state, cluster, name, zoom, high, false);
+            }
+            None => state.places_tray = None,
+        }
     }
 
-    // The zoom controls sit over the map's top corner, where a map puts them. The bottom is the photograph strip.
-    let zoom_changed = places_zoom_controls(ui, t, state, rect, zoom, low, high, centre);
+    // The controls sit over the map's corners: style top-left, zoom top-right, fit bottom-right. The bottom is the
+    // photograph strip, so nothing important lives there while a group is open.
+    let zoom_changed = places_map_controls(ui, t, state, map_rect, zoom, low, high, state.places_style);
 
-    places_tray(ui, t, state, engine, thumbs, rect);
+    places_tray(ui, t, state, engine, thumbs, map_rect);
 
     // The credit, over the map, every frame it is drawn. Never hidden behind a menu or a hover.
     ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), Layout::left_to_right(Align::Center), |ui| {
@@ -7467,7 +7522,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
                 ui.label(RichText::new(set.attribution()).size(9.5).color(t.text_muted));
             }
             _ => {
-                ui.label(RichText::new(sortlens_geo::coastline::CREDIT).size(9.5).color(t.text_muted));
+                ui.label(RichText::new(sortlens_geo::land::CREDIT).size(9.5).color(t.text_muted));
             }
         }
         ui.add_space(8.0);
@@ -7494,7 +7549,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         (None, 0) => {
             ui.add_space(2.0);
             ui.label(
-                RichText::new(tl!("No places.txt — dots show their coordinates"))
+                RichText::new(tl!("No places.txt — pins show their coordinates"))
                     .size(9.5)
                     .color(t.text_faint),
             );
@@ -7503,7 +7558,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
             ui.add_space(2.0);
             ui.label(
                 RichText::new(crate::i18n::fmt(
-                    "Named from places.txt · {named} place(s) · dots within {km} km borrow a name",
+                    "Named from places.txt · {named} place(s) · pins within {km} km borrow a name",
                     &[
                         ("named", &format_count(named as u64)),
                         ("km", &format_count(places::LABEL_KM as u64)),
@@ -7515,6 +7570,120 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         }
     }
     basemap_status(ui, t, engine, &tileset);
+}
+
+/// A walkers position as the engine's coordinate, with the wrap and the Mercator limit applied.
+///
+/// A drag past the antimeridian comes back as 181°E, which is 179°W on the map; the projection would refuse it and
+/// the view would snap back a whole world. The pole is the same kind of edge: beyond the Mercator limit there is no
+/// map, so the centre stops at the last row of tiles instead of asking for a latitude that cannot be drawn.
+fn map_centre(position: walkers::Position) -> Option<sortlens_geo::LatLon> {
+    let lon = (position.x() + 180.0).rem_euclid(360.0) - 180.0;
+    let lat = position.y().clamp(-sortlens_geo::MERCATOR_LIMIT, sortlens_geo::MERCATOR_LIMIT);
+    sortlens_geo::LatLon::new(lat, lon)
+}
+
+/// The map's own chrome: a style menu, a zoom pill and a fit button.
+///
+/// The controls are drawn in a child UI with the map's rectangle, so painting them does not move the parent's cursor
+/// and lay the footer over the map. A map without a visible way back to the library's own extent is a map that can
+/// be lost by one enthusiastic trackpad gesture.
+fn places_map_controls(
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut UiState,
+    map: Rect,
+    zoom: u8,
+    low: u8,
+    high: u8,
+    style: places::MapStyle,
+) -> bool {
+    let mut changed = false;
+    let mut overlay = ui.new_child(egui::UiBuilder::new().max_rect(map.shrink(8.0)));
+
+    // Style, top-left, in a quiet chip rather than a toolbar. It opens a menu so the map itself stays uncluttered.
+    overlay.with_layout(Layout::left_to_right(Align::Min), |ui| {
+        Frame::NONE
+            .fill(t.card)
+            .stroke(Stroke::new(1.0, t.border))
+            .corner_radius(t.corner())
+            .inner_margin(Margin::symmetric(8, 3))
+            .show(ui, |ui| {
+                ui.menu_button(
+                    RichText::new(format!("{} · {}", tl!("Map style"), tl!(style.label())))
+                        .size(10.5)
+                        .color(t.text),
+                    |ui| {
+                        ui.label(RichText::new(tl!("Map style")).size(10.0).color(t.text_faint));
+                        for option in places::MapStyle::ALL {
+                            if ui.selectable_label(state.places_style == option, tl!(option.label())).clicked() {
+                                state.places_style = option;
+                                changed = true;
+                                ui.close();
+                            }
+                        }
+                    },
+                );
+            });
+    });
+
+    // Zoom, top-right: two buttons and the level, in one rounded pill.
+    let button = vec2(32.0, 27.0);
+    let plus_rect = Rect::from_min_size(pos2(map.right() - 40.0, map.top() + 10.0), button);
+    let minus_rect = plus_rect.translate(vec2(0.0, 29.0));
+    let level_rect = plus_rect.translate(vec2(0.0, 58.0));
+    let pill = Rect::from_min_max(plus_rect.min - vec2(4.0, 4.0), level_rect.max + vec2(4.0, 4.0));
+    overlay.painter().rect_filled(pill, 8.0, t.card);
+    overlay
+        .painter()
+        .rect_stroke(pill, 8.0, Stroke::new(1.0, t.border), StrokeKind::Inside);
+    if overlay
+        .put(plus_rect, Button::new(RichText::new("+").size(14.0)).frame(false))
+        .on_hover_text(tl!("Zoom in"))
+        .clicked()
+        && zoom < high
+    {
+        state.places_zoom_exact = (state.places_zoom_exact + 1.0).min(f64::from(high));
+        state.places_zoom_chosen = true;
+        let _ = state.places_map.set_zoom(state.places_zoom_exact);
+        changed = true;
+    }
+    if overlay
+        .put(minus_rect, Button::new(RichText::new("−").size(14.0)).frame(false))
+        .on_hover_text(tl!("Zoom out"))
+        .clicked()
+        && zoom > low
+    {
+        state.places_zoom_exact = (state.places_zoom_exact - 1.0).max(f64::from(low));
+        state.places_zoom_chosen = true;
+        let _ = state.places_map.set_zoom(state.places_zoom_exact);
+        changed = true;
+    }
+    overlay.painter().text(
+        level_rect.center(),
+        Align2::CENTER_CENTER,
+        crate::i18n::fmt("zoom {zoom}", &[("zoom", &format_count(u64::from(zoom)))]),
+        FontId::proportional(9.5),
+        t.text_muted,
+    );
+
+    // Fit, bottom-right: the escape hatch back to the whole library.
+    let fit_rect = Rect::from_min_size(pos2(map.right() - 40.0, map.bottom() - 42.0), vec2(32.0, 32.0));
+    overlay.painter().rect_filled(fit_rect, 8.0, t.card);
+    overlay
+        .painter()
+        .rect_stroke(fit_rect, 8.0, Stroke::new(1.0, t.border), StrokeKind::Inside);
+    if overlay
+        .put(fit_rect, Button::new(RichText::new(tl!("Fit")).size(10.0)).frame(false))
+        .on_hover_text(tl!("Fit all photos"))
+        .clicked()
+    {
+        state.places_zoom_chosen = false;
+        state.places_centre = None;
+        state.places_tray = None;
+        changed = true;
+    }
+    changed
 }
 
 /// The pins, labels and map rectangle one Places frame paints together.
@@ -7615,9 +7784,13 @@ fn handle_places_pin_click(
                 state.view = View::Detail;
             }
         } else if zoom < high {
-            state.places_zoom = zoom.saturating_add(2).min(high);
+            let wanted = zoom.saturating_add(2).min(high);
+            state.places_zoom = wanted;
+            state.places_zoom_exact = f64::from(wanted);
             state.places_zoom_chosen = true;
             state.places_centre = Some(cluster.centre);
+            let _ = state.places_map.set_zoom(state.places_zoom_exact);
+            state.places_map.center_at(walkers::lon_lat(cluster.centre.lon, cluster.centre.lat));
             state.places_tray = None;
             ui.ctx().request_repaint();
         } else {
@@ -7639,43 +7812,18 @@ fn show_places_tray(state: &mut UiState, cluster: &sortlens_geo::Cluster, name: 
     });
 }
 
-/// The two zoom steppers and the current level, pinned to the map's top corner.
-///
-/// `new_child`, not `scope_builder`: an overlay must paint at the map's corner without moving the
-/// parent's cursor to that corner, which would lay the footer over the map instead of under it.
-fn places_zoom_controls(
-    ui: &mut Ui,
-    t: &Tokens,
-    state: &mut UiState,
-    map: Rect,
-    zoom: u8,
-    low: u8,
-    high: u8,
-    centre: sortlens_geo::LatLon,
-) -> bool {
-    let mut changed = false;
-    let mut controls = ui.new_child(egui::UiBuilder::new().max_rect(map.shrink(8.0)));
-    controls.with_layout(Layout::right_to_left(Align::Min), |ui| {
-        if ui.add_enabled(zoom < high, Button::new(RichText::new("+").size(13.0))).clicked() {
-            state.places_zoom = zoom.saturating_add(1).min(high);
-            state.places_zoom_chosen = true;
-            state.places_centre = Some(centre);
-            changed = true;
-        }
-        if ui.add_enabled(zoom > low, Button::new(RichText::new("−").size(13.0))).clicked() {
-            state.places_zoom = zoom.saturating_sub(1).max(low);
-            state.places_zoom_chosen = true;
-            state.places_centre = Some(centre);
-            changed = true;
-        }
-        ui.label(
-            RichText::new(crate::i18n::fmt("zoom {zoom}", &[("zoom", &format_count(u64::from(zoom)))]))
-                .size(10.5)
-                .color(t.text_muted),
-        );
-    });
-    changed
+/// Where the photograph strip sits, or None when the map is too short to hold one.
+fn places_tray_rect(map: Rect) -> Option<Rect> {
+    let height = 116.0_f32.min(map.height() - 20.0);
+    if height < 64.0 {
+        return None;
+    }
+    Some(Rect::from_min_max(
+        egui::pos2(map.left() + 10.0, map.bottom() - height - 10.0),
+        egui::pos2(map.right() - 10.0, map.bottom() - 10.0),
+    ))
 }
+
 /// The strip under the pins: the photographs a pin opened, as a row of thumbnails on the map.
 ///
 /// It stays over the map rather than taking layout space, so opening a group does not shift the coast
@@ -7684,14 +7832,9 @@ fn places_tray(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
     let Some(tray) = state.places_tray.clone() else {
         return;
     };
-    let height = 116.0_f32.min(map.height() - 20.0);
-    if height < 64.0 {
+    let Some(tray_rect) = places_tray_rect(map) else {
         return;
-    }
-    let tray_rect = Rect::from_min_max(
-        egui::pos2(map.left() + 10.0, map.bottom() - height - 10.0),
-        egui::pos2(map.right() - 10.0, map.bottom() - 10.0),
-    );
+    };
     let mut close = false;
     let mut open = false;
     let selected = state.selection.primary();
@@ -7797,7 +7940,7 @@ fn basemap_status(
             ui.add_space(4.0);
             ui.label(
                 RichText::new(tl!(
-                    "Schematic coastline · install a tile folder or an MBTiles archive for a real basemap"
+                    "Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap"
                 ))
                 .size(10.5)
                 .color(t.text_muted),
@@ -12827,7 +12970,7 @@ mod tests {
             &[
                 "No photo has a location yet",
                 "A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.",
-                "Schematic coastline · install a tile folder or an MBTiles archive for a real basemap",
+                "Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap",
             ],
         );
 
@@ -12837,7 +12980,7 @@ mod tests {
             &japanese,
             &[
                 "位置情報を持つ写真はまだありません",
-                "略式の海岸線 · 実際の地図にするにはタイルフォルダーか MBTiles アーカイブを配置",
+                "Natural Earth の陸地と海岸線 · タイルフォルダーか MBTiles アーカイブを入れると本物のベースマップになります",
             ],
         );
         assert!(!japanese.iter().any(|text| text == "No photo has a location yet"), "{japanese:?}");
@@ -12848,7 +12991,7 @@ mod tests {
             &arabic,
             &[
                 "لا توجد صورة تحمل موقعًا بعد",
-                "خط ساحلي تخطيطي · ثبّت مجلد بلاطات أو أرشيف MBTiles للحصول على خريطة حقيقية",
+                "أرض وساحل Natural Earth · ثبّت مجلد بلاطات أو أرشيف MBTiles لخريطة أساس حقيقية",
             ],
         );
 
@@ -12866,7 +13009,7 @@ mod tests {
                     format_count(2),
                     format_count(1)
                 ),
-                "No places.txt — dots show their coordinates",
+                "No places.txt — pins show their coordinates",
             ],
         );
 
@@ -12881,7 +13024,7 @@ mod tests {
                     format_count(2),
                     format_count(1)
                 ),
-                "places.txt がないため、地点は座標で表示されます",
+                "places.txt がないため、ピンは座標で表示されます",
             ],
         );
 
@@ -12896,7 +13039,7 @@ mod tests {
                     format_count(2),
                     format_count(1)
                 ),
-                "لا يوجد places.txt — تعرض النقاط إحداثياتها",
+                "لا يوجد places.txt — تعرض الدبابيس إحداثياتها",
             ],
         );
         assert!(
@@ -12971,13 +13114,18 @@ mod tests {
             })
             .expect("the map painted");
 
-        // The dot's position, from the same projection the view used.
+        // The dot's position, from the same centre and scale the view used.
         let zoom = state.places_zoom;
-        let located = engine.located();
-        let centre = located[0].1;
-        let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map.width()), f64::from(map.height())).expect("origin");
-        let at = sortlens_geo::screen_position(centre, zoom, origin, f64::from(map.width()), f64::from(map.height())).expect("on screen");
-        let pointer = egui::pos2(map.min.x + at.x as f32, map.min.y + at.y as f32);
+        let cluster = engine.places(zoom)[0].centre;
+        let view = state.places_centre.expect("the fitted view records its centre");
+        let centre_world = sortlens_geo::project(view, 0).expect("a centre");
+        let world = sortlens_geo::project(cluster, 0).expect("a dot");
+        let scale = state.places_zoom_exact.exp2();
+        let at = (
+            f64::from(map.width()) / 2.0 + (world.x - centre_world.x) * scale,
+            f64::from(map.height()) / 2.0 + (world.y - centre_world.y) * scale,
+        );
+        let pointer = egui::pos2(map.min.x + at.0 as f32, map.min.y + at.1 as f32);
 
         // Press, then release: egui reports a click on the release.
         let pressed = egui::Event::PointerButton {
@@ -13110,7 +13258,11 @@ mod tests {
             })
             .expect("the map painted");
         let original = engine.located()[0].1;
-        assert!(state.places_centre.is_none(), "the fitted view has not needed a stored centre yet");
+        let fitted_centre = state.places_centre.expect("the fitted view records the centre it will pan from");
+        assert!(
+            (fitted_centre.lat - original.lat).abs() < 1e-9 && (fitted_centre.lon - original.lon).abs() < 1e-9,
+            "the fitted view records the centre it will pan from: {fitted_centre:?} vs {original:?}"
+        );
 
         let start = map.center();
         let end = start + vec2(54.0, 28.0);
@@ -13182,7 +13334,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A library's own `places.txt` names its dots, and the click selects the dot's photos and names the place.
+    #[test]
+    fn a_map_centre_wraps_at_the_date_line_and_stops_at_the_pole() {
+        let east = map_centre(walkers::lon_lat(181.0, 0.0)).expect("a wrapped centre");
+        assert!((east.lon + 179.0).abs() < 1e-9, "181E is 179W, got {east:?}");
+        let north = map_centre(walkers::lon_lat(0.0, 90.0)).expect("a clamped centre");
+        assert!(
+            (north.lat - sortlens_geo::MERCATOR_LIMIT).abs() < 1e-9,
+            "the centre stops at the last row of tiles, got {north:?}"
+        );
+    }
+
+    /// A library's own `places.txt` names its pins, and the click selects the pin's photos and names the place.
     ///
     /// The gazetteer ships nothing: the file is the person's, in a documented tab-separated format. Two libraries are
     /// checked — one with the file and one without — because the interesting question is not "does a name appear" but
@@ -13393,14 +13556,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// An inland library opens with the outline on screen instead of a dot on a blank rectangle.
+    /// An inland library opens over filled land instead of a dot on a blank rectangle.
     ///
-    /// The reported defect: one photograph in Paris fitted at [`sortlens_geo::coastline::MAX_FIT_ZOOM`], where the
-    /// 1:110m outline has no coast within a screen of the city, so Places painted an empty map. The control below is
-    /// that fitted zoom and its empty view; the assertion after the frame is that the view widened itself until the
-    /// outline is geography. A coastal photograph keeps the fitted zoom (the geo test holds that half).
+    /// One photograph in Paris fits at [`sortlens_geo::coastline::MAX_FIT_ZOOM`], where the 1:110m coastline has no
+    /// coast within a screen of the city. The empty-outline defect is what the land fill fixes: the view keeps the
+    /// honest fitted zoom and paints the polygon the city stands on, so there is geography under the pin at every
+    /// zoom rather than a blank rectangle inland.
     #[test]
-    fn places_opens_with_the_outline_when_the_library_is_inland() {
+    fn places_opens_with_land_when_the_library_is_inland() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-inland-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let root = dir.join("photos");
@@ -13454,26 +13617,14 @@ mod tests {
             sortlens_geo::coastline::MAX_FIT_ZOOM,
         );
         assert_eq!(fitted, sortlens_geo::coastline::MAX_FIT_ZOOM, "one photograph has no spread");
-        let centre = sortlens_geo::coastline::bounds_centre(&[engine.located()[0].1]).expect("a centre");
-        let origin = sortlens_geo::viewport_origin(fitted, centre, f64::from(map.width()), f64::from(map.height())).expect("an origin");
-        assert!(
-            !sortlens_geo::coastline::Coastline::shipped().has_screen_lines(
-                fitted,
-                origin,
-                f64::from(map.width()),
-                f64::from(map.height())
-            ),
-            "the defect: the fitted view has no coast in it"
+        assert_eq!(
+            state.places_zoom, fitted,
+            "one photograph has no spread, so the view keeps the honest fit"
         );
-
-        assert!(
-            state.places_zoom < fitted,
-            "the map did not widen to reach the outline: {}",
-            state.places_zoom
-        );
-        let runs = coastline_runs(&output, &tokens);
-        assert!(!runs.is_empty(), "the inland map painted no coastline");
-        assert!(runs.iter().any(|run| run.points.len() >= 2), "the outline is a line, not a dot");
+        let land = all_shapes(&output)
+            .into_iter()
+            .any(|shape| matches!(shape, egui::Shape::Mesh(mesh) if !mesh.is_empty()));
+        assert!(land, "the inland map painted no land fill");
         let pins = painted_pins(&output, &tokens);
         assert_eq!(pins.len(), 1, "the photograph still has its pin");
         assert!(
@@ -13549,7 +13700,7 @@ mod tests {
                 _ => None,
             })
             .expect("the map painted");
-        let credit = exact_label_at(&output, sortlens_geo::coastline::CREDIT).expect("the outline is credited");
+        let credit = exact_label_at(&output, sortlens_geo::land::CREDIT).expect("the outline is credited");
         assert!(
             credit.top() >= map.bottom(),
             "the map's credit and counts belong under it, not inside it: credit {credit:?}, map {map:?}"
@@ -13576,6 +13727,7 @@ mod tests {
 
         // A zoom the person chose is theirs: the fit is a default, not a policy.
         state.places_zoom = 9;
+        state.places_zoom_exact = 9.0;
         state.places_zoom_chosen = true;
         let _ = frame(&mut state);
         assert_eq!(state.places_zoom, 9, "the view must not overwrite a chosen zoom");
@@ -17345,15 +17497,16 @@ mod tests {
 
     /// Every stroke painted in the shipped coastline's own colour, in paint order.
     ///
-    /// The coastline is the only thing drawn in [`Tokens::map_coast`], so this is the assertion "the outline was
-    /// painted" without depending on how many shorelines happen to be on screen.
+    /// The coastline is the only thing drawn in the style's coast colour, so this is the assertion "the outline was
+    /// painted" without depending on how many shorelines happen to be on screen. Auto resolves to Ink or Paper from
+    /// the theme, which is what a library with no tiles draws.
     fn coastline_runs<'a>(output: &'a egui::FullOutput, tokens: &Tokens) -> Vec<&'a egui::epaint::PathShape> {
+        let coast = places::MapStyle::Auto.resolve(tokens, false).palette(tokens).coast;
         all_shapes(output)
             .into_iter()
             .filter_map(|shape| match shape {
                 egui::Shape::Path(path)
-                    if path.points.len() >= 2
-                        && matches!(path.stroke.color, egui::epaint::ColorMode::Solid(color) if color == tokens.map_coast) =>
+                    if path.points.len() >= 2 && matches!(path.stroke.color, egui::epaint::ColorMode::Solid(color) if color == coast) =>
                 {
                     Some(path)
                 }

@@ -681,8 +681,8 @@
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	카메라는 위치를 파일의 EXIF에 기록합니다. 위치 서비스를 끄고 찍은 사진이나 다른 도구가 위치 정보를 제거한 사진에는 없습니다.
 	zoom {zoom}	확대 {zoom}
 	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	위치가 있는 사진 {located}장 · 핀 {pins}개 · 끌어서 이동, 스크롤하여 확대/축소
-	No places.txt — dots show their coordinates	places.txt 없음 — 점에 좌표가 표시됩니다
-	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	places.txt에서 이름 지정됨 · 장소 {named}개 · {km}km 내 점은 이름을 빌려 씁니다
+	No places.txt — pins show their coordinates	places.txt 없음 — 핀에 좌표가 표시됩니다
+	Named from places.txt · {named} place(s) · pins within {km} km borrow a name	places.txt에서 이름 지정됨 · 장소 {named}개 · {km}km 내 핀은 이름을 빌려 씁니다
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	개략 해안선 · 실제 배경 지도를 쓰려면 타일 폴더나 MBTiles 아카이브를 설치하세요
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	{dir}에 {z}/{x}/{y}.png 타일과 attribution.txt를 넣거나, `attribution` 메타데이터 행이 있는 tiles.mbtiles 아카이브를 옆에 두면 1:110m 윤곽선을 대체합니다. 아무것도 다운로드하지 않습니다.
 	The basemap cannot be used	배경 지도를 사용할 수 없습니다
@@ -809,3 +809,14 @@
 	Files sent to the system Trash are restored from the Trash itself.	시스템 휴지통으로 보낸 파일은 휴지통에서 복원합니다.
 	Restored {n} photo(s)	사진 {n}장을 복원했습니다
 	Forgot a batch of {n} file(s)	파일 {n}개로 이루어진 배치의 기록을 지웠습니다
+	Fit	전체
+	Fit all photos	모든 사진 맞추기
+	Map style	지도 스타일
+	Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap	Natural Earth 육지와 해안선 · 타일 폴더나 MBTiles 아카이브를 넣으면 실제 배경 지도가 됩니다
+	Zoom in	확대
+	Zoom out	축소
+	Auto	자동
+	Ink	잉크
+	Paper	종이
+	Blueprint	청사진
+	Mono	모노

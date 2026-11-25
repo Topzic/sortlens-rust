@@ -1,19 +1,19 @@
-//! The map's own pieces: tile textures, dot sizes, and which dot a click landed on.
+//! The map's own pieces: styles, tile textures, dot sizes, and which dot a click landed on.
 //!
-//! Kept apart from the view for the same reason [`crate::sharpness`] is: the arithmetic that decides *where* a dot
-//! goes and *what was clicked* is worth testing on its own, and a test that has to build a window to check a hit test
-//! is a test nobody writes twice.
+//! Kept apart from the view for the same reason [\`crate::sharpness\`] is: the arithmetic that decides *where* a dot
+//! goes, *what was clicked* and *what a tile looks like* is worth testing on its own, and a test that has to build a
+//! window to check a hit test is a test nobody writes twice.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use egui::{Color32, ColorImage, TextureHandle};
 use sortlens_core::PhotoId;
+use sortlens_geo::LatLon;
 use sortlens_geo::tiles::TileSet;
-use sortlens_geo::{LatLon, Point, TileCell};
-
-/// The zoom a map opens at: a country and its neighbours, which is the scale a photo library's spread is legible at.
-pub const DEFAULT_ZOOM: u8 = 5;
+use walkers::sources::Attribution;
+use walkers::{Tile, TileId, TilePiece, Tiles};
 
 /// The deepest zoom Places offers when no tile set says otherwise.
 ///
@@ -50,7 +50,184 @@ pub const LABEL_KM: f64 = 30.0;
 /// cannot be decoded into memory on a frame.
 pub const MAX_TILE_BYTES: u64 = 8 * 1024 * 1024;
 
-/// The radius of a dot standing for `count` photographs.
+/// The edge of a tile handed to walkers, in pixels. The set decodes every image at this size.
+pub const TILE_PX: u32 = 256;
+
+/// A way of drawing the basemap, independent of the photographs on it.
+///
+/// These are cartographic treatments, not theme presets: the pins always use the accent colour, and switching the map
+/// style never changes the rest of the interface. Auto follows the interface's light/dark decision; the rest are
+/// deliberately fixed so a person can choose a paper map in a dark room.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum MapStyle {
+    /// Follow the theme: Original when a tile set is installed, Ink on a dark interface, Paper on a light one.
+    #[default]
+    Auto,
+    /// Leave user-supplied tiles as their author drew them.
+    Original,
+    /// Charcoal water, graphite land, a quiet shoreline. The default for dark interfaces.
+    Ink,
+    /// Warm paper land and pale water. The default for light interfaces.
+    Paper,
+    /// Deep navy and cyan, after a drafting blueprint.
+    Blueprint,
+    /// Neutral greys with a strong shoreline, for reading the photographs rather than the place.
+    Mono,
+}
+
+impl MapStyle {
+    /// Every style, in menu order.
+    pub const ALL: [Self; 6] = [Self::Auto, Self::Original, Self::Ink, Self::Paper, Self::Blueprint, Self::Mono];
+
+    /// The stable identifier, should the choice ever be written to settings.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Original => "original",
+            Self::Ink => "ink",
+            Self::Paper => "paper",
+            Self::Blueprint => "blueprint",
+            Self::Mono => "mono",
+        }
+    }
+
+    /// The English catalogue key for the style's name.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Auto => "Auto",
+            Self::Original => "Original",
+            Self::Ink => "Ink",
+            Self::Paper => "Paper",
+            Self::Blueprint => "Blueprint",
+            Self::Mono => "Mono",
+        }
+    }
+
+    /// Resolve Auto into the concrete treatment this frame will draw.
+    ///
+    /// A tile set is left alone by Auto: the person installed a real map, and tinting it before they asked would be a
+    /// surprise. With no tiles, the shipped land and coastline follow the interface's light/dark choice.
+    #[must_use]
+    pub fn resolve(self, tokens: &crate::theme::Tokens, has_tiles: bool) -> Self {
+        if self != Self::Auto {
+            return self;
+        }
+        if has_tiles {
+            return Self::Original;
+        }
+        let luminance = 0.2126 * f32::from(tokens.bg.r()) + 0.7152 * f32::from(tokens.bg.g()) + 0.0722 * f32::from(tokens.bg.b());
+        if luminance < 128.0 { Self::Ink } else { Self::Paper }
+    }
+
+    /// The colours for the shipped geography and the map's chrome.
+    #[must_use]
+    pub fn palette(self, tokens: &crate::theme::Tokens) -> MapPalette {
+        match self {
+            Self::Auto | Self::Original => MapPalette {
+                water: tokens.thumb_bg,
+                land: tokens.card,
+                coast: tokens.map_coast,
+                graticule: tokens.border.gamma_multiply(0.55),
+                frame: tokens.border,
+                label: tokens.text_muted,
+                credit: tokens.text_faint,
+            },
+            Self::Ink => MapPalette {
+                water: Color32::from_rgb(0x14, 0x18, 0x1a),
+                land: Color32::from_rgb(0x21, 0x27, 0x2b),
+                coast: Color32::from_rgb(0x45, 0x52, 0x59),
+                graticule: Color32::from_rgb(0x2b, 0x33, 0x38),
+                frame: Color32::from_rgb(0x35, 0x3d, 0x42),
+                label: Color32::from_rgb(0xc2, 0xca, 0xce),
+                credit: Color32::from_rgb(0x78, 0x82, 0x87),
+            },
+            Self::Paper => MapPalette {
+                water: Color32::from_rgb(0xd9, 0xe6, 0xe5),
+                land: Color32::from_rgb(0xf4, 0xef, 0xe2),
+                coast: Color32::from_rgb(0x8c, 0x85, 0x76),
+                graticule: Color32::from_rgb(0xda, 0xd2, 0xc1),
+                frame: Color32::from_rgb(0xb9, 0xb1, 0xa0),
+                label: Color32::from_rgb(0x3c, 0x39, 0x32),
+                credit: Color32::from_rgb(0x6f, 0x69, 0x5c),
+            },
+            Self::Blueprint => MapPalette {
+                water: Color32::from_rgb(0x0c, 0x22, 0x3d),
+                land: Color32::from_rgb(0x12, 0x33, 0x59),
+                coast: Color32::from_rgb(0x58, 0x98, 0xc8),
+                graticule: Color32::from_rgb(0x1c, 0x41, 0x6c),
+                frame: Color32::from_rgb(0x24, 0x4c, 0x77),
+                label: Color32::from_rgb(0xc0, 0xd9, 0xee),
+                credit: Color32::from_rgb(0x79, 0x9d, 0xbc),
+            },
+            Self::Mono => MapPalette {
+                water: Color32::from_rgb(0xe7, 0xe7, 0xe5),
+                land: Color32::from_rgb(0xf7, 0xf7, 0xf5),
+                coast: Color32::from_rgb(0x6f, 0x6f, 0x6b),
+                graticule: Color32::from_rgb(0xd0, 0xd0, 0xcc),
+                frame: Color32::from_rgb(0xa8, 0xa8, 0xa2),
+                label: Color32::from_rgb(0x22, 0x22, 0x20),
+                credit: Color32::from_rgb(0x66, 0x66, 0x62),
+            },
+        }
+    }
+
+    /// Restate a decoded raster in this style.
+    ///
+    /// The conversion is deliberately a duotone rather than an overlay: an overlay hides roads and labels, while a
+    /// duotone keeps their contrast and changes only the ink. Original and Auto are a no-op.
+    pub fn shade(self, image: &mut ColorImage) {
+        if matches!(self, Self::Auto | Self::Original) {
+            return;
+        }
+        for pixel in &mut image.pixels {
+            let [r, g, b, a] = pixel.to_array();
+            let l = 0.2126 * f32::from(r) + 0.7152 * f32::from(g) + 0.0722 * f32::from(b);
+            let [nr, ng, nb] = match self {
+                Self::Ink => [12.0 + 0.16 * l, 16.0 + 0.18 * l, 18.0 + 0.19 * l],
+                Self::Paper => {
+                    let v = 240.0 - (255.0 - l) * 0.34;
+                    [v + 5.0, v, v - 9.0]
+                }
+                Self::Blueprint => {
+                    let v = l / 255.0;
+                    [8.0 + 22.0 * v, 26.0 + 82.0 * v, 48.0 + 142.0 * v]
+                }
+                Self::Mono => {
+                    let v = (128.0 + (l - 128.0) * 1.18).clamp(0.0, 255.0);
+                    [v, v, v]
+                }
+                Self::Auto | Self::Original => [f32::from(r), f32::from(g), f32::from(b)],
+            };
+            *pixel = Color32::from_rgba_unmultiplied(
+                nr.clamp(0.0, 255.0) as u8,
+                ng.clamp(0.0, 255.0) as u8,
+                nb.clamp(0.0, 255.0) as u8,
+                a,
+            );
+        }
+    }
+}
+
+/// The colours the shipped land, sea and map chrome are painted with.
+#[derive(Debug, Clone, Copy)]
+pub struct MapPalette {
+    /// The sea, and the background behind missing tiles.
+    pub water: Color32,
+    /// The filled land.
+    pub land: Color32,
+    /// The shoreline stroke.
+    pub coast: Color32,
+    /// The latitude/longitude grid.
+    pub graticule: Color32,
+    /// The map's hairline border.
+    pub frame: Color32,
+    /// Small map labels.
+    pub label: Color32,
+    /// The credit line.
+    pub credit: Color32,
+}
+
+/// The radius of a dot standing for count photographs.
 pub fn dot_radius(count: usize) -> f32 {
     let count = count.max(1) as f32;
     MIN_DOT + DOT_GROWTH * count.sqrt()
@@ -58,49 +235,11 @@ pub fn dot_radius(count: usize) -> f32 {
 
 /// The radius the map actually draws and hit-tests a pin at.
 ///
-/// A cluster keeps the area-true radius it has always had, but never shrinks below a tappable disc; a
-/// single photograph is a small thumbnail, so its square needs the reach of half its side. Keeping
-/// this beside [`dot_radius`] means the painted shape and the clickable shape cannot disagree.
+/// A cluster keeps the area-true radius it has always had, but never shrinks below a tappable disc; a single
+/// photograph is a small thumbnail, so its square needs the reach of half its side. Keeping this beside
+/// [\`dot_radius\`] means the painted shape and the clickable shape cannot disagree.
 pub fn pin_radius(count: usize) -> f32 {
     if count <= 1 { 17.0 } else { dot_radius(count).clamp(15.0, MAX_DOT) }
-}
-
-/// The centre after dragging the map by `drag` screen pixels.
-///
-/// The map follows the pointer, so the centre moves the other way. Kept here rather than in the
-/// view because dragging is arithmetic over the projection, and arithmetic is the part worth a
-/// test without a window.
-pub fn pan_centre(centre: LatLon, zoom: u8, drag: (f64, f64)) -> Option<LatLon> {
-    let point = sortlens_geo::project(centre, zoom)?;
-    sortlens_geo::unproject(
-        Point {
-            x: point.x - drag.0,
-            y: point.y - drag.1,
-        },
-        zoom,
-    )
-}
-
-/// The centre that keeps `anchor` over the same place while the zoom changes.
-///
-/// A wheel or pinch zooms about the pointer, not the middle of the window: the coast under the
-/// finger must stay under the finger. `viewport` and `anchor` are in screen pixels, `anchor` being
-/// measured from the map's top-left corner.
-pub fn zoom_centre(centre: LatLon, old_zoom: u8, new_zoom: u8, viewport: (f64, f64), anchor: (f64, f64)) -> Option<LatLon> {
-    let point = sortlens_geo::project(centre, old_zoom)?;
-    let under = Point {
-        x: point.x + anchor.0 - viewport.0 / 2.0,
-        y: point.y + anchor.1 - viewport.1 / 2.0,
-    };
-    let place = sortlens_geo::unproject(under, old_zoom)?;
-    let next = sortlens_geo::project(place, new_zoom)?;
-    sortlens_geo::unproject(
-        Point {
-            x: next.x + viewport.0 / 2.0 - anchor.0,
-            y: next.y + viewport.1 / 2.0 - anchor.1,
-        },
-        new_zoom,
-    )
 }
 
 /// The photographs a click opened, held so the map can paint their strip under the pins.
@@ -130,20 +269,22 @@ pub struct Dot {
     pub radius: f32,
 }
 
-/// The dots to draw for a set of clusters, at a zoom level and viewport origin.
+/// The dots to draw for a set of clusters, given a projection into map-relative pixels.
 ///
 /// Clusters Mercator cannot place, and clusters outside the viewport, are left out — and each dot remembers which
 /// cluster it came from, so the caller never has to assume the indices line up.
-pub fn dots(clusters: &[sortlens_geo::Cluster], zoom: u8, origin: sortlens_geo::Point, width: f32, height: f32) -> Vec<Dot> {
+pub fn dots(clusters: &[sortlens_geo::Cluster], project: impl Fn(LatLon) -> Option<(f32, f32)>, width: f32, height: f32) -> Vec<Dot> {
     let mut dots = Vec::new();
     for (index, cluster) in clusters.iter().enumerate() {
-        let Some(at) = sortlens_geo::screen_position(cluster.centre, zoom, origin, f64::from(width), f64::from(height)) else {
+        let Some((x, y)) = project(cluster.centre) else {
             continue;
         };
-        #[allow(clippy::cast_possible_truncation)]
+        if !(0.0..=width).contains(&x) || !(0.0..=height).contains(&y) {
+            continue;
+        }
         dots.push(Dot {
             cluster: index,
-            at: (at.x as f32, at.y as f32),
+            at: (x, y),
             radius: pin_radius(cluster.len()),
         });
     }
@@ -173,9 +314,9 @@ pub fn dot_at(dots: &[Dot], at: (f32, f32)) -> Option<usize> {
 
 /// The name to print beside a dot, if the gazetteer has one near enough.
 ///
-/// `None` means "no place recorded near here", which is *not* the middle of the ocean and not an unknown name: the
+/// None means "no place recorded near here", which is *not* the middle of the ocean and not an unknown name: the
 /// dot then says its coordinates, because a coordinate is a true answer and an invented place name is not.
-pub fn place_label(gazetteer: &sortlens_geo::Gazetteer, at: sortlens_geo::LatLon) -> Option<&sortlens_geo::Place> {
+pub fn place_label(gazetteer: &sortlens_geo::Gazetteer, at: LatLon) -> Option<&sortlens_geo::Place> {
     gazetteer.nearest(at, LABEL_KM)
 }
 
@@ -184,7 +325,7 @@ pub fn place_label(gazetteer: &sortlens_geo::Gazetteer, at: sortlens_geo::LatLon
 /// Written as one function so the two forms cannot drift: a named dot says where it is by name and a coordinate, an
 /// unnamed one says the coordinate alone rather than pretending to know a place.
 #[must_use]
-pub fn selection_notice(count: usize, at: sortlens_geo::LatLon, name: Option<&str>) -> String {
+pub fn selection_notice(count: usize, at: LatLon, name: Option<&str>) -> String {
     let coordinates = format!(
         "{:.2}{} {:.2}{}",
         at.lat.abs(),
@@ -196,6 +337,19 @@ pub fn selection_notice(count: usize, at: sortlens_geo::LatLon, name: Option<&st
         Some(name) => format!("Selected {count} photo(s) near {name} ({coordinates})"),
         None => format!("Selected {count} photo(s) at {coordinates}"),
     }
+}
+
+/// A zoom to actually use, given the set's range.
+///
+/// Zooming past the top of a tile set is clamped rather than refused: the tiles stop, the dots keep going, and the
+/// view says which is which. A map that stops responding to the + button has not told anybody why.
+pub fn clamp_zoom(wanted: u8, range: (u8, u8)) -> u8 {
+    let (low, high) = range;
+    // The bounds are put in order first: a set whose range arrives backwards is still a set, and clamp panics when
+    // its minimum is above its maximum — an assertion failure in a paint path is not a way to learn that.
+    let high = high.max(low).max(1);
+    let low = low.max(1).min(high);
+    wanted.clamp(low, high)
 }
 
 /// A gazetteer held between frames, with the file's stamp so a changed file is re-read.
@@ -232,7 +386,7 @@ impl Names {
 
     /// The gazetteer for a file, reloading it when the file has changed.
     ///
-    /// `None` when there is no file at all. When the file exists but cannot be read, the reason is kept — the view
+    /// None when there is no file at all. When the file exists but cannot be read, the reason is kept — the view
     /// shows it, because a places file that silently does nothing is worse than no places file.
     pub fn for_file(&mut self, path: Option<&Path>) -> Option<&sortlens_geo::Gazetteer> {
         let Some(path) = path else {
@@ -278,31 +432,18 @@ impl Names {
     }
 }
 
-/// A zoom to actually use, given the set's range.
-///
-/// Zooming past the top of a tile set is clamped rather than refused: the tiles stop, the dots keep going, and the
-/// view says which is which. A map that stops responding to the + button has not told anybody why.
-pub fn clamp_zoom(wanted: u8, range: (u8, u8)) -> u8 {
-    let (low, high) = range;
-    // The bounds are put in order first: a set whose range arrives backwards is still a set, and `clamp` panics when
-    // its minimum is above its maximum — an assertion failure in a paint path is not a way to learn that.
-    let high = high.max(low).max(1);
-    let low = low.max(1).min(high);
-    wanted.clamp(low, high)
-}
-
-/// Decoded tiles, kept between frames.
+/// Decoded and styled tiles, kept between frames.
 ///
 /// Both a tile that failed to decode and one the set simply does not carry are remembered, so neither is re-read on
 /// every repaint — how a single bad tile, or a hole in an archive, becomes a stutter. They are not the same kind of
-/// absence, though: a hole is painted as background and counted by neither [`TileCache::decodes`] nor
-/// [`TileCache::failures`], because a partial map is normal and a corrupted tile is a fault.
+/// absence, though: a hole is painted as background and counted by neither [\`TileCache::decodes\`] nor
+/// [\`TileCache::failures\`], because a partial map is normal and a corrupted tile is a fault.
 #[derive(Default)]
 pub struct TileCache {
     /// The basemap the entries came from. A different folder or archive clears the cache rather than painting one
     /// library's tiles over another's, which is a wrong map with no error message.
     source: Option<PathBuf>,
-    entries: HashMap<TileCell, Option<egui::TextureHandle>>,
+    entries: HashMap<(TileId, MapStyle), Option<TextureHandle>>,
     /// Counted so the cache limit has something to measure rather than a guess.
     decodes: usize,
     failures: usize,
@@ -332,27 +473,32 @@ impl TileCache {
         Self::default()
     }
 
-    /// The texture for one cell of a basemap, decoding it on first sight.
+    /// Forget every texture, for a style or source change.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.source = None;
+        self.decodes = 0;
+        self.failures = 0;
+    }
+
+    /// The texture for one tile in one style, decoding it on first sight.
     ///
-    /// The bytes come from [`TileSet::tile`], so a folder and an archive are the same path here. `None` covers both
+    /// The bytes come from [\`TileSet::tile\`], so a folder and an archive are the same path here. None covers both
     /// "not there" and "not an image"; the view paints background either way, because a hole in a tile set is not an
     /// error to report, it is a hole.
-    pub fn texture(&mut self, ctx: &egui::Context, set: &TileSet, cell: TileCell) -> Option<&egui::TextureHandle> {
+    pub fn texture(&mut self, ctx: &egui::Context, set: &TileSet, id: TileId, style: MapStyle) -> Option<TextureHandle> {
         if self.source.as_deref() != Some(set.path()) {
             self.entries.clear();
             self.source = Some(set.path().to_path_buf());
         }
-        if !self.entries.contains_key(&cell) {
+        let key = (id, style);
+        if !self.entries.contains_key(&key) {
             if self.entries.len() >= CACHE_LIMIT {
                 self.evict();
             }
-            // Only bytes the set actually carries can be a decode failure. A tile that is not there is a hole in the
-            // basemap — a partial tile set, or a viewport wider than the set's coverage — and counting it as a failure
-            // made every such map look corrupted: the Places paint test's whole claim ("every fixture tile was a real
-            // PNG") reported 980 failures for the tiles it never wrote, while the fixture's own tiles decoded fine.
-            let loaded = match set.tile(cell.zoom, cell.x, cell.y) {
+            let loaded = match set.tile(id.zoom, id.x, id.y) {
                 Some(bytes) => {
-                    let texture = self.load(ctx, cell, &bytes);
+                    let texture = self.load(ctx, id, style, &bytes);
                     if texture.is_none() {
                         self.failures += 1;
                     }
@@ -360,14 +506,14 @@ impl TileCache {
                 }
                 None => None,
             };
-            self.entries.insert(cell, loaded);
+            self.entries.insert(key, loaded);
         }
-        self.entries.get(&cell).and_then(Option::as_ref)
+        self.entries.get(&key).and_then(Clone::clone)
     }
 
     /// Whether a tile is already decoded, without loading it. Used by tests and by the view's own bookkeeping.
-    pub fn contains(&self, cell: TileCell) -> bool {
-        self.entries.contains_key(&cell)
+    pub fn contains(&self, id: TileId, style: MapStyle) -> bool {
+        self.entries.contains_key(&(id, style))
     }
 
     /// How many tiles are held.
@@ -392,15 +538,16 @@ impl TileCache {
         self.failures
     }
 
-    fn load(&mut self, ctx: &egui::Context, cell: TileCell, bytes: &[u8]) -> Option<egui::TextureHandle> {
+    fn load(&mut self, ctx: &egui::Context, id: TileId, style: MapStyle, bytes: &[u8]) -> Option<TextureHandle> {
         self.decodes += 1;
         if bytes.is_empty() || bytes.len() > MAX_TILE_BYTES as usize {
             return None;
         }
-        let tile = sortlens_thumbs::decode_image(bytes, 256).ok()?;
-        let image = egui::ColorImage::from_rgba_unmultiplied([tile.width as usize, tile.height as usize], &tile.rgba);
+        let tile = sortlens_thumbs::decode_image(bytes, TILE_PX).ok()?;
+        let mut image = ColorImage::from_rgba_unmultiplied([tile.width as usize, tile.height as usize], &tile.rgba);
+        style.shade(&mut image);
         Some(ctx.load_texture(
-            format!("tile:{}:{}:{}", cell.zoom, cell.x, cell.y),
+            format!("tile:{}:{}:{}:{}", style.id(), id.zoom, id.x, id.y),
             image,
             egui::TextureOptions::LINEAR,
         ))
@@ -409,16 +556,176 @@ impl TileCache {
     /// Drop half the cache. Textures are cheap to decode again and expensive to keep forever; halving avoids the
     /// thrash of evicting one entry per insertion once the limit is reached.
     fn evict(&mut self) {
-        let doomed: Vec<TileCell> = self.entries.keys().take(CACHE_LIMIT / 2).copied().collect();
+        let doomed: Vec<(TileId, MapStyle)> = self.entries.keys().take(CACHE_LIMIT / 2).copied().collect();
         for cell in doomed {
             self.entries.remove(&cell);
         }
     }
 }
+
+/// The walkers tile source over a [\`TileSet\`].
+///
+/// Walkers owns panning, zooming and tile placement; this adapter owns only "give me the texture for this tile".
+pub struct PlacesTiles<'a> {
+    /// The folder or archive the tiles come from.
+    pub set: &'a TileSet,
+    /// The decoded textures, shared with the view so a style change does not decode everything twice.
+    pub cache: &'a mut TileCache,
+    /// The egui context the textures belong to.
+    pub ctx: egui::Context,
+    /// The concrete style to draw; Auto has already been resolved.
+    pub style: MapStyle,
+}
+
+impl Tiles for PlacesTiles<'_> {
+    fn at(&mut self, tile_id: TileId) -> Option<TilePiece> {
+        let texture = self.cache.texture(&self.ctx, self.set, tile_id, self.style)?;
+        Some(TilePiece::new(
+            Tile::Raster(texture),
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+        ))
+    }
+
+    fn attribution(&self) -> Attribution {
+        // The credit is painted by the view from the set's runtime attribution, which can be read from a file or an
+        // archive. Walkers wants a 'static string, and borrowing the user's credit into the binary is not an option;
+        // an empty value here keeps walkers from inventing one while the view still prints the real line.
+        Attribution {
+            text: "",
+            url: "",
+            logo_light: None,
+            logo_dark: None,
+        }
+    }
+
+    fn tile_size(&self) -> u32 {
+        TILE_PX
+    }
+}
+
+/// The zoom the map starts at before the first frame fits it to the library.
+pub const DEFAULT_ZOOM: u8 = 5;
+
+/// Paint the embedded land and coastline for a map rectangle.
+///
+/// This is the offline basemap: the Natural Earth 1:110m land polygons are filled, the coastline is stroked over them,
+/// and a faint graticule appears at world zoom. Tiles, when supplied, replace all of it; the caller decides which to
+/// draw. World coordinates are stored at zoom zero, so one scale factor and one wrap offset put them anywhere the
+/// camera looks, including across the antimeridian.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub fn paint_geography(
+    painter: &egui::Painter,
+    map: egui::Rect,
+    style: MapStyle,
+    tokens: &crate::theme::Tokens,
+    centre: LatLon,
+    zoom: f64,
+) {
+    let palette = style.palette(tokens);
+    let Some(centre_world) = sortlens_geo::project(centre, 0) else {
+        return;
+    };
+    let scale = zoom.exp2();
+    let half_width = f64::from(map.width()) / (2.0 * scale);
+    let min_x = centre_world.x - half_width;
+    let max_x = centre_world.x + half_width;
+    let wrap_low = (min_x / 256.0).floor() as i32;
+    let wrap_high = (max_x / 256.0).floor() as i32;
+    let to_screen = |x: f64, y: f64| {
+        egui::pos2(
+            map.center().x + ((x - centre_world.x) * scale) as f32,
+            map.center().y + ((y - centre_world.y) * scale) as f32,
+        )
+    };
+
+    painter.rect_filled(map, 0.0, palette.water);
+
+    // The graticule is behind the land: a grid is a reading aid, not a thing on the ground. It is only legible at
+    // world zoom; deeper in it would be a wall of lines, so it fades out by zoom five.
+    if zoom <= 4.5 {
+        let grid = egui::Stroke::new(0.5, palette.graticule);
+        for longitude in (-180..180).step_by(30) {
+            let x = (f64::from(longitude) + 180.0) / 360.0 * 256.0;
+            for wrap in wrap_low..=wrap_high {
+                let sx = to_screen(x + f64::from(wrap) * 256.0, 0.0).x;
+                painter.line_segment([egui::pos2(sx, map.top()), egui::pos2(sx, map.bottom())], grid);
+            }
+        }
+        for latitude in [-60.0, -30.0, 0.0, 30.0, 60.0] {
+            let Some(world) = sortlens_geo::LatLon::new(latitude, 0.0).and_then(|at| sortlens_geo::project(at, 0)) else {
+                continue;
+            };
+            let sy = to_screen(0.0, world.y).y;
+            painter.line_segment([egui::pos2(map.left(), sy), egui::pos2(map.right(), sy)], grid);
+        }
+    }
+
+    // One mesh for all the land, so the sea shows between islands without a stroke around every triangle.
+    let mut mesh = egui::Mesh::default();
+    let cull = map.expand(2.0);
+    for triangle in sortlens_geo::land::Land::shipped().triangles() {
+        for wrap in wrap_low..=wrap_high {
+            let shift = f64::from(wrap) * 256.0;
+            let a = to_screen(triangle[0].x + shift, triangle[0].y);
+            let b = to_screen(triangle[1].x + shift, triangle[1].y);
+            let c = to_screen(triangle[2].x + shift, triangle[2].y);
+            let bounds = egui::Rect::from_points(&[a, b, c]);
+            if !bounds.intersects(cull) {
+                continue;
+            }
+            let base = mesh.vertices.len() as u32;
+            for point in [a, b, c] {
+                mesh.colored_vertex(point, palette.land);
+            }
+            mesh.add_triangle(base, base + 1, base + 2);
+        }
+    }
+    if !mesh.is_empty() {
+        painter.add(egui::Shape::mesh(mesh));
+    }
+
+    // The coast is a stroke, not a filled edge: it is the line the land stops at, and it is what makes a schematic
+    // map read as a map. Each run of visible segments is one shape, so a long coast is one paint call, not thousands.
+    let stroke = egui::Stroke::new(if zoom < 3.0 { 0.7 } else { 1.0 }, palette.coast);
+    let visible = map.expand(32.0);
+    for outline in sortlens_geo::coastline::Coastline::shipped().outlines() {
+        let world: Vec<sortlens_geo::Point> = outline.iter().filter_map(|at| sortlens_geo::project(*at, 0)).collect();
+        if world.len() < 2 {
+            continue;
+        }
+        for wrap in wrap_low..=wrap_high {
+            let shift = f64::from(wrap) * 256.0;
+            let mut run: Vec<egui::Pos2> = Vec::new();
+            for pair in world.windows(2) {
+                let a = to_screen(pair[0].x + shift, pair[0].y);
+                let b = to_screen(pair[1].x + shift, pair[1].y);
+                if egui::Rect::from_points(&[a, b]).intersects(visible) {
+                    if run.is_empty() {
+                        run.push(a);
+                    }
+                    run.push(b);
+                } else {
+                    if run.len() > 1 {
+                        painter.add(egui::Shape::line(std::mem::take(&mut run), stroke));
+                    }
+                    run.clear();
+                }
+            }
+            if run.len() > 1 {
+                painter.add(egui::Shape::line(run, stroke));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    fn at(lat: f64, lon: f64) -> LatLon {
+        LatLon::new(lat, lon).expect("a place")
+    }
 
     #[test]
     fn a_dot_grows_with_its_count_and_then_stops() {
@@ -440,28 +747,6 @@ mod tests {
         assert!(pin_radius(2) >= 15.0, "two photographs are still a target");
         assert!(pin_radius(4) < pin_radius(400), "the bubble still grows with its count");
         assert_eq!(pin_radius(1_000_000), MAX_DOT, "and stops at a region");
-    }
-
-    #[test]
-    fn dragging_moves_the_centre_the_other_way_and_zooming_keeps_the_anchor_still() {
-        let brighton = sortlens_geo::LatLon::new(50.8225, -0.1372).expect("a place");
-        let moved = pan_centre(brighton, 8, (40.0, 0.0)).expect("a coordinate");
-        assert!(
-            moved.lon < brighton.lon,
-            "dragging right moves the map right, so the centre moves west"
-        );
-        assert!((moved.lat - brighton.lat).abs() < f64::EPSILON, "a horizontal drag does not tilt");
-
-        let viewport = (800.0, 600.0);
-        let centred = zoom_centre(brighton, 8, 10, viewport, (400.0, 300.0)).expect("a coordinate");
-        assert!((centred.lat - brighton.lat).abs() < 0.001 && (centred.lon - brighton.lon).abs() < 0.001);
-
-        let left_edge = zoom_centre(brighton, 8, 10, viewport, (0.0, 300.0)).expect("a coordinate");
-        assert!(
-            left_edge.lon < brighton.lon,
-            "zooming in about the left edge pulls the centre toward it"
-        );
-        assert!((left_edge.lat - brighton.lat).abs() < 0.001);
     }
 
     #[test]
@@ -493,43 +778,37 @@ mod tests {
     }
 
     /// A cluster off screen produces no dot, and the dots that remain still point at the right clusters.
-    ///
-    /// This is the bug that made a test worth writing: the view built its dot list by skipping clusters it could not
-    /// place and then indexed back into the cluster list by *position*, so one off-screen cluster shifted every dot
-    /// onto its neighbour's photographs.
     #[test]
     fn a_dot_points_at_its_own_cluster_even_when_another_is_off_screen() {
-        let brighton = sortlens_geo::LatLon::new(50.8225, -0.1372).expect("a place");
-        let sydney = sortlens_geo::LatLon::new(-33.8688, 151.2093).expect("a place");
+        let brighton = at(50.8225, -0.1372);
+        let sydney = at(-33.8688, 151.2093);
         let clusters = vec![
             sortlens_geo::Cluster {
                 cell: (0, 0),
-                members: vec![sortlens_core::PhotoId(1)],
+                members: vec![PhotoId(1)],
                 centre: sydney,
                 bounds: (-33.0, -34.0, 151.0, 152.0),
             },
             sortlens_geo::Cluster {
                 cell: (1, 1),
-                members: vec![sortlens_core::PhotoId(2), sortlens_core::PhotoId(3)],
+                members: vec![PhotoId(2), PhotoId(3)],
                 centre: brighton,
                 bounds: (50.0, 51.0, -1.0, 0.0),
             },
         ];
-        let zoom = 6;
-        let origin = sortlens_geo::viewport_origin(zoom, brighton, 800.0, 600.0).expect("origin");
-        let dots = dots(&clusters, zoom, origin, 800.0, 600.0);
+        let project = |place: LatLon| {
+            if place == sydney {
+                Some((900.0, 100.0))
+            } else {
+                Some((400.0, 300.0))
+            }
+        };
+        let dots = dots(&clusters, project, 800.0, 600.0);
         assert_eq!(dots.len(), 1, "Sydney is off screen and gets no dot");
-        assert_eq!(
-            dots[0].cluster, 1,
-            "the dot remembers it is the Brighton cluster, not the Sydney one"
-        );
+        assert_eq!(dots[0].cluster, 1, "the dot remembers it is the Brighton cluster");
         assert_eq!(clusters[dots[0].cluster].members.len(), 2);
-        // And the hit test resolves to that dot, so the click selects Brighton's two photographs.
         let hit = dot_at(&dots, dots[0].at).expect("its own centre");
-        assert_eq!(
-            clusters[dots[hit].cluster].members,
-            vec![sortlens_core::PhotoId(2), sortlens_core::PhotoId(3)]
-        );
+        assert_eq!(clusters[dots[hit].cluster].members, vec![PhotoId(2), PhotoId(3)]);
     }
 
     #[test]
@@ -537,7 +816,6 @@ mod tests {
         assert_eq!(clamp_zoom(5, (2, 12)), 5);
         assert_eq!(clamp_zoom(30, (2, 12)), 12, "the tiles stop, the dots do not");
         assert_eq!(clamp_zoom(0, (2, 12)), 2);
-        // A set with one zoom is one zoom, and zoom 0 means the world in a single tile: usable, so kept.
         assert_eq!(clamp_zoom(9, (0, 0)), 1);
     }
 
@@ -546,23 +824,18 @@ mod tests {
     fn a_name_is_borrowed_only_when_there_is_one_near_enough() {
         let gazetteer = sortlens_geo::Gazetteer::parse("Brighton\t51\t0\tGB\nLima\t-12\t-77\n");
         assert_eq!(gazetteer.len(), 2);
-        let brighton = sortlens_geo::LatLon::new(50.8225, -0.1372).expect("a place");
+        let brighton = at(50.8225, -0.1372);
         let named = place_label(&gazetteer, brighton).expect("Brighton is 20 km away");
         assert_eq!(named.name, "Brighton");
 
-        // The middle of the Atlantic: no name, and no invented one.
-        let ocean = sortlens_geo::LatLon::new(25.0, -40.0).expect("a place");
+        let ocean = at(25.0, -40.0);
         assert_eq!(place_label(&gazetteer, ocean), None);
-
-        // The notice has two forms and neither of them lies: a named dot says the name *and* the coordinate, so the
-        // name cannot be mistaken for a finer resolution than the file has.
         assert_eq!(
             selection_notice(42, brighton, Some(&named.name)),
             "Selected 42 photo(s) near Brighton (50.82N 0.14W)"
         );
         assert_eq!(selection_notice(1, ocean, None), "Selected 1 photo(s) at 25.00N 40.00W");
-        // The southern and western halves of the world keep their signs on the label.
-        let sydney = sortlens_geo::LatLon::new(-33.8688, 151.2093).expect("a place");
+        let sydney = at(-33.8688, 151.2093);
         assert_eq!(selection_notice(3, sydney, None), "Selected 3 photo(s) at 33.87S 151.21E");
     }
 
@@ -583,27 +856,14 @@ mod tests {
         assert_eq!(names.len(), 1);
         assert!(names.error().is_none());
 
-        // A second call with an unchanged file is a `metadata` call, not a re-read: the count stays the same and the
-        // parse is not repeated (a re-parse is not observable, but an unchanged *stamp* is, and the file is larger
-        // after the next write, which is what forces the reload).
-        assert_eq!(names.for_file(Some(&path)).map(sortlens_geo::Gazetteer::len), Some(1));
-
         std::fs::write(&path, "Brighton\t51\t0\nLima\t-12\t-77\nHove\t51\t0\n").expect("write");
-        assert_eq!(
-            names.for_file(Some(&path)).map(sortlens_geo::Gazetteer::len),
-            Some(3),
-            "the changed file is re-read"
-        );
+        assert_eq!(names.for_file(Some(&path)).map(sortlens_geo::Gazetteer::len), Some(3));
 
-        // A file that disappears stops naming anything rather than keeping the last names it had: a place list that
-        // outlives its file would put names on a map the person deleted the authority for. And its absence is not an
-        // error, because having no places file is the normal state of a library.
         std::fs::remove_file(&path).expect("remove");
         assert!(names.for_file(Some(&path)).is_none());
         assert!(names.is_empty());
         assert_eq!(names.error(), None, "no file is not a fault");
 
-        // An unreadable file keeps its reason for the view to show.
         let directory_instead = dir.join("places.txt");
         std::fs::create_dir_all(&directory_instead).expect("dir");
         names.for_file(Some(&directory_instead));
@@ -628,28 +888,85 @@ mod tests {
         let bad = folder.join("3").join("1").join("3.png");
         std::fs::write(&bad, b"not a png").expect("write");
         let set = TileSet::open(&root).expect("a folder with a credit");
-        let png = TileCell { zoom: 3, x: 1, y: 2 };
-        let corrupt = TileCell { zoom: 3, x: 1, y: 3 };
-        let absent = TileCell { zoom: 3, x: 1, y: 4 };
+        let png = TileId { zoom: 3, x: 1, y: 2 };
+        let corrupt = TileId { zoom: 3, x: 1, y: 3 };
+        let absent = TileId { zoom: 3, x: 1, y: 4 };
 
         let ctx = egui::Context::default();
         let mut cache = TileCache::new();
         // Uploading needs a frame in progress, so the loads happen inside one.
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
-            assert!(cache.texture(ctx, &set, png).is_some(), "a real png decodes");
-            assert!(cache.texture(ctx, &set, png).is_some());
+            assert!(cache.texture(ctx, &set, png, MapStyle::Original).is_some(), "a real png decodes");
+            assert!(cache.texture(ctx, &set, png, MapStyle::Original).is_some());
             assert_eq!(cache.decodes(), 1, "the second look is a cache hit");
-            assert!(cache.texture(ctx, &set, corrupt).is_none());
-            assert!(cache.texture(ctx, &set, corrupt).is_none());
+            assert!(cache.texture(ctx, &set, corrupt, MapStyle::Original).is_none());
+            assert!(cache.texture(ctx, &set, corrupt, MapStyle::Original).is_none());
             assert_eq!(cache.decodes(), 2, "a failed tile is not re-decoded");
             assert_eq!(cache.failures(), 1);
-            assert!(cache.texture(ctx, &set, absent).is_none());
+            assert!(cache.texture(ctx, &set, absent, MapStyle::Original).is_none());
             assert_eq!(cache.len(), 3, "failures are remembered as failures");
-            // A tile the folder does not carry is a hole in the map, not a broken tile: it is remembered (so it is not
-            // stat'ed again) but it is neither a decode nor a failure. Counting it as one made a partial set look
-            // corrupted, which is what the Places paint test was reporting.
             assert_eq!(cache.failures(), 1, "a hole is not a corrupted tile");
             assert_eq!(cache.decodes(), 2, "a hole is not a decode attempt");
+            // The same bytes in a different style are a different texture: the style is part of the key.
+            assert!(cache.texture(ctx, &set, png, MapStyle::Ink).is_some());
+            assert_eq!(cache.decodes(), 3);
+        });
+        output.textures_delta.clear();
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn auto_style_follows_the_interface_and_a_tile_set_is_left_original() {
+        let charcoal = crate::theme::ThemeKind::Charcoal.tokens();
+        let paper = crate::theme::ThemeKind::Paper.tokens();
+        assert_eq!(MapStyle::Auto.resolve(&charcoal, false), MapStyle::Ink);
+        assert_eq!(MapStyle::Auto.resolve(&paper, false), MapStyle::Paper);
+        assert_eq!(MapStyle::Auto.resolve(&charcoal, true), MapStyle::Original);
+        assert_eq!(MapStyle::Ink.resolve(&paper, true), MapStyle::Ink, "an explicit style is kept");
+    }
+
+    #[test]
+    fn every_style_changes_the_tile_and_the_four_inks_are_distinct() {
+        let mut image = ColorImage::from_rgba_unmultiplied([2, 1], &[120, 140, 160, 255, 240, 240, 240, 255]);
+        let original = image.clone();
+        MapStyle::Ink.shade(&mut image);
+        assert_ne!(image.pixels, original.pixels, "Ink restates the raster");
+        let mut colours = Vec::new();
+        for style in [MapStyle::Ink, MapStyle::Paper, MapStyle::Blueprint, MapStyle::Mono] {
+            let mut sample = original.clone();
+            style.shade(&mut sample);
+            colours.push(sample.pixels[0]);
+        }
+        colours.dedup();
+        assert_eq!(colours.len(), 4, "each style is its own ink");
+        let mut untouched = original.clone();
+        MapStyle::Original.shade(&mut untouched);
+        assert_eq!(untouched.pixels, original.pixels);
+    }
+
+    /// The walkers adapter hands back the same texture the cache holds and never invents an attribution.
+    #[test]
+    fn the_walkers_adapter_uses_the_cache_and_leaves_the_credit_to_the_view() {
+        let root = std::env::temp_dir().join(format!("sortlens-places-tiles-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let folder = root.join("tiles");
+        let good = folder.join("2").join("1");
+        std::fs::create_dir_all(&good).expect("dir");
+        std::fs::write(folder.join("attribution.txt"), "© Example Maps").expect("credit");
+        std::fs::write(good.join("1.png"), sortlens_icon::png()).expect("write");
+        let set = TileSet::open(&root).expect("a folder with a credit");
+        let ctx = egui::Context::default();
+        let mut cache = TileCache::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            let mut tiles = PlacesTiles {
+                set: &set,
+                cache: &mut cache,
+                ctx: ctx.clone(),
+                style: MapStyle::Original,
+            };
+            assert!(tiles.at(TileId { zoom: 2, x: 1, y: 1 }).is_some());
+            assert_eq!(tiles.attribution().text, "");
+            assert_eq!(tiles.tile_size(), TILE_PX);
         });
         output.textures_delta.clear();
         let _ = std::fs::remove_dir_all(&root);

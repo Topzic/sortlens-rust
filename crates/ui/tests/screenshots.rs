@@ -763,6 +763,7 @@ fn places_paints_in_both_themes() {
         let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
         scene.state.view = View::Places;
         scene.state.places_zoom = 3;
+        scene.state.places_zoom_exact = 3.0;
         scene.state.places_zoom_chosen = true;
         library.keep(shoot(kind, scene, &format!("places-{}", kind_id(kind))));
     }

@@ -426,26 +426,36 @@ day's cut would make the review appear to make a claim it did not.
 ### 5.9 Places
 
 Full-canvas map centred on the **middle of the library's own photographs' spread** and opened at the deepest zoom
-that still shows all of them, with dots over it. (The mean of the latitudes is not the middle: Brighton and Lima
-average 19°N, 1,400 km north of the box's centre, and a view centred there pushes the northern dot towards the edge of
-its own fit. The zoom is fitted on every frame until the person picks one with `+`/`−`, after which it is theirs.) A
-library at one inland point fits at the deepest allowed zoom, where a 1:110m outline can have no coast within a screen;
-the fitted view therefore widens one level at a time until a shoreline is on screen, because a blank rectangle with a
-dot on it reads as a map that failed to load rather than as a map of somewhere inland. A dot's radius grows with the
-square root of its photo count — area tracks the count, so a dot standing for four hundred photographs is twice the
-width of one rather than a hundred times — and a dot for more than one photo has its count printed in it.
+that still shows all of them. (The mean of the latitudes is not the middle: Brighton and Lima average 19°N, 1,400 km
+north of the box's centre, and a view centred there pushes the northern pin towards the edge of its own fit.) Walkers
+owns the gestures — drag, wheel, pinch, double-tap — and the zoom is fitted on every frame until the person moves the
+map or zooms it, after which the centre and zoom are theirs. `Fit` in the bottom-right corner returns to the fitted
+view. A library at one inland point fits at the deepest allowed zoom; the shipped land means that view is a place on
+the map, not a blank rectangle with a dot on it.
 
-Clicking a dot **selects those photos** and names where they are ("Selected 42 photo(s) at 50.82N 0.14W"); clicking
-the sea selects nothing and clears nothing. `+` and `−` sit over the map's top-right corner and stop at the ends of
-the tile set's range: zooming past the top clamps, because the tiles stopping is not a reason for the dots to stop.
+A **single photograph** is a 30 px thumbnail pin with a short tail, so the map shows the photograph itself rather than
+a generic marker. Photographs that clump together at the current zoom become an accent disc with the count printed in
+it; its radius grows with the square root of the count — area tracks the count, so a disc standing for four hundred
+photographs is twice the width of one rather than a hundred times. Clustering uses a 64 px cell at the rounded zoom,
+so a group comes apart as the person zooms in. Clicking a pin **selects those photographs** and opens a strip of 52 px
+thumbnails over the map without moving the map; `Open` goes to Detail, `Close` leaves the selection alone. A
+double-click on one photograph opens Detail; on a group it zooms two levels and re-clusters. Clicking the sea closes
+the strip and nothing else.
 
-**A coastline ships with the application**, so a first-run library is geography rather than a field of dots on a blank
-rectangle: the public-domain Natural Earth 1:110m outline, embedded in `sortlens-geo`, stroked under the dots in the
-theme's `map_coast` colour. Its credit — "Coastline: Natural Earth 1:110m (public domain)" — is printed over the map
-every frame the outline is drawn, exactly as a tile folder's credit is. It is a *schematic*: 1:110m is a world map for
-a wall, so at street zoom the shore is a staircase and there is a footer line saying so.
+The style menu at the top-left (`Map style · Auto`) offers **Auto**, **Original**, **Ink**, **Paper**, **Blueprint** and
+**Mono**. Auto is Original when a tile set is installed, otherwise Ink on a dark theme and Paper on a light one. The
+five palettes restyle only the basemap: pins keep the accent colour, so a style change never makes a photograph harder
+to find. The zoom pill at the top-right has `+`, `−` and the rounded zoom, and stops at the ends of the tile set's
+range; zooming past the top clamps, because the tiles stopping is not a reason for the pins to stop.
 
-A **basemap the person supplies** replaces that outline and wins over it, in whichever of two shapes they have: a
+**Land and coastline ship with the application**, so a first-run library is geography rather than a field of dots: the
+public-domain Natural Earth 1:110m land polygons and coastlines, embedded in `sortlens-geo`, triangulated and painted
+as one mesh under the pins in the style's land and coast colours. Its credit — "Land and coastline: Natural Earth
+1:110m (public domain)" — is printed under the map every frame the land is drawn, exactly as a tile folder's credit
+is. It is a world map for a wall: at street zoom the shore is a staircase, but the land still tells the person which
+country they are looking at.
+
+A **basemap the person supplies** replaces the shipped land and wins over it, in whichever of two shapes they have: a
 **`{z}/{x}/{y}.png` tile folder** in `tiles/` beside the catalog with an `attribution.txt` beside it, or a
 **`tiles.mbtiles` archive** (the SQLite format tile downloaders and QGIS write) whose `metadata` carries an
 `attribution` row — or, failing that, an `attribution.txt` beside it. The folder wins when both are present. **The
@@ -453,9 +463,9 @@ credit is printed over the map every frame it is drawn**, bottom-left, and a bas
 an unlabelled map implies the application made it. Nothing is downloaded, and the archive is opened read-only. A tile
 that is missing or will not decode is painted as background: a hole in a tile set is a hole, not a notice.
 
-The footer states what is on the map — "4,182 photo(s) with a location · 96 dot(s) · click a dot to select it" — and
-the state of the basemap: the shipped coastline (with where to put a tile folder or archive to replace it), refused
-(with the reason), or the person's own tiles.
+The footer states what is on the map — "4,182 photo(s) with a location · 96 pin(s) · drag to pan, scroll to zoom" —
+and the state of the basemap: the shipped land and coastline (with where to put a tile folder or archive to replace
+it), refused (with the reason), or the person's own tiles.
 
 The view's own words come from the catalogues: the empty state, the counts, the `zoom` label, the gazetteer line and
 both basemap notes, with the numbers as templates — a Japanese map reads "位置情報のある写真 3 枚 · 1 地点", an Arabic one
@@ -464,16 +474,16 @@ second is `TileError::message()`, an engine sentence that would need a piece of 
 too, which this document counts as announcement rather than painted chrome.
 
 **Names come from the person's own gazetteer.** A `places.txt` beside the catalog, tab-separated
-`name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a dot within
+`name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a pin within
 30 km of a listed place prints its name beneath it, and clicking it says "Selected 42 photo(s) near
-Brighton (50.82N 0.14W)". A dot with no place near enough says its coordinates — a coordinate is a
+Brighton (50.82N 0.14W)". A pin with no place near enough says its coordinates — a coordinate is a
 true answer and an invented place name is not. The file is re-read when it changes and nothing is
 downloaded; the footer says whether names are in use or why they are not.
 
-**Not here yet:** a real (non-schematic) vector basemap beyond the 1:110m outline — that is what a tile folder or
-MBTiles archive is for; thumbnail fans inside a dot; a geo-bounds filter on the Library (`library.filter {geoBounds}` does not exist;
-selecting is what a dot does); and label decluttering — a dense gazetteer will overlap its labels, and curating the
-file is the answer until there is a pass that hides colliding ones.
+**Not here yet:** a real vector basemap beyond the 1:110m land — that is what a tile folder or MBTiles archive is
+for; thumbnail fans inside a group disc; a geo-bounds filter on the Library (`library.filter {geoBounds}` does not
+exist; selecting is what a pin does); and label decluttering — a dense gazetteer will overlap its labels, and curating
+the file is the answer until there is a pass that hides colliding ones.
 
 ### 5.10 Insights
 

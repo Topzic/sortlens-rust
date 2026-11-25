@@ -1,8 +1,8 @@
 //! A folder of map tiles, and the licence line that has to travel with it.
 //!
-//! A tile folder is what turns the shipped schematic coastline (`crate::coastline`) into a real basemap, and it is a
-//! folder the person puts on their disk in the arrangement every tile archive already uses — `{z}/{x}/{y}.png`, which
-//! is what falls out of unzipping one. Nothing is fetched at runtime.
+//! A tile folder is what turns the shipped schematic land and coastline (`crate::land`, `crate::coastline`) into a
+//! real basemap. It is a folder the person puts on their disk in the arrangement every tile archive already uses —
+//! `{z}/{x}/{y}.png`, which is what falls out of unzipping one. Nothing is fetched at runtime.
 //!
 //! **The attribution is not optional.** A map without its licence line is not shippable, so a tile folder that does
 //! not say where its tiles came from is refused outright rather than drawn with a blank corner: an unlabelled map

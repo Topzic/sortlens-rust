@@ -809,3 +809,16 @@
 	Files sent to the system Trash are restored from the Trash itself.	ไฟล์ที่ส่งไปถังขยะของระบบจะกู้คืนจากถังขยะเอง
 	Restored {n} photo(s)	กู้คืนแล้ว {n} รูป
 	Forgot a batch of {n} file(s)	ลืมบันทึกชุดที่มี {n} ไฟล์แล้ว
+	Fit	พอดี
+	Fit all photos	พอดีทุกภาพ
+	Map style	สไตล์แผนที่
+	Named from places.txt · {named} place(s) · pins within {km} km borrow a name	ตั้งชื่อจาก places.txt · {named} สถานที่ · หมุดภายใน {km} กม. ยืมชื่อ
+	Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap	ผืนดินและชายฝั่ง Natural Earth · ใส่โฟลเดอร์ไทล์หรือไฟล์ MBTiles เพื่อใช้แผนที่ฐานจริง
+	No places.txt — pins show their coordinates	ไม่มี places.txt — หมุดแสดงพิกัด
+	Zoom in	ขยาย
+	Zoom out	ย่อ
+	Auto	อัตโนมัติ
+	Ink	หมึก
+	Paper	กระดาษ
+	Blueprint	พิมพ์เขียว
+	Mono	ขาวดำ

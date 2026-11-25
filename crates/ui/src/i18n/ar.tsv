@@ -681,8 +681,8 @@
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	تسجّل الكاميرا مكان التقاطها في بيانات EXIF الخاصة بالملف. الصور الملتقطة مع إيقاف خدمات الموقع، أو التي حُذفت بياناتها بأداة أخرى، لا تحمل موقعًا.
 	zoom {zoom}	تكبير {zoom}
 	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	{located} صورة بموقع · {pins} دبوس · اسحب للتحريك، ومرّر للتكبير
-	No places.txt — dots show their coordinates	لا يوجد places.txt — تعرض النقاط إحداثياتها
-	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	الأسماء من places.txt · {named} مكان · النقاط ضمن {km} كم تستعير اسمًا
+	No places.txt — pins show their coordinates	لا يوجد places.txt — تعرض الدبابيس إحداثياتها
+	Named from places.txt · {named} place(s) · pins within {km} km borrow a name	الأسماء من places.txt · {named} مكان · الدبابيس ضمن {km} كم تستعير اسمًا
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	خط ساحلي تخطيطي · ثبّت مجلد بلاطات أو أرشيف MBTiles للحصول على خريطة حقيقية
 	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	ضع بلاطات {z}/{x}/{y}.png وملف attribution.txt في {dir} — أو أرشيف tiles.mbtiles يحوي صف بيانات وصفية `attribution` بجانبه — لاستبدال مخطط 1:110m. لا يُنزَّل أي شيء.
 	The basemap cannot be used	لا يمكن استخدام الخريطة
@@ -810,3 +810,14 @@
 	Files sent to the system Trash are restored from the Trash itself.	الملفات المرسلة إلى سلة المهملات تُستعاد من السلة نفسها.
 	Restored {n} photo(s)	استُعيدت {n} صورة
 	Forgot a batch of {n} file(s)	نُسي سجل دفعة من {n} ملفًا
+	Fit	ملاءمة
+	Fit all photos	ملاءمة كل الصور
+	Map style	نمط الخريطة
+	Natural Earth land and coastline · install a tile folder or an MBTiles archive for a real basemap	أرض وساحل Natural Earth · ثبّت مجلد بلاطات أو أرشيف MBTiles لخريطة أساس حقيقية
+	Zoom in	تكبير
+	Zoom out	تصغير
+	Auto	تلقائي
+	Ink	حبر
+	Paper	ورق
+	Blueprint	مخطط
+	Mono	أحادي

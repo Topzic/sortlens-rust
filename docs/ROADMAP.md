@@ -686,6 +686,9 @@ remap a moved drive; run the wizard on a clean machine.
     paints in all three states and that the engine reports the right state; the credit guarantee is enforced one layer
     down, where `Tileset::open` refuses to exist without one.
 - [x] Places **part 3b**: drawing it — the tiles under the dots, and a dot you can click
+  - **Superseded by 3c**: `walkers` now owns the viewport and gestures, and `viewport_origin`, `screen_position`,
+    `visible_tiles` and `tile_rect` were deleted with the custom implementation that used them. The decisions below
+    about tiles, credits, holes and hit-testing still hold; the projection arithmetic moved into the widget.
   - `sortlens_geo` gained the viewport maths as pure functions: `viewport_origin`, `screen_position`,
     `visible_tiles`, `tile_rect`. **The world does not wrap**: a map that repeated the antimeridian would draw the same
     photographs twice with nothing to say which was which, so tile columns clamp to the world square and a viewport
@@ -716,6 +719,39 @@ remap a moved drive; run the wizard on a clean machine.
   - **Not verified by hand**: how it looks. The tests prove the tiles decode once, the dots carry the right clusters,
     the click resolves, and the credit is the folder's own; they cannot say whether the coastline sits in the right
     place, because there is no tile set in the repository to compare against — that needs a real archive and eyes.
+
+- [x] Places **part 3c**: the iOS-like map — `walkers`, shipped land, clustered thumbnail pins, styles
+  - **Gestures are not re-implemented.** `walkers` 0.66 owns drag-to-pan, wheel zoom, pinch zoom and the zoom/centre
+    model; the hand-rolled pointer, wheel and projection code in `shell.rs` was deleted rather than maintained beside
+    it. The map's `MapMemory` is the live source of truth for fractional zoom and centre between frames, and the
+    rounded zoom is kept only for the label and the cluster grid.
+  - **The offline basemap is geography, not a blank rectangle.** Natural Earth 1:110m land (128 polygons, Antarctica
+    split at the antimeridian) and its coastline are embedded in `sortlens-geo`. `earcutr` triangulates the land once
+    into one `egui::Mesh`, drawn under the coast with the water, graticule and frame from the style palette. A
+    supplied `tiles/` folder or `tiles.mbtiles` still replaces the shipped geography wholesale; nothing is fetched.
+  - **The map opens fitted, then belongs to the person.** The first frame uses `coastline::fit_zoom` over the
+    library's own coordinates, so Brighton and Sydney open as two continents rather than the mid-Atlantic at zoom 5.
+    Panning, pinching, the zoom pill or a double-click marks the view chosen; a later scan never pulls it back to the
+    fit. A fit button returns to the library's extent and clears the choice.
+  - **Pins follow the Photos app's shape language.** One photograph is a small thumbnail in a card frame with a tail;
+    a group is an accent count disc whose radius grows with the square root of its count and stops at a region. Taps
+    open a bottom strip of 52 px thumbnails with Open and Close; a double-tap on a group goes two levels closer, and
+    on a single photograph opens Detail. Tapping the map dismisses the strip; dragging never does.
+  - **Six basemap styles**: Auto, Original, Ink, Paper, Blueprint and Mono. Auto resolves to Original when a tile set
+    is installed and to Ink or Paper from the interface's light/dark choice otherwise. A style shades the basemap
+    only — the photographs' pins keep the suite accent — and raster tiles are restated as a duotone rather than
+    washed with an overlay, so roads and labels survive.
+  - **Deleted, not left dormant**: `sortlens_geo`'s `ScreenRect`, `TileCell`, `viewport_origin`, `screen_position`,
+    `visible_tiles`, `tile_rect` and the `fit_zoom_with_outline` compromise; `shell.rs`'s pan/zoom accumulators and
+    old inline zoom controls. The land mesh also made the old "widen the fit until a coast appears" workaround
+    unnecessary: an inland photograph now has land under it at its honest fitted zoom.
+  - Tests: land parsing/triangulation and seam handling in `sortlens_geo`; dot growth and hit-testing, all six style
+    palettes, the tile cache's decode-once/hole/failure accounting, the walkers adapter, fitted opening, chosen zoom
+    preservation, inland land fill, no-location empty state, dot click through real pointer events, and the map's
+    translated credits and style labels.
+  - **Not verified by hand yet**: the live app at 279 photographs (two dense clusters), a person's real tile archive,
+    and the six styles' contrast on both themes. The headless tests prove the pieces paint and resolve; they cannot
+    judge whether a 205-photo disc reads as one place or whether Blueprint is too loud at night.
 
 - [x] `sortlens-hash`: dHash + aHash over a 9×8 box-filtered grid, Hamming distance, 3×3 colour fingerprint (D) — SL-E03
 - [x] Similar groups (union-find chaining), best pick, similar-to (D,B) — SL-E04/E05
