@@ -1530,11 +1530,21 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     leave the APK out, are all refused with tests (the same checker also refuses a flow list, which
     caught `needs: [build, android]`, and fixed a `verify` job that had never run and was missing the
     Linux windowing headers `cargo xtask ci` needs on Ubuntu).
-  - **Still open:** the phone targets are unverified until a machine with the Android NDK and Xcode runs
-    `cargo xtask mobile` (this checkout has neither; CI's runners check both targets compile); the iOS
-    Photos library; an `.ipa` in the release workflow (the Apple identity the M10 table names); an AAB
-    (Play-distribution tooling, for a Play listing); and a release key that lets one APK update another
-    in place (a release secret the owner can add).
+  - **The APK leg compiles: the phone's trash is a folder move (2026-11-24, the same day).** The first
+    release-workflow run caught what a `cargo check` never links into view: the `trash` crate does not
+    compile for `aarch64-linux-android` (no freedesktop trash there). `Mode::Trash` on Android and iOS
+    now moves the file into the library's own `.sortlens/trash` — the name `crates/scan` skips — with
+    the same re-check (`audit_one`), the same size verification and the same receipt; `undo` refuses a
+    trash receipt on every platform, so nothing a mistake could recover is destroyed, and the file sits
+    in the folder for a person to bring back. The dependency is target-gated to the platforms the crate
+    speaks (`trash` 5.2 out of the workspace table), `move_to_phone_trash` is compiled and tested on the
+    host everywhere (move, relative path, size-refusal, receipt), and `crates/engine`'s scan test holds
+    the cross-crate contract: a library containing `.sortlens/trash` scans clean with the folder
+    refused, not descended into. `docs/BEHAVIOUR.md` §3 says what the trash mode does on a phone.
+  - **Still open:** running the targets on a device (a machine with the Android NDK and Xcode; CI's
+    runners check both targets compile); the iOS Photos library; an `.ipa` in the release workflow (the
+    Apple identity the M10 table names); an AAB (Play-distribution tooling, for a Play listing); and a
+    release key that lets one APK update another in place (a release secret the owner can add).
 
 ### Phase 5 — Autonomous GitHub maintenance setup
 

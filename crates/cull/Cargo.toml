@@ -14,7 +14,10 @@ sortlens-catalog = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# The operating system's trash; without it the tag-only path runs instead.
+# The operating system's trash on the platforms the `trash` crate speaks. Android and iOS expose
+# no OS trash a Rust crate can call, so on those targets the trash mode moves the file into the
+# library's own `.sortlens/trash` folder instead (see `move_to_phone_trash` in `trash.rs`).
+[target.'cfg(any(target_os = "windows", target_os = "macos", all(target_os = "linux", not(target_os = "android"))))'.dependencies]
 trash = { workspace = true }
 
 [lints]

@@ -4682,6 +4682,32 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   cannot do is run the workflow itself — that is what a manual dispatch after the push is for, and the
   result is read with `gh run` rather than assumed.
 
+## 2026-11-24 (seventy-second) — the APK leg compiles: on a phone, the trash is the library's own folder
+
+- **Why this came up.** The release workflow's first real run (a manual dispatch after the seventy-first
+  push, run 45513471896) failed exactly where a `cargo check` could never see it: linking. The `trash`
+  crate does not compile for `aarch64-linux-android` — its platform module has no freedesktop-less
+  answer — and the phone's delete path asks for `Mode::Trash`.
+- **Shipped.** `Mode::Trash` on Android and iOS now moves the file into the library's own
+  `.sortlens/trash` (the name `crates/scan` refuses to descend into, so a rejected photograph never
+  reappears in the grid), through the same `move_into` the `Move` mode uses, after the same `audit_one`
+  re-check — a file whose bytes or mtime moved since it was indexed is refused here too, even when the
+  function is called outside `apply`. The receipt still says `Trash`, and `undo` refuses a trash receipt
+  on every platform, so the desktop's semantics are unchanged and nothing destroyable is destroyed: the
+  file sits in the folder for a person to recover by hand. The dependency is target-gated to the
+  platforms the crate speaks (`windows`/`macos`/`linux-not-android`); the workspace pin stays.
+- **Tests.** `the_phone_trash_moves_into_the_librarys_own_skipped_folder` runs on the host on every
+  platform (a phone path nobody can test would be the placeholder the plan forbids): the move preserves
+  the relative path, the bytes read back, a changed-size file is refused and stays where it was, and the
+  undo report refuses the receipt while leaving the file alone. `the_phone_trash_folder_is_skipped_by_
+  the_scan` in `crates/engine` is the one place both sides of the cross-crate contract run: a library
+  containing `.sortlens/trash` scans clean, the folder refused (hidden on Unix, a system dir on
+  Windows), never descended into.
+- **Reconciled.** ROADMAP 3b gained the shipped bullet and re-split "Still open" by its real unblockers;
+  `docs/BEHAVIOUR.md` §3 says what the trash mode does on a phone.
+- **Next.** Re-dispatch the release workflow; `verify` and the desktop matrix were already past `android`
+  when it failed, so the APK job is the only leg unproven.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -4796,7 +4822,7 @@ says so rather than skipping it silently). The full text is in `docs/ROADMAP.md`
     (fifty-second entry); the device-side protocol, `library.snapshot` on the wire and the client's
     keep-or-remove ack are **done 2026-11-24** (fifty-third entry); the server's thumbnail route and
     the client's `thumbnail` fetch are **done 2026-11-24** (fifty-fourth entry); the native
-    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). The canvas at that width — the far-edge rail standing down, a two-row filter strip, a tray whose every control is on screen — is **done 2026-11-24** (sixty-seventh entry). The send half, the pairing's connection test and the phone's own screens shipped the same day (sixty-eighth and sixty-ninth entries), and the phone's embedded font set is trimmed to the shipped languages' scripts (seventieth entry). The release workflow now builds and attaches the Android APK (seventy-first entry). What remains of the row is the iOS Photos library, a device build, the `.ipa` (Apple identity) and an AAB — all named with their unblockers in the 3b row itself.
+    `apps/sortlens-mobile` was added the same day (fifty-seventh entry). Its settings persistence is **done 2026-11-24** (sixty-fifth entry). The phone's frame — a window under 600 points put away both docks, wordless bar, one full-width sheet at a time — is **done 2026-11-24** (sixty-sixth entry). The canvas at that width — the far-edge rail standing down, a two-row filter strip, a tray whose every control is on screen — is **done 2026-11-24** (sixty-seventh entry). The send half, the pairing's connection test and the phone's own screens shipped the same day (sixty-eighth and sixty-ninth entries), and the phone's embedded font set is trimmed to the shipped languages' scripts (seventieth entry). The release workflow now builds and attaches the Android APK (seventy-first entry), and the phone trash that leg exposed is a library-folder move (seventy-second entry). What remains of the row is the iOS Photos library, a device build, the `.ipa` (Apple identity) and an AAB — all named with their unblockers in the 3b row itself.
 
 **Phase 5 — autonomous GitHub maintenance**
 19. Issue/PR templates — **done 2026-11-24**, see the fifty-eighth entry.

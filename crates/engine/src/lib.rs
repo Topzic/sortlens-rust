@@ -4994,6 +4994,35 @@ mod tests {
         panic!("scan did not finish");
     }
 
+    /// The phone's trash folder is skipped by the scan, so a rejected photograph never
+    /// reappears in the grid: `crates/scan` refuses to descend into `.sortlens`, and
+    /// `crates/cull` moves into `.sortlens/trash` on the platforms with no OS trash. The two
+    /// constants live in different crates; this test is the one place both run.
+    #[test]
+    fn the_phone_trash_folder_is_skipped_by_the_scan() {
+        let temp = Temp::new("phone-trash-scan");
+        std::fs::create_dir_all(&temp.0).expect("dir");
+        std::fs::write(temp.0.join("keep.jpg"), b"photo bytes").expect("write");
+        let trashed_dir = temp.0.join(sortlens_cull::trash::PHONE_TRASH);
+        std::fs::create_dir_all(&trashed_dir).expect("dir");
+        std::fs::write(trashed_dir.join("gone.jpg"), b"trashed bytes").expect("write");
+
+        let report = sortlens_scan::scan_root(&temp.0).expect("scan");
+        let rels: Vec<&str> = report.files.iter().map(|file| file.rel.as_str()).collect();
+        assert!(rels.contains(&"keep.jpg"), "{rels:?}");
+        assert!(
+            rels.iter().all(|rel| !rel.contains(".sortlens")),
+            "the trash folder must not be scanned: {rels:?}"
+        );
+        let hidden = report.skipped.hidden;
+        let system = report.skipped.system_dir;
+        assert_eq!(hidden + system, 1, "refused, not silently lost");
+        assert!(
+            hidden == 0 || system == 0,
+            "one folder, one refusal reason (hidden {hidden}, system {system})"
+        );
+    }
+
     /// Walk the sharpness pass to its end.
     fn wait_for_sharpness(engine: &mut Engine) -> SharpnessReport {
         for _ in 0..600 {

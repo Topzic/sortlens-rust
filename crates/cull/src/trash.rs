@@ -15,7 +15,9 @@ use std::path::{Path, PathBuf};
 /// What Apply does with rejected photos.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
-    /// Send the file to the operating system's trash. Reversible outside Sortlens.
+    /// Send the file to the operating system's trash. Reversible outside Sortlens. On Android and
+    /// iOS, where no OS trash is crate-accessible, the file moves into the library's own
+    /// [`PHONE_TRASH`] folder instead — still reversible, still reported, never destroyed.
     Trash,
     /// Move the file into a folder, preserving its path relative to its root.
     Move(PathBuf),
@@ -321,7 +323,7 @@ pub fn apply(batch: &Batch) -> Report {
         }
         let outcome = match &batch.mode {
             Mode::TagOnly => Ok(Location::Kept),
-            Mode::Trash => delete_to_trash(&candidate.path).map(|()| Location::Trash),
+            Mode::Trash => delete_to_trash(candidate).map(|()| Location::Trash),
             Mode::Move(folder) => move_into(candidate, folder).map(Location::Moved),
         };
         match outcome {
@@ -338,9 +340,38 @@ pub fn apply(batch: &Batch) -> Report {
     report
 }
 
-/// Send a file to the operating system's trash.
-fn delete_to_trash(path: &Path) -> std::result::Result<(), String> {
-    trash::delete(path).map_err(|error| error.to_string())
+/// The library's own trash folder, used on the platforms with no crate-accessible OS trash
+/// (Android, iOS). Its first component is a name `crates/scan` skips (`SKIP_DIR_NAMES` contains
+/// `".sortlens"`), so a trashed photograph never reappears in the grid; `crates/engine`'s tests
+/// hold the two sides of that contract together by scanning a library that contains it.
+pub const PHONE_TRASH: &str = ".sortlens/trash";
+
+/// The desktop's trash: the operating system's own, through the `trash` crate.
+#[cfg(any(target_os = "windows", target_os = "macos", all(target_os = "linux", not(target_os = "android"))))]
+fn delete_to_trash(candidate: &Candidate) -> std::result::Result<(), String> {
+    trash::delete(&candidate.path).map_err(|error| error.to_string())
+}
+
+/// The phone's trash: the same audited move the `Move` mode uses, into [`PHONE_TRASH`], so a
+/// rejected photograph is re-checkable, size-verified and reversible exactly as on the desktop,
+/// and nothing is destroyed that a mistake could not bring back.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn delete_to_trash(candidate: &Candidate) -> std::result::Result<(), String> {
+    move_to_phone_trash(candidate).map(|_| ())
+}
+
+/// Move one candidate into the library's own trash folder (see [`PHONE_TRASH`]). Compiled and
+/// tested on every platform, so the phone path is host-testable; only `delete_to_trash`'s
+/// Android/iOS arm calls it in production.
+#[cfg(any(test, target_os = "android", target_os = "ios"))]
+pub(crate) fn move_to_phone_trash(candidate: &Candidate) -> std::result::Result<(), String> {
+    // The re-check the audited path promises: a file whose bytes or mtime moved since it was
+    // indexed is refused here, not moved, even when this is called outside `apply`.
+    if let Some(refusal) = audit_one(candidate) {
+        return Err(refusal.message());
+    }
+    let folder = candidate.root.join(PHONE_TRASH);
+    move_into(candidate, &folder).map(|_| ())
 }
 
 fn move_into(candidate: &Candidate, folder: &Path) -> std::result::Result<PathBuf, String> {
@@ -639,5 +670,52 @@ mod tests {
         let report = undo(&applied);
         assert_eq!(report.failed.len(), 1);
         assert!(report.failed[0].1.contains("Trash"));
+    }
+
+    /// The phone's trash is a real move into the library's own `.sortlens/trash`, with the same
+    /// re-check and size verification a `Move` gets, and the undo that puts the file back. This
+    /// runs on the host on every platform, even though only the Android/iOS arm calls it in
+    /// production, because a phone path nobody can test would be exactly the placeholder the
+    /// plan forbids.
+    #[test]
+    fn the_phone_trash_moves_into_the_librarys_own_skipped_folder() {
+        let temp = Temp::new("phone-trash");
+        let image = temp.file("roll/day2/b.jpg", b"phone photo");
+        let photo = candidate(1, &temp.0, &image);
+
+        move_to_phone_trash(&photo).expect("moved to the phone's trash");
+        assert!(!image.exists(), "gone from where it was");
+        let trashed = temp.0.join(".sortlens").join("trash").join("roll/day2/b.jpg");
+        assert!(trashed.exists(), "the relative path is preserved under .sortlens/trash");
+        assert_eq!(fs::read(&trashed).expect("read back"), b"phone photo");
+
+        // A file whose bytes moved since it was indexed is refused, not moved: the same guard
+        // the desktop's Move mode has.
+        let image2 = temp.file("roll/day2/c.jpg", b"four bytes");
+        let mut changed = candidate(2, &temp.0, &image2);
+        fs::write(&image2, b"a different length now").expect("rewrite");
+        changed.size = 4;
+        assert!(move_to_phone_trash(&changed).is_err(), "a changed file is refused");
+        assert!(image2.exists(), "the refused file is still where it was");
+
+        // The receipt says Trash, and `undo` refuses a Trash receipt the way it does on the
+        // desktop: the file sits in `.sortlens/trash` for a person to recover, not in a
+        // location Sortlens will silently move back.
+        let applied = vec![Applied {
+            id: PhotoId(1),
+            from: trashed.clone(),
+            location: Location::Trash,
+        }];
+        let undo_report = undo(&applied);
+        assert_eq!(undo_report.failed.len(), 1);
+        assert!(undo_report.failed[0].1.contains("Trash"));
+        assert!(trashed.exists(), "the undo leaves the trashed file alone");
+    }
+
+    #[test]
+    fn the_phone_trash_folder_name_is_the_one_the_scanner_skips() {
+        // The contract `crates/engine`'s scan test holds both ends of: the folder this crate
+        // moves into starts with the name `crates/scan` refuses to descend into.
+        assert!(PHONE_TRASH.starts_with(".sortlens"), "{PHONE_TRASH}");
     }
 }

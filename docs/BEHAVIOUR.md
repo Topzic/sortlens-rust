@@ -75,7 +75,11 @@ Session rules:
 `Settings > Library > Delete mode` is one of:
 
 - **trash** (default). Files go to the OS trash (macOS Trash, Windows Recycle Bin, freedesktop
-  trash). Reversible outside Sortlens. No confirmation dialog beyond the batch review.
+  trash). Reversible outside Sortlens. No confirmation dialog beyond the batch review. On Android
+  and iOS, where no OS trash is crate-accessible, the file moves into the library's own
+  `.sortlens/trash` folder — the name the scan skips, so a rejected photograph never reappears in
+  the grid — with the same re-check and size verification, and it is still there for a person to
+  recover by hand; `undo` refuses a trash receipt on every platform.
 - **move**. Files move to `reject_folder`, preserving their relative subfolder. Refuses to run
   when the folder is inside a watched root (that would make rejects reappear on the next scan) or
   on a different volume without enough free space.
