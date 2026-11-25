@@ -1,5 +1,44 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-fourth) — the lavapipe set adopts the filter strip's Arabic, and the trunk goes green
+
+- **Why this came up.** `CI` on `main` was red on `eeb254b` (run `45669464175`) with exactly one failing
+  job, `screenshots`: `the_arabic_interface_paints_right_to_left_in_both_themes` reported both of its
+  scenes differing, `lavapipe/rtl-library-{charcoal,paper}`. The hundred-and-twenty-third entry repainted
+  the *reference* `rtl-library-*` frames for the strip's translation and deliberately left the adapter set
+  for an artifact; `62fb266`'s own run (`45667132463`) was red on the same pair, so the next commit landed
+  on a red trunk. The other seven jobs — `ci` on Windows, Ubuntu and macOS, `deny`, `snapshot` and both
+  `mobile` legs — were green, so a red trunk is the tick's slice rather than a new roadmap row.
+- **One artifact, two frames.** `gh run download 45669464175 -n screenshot-set -D /tmp/sl-lava2` wrote
+  exactly `lavapipe/rtl-library-{charcoal,paper}.new.png` and nothing else. `SORTLENS_SNAPSHOT_SET=lavapipe
+  cargo xtask screenshots --adopt /tmp/sl-lava2` copied them into `crates/ui/tests/snapshots/lavapipe/`;
+  each adopted file hashes byte-identical to the artifact's frame (`deb93d0d…`, `e49c3c0b…`), so the
+  committed baseline is the paint the comparing run reported and not a second paint from this machine.
+- **The diff is the strip.** `661658→661675` and `664409→664405` bytes. Both the old and the new frame were
+  opened at 1440×900: the strip still painted `Clear`, `Missing`, `Edited`, `Source`, `All kinds`,
+  `Flags`, `Rating` and `+ keyword` in the old baseline, while the new one paints `مسح`, `مفقودة`,
+  `معدّلة`, `المصدر`, `كل الأنواع`, `اللون`, `العلامات`, `التقييم` and `+ كلمة`, with the bidi
+  placement of the strip mirrored to match. The right rail's `المستبعدات` (the rejects bin), the grid, the
+  counts and the still-English top bar are identical in the two frames; the adapter set was one tick behind
+  on the strip, not the rejects bin.
+- **What is still English is the next slice.** `Library`, `Search photos or Ctrl+K`, `All Photos`,
+  `Photos`, `1 active`, `+ New collection` and `No selection` — the hundred-and-twenty-third entry's list,
+  unchanged.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, clippy, the workspace suite, `layers`, `roots`, `assets`,
+  `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot`
+  (5 pass) and `cargo xtask deny` (advisories, bans, licenses, sources all ok). `deny` was run with
+  `CARGO_HOME=/tmp/sortlens-cargo-deny` because the advisory database under `.toolchain/` holds AppleDouble
+  `._*` siblings on this volume and cargo-deny stops on their invalid UTF-8. No default-set
+  `cargo xtask screenshots` run: no code changed, and 22 of the 29 default-set scenes are red on this
+  machine for the pre-existing rasteriser difference. No release workflow was dispatched: two baselines and
+  this file touch no workflow, `apps/**`, a `Cargo.toml` or release code.
+- **Not verified by hand**: the frames were read and nothing past them; no chip was clicked.
+- **Next.** Read this commit's `CI` run first; if `screenshots` is green again, SL-L07's remaining canvas
+  chrome, smallest first: the top bar's `Library`, `All Photos` and `+ New collection`, then the canvas
+  head's `Photos` and `1 active`. Every one needs a frame, so extend a headless `run_ui` assertion,
+  repaint the two `rtl-library-*` scenes with `UPDATE_SNAPSHOTS=1` on that one test, and adopt the
+  `lavapipe` pair from that commit's own `CI` artifact in the same tick. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-twenty-third) — the filter strip's chips name themselves in the interface language
 
 - **Why this came up.** The hundred-and-twenty-second entry's Next named SL-L07's open canvas chrome,
