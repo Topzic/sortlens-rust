@@ -769,3 +769,6 @@
 	{name} · {kind}	{name}（{kind}）
 	most used	最常用
 	A–Z	依字母
+	{n} shown	顯示 {n} 張
+	{n} photo, {selected} selected	{n} 張照片，已選取 {selected}
+	{n} photos, {selected} selected	{n} 張照片，已選取 {selected}

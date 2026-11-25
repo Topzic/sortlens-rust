@@ -1,5 +1,53 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-nineteenth) — the canvas's two counts read the interface language
+
+- **Why this came up.** The hundred-and-eighteenth entry's Next named the SL-L07 row's open canvas
+  chrome, smallest first: the filter strip's `{n} shown` summary and the canvas header's count
+  (`12 photos`). `CI` on `main` was green on `0ae11e7` (run `45650770648`), so this is a roadmap
+  slice rather than a repair.
+- **Two counts, four templates.** The header's line was `a11y::library_status`, which formatted
+  English in place. The shell now has `canvas_status(total, selected)` (`crates/ui/src/shell.rs`),
+  which takes the catalogue's existing `{n} photo`/`{n} photos` rows and, when a selection exists,
+  two new rows `{n} photo, {selected} selected` and `{n} photos, {selected} selected`, so a
+  language can order the number, its noun and the selection clause itself. The strip's summary is
+  `crate::i18n::fmt("{n} shown", …)` with the same `format_count` digits. `a11y::library_status` is
+  deleted with its three assertions: the string the header paints and the live region speaks now
+  comes from one function, so the two cannot drift.
+- **Six catalogues.** Each of `ar`, `ja`, `ko`, `th`, `vi`, `zh-TW` answers the three templates —
+  so `١٢ صور` and `١٢ معروضة` in Arabic, `写真 12 枚` and `12 件を表示` in Japanese — and the
+  catalogue audit reads the new `fmt` templates because every one is an English literal directly
+  after the call, not an `if` the audit cannot see.
+- **The test proves it.** `the_canvas_counts_read_in_the_interface_language` indexes a three-photo
+  fixture, paints the shell headless through `Context::run_ui` at 1440×900 in Arabic, and requires
+  both `٣ صور` (header) and `٣ معروضة` (strip) on the frame while `3 photos` and `3 shown` are
+  absent — the old `format!` calls fail it, and so does a catalogue row that falls back to English.
+- **Verified.** `cargo xtask ci` green (fmt, clippy on every target, the workspace suite, layers,
+  roots, assets, fonts, version, attribution, a11y, docs, templates, workflows); `cargo xtask wasm`,
+  `cargo xtask snapshot` (5 pass) and `cargo xtask deny` (advisories, bans, licenses, sources) green.
+  `cargo xtask screenshots` first named exactly the two `rtl-library` scenes as differing (293 and
+  289 pixels), then `--update` painted and rewrote exactly them
+  (`661443→661280`, `664151→663977` bytes); both were opened: the header reads `١٢ صور`, the strip's
+  right-hand column reads `١٢ معروضة`, and no English count survives. What the frames still paint in
+  English is the next slice: `Added order`, `1 active`, `All Photos`, `Photos`, `No Selection` and
+  `+ New collection`.
+- **Files.** `crates/ui/src/shell.rs` (the helper, its call site, the strip summary, the test),
+  `crates/ui/src/a11y.rs` (the removed English sentence and its test), the six
+  `crates/ui/src/i18n/*.tsv` catalogues, `crates/ui/tests/snapshots/rtl-library-{charcoal,paper}.png`,
+  `docs/ROADMAP.md` (the SL-L07 row) and this file. No release workflow dispatched: no workflow,
+  `apps/**`, `Cargo.toml` or release code changed.
+- **Not verified by hand**: nobody has switched the language with a mouse since this — the Settings
+  path is unchanged and the headless test drives the same thread-local language.
+- **Next.** Read this commit's `CI` run first — `gh run list --workflow CI --limit 1 --json
+  databaseId,conclusion,headSha`. Its `screenshots` job is expected red on the two lavapipe RTL
+  frames (this machine has no Mesa adapter): `gh run download <id> -n screenshot-set -D .ci-shots`,
+  then `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, and read the two
+  frames. After that, SL-L07's open canvas chrome, smallest first: the header's sort value
+  (`Added order`, `Sort::label()` from `sortlens-catalog`), then the filter strip's chips (`All`,
+  `Picks`, `Rated`, `Missing`, `Rejects`, `All kinds`, `Source`, `Edited`, `Clear`), then the top
+  bar's `Library`, `Photos` and `New collection`. Every one needs a frame, so extend a headless
+  `run_ui` assertion and repaint the two `rtl-library-*` scenes in both the default and the
+  `lavapipe` sets. No release run is in flight.
 ## 2026-11-26 (hundred-and-eighteenth) — the lavapipe set adopts CI's own paint, and the trunk goes green on the RTL sidebar
 
 - **Why this came up.** `CI` on `main` was red on `3104271` (run `45649689136`) with exactly one failing

@@ -3737,6 +3737,21 @@ fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     }
 }
 
+/// The canvas header's count line, in the interface language: `12 photos`, or
+/// `12 photos, 3 selected`, with the digits of the interface's own region. A count of one
+/// takes the catalogue's singular row, so a language that does not inflect for number may
+/// write the same sentence twice — that is the translator's call, not the shell's.
+fn canvas_status(total: usize, selected: usize) -> String {
+    let n = format_count(total as u64);
+    let s = format_count(selected as u64);
+    match (total == 1, selected == 0) {
+        (true, true) => crate::i18n::fmt("{n} photo", &[("n", &n)]),
+        (false, true) => crate::i18n::fmt("{n} photos", &[("n", &n)]),
+        (true, false) => crate::i18n::fmt("{n} photo, {selected} selected", &[("n", &n), ("selected", &s)]),
+        (false, false) => crate::i18n::fmt("{n} photos, {selected} selected", &[("n", &n), ("selected", &s)]),
+    }
+}
+
 fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     // A phone's margin is narrower: at 390 points a 14-point gutter on every side is 7% of the grid,
     // and a photograph that spans eight more points is worth more than the air around it.
@@ -3756,7 +3771,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
             // The header's left block is read before the row is laid out: the two closures share `state`,
             // and the right one edits it.
             let title = view_word(state.view);
-            let status = crate::a11y::library_status(total, state.selection.len());
+            let status = canvas_status(total, state.selection.len());
             // The count is measured before it is offered: "does it fit" is an answer rather than a hope. The
             // title is what the row is about; the count is a statement the filter strip repeats and the live
             // line already speaks, so on a canvas too narrow for both the count steps aside and the name
@@ -4709,7 +4724,7 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
             // width, because the chips wrap in the room that is actually theirs.
             let inner = ui.available_rect_before_wrap();
             let galley = ui.painter().layout_no_wrap(
-                format!("{} shown", format_count(total as u64)),
+                crate::i18n::fmt("{n} shown", &[("n", &format_count(total as u64))]),
                 egui::FontId::proportional(11.0),
                 t.text_faint,
             );
@@ -11199,6 +11214,71 @@ mod tests {
                 "a count at {rect:?} is cut by its clip {clip:?}: it must sit wholly inside the panel"
             );
         }
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The canvas's two counts — the header's `3 photos` and the filter strip's `3 shown` — are
+    /// catalogue templates rather than English formatted in place (SL-L07). Painted in Arabic, the
+    /// digits are Arabic-Indic and both sentences come from the `ar` rows; the English counting
+    /// phrases must be gone from the frame, which is the assertion the old `format!` calls fail.
+    #[test]
+    fn the_canvas_counts_read_in_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-canvas-counts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-canvas-counts");
+        for index in 0..3 {
+            let name = format!("IMG_{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [20 + index * 20, 90, 170], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 3, "the fixture indexed three photos");
+
+        let engine_cell = std::cell::RefCell::new(engine);
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1440.0, 900.0))),
+                ..egui::RawInput::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, &mut state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            },
+        );
+        output.textures_delta.clear();
+
+        let painted: Vec<String> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                _ => None,
+            })
+            .collect();
+        let three = format_count(3);
+        let header = crate::i18n::fmt("{n} photos", &[("n", &three)]);
+        let strip = crate::i18n::fmt("{n} shown", &[("n", &three)]);
+        assert!(painted.contains(&header), "the header reads {header:?}, painted {painted:#?}");
+        assert!(painted.contains(&strip), "the strip reads {strip:?}, painted {painted:#?}");
+        assert!(
+            !painted.iter().any(|text| text == "3 photos" || text == "3 shown"),
+            "no English count is left on the canvas, painted {painted:#?}"
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

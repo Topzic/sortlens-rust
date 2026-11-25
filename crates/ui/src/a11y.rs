@@ -34,16 +34,6 @@ pub fn cull_status(position: usize, total: usize, decision: Decision) -> String 
     format!("Photo {position} of {total}{decided}")
 }
 
-/// The library status line: how many photos are in view and how many are selected.
-pub fn library_status(in_view: usize, selected: usize) -> String {
-    let photos = if in_view == 1 { "photo" } else { "photos" };
-    if selected == 0 {
-        format!("{in_view} {photos}")
-    } else {
-        format!("{in_view} {photos}, {selected} selected")
-    }
-}
-
 /// One line of spoken feedback after a cull decision.
 pub fn decision_sentence(decision: Decision, remaining: usize) -> String {
     let noun = if remaining == 1 { "photo" } else { "photos" };
@@ -145,13 +135,6 @@ mod tests {
         assert_eq!(decision_sentence(Decision::Reject, 4), "Rejected, 4 photos left");
         assert_eq!(decision_sentence(Decision::Deferred, 0), "Deferred, 0 photos left");
         assert_eq!(decision_sentence(Decision::Unjudged, 2), "Decision cleared, 2 photos left");
-    }
-
-    #[test]
-    fn the_library_line_counts_photos_and_selection() {
-        assert_eq!(library_status(0, 0), "0 photos");
-        assert_eq!(library_status(1, 0), "1 photo");
-        assert_eq!(library_status(240, 3), "240 photos, 3 selected");
     }
 
     /// A named region paints, and the name survives being asked for twice in one frame.

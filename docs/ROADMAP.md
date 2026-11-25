@@ -1012,8 +1012,8 @@ and none of M9 is closed until the remaining rows are ticked.
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
   Open: the canvas chrome the RTL frames still paint in English — the top bar's words, the canvas
-  header's count and sort value, the filter strip's chips and its `{n} shown` summary, and
-  `New collection` — which the row's earlier entries call the unrouted surfaces.
+  header's sort value, the filter strip's chips, and `New collection` — which the row's earlier
+  entries call the unrouted surfaces.
   The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
   `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
   mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
@@ -1024,6 +1024,12 @@ and none of M9 is closed until the remaining rows are ticked.
   reproduce: the count's ink runs 1079..1088 in `rtl-library-charcoal.png` while the sidebar's
   background starts at 1072, so the numbers are cramped, not clipped, and `nav_row` is untouched —
   the new frame test pins them inside the panel anyway.
+  The canvas's counts followed (hundred-and-nineteenth entry): the header's `{n} photo`/`{n} photos`
+  line and its `, {selected} selected` suffix, and the filter strip's `{n} shown` summary, are catalogue
+  templates in all six languages — so an Arabic canvas reads `٣ صور` and `٣ معروضة` where it read
+  `3 photos` and `3 shown`, and the counts keep Arabic-Indic digits. `a11y::library_status`'s English
+  sentence is gone: the string the header paints and the live region speaks now comes from the shell's
+  `canvas_status`, so the two cannot drift.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
