@@ -1,5 +1,56 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-first) — the canvas header's sort value reads in the interface language
+
+- **Why this came up.** The hundred-and-twentieth entry's Next named SL-L07's open canvas chrome,
+  smallest first: the header's sort value (`Added order`, `Sort::label()` from `sortlens-catalog`).
+  `CI` on `main` was still running on `690c48f` when this tick began — `screenshots`, `deny`,
+  `snapshot` and both `mobile` legs had passed, and the two `ci` legs were still going — while the
+  last completed run (`d4469ab`, `45652802395`) was the red the 120th entry had just fixed, so this
+  is a roadmap slice rather than a repair.
+- **One lookup, one value.** `shell::sort_word` is `tl!(sort.label())`, the shape `view_word` already
+  uses: `Sort::label` stays the English source of truth (the JSON and reports name the order by it)
+  and the catalogue row is looked up by it. Both the combo's selected text and its seven menu rows go
+  through it, so the closed and open states cannot disagree.
+- **Seven rows in six catalogues.** `Added order`, `Recently added first`, `Name`, `Newest first`,
+  `Oldest first`, `Largest first` and `Highest rated` answer in `ar`, `ja`, `ko`, `th`, `vi` and
+  `zh-TW`; Arabic now paints `ترتيب الإضافة` where it painted `Added order`.
+- **The tests prove it.** `the_canvas_chrome_reads_in_the_interface_language` (the 119th entry's
+  count test, renamed) indexes three photos, paints the shell headless at 1440×900 in Arabic, and
+  requires `ترتيب الإضافة` on the frame while `Added order` is absent — the old `state.sort.label()`
+  call fails it. `every_sort_order_has_a_catalogue_row` walks `Sort::ALL` against all six
+  catalogues, so a new order that arrives without a row fails rather than showing English.
+- **Verified.** `cargo test -p sortlens-ui canvas_chrome` and
+  `cargo test -p sortlens-ui every_sort_order_has_a_catalogue_row` pass;
+  `cargo clippy -p sortlens-ui --all-targets -- -D warnings` is green. `cargo xtask ci` passed
+  fmt, clippy, the workspace suite, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`
+  and `a11y`, then its `docs` step failed on `docs/._ROADMAP.md` — an AppleDouble sidecar this
+  non-native volume writes beside every file it touches, not a document. The docs scanner now skips
+  `._*` (the same rule the `.gitignore` line states), and `cargo xtask docs` passes. `cargo xtask
+  snapshot` passes all five golden tests. `cargo xtask deny` cannot read the advisory database under
+  `.toolchain/` on this volume: cargo-deny re-extracts it with an AppleDouble `._RUSTSEC-*.md`
+  sidecar, which it refuses as invalid UTF-8. The same `cargo deny check` therefore ran with
+  `CARGO_HOME=/tmp/sortlens-cargo-deny` (a native APFS path, with the toolchain's `cargo-deny` on
+  PATH) and reports advisories, bans, licenses and sources all ok. `cargo xtask screenshots` was
+  red on 22 of 29 default-set scenes
+  here, and `filters-charcoal`'s diff is 105 pixels of the top bar's app title — the pre-existing
+  local rasteriser difference, not the sort value — so only the two `rtl-library-*` scenes were
+  repainted (`UPDATE_SNAPSHOTS=1` on that one test) and both were read: the header now reads
+  `ترتيب الإضافة`, the strip `١٢ معروضة`, and the still-English chrome is `Photos`, `1 active`,
+  `All Photos`, the filter chips, `No Selection` and `New collection`.
+- **Files.** `crates/ui/src/shell.rs` (the helper, the two call sites, the renamed frame test),
+  `crates/ui/src/i18n.rs` (the coverage test), `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv`
+  (seven rows each), `crates/ui/tests/snapshots/rtl-library-{charcoal,paper}.png`, `docs/ROADMAP.md`,
+  `xtask/src/main.rs` (the docs scan skips AppleDouble sidecars), `.gitignore` (the same `._*`
+  files), this file.
+- **Not verified by hand**: the combo's open menu in Arabic was not clicked; the frame proves only
+  the closed value, and the menu rows share `sort_word` with it.
+- **Next.** Adopt the two `lavapipe/rtl-library-*` frames from this commit's `CI` artifact and read
+  them, because this machine has no Mesa adapter and only the runner can prove that set. Then the
+  filter strip's chips (`All`, `Picks`, `Rated`, `Missing`, `Rejects`, `All kinds`, `Source`,
+  `Edited`, `Clear`), then the top bar's `Library`, `Photos` and `New collection`. No release run
+  was dispatched: this slice touches no workflow, `apps/**`, `Cargo.toml` or release code.
+
 ## 2026-11-26 (hundred-and-twentieth) — the lavapipe set adopts the counts' own paint, and the trunk goes green on the RTL canvas
 
 - **Why this came up.** `CI` on `main` was red on `d4469ab` (run `45652802395`) with exactly one failing job,
@@ -6996,6 +7047,13 @@ that fails when the behaviour is absent, its ROADMAP row ticked and a CHECKPOINT
 Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, and `mobile` when `crates/core`,
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
+
+**Next tick (after the hundred-and-twenty-first entry).** First adopt the two `lavapipe/rtl-library-*`
+frames from that commit's CI artifact (`gh run download <id> -n screenshot-set -D .ci-shots`,
+`SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`) and read them; this machine
+has no Mesa adapter. Then continue SL-L07's open canvas chrome, smallest first: the filter strip's chips
+(`All`, `Picks`, `Rated`, `Missing`, `Rejects`, `All kinds`, `Source`, `Edited`, `Clear`), then the top
+bar's `Library`, `Photos` and `New collection`. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

@@ -926,12 +926,17 @@ fn docs() -> Result<(), String> {
     // Every document is reachable from the README.
     for entry in fs::read_dir("docs").map_err(|error| format!("docs: {error}"))? {
         let path = entry.map_err(|error| format!("docs: {error}"))?.path();
-        if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
-            continue;
-        }
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
+        // A non-native volume writes an AppleDouble sidecar for every file it touches; it is
+        // metadata, not a document, and it must not turn the reachability check red.
+        if name.starts_with("._") {
+            continue;
+        }
+        if path.extension().and_then(|extension| extension.to_str()) != Some("md") {
+            continue;
+        }
         if !readme.contains(name) {
             problems.push(format!("docs/{name} is not mentioned anywhere in README.md"));
         }

@@ -772,3 +772,10 @@
 	{n} shown	顯示 {n} 張
 	{n} photo, {selected} selected	{n} 張照片，已選取 {selected}
 	{n} photos, {selected} selected	{n} 張照片，已選取 {selected}
+	Added order	加入順序
+	Recently added first	最近加入優先
+	Name	名稱
+	Newest first	最新優先
+	Oldest first	最舊優先
+	Largest first	最大優先
+	Highest rated	評分最高

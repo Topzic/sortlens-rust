@@ -1011,9 +1011,8 @@ and none of M9 is closed until the remaining rows are ticked.
   `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
-  Open: the canvas chrome the RTL frames still paint in English — the top bar's words, the canvas
-  header's sort value, the filter strip's chips, and `New collection` — which the row's earlier
-  entries call the unrouted surfaces.
+  Open: the canvas chrome the RTL frames still paint in English — the top bar's words, the filter
+  strip's chips, and `New collection` — which the row's earlier entries call the unrouted surfaces.
   The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
   `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
   mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
@@ -1030,6 +1029,12 @@ and none of M9 is closed until the remaining rows are ticked.
   `3 photos` and `3 shown`, and the counts keep Arabic-Indic digits. `a11y::library_status`'s English
   sentence is gone: the string the header paints and the live region speaks now comes from the shell's
   `canvas_status`, so the two cannot drift.
+  The sort value followed (hundred-and-twenty-first entry): the canvas header's combo looks up
+  `Sort::label()` through the shell's `sort_word`, so its current value and its menu read
+  `ترتيب الإضافة` in Arabic where they read `Added order`, and the seven order names are rows
+  the catalogue audit requires in all six languages. The two `rtl-library-*` frames were repainted
+  in the default set; the `lavapipe` set is adopted from CI's next artifact because this machine
+  has no Mesa adapter.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

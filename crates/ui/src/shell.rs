@@ -218,6 +218,13 @@ fn view_word(view: View) -> &'static str {
     tl!(view.label())
 }
 
+/// A sort order's name in the reader's language (SL-L07). `Sort::label` stays the English source
+/// of truth — it is also the JSON and report word — and the catalogue row is looked up by it, so
+/// the combo's current value and its menu cannot disagree about what an order is called.
+fn sort_word(sort: Sort) -> &'static str {
+    tl!(sort.label())
+}
+
 /// A confidence as a percentage in the reader's own digits.
 fn suggestion_percent(percent: f32) -> String {
     format!("{}%", format_count(percent.round() as u64))
@@ -3817,11 +3824,11 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     }
                     let mut chosen = state.sort;
                     let combo = egui::ComboBox::from_id_salt("sort_order")
-                        .selected_text(RichText::new(state.sort.label()).size(11.5).color(t.text_muted))
+                        .selected_text(RichText::new(sort_word(state.sort)).size(11.5).color(t.text_muted))
                         .width(130.0)
                         .show_ui(ui, |ui| {
                             for sort in Sort::ALL {
-                                ui.selectable_value(&mut chosen, sort, RichText::new(sort.label()).size(11.5));
+                                ui.selectable_value(&mut chosen, sort, RichText::new(sort_word(sort)).size(11.5));
                             }
                         });
                     // The visible text is the *current* choice, not the control's name: read aloud it
@@ -11220,11 +11227,13 @@ mod tests {
     }
 
     /// The canvas's two counts — the header's `3 photos` and the filter strip's `3 shown` — are
-    /// catalogue templates rather than English formatted in place (SL-L07). Painted in Arabic, the
-    /// digits are Arabic-Indic and both sentences come from the `ar` rows; the English counting
-    /// phrases must be gone from the frame, which is the assertion the old `format!` calls fail.
+    /// catalogue templates rather than English formatted in place (SL-L07), and the header's sort
+    /// value is a catalogue row looked up by `Sort::label()`. Painted in Arabic, the digits are
+    /// Arabic-Indic, both sentences come from the `ar` rows and the combo reads
+    /// `ترتيب الإضافة`; the English phrases must be gone from the frame, which is the assertion
+    /// the old `format!` calls and the untranslated `Sort::label()` fail.
     #[test]
-    fn the_canvas_counts_read_in_the_interface_language() {
+    fn the_canvas_chrome_reads_in_the_interface_language() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-canvas-counts-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let root = dir.join("photos");
@@ -11278,6 +11287,14 @@ mod tests {
         assert!(
             !painted.iter().any(|text| text == "3 photos" || text == "3 shown"),
             "no English count is left on the canvas, painted {painted:#?}"
+        );
+        assert!(
+            painted.iter().any(|text| text == "ترتيب الإضافة"),
+            "the sort combo reads the ar row, painted {painted:#?}"
+        );
+        assert!(
+            !painted.iter().any(|text| text == "Added order"),
+            "no English sort value is left on the canvas, painted {painted:#?}"
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));

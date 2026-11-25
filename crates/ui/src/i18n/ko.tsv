@@ -772,3 +772,10 @@
 	{n} shown	{n}개 표시
 	{n} photo, {selected} selected	사진 {n}장, {selected}장 선택됨
 	{n} photos, {selected} selected	사진 {n}장, {selected}장 선택됨
+	Added order	추가한 순서
+	Recently added first	최근 추가한 순
+	Name	이름
+	Newest first	최신순
+	Oldest first	오래된순
+	Largest first	큰 파일순
+	Highest rated	별점 높은순

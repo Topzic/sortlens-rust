@@ -225,6 +225,23 @@ mod tests {
         );
     }
 
+    /// Every sort order's name is a catalogue row in each of the six languages. The label is a
+    /// value from `sortlens-catalog`, so the source-reading audit above cannot see it; this is
+    /// the guard that keeps the combo's seven choices from arriving in English only.
+    #[test]
+    fn every_sort_order_has_a_catalogue_row() {
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
+            for sort in sortlens_engine::Sort::ALL {
+                assert!(
+                    I18N.get(lang, "", sort.label()).is_some(),
+                    "{code} has no row for the sort order {:?}",
+                    sort.label()
+                );
+            }
+        }
+    }
+
     /// The picker's languages are exactly what is embedded, each named in itself, and the
     /// direction each resolves to follows its script — Arabic right to left, Japanese left to
     /// right — with the environment override winning over both.

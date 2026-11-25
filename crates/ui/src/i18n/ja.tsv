@@ -773,3 +773,10 @@
 	{n} shown	{n} 件を表示
 	{n} photo, {selected} selected	写真 {n} 枚、{selected} 枚を選択
 	{n} photos, {selected} selected	写真 {n} 枚、{selected} 枚を選択
+	Added order	追加順
+	Recently added first	最近追加した順
+	Name	名前
+	Newest first	新しい順
+	Oldest first	古い順
+	Largest first	大きい順
+	Highest rated	評価が高い順
