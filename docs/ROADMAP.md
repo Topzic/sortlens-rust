@@ -313,12 +313,14 @@ what they need.
     `-32700 Parse error` rather than `-32600`, and `tools/call` with non-object arguments is `-32602` rather
     than an empty call. Both are tested, as are batch handling, the oversized frame, negotiation and the
     handshake.
-- [ ] `craft-ipc` is still unused — **absent by design, with a reason**: there is no second process to talk to.
-  The window owns the engine and the library's write lock, and the CLI opens the library itself, which is what
-  makes the lock meaningful. A socket would need a server mode in the app, an authentication story on a
-  multi-user machine, and an answer for "the app is not running" — none of which exist, and none of which the
-  MCP-over-stdio path needs, because the client starts the server. **Unblocker**: a real second consumer that
-  wants to drive a *running* window (a menu-bar helper, a browser extension, two windows on one library).
+- [ ] `craft-ipc` is still unused, but the reason it gave is now false and is corrected here: the app
+  **does** spawn a second process. The host starts `sortlens-server` beside itself (supervised by
+  `crates/remote/src/supervise.rs`), passes it the library and a capability token, and speaks to it over a
+  loopback HTTP binding. The crate would add a second local transport with its own authentication and its own
+  answer for "the app is not running" beside the one the phone protocol already needs. **Unblocker**: a consumer
+  that must reach a *running* window through a local socket rather than the server (a menu-bar helper, a browser
+  extension, two windows on one library) — and it would follow the server's capability-token model rather than
+  open an unauthenticated pipe.
 - [x] `sortlens-cli add|rescan|list|stats|rate|flag|undo|report` (E) — SL-K03
 - [x] `--json` for every verb that answers one object (E) — **done 2026-11-26**, see the seventy-fourth
   entry. `page` printed JSON and the MCP server returned it, but a script could not ask for the same answer from
@@ -915,6 +917,10 @@ and none of M9 is closed until the remaining rows are ticked.
   catalogue rows, and the position and count sentences are templates — so a Japanese cull session
   reads `3 中 1` with `採用  P`, and an Arabic one writes `١ من ٣`. What is still English on that screen
   is what assistive technology speaks (`crate::a11y`), which the row does not count as painted chrome.
+  The Similar view's chrome followed (ninety-sixth entry): `Find similar photos`, `Hashing…`, the progress
+  line, `Match`, the strictness and palette sliders, the leftover/delete/clear row, both empty-state lines, the
+  group headers and every select-all hover are catalogue rows, and their counts are templates — so a Japanese
+  group reads `写真 3 枚` with `各グループの余りを選択 (2)`, and an Arabic one writes `٣ صور`.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

@@ -599,4 +599,27 @@
 	Add	إضافة
 	That keyword is already on this photo	هذه الكلمة المفتاحية موجودة على هذه الصورة
 	Tagged “{tag}”	أُضيفت «{tag}»
+	Find similar photos	ابحث عن صور مشابهة
+	Hashing…	جارٍ حساب البصمات…
+	Groups up to date	المجموعات محدّثة
+	Hashing {n} previews	جارٍ حساب بصمات {n} معاينة
+	{groups} groups · {bits} identical bits	{groups} من المجموعات · {bits} بت متطابقة
+	strictness	الصرامة
+	Match	المطابقة
+	palette	اللوحة اللونية
+	How far apart two palettes may be, per channel	إلى أي مدى يمكن أن تختلف لوحتان لونيتان، لكل قناة
+	Select leftovers in every group ({n})	حدّد الفائض في كل مجموعة ({n})
+	Ticks every photo that is not its group's best, so you can review them together	يؤشّر كل صورة ليست الأفضل في مجموعتها، لتراجعها معًا
+	Selected {n} leftover(s) across {groups} group(s)	حُدّد {n} فائضًا عبر {groups} مجموعة
+	Delete the {n} selected…	احذف المحدّد ({n})…
+	Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets	ينقلها إلى المهملات أو مجلد المستبعدات أو وسم، بعد فحوص الأمان نفسها التي تجريها دفعة الفرز
+	{n} group(s) · nothing selected	{n} مجموعة · لا شيء محدّد
+	No groups yet	لا مجموعات بعد
+	Hash the library to find bursts and re-edits.	احسب بصمات المكتبة لعثور على اللقطات المتتابعة وإعادة التحرير.
+	spread {bits} bits	التباعد {bits} بت
+	Select all but the best	حدّد الكل عدا الأفضل
+	Ticks every photo in this group except the one worth keeping	يؤشّر كل صورة في هذه المجموعة عدا التي تستحق الإبقاء
+	{n} set aside	أُبعد {n}
+	keeping {keep}	الإبقاء على {keep}
+	best	الأفضل
 	Removed keyword {tag}	أُزيلت الكلمة المفتاحية {tag}

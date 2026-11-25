@@ -6740,41 +6740,55 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     let threshold = state.similar_threshold;
     let groups = engine.similar_groups().len();
     ui.horizontal(|ui| {
-        let label = if progress.is_some() { "Hashing…" } else { "Find similar photos" };
+        let label = if progress.is_some() {
+            tl!("Hashing…")
+        } else {
+            tl!("Find similar photos")
+        };
         if ui
             .add_enabled(progress.is_none(), Button::new(RichText::new(label).size(11.5)))
             .clicked()
         {
             match engine.begin_similar(threshold) {
-                Ok(0) => state.notice("Groups up to date".to_string()),
-                Ok(queued) => state.notice(format!("Hashing {queued} previews")),
+                Ok(0) => state.notice(tl!("Groups up to date").to_string()),
+                Ok(queued) => state.notice(crate::i18n::fmt("Hashing {n} previews", &[("n", &format_count(queued as u64))])),
                 Err(error) => state.notice_problem(error.to_string()),
             }
         }
         if let Some((done, total)) = progress {
             ui.add(egui::ProgressBar::new(if total == 0 { 0.0 } else { done as f32 / total as f32 }).desired_width(180.0));
-            ui.label(RichText::new(format!("{done} of {total}")).size(10.5).color(t.text_muted));
-            if ui.small_button("Cancel").clicked() {
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "{done} of {total}",
+                    &[("done", &format_count(done as u64)), ("total", &format_count(total as u64))],
+                ))
+                .size(10.5)
+                .color(t.text_muted),
+            );
+            if ui.small_button(tl!("Cancel")).clicked() {
                 engine.cancel_similar();
             }
         } else {
             ui.label(
-                RichText::new(format!("{groups} groups · {} identical bits", threshold))
-                    .size(10.5)
-                    .color(t.text_faint),
+                RichText::new(crate::i18n::fmt(
+                    "{groups} groups · {bits} identical bits",
+                    &[("groups", &format_count(groups as u64)), ("bits", &format_count(threshold as u64))],
+                ))
+                .size(10.5)
+                .color(t.text_faint),
             );
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let value = state.similar_threshold as u64;
             let mut slider = value;
-            if ui.add(egui::Slider::new(&mut slider, 0..=20).text("strictness")).changed() {
+            if ui.add(egui::Slider::new(&mut slider, 0..=20).text(tl!("strictness"))).changed() {
                 state.similar_threshold = slider as u32;
                 engine.regroup(state.similar_threshold, state.similar_colour, state.similar_mode);
             }
         });
     });
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Match").size(10.5).color(t.text_faint));
+        ui.label(RichText::new(tl!("Match")).size(10.5).color(t.text_faint));
         for mode in sortlens_engine::SimilarMatch::ALL {
             if ui
                 .add(
@@ -6801,8 +6815,8 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
         if state.similar_mode == sortlens_engine::SimilarMatch::Colour {
             let mut colour = state.similar_colour as u64;
             if ui
-                .add(egui::Slider::new(&mut colour, 0..=120).text("palette"))
-                .on_hover_text("How far apart two palettes may be, per channel")
+                .add(egui::Slider::new(&mut colour, 0..=120).text(tl!("palette")))
+                .on_hover_text(tl!("How far apart two palettes may be, per channel"))
                 .changed()
             {
                 state.similar_colour = colour as u32;
@@ -6830,31 +6844,50 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
             if ui
                 .add_enabled(
                     !leftovers.is_empty(),
-                    Button::new(RichText::new(format!("Select leftovers in every group ({})", leftovers.len())).size(11.0)),
+                    Button::new(
+                        RichText::new(crate::i18n::fmt(
+                            "Select leftovers in every group ({n})",
+                            &[("n", &format_count(leftovers.len() as u64))],
+                        ))
+                        .size(11.0),
+                    ),
                 )
-                .on_hover_text("Ticks every photo that is not its group's best, so you can review them together")
+                .on_hover_text(tl!(
+                    "Ticks every photo that is not its group's best, so you can review them together"
+                ))
                 .clicked()
             {
                 state.selection.select_many(&leftovers);
-                state.notice(format!("Selected {} leftover(s) across {} group(s)", leftovers.len(), found.len()));
+                state.notice(crate::i18n::fmt(
+                    "Selected {n} leftover(s) across {groups} group(s)",
+                    &[
+                        ("n", &format_count(leftovers.len() as u64)),
+                        ("groups", &format_count(found.len() as u64)),
+                    ],
+                ));
             }
             let ticked = state.selection.len();
             if ticked > 0 {
                 if ui
-                    .button(RichText::new(format!("Delete the {ticked} selected…")).size(11.0))
-                    .on_hover_text("Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets")
+                    .button(RichText::new(crate::i18n::fmt("Delete the {n} selected…", &[("n", &format_count(ticked as u64))])).size(11.0))
+                    .on_hover_text(tl!(
+                        "Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets"
+                    ))
                     .clicked()
                 {
                     state.similar_delete_open = true;
                 }
-                if ui.small_button("Clear").clicked() {
+                if ui.small_button(tl!("Clear")).clicked() {
                     state.selection.clear();
                 }
             } else {
                 ui.label(
-                    RichText::new(format!("{} group(s) · nothing selected", found.len()))
-                        .size(10.5)
-                        .color(t.text_faint),
+                    RichText::new(crate::i18n::fmt(
+                        "{n} group(s) · nothing selected",
+                        &[("n", &format_count(found.len() as u64))],
+                    ))
+                    .size(10.5)
+                    .color(t.text_faint),
                 );
             }
         });
@@ -6863,9 +6896,9 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     if found.is_empty() {
         ui.add_space(40.0);
         ui.vertical_centered(|ui| {
-            ui.label(RichText::new("No groups yet").size(15.0).strong());
+            ui.label(RichText::new(tl!("No groups yet")).size(15.0).strong());
             ui.label(
-                RichText::new("Hash the library to find bursts and re-edits.")
+                RichText::new(tl!("Hash the library to find bursts and re-edits."))
                     .size(11.0)
                     .color(t.text_faint),
             );
@@ -6880,23 +6913,30 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                     .inner_margin(Margin::same(8))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(format!("{} photos", group.len())).size(11.5).strong());
                             ui.label(
-                                RichText::new(format!("spread {} bits", group.spread))
-                                    .size(10.0)
-                                    .color(t.text_faint),
+                                RichText::new(crate::i18n::fmt("{n} photos", &[("n", &format_count(group.len() as u64))]))
+                                    .size(11.5)
+                                    .strong(),
+                            );
+                            ui.label(
+                                RichText::new(crate::i18n::fmt(
+                                    "spread {bits} bits",
+                                    &[("bits", &format_count(group.spread as u64))],
+                                ))
+                                .size(10.0)
+                                .color(t.text_faint),
                             );
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 if ui
-                                    .small_button("Select all but the best")
-                                    .on_hover_text("Ticks every photo in this group except the one worth keeping")
+                                    .small_button(tl!("Select all but the best"))
+                                    .on_hover_text(tl!("Ticks every photo in this group except the one worth keeping"))
                                     .clicked()
                                 {
                                     let others = group.others();
                                     // Every one of them, not just the first: the button says "all but the best" and
                                     // a selection of one would be a different, and quieter, promise.
                                     state.selection.select_many(&others);
-                                    state.notice(format!("{} set aside", others.len()));
+                                    state.notice(crate::i18n::fmt("{n} set aside", &[("n", &format_count(others.len() as u64))]));
                                 }
                                 // The strongest member is named, so a decision to delete the rest is made with the
                                 // keeper in view rather than guessed from a thumbnail order.
@@ -6907,7 +6947,11 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                                         photo.name.clone()
                                     }
                                 }) {
-                                    ui.label(RichText::new(format!("keeping {keep}")).size(9.5).color(t.text_faint));
+                                    ui.label(
+                                        RichText::new(crate::i18n::fmt("keeping {keep}", &[("keep", keep.as_str())]))
+                                            .size(9.5)
+                                            .color(t.text_faint),
+                                    );
                                 }
                             });
                         });
@@ -6933,7 +6977,7 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                                     ui.painter().text(
                                         rect.left_top() + vec2(2.0, 2.0),
                                         Align2::LEFT_TOP,
-                                        "best",
+                                        tl!("best"),
                                         FontId::proportional(9.5),
                                         t.text,
                                     );
@@ -12331,6 +12375,119 @@ mod tests {
         assert!(
             arabic.iter().any(|text| text.contains('١') && text.contains("من")),
             "the position is written in the language's own digits and word order: {arabic:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The similarity view speaks the interface language (SL-L07): its controls, its group rows and
+    /// its empty state are catalogue rows, and the counts are templates, so a Japanese or Arabic owner
+    /// reads how many groups and photos the hashes found in their own words and digits.
+    #[test]
+    fn the_similarity_view_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-similar-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-similar-words");
+        // Three copies of one colour make a group; the different photo stays alone.
+        for name in ["IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [50, 90, 130], 48, 32), root.join(name)).expect("copy");
+        }
+        std::fs::copy(fixture.jpeg("IMG_0004.jpg", [200, 40, 40], 40, 40), root.join("IMG_0004.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        similar_view(ui, &tokens, state, engine, thumbs);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out.shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                    _ => None,
+                })
+                .collect::<Vec<String>>()
+        };
+
+        // Before anything is hashed: the empty state, in English, exactly as it painted before.
+        let english = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(english.iter().any(|text| text == "Find similar photos"), "{english:?}");
+        assert!(english.iter().any(|text| text == "No groups yet"), "{english:?}");
+        assert!(
+            english.iter().any(|text| text == "Hash the library to find bursts and re-edits."),
+            "{english:?}"
+        );
+
+        // Hash the four photos: the three copies form a group, and the view's chrome is English.
+        engine.begin_similar(0).expect("hash");
+        for _ in 0..1200 {
+            if engine.poll_similar(0).is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(!engine.similar_groups().is_empty(), "the copies form a group");
+        let english_groups = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(english_groups.iter().any(|text| text == "Match"), "{english_groups:?}");
+        assert!(english_groups.iter().any(|text| text == "3 photos"), "{english_groups:?}");
+        assert!(
+            english_groups.iter().any(|text| text == "Select all but the best"),
+            "{english_groups:?}"
+        );
+        assert!(
+            english_groups.iter().any(|text| text == "Select leftovers in every group (2)"),
+            "{english_groups:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(japanese.iter().any(|text| text == "似た写真を探す"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "一致基準"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "最良以外をすべて選択"), "{japanese:?}");
+        assert!(
+            japanese.iter().any(|text| text == "各グループの余りを選択 (2)"),
+            "the count is the catalogue's template and the language's own words: {japanese:?}"
+        );
+        assert!(japanese.iter().any(|text| text == "写真 3 枚"), "{japanese:?}");
+        assert!(
+            !japanese.iter().any(|text| text == "Find similar photos"
+                || text == "Match"
+                || text == "No groups yet"
+                || text == "Select all but the best"
+                || text == "Select leftovers in every group (2)"),
+            "the view leaves no English chrome behind: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&ctx, &mut state, &mut engine, &mut thumbs);
+        assert!(arabic.iter().any(|text| text == "ابحث عن صور مشابهة"), "{arabic:?}");
+        assert!(arabic.iter().any(|text| text == "المطابقة"), "{arabic:?}");
+        assert!(
+            arabic.iter().any(|text| text.contains('٣') && text.contains("صور")),
+            "the group's count is written in the language's own digits: {arabic:?}"
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));

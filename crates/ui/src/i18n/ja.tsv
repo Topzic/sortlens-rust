@@ -599,4 +599,27 @@
 	Add	追加
 	That keyword is already on this photo	そのキーワードはすでにこの写真に付いています
 	Tagged “{tag}”	「{tag}」を付けました
+	Find similar photos	似た写真を探す
+	Hashing…	ハッシュを計算中…
+	Groups up to date	グループは最新です
+	Hashing {n} previews	{n} 件のプレビューをハッシュ中
+	{groups} groups · {bits} identical bits	{groups} グループ · {bits} ビット一致
+	strictness	厳密さ
+	Match	一致基準
+	palette	配色
+	How far apart two palettes may be, per channel	2 つの配色がチャンネルごとにどれだけ離れてよいか
+	Select leftovers in every group ({n})	各グループの余りを選択 ({n})
+	Ticks every photo that is not its group's best, so you can review them together	グループの最良以外の写真をすべて選択し、まとめて確認できます
+	Selected {n} leftover(s) across {groups} group(s)	{groups} グループで {n} 件の余りを選択しました
+	Delete the {n} selected…	選択した {n} 件を削除…
+	Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets	選別バッチと同じ安全確認のあと、ゴミ箱・却下フォルダー・タグのいずれかへ移動します
+	{n} group(s) · nothing selected	{n} グループ · 未選択
+	No groups yet	グループはまだありません
+	Hash the library to find bursts and re-edits.	ライブラリをハッシュすると、連写や再編集が見つかります。
+	spread {bits} bits	ばらつき {bits} ビット
+	Select all but the best	最良以外をすべて選択
+	Ticks every photo in this group except the one worth keeping	このグループで残す価値のある 1 枚以外をすべて選択します
+	{n} set aside	{n} 件を除外
+	keeping {keep}	残す: {keep}
+	best	最良
 	Removed keyword {tag}	キーワード {tag} を外しました

@@ -1,5 +1,49 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-sixth) — the similarity view's chrome speaks the interface language, and its counts are templates
+
+- **Why this came up.** The ninety-fifth entry's Next named it: after the cull screen, the Similar view still
+  painted `Find similar photos`, `Match`, its empty state and every select-all hover in English, so an owner who
+  chose Japanese judged photographs in Japanese and found similar ones in English.
+- **What was routed.** 27 strings go through the catalogues; 23 needed new rows in each of `ar.tsv` and
+  `ja.tsv`, because `Cancel`, `Clear`, `{n} photos` and `{done} of {total}` already had rows and are reused
+  (the duplicate check caught the first attempt at the last one, which is the audit doing its job): the empty
+  state's two lines, `Find similar photos`, `Hashing…`, the progress line, `Match`, the strictness and palette
+  sliders with the palette's hover, the leftover and delete buttons with their hovers, `Clear`, the
+  nothing-selected line, the group header (`{n} photos`, `spread {bits} bits`), `Select all but the best` and
+  its hover, the three notices, `keeping {keep}`, and the thumbnail's `best` tag.
+- **Counts are templates, not concatenations.** `{groups} groups · {bits} identical bits`, `Selected {n}
+  leftover(s) across {groups} group(s)`, `{n} group(s) · nothing selected`, `{n} set aside` and `keeping
+  {keep}` are filled through `i18n::fmt` with `format_count`, so a Japanese group reads `写真 3 枚` with
+  `各グループの余りを選択 (2)`, and Arabic writes `٣ صور`.
+- **Left English on purpose, and named.** The mode buttons and their hint lines are `sortlens_similar`'s own
+  `Match::label`/`Match::hint` — engine sentences, the same class the export spec and the job detail are
+  routed by piece rather than by lookup. Routing them needs an engine piece (a `Match` word enum) and is the
+  next i18n slice, not this one. Nothing else on the view paints an English literal.
+- **Tests.** `the_similarity_view_speaks_the_interface_language` paints the real `similar_view` headlessly at
+  1100×780 over four scanned photographs: English first (the empty state's two lines, then — after the three
+  copies are hashed — `Match`, `3 photos`, `Select all but the best`, `Select leftovers in every group (2)`),
+  then Japanese (`似た写真を探す`, `一致基準`, `最良以外をすべて選択`, `各グループの余りを選択 (2)`, `写真 3
+  枚`, and none of the English chrome), then Arabic (`ابحث عن صور مشابهة`, `المطابقة`, and the group count with
+  `٣`). It fails the moment a route goes back to a bare literal.
+- **Files.** `crates/ui/src/shell.rs` (`similar_view`, one test); `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (23
+  rows each); `docs/ROADMAP.md` — the i18n row's prose (the row stays unticked: four languages and RTL shots
+  remain) and the `craft-ipc` row, whose stated reason ("there is no second process to talk to") the shipped
+  `sortlens-server` made false; it now records the process the host actually spawns, the loopback HTTP plus
+  capability token that is its channel, and the socket consumer that would still earn the crate a place.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test and the catalogue
+  audit pass, and the cull screen's language test still passes (this signature's neighbour). `cargo xtask ci`,
+  `snapshot` and `deny` green, and `cargo xtask screenshots` painted all 27 committed scenes byte-identical to
+  their baselines — which is the proof every English string is unchanged, since a `tl!` with no row is its own
+  English key. No release workflow was dispatched: `crates/ui` source, tests and docs, no build or release
+  surface.
+- **Next.** The mode buttons and hints (`Structure`/`Colour`/`Either` and their three sentences) are the last
+  English chrome on Similar, and they need a `Match`-side piece first. Then the Insights screen (`Nothing has
+  happened yet`, its headers) and Places (`No photo has a location yet`, the `places.txt` line).
+
+In-flight: no release dispatch (UI source, tests and docs only). CI for this commit is the next tick's first
+read, one `gh run view`.
+
 ## 2026-11-26 (ninety-fifth) — the cull screen judges photographs in your language, and its buttons keep the keyboard's letters
 
 - **Why this came up.** The ninety-fourth entry's item was the trunk (run **45586062477** on `ff169a7` is now green on
