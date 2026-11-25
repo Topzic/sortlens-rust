@@ -387,3 +387,186 @@
 	Nothing is written while this runs.	実行中は何も書き込まれません。
 	Suggest for the whole library	ライブラリ全体に提案する
 	{percent} from {source} — clicking adds it	{source} による {percent} — クリックで追加
+	Custom	カスタム
+	OK	OK
+	Close	閉じる
+	Undo	元に戻す
+	Redo	やり直す
+	Reset All…	すべてリセット…
+	Restore every default shortcut in this set?	このセットの既定のショートカットをすべて復元しますか？
+	Reset All	すべてリセット
+	Show:	表示:
+	Filter:	フィルター:
+	Search:	検索:
+	Search by key	キーで検索
+	All Commands	すべてのコマンド
+	{menu} Menu	{menu} メニュー
+	Tools	ツール
+	{panel} Panel	{panel} パネル
+	Other	その他
+	Fixed Keys	固定キー
+	All	すべて
+	With Shortcut	ショートカットあり
+	Changed	変更済み
+	Conflicts	競合
+	No matching commands	一致するコマンドはありません
+	(cycles)	(切り替え)
+	{label} (cycles)	{label} (切り替え)
+	{label} (Changed)	{label} (変更済み)
+	Command	コマンド
+	Commands	コマンド
+	Detail pane size	詳細ペインのサイズ
+	Select a command to see and change its shortcuts	コマンドを選択するとショートカットを表示・変更できます
+	Shortcut	ショートカット
+	Default	既定
+	{chord} (Default)	{chord} (既定)
+	{chord} ({scope})	{chord} ({scope})
+	{label} ({scope})	{label} ({scope})
+	Application	アプリケーション
+	Current shortcuts:	現在のショートカット:
+	New shortcut:	新しいショートカット:
+	New shortcut: {chord}	新しいショートカット: {chord}
+	press keys	キーを押す
+	{chord} (press again for a double press)	{chord} (ダブル押しはもう一度押す)
+	Type…	入力…
+	Context:	コンテキスト:
+	Assign	割り当て
+	Use Default	既定を使用
+	Default: {chord}	既定: {chord}
+	Currently assigned to:	現在の割り当て先:
+	Not assigned	未割り当て
+	{label} ({scope}, both work)	{label} ({scope}、両方とも有効)
+	Add a shortcut to {label}	{label} にショートカットを追加
+	Remove {chord} from {label}	{label} から {chord} を削除
+	Restore the default for {label}	{label} の既定を復元
+	{label}: {chord}	{label}: {chord}
+	{label}: press keys	{label}: キーを押す
+	Now used by {label}	現在 {label} が使用
+	{label}: {chord} (Now used by {holder})	{label}: {chord} (現在 {holder} が使用)
+	the shortcut has no key	ショートカットにキーがありません
+	unknown modifier {key}	不明な修飾キー {key}
+	modifier {key} given twice	修飾キー {key} が二重に指定されています
+	key sequences are not supported	キーシーケンスはサポートされていません
+	the scope name is not valid	スコープ名が無効です
+	Keyboard	キーボード
+	Keyboard: US	キーボード: US
+	Keyboard: US (macOS)	キーボード: US (macOS)
+	Control	Control
+	Option	Option
+	Shift	Shift
+	Ctrl	Ctrl
+	Alt	Alt
+	Caps Lock	Caps Lock
+	Win	Win
+	Super	Super
+	Panel or context	パネルまたはコンテキスト
+	Both	両方
+	Modifier on	修飾キー使用
+	{chord}: {label}	{chord}: {label}
+	Click a key to see its shortcuts	キーをクリックするとショートカットを表示
+	Key: {key}	キー: {key}
+	Assign to Selected	選択項目に割り当て
+	Assign {chord} to {label}	{chord} を {label} に割り当て
+	Select a command first	先にコマンドを選択してください
+	Nothing uses this key	このキーを使用しているものはありません
+	⚠ {chord} is used by {label}	⚠ {chord} は {label} が使用しています
+	{chord} was removed from {label}	{chord} を {label} から削除しました
+	Also used by {label}	{label} も使用しています
+	{chord} is reserved by the system	{chord} はシステムが予約しています
+	A command can have at most {n} shortcuts	コマンドのショートカットは最大 {n} 個です
+	The scope {scope} is unknown	スコープ {scope} は不明です
+	Too many shortcuts are assigned	ショートカットが多すぎます
+	This command is unknown	このコマンドは不明です
+	Take It	引き継ぐ
+	Take It and Go to Conflict	引き継いで競合へ移動
+	Keep Both	両方保持
+	Go to Conflict	競合へ移動
+	Cancel the new shortcut	新しいショートカットをキャンセル
+	Dismiss	閉じる
+	{key}: no command has this name	{key}: この名前のコマンドはありません
+	{key}: “{text}” is not a shortcut ({error})	{key}: 「{text}」はショートカットではありません ({error})
+	{key}: {text} is reserved by the system	{key}: {text} はシステムが予約しています
+	{key}: the scope in “{text}” is unknown	{key}: 「{text}」のスコープは不明です
+	{key}: listed more than once	{key}: 複数回登録されています
+	{key}: part of the entry was dropped	{key}: 項目の一部が破棄されました
+	Set:	セット:
+	(modified)	(変更あり)
+	New Set…	新しいセット…
+	Rename…	名前を変更…
+	Revert Set	セットを元に戻す
+	Import…	読み込み…
+	Export…	書き出し…
+	Summarize…	要約…
+	{title}: {set}	{title}: {set}
+	Create	作成
+	Rename	名前を変更
+	More	その他
+	Name:	名前:
+	Based on:	基にしたセット:
+	Current shortcuts	現在のショートカット
+	Save changes to “{set}”?	「{set}」への変更を保存しますか？
+	Don't Save	保存しない
+	Delete the set “{set}”?	セット「{set}」を削除しますか？
+	Keyboard Shortcuts (JSON)	キーボードショートカット (JSON)
+	The name is empty, too long or has control characters	名前が空か、長すぎるか、制御文字を含んでいます
+	A set with this name exists	この名前のセットは既に存在します
+	The set was not found	セットが見つかりません
+	Built-in sets cannot be changed	組み込みセットは変更できません
+	There are too many sets	セットが多すぎます
+	This is not a shortcut set file	ショートカットセットのファイルではありません
+	This is not a craft-keymap file	craft-keymap のファイルではありません
+	This file is from a newer version (format {n})	このファイルは新しいバージョンのものです (形式 {n})
+	The file is too large	ファイルが大きすぎます
+	Import “{set}”	「{set}」を読み込む
+	Set name:	セット名:
+	Import	読み込む
+	Cancel Import	読み込みをキャンセル
+	line {n}	{n} 行目
+	Will change	変更予定
+	Not matched	一致なし
+	Unreadable	読み取り不可
+	Approximated	近似
+	{title} ({n})	{title} ({n})
+	Suggestions ({n})	候補 ({n})
+	numeric keypad key read as main key	テンキーのキーをメインキーとして読み取りました
+	Matched without change	変更なしで一致
+	Command for {item}	{item} のコマンド
+	Choose a command…	コマンドを選択…
+	no command has this name	この名前のコマンドはありません
+	more than one command fits	複数のコマンドが一致します
+	in a context that is not imported	読み込まれていないコンテキスト内
+	only a command of the other kind fits (tool or menu command)	別種のコマンドのみ一致します (ツールまたはメニューコマンド)
+	empty shortcut	空のショートカット
+	the shortcut is too long	ショートカットが長すぎます
+	unknown key {key}	不明なキー {key}
+	unsupported modifier {key}	未対応の修飾キー {key}
+	{label} keeps its shortcuts (matched by a panel menu name)	{label} はショートカットを保持します (パネルメニュー名で一致)
+	Import as New Set	新しいセットとして読み込む
+	Imported	読み込み済み
+	Imported as “{set}”	「{set}」として読み込みました
+	Skipped	スキップ
+	Taken from other commands	他のコマンドから取得
+	Not changed	変更なし
+	taken by {label}	{label} が取得
+	taken by a later entry	後の項目が取得
+	reserved by the system	システムが予約
+	the scope is unknown	スコープが不明です
+	the set's shortcuts could not be added	セットのショートカットを追加できませんでした
+	the shortcuts could not be removed	ショートカットを削除できませんでした
+	Copy Report	レポートをコピー
+	Double-press bindings are not read here; record a single chord	ダブル押しの割り当てはここでは読み取られません。単一のコードを記録してください
+	craft-keymap set	craft-keymap セット
+	Shortcuts saved	ショートカットを保存しました
+	Imported shortcut set “{name}”	ショートカットセット「{name}」を読み込みました
+	Could not import the set: {error}	セットを読み込めませんでした: {error}
+@plural	{n} shortcut is assigned more than once|{n} shortcuts are assigned more than once	{n} 件のショートカットが重複して割り当てられています
+@plural	{n} saved shortcut could not be used|{n} saved shortcuts could not be used	{n} 件の保存されたショートカットを使用できませんでした
+@plural	{n} command will change|{n} commands will change	{n} 件のコマンドが変更されます
+@plural	{n} item without a shortcut|{n} items without a shortcut	{n} 件の項目にショートカットがありません
+@plural	{n} item not matched|{n} items not matched	{n} 件の項目が一致しません
+@plural	{n} item could not be read|{n} items could not be read	{n} 件の項目を読み取れませんでした
+@plural	{n} key read approximately|{n} keys read approximately	{n} 個のキーを近似して読み取りました
+@plural	{n} entry cut at a limit|{n} entries cut at a limit	{n} 件の項目が上限で切り詰められました
+@plural	{n} command changed|{n} commands changed	{n} 件のコマンドを変更しました
+@plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	{n} 件のショートカットは別のスコープでも有効です
+@plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	{n} 件の項目は無視されました: コマンドが多すぎます

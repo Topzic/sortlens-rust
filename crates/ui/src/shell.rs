@@ -10,13 +10,13 @@
 
 use crate::a11y;
 use crate::charts::{self, Column};
-use crate::i18n::{I18N, current, set_current, tl};
+use crate::i18n::{CatalogText, I18N, current, set_current, tl};
 use crate::keymap::{self, Context};
 use crate::places;
 use crate::sharpness;
 use crate::theme::{Density, GridMode, Motion, ThemeKind, Tokens};
 use crate::thumbs::{GRID_SIZE, Thumbnails};
-use craft_keymap::ui::{DialogState, English, Options as ShortcutOptions, Outcome as ShortcutOutcome, ShortcutsDialog};
+use craft_keymap::ui::{DialogState, FixedRow, Options as ShortcutOptions, Outcome as ShortcutOutcome, ShortcutsDialog};
 use craft_keymap::{CommandRef, Keymap, Overrides, Profiles};
 use craft_ui::direction::{align2, end_panel, end_x, forward, start_align, start_panel, start_x};
 use egui::{
@@ -10160,7 +10160,7 @@ fn shortcut_editor_options() -> ShortcutOptions {
         options.title = "Keyboard shortcuts";
         options.summary = false;
         options.keyboard = false;
-        options.fixed = keymap::fixed_rows();
+        options.fixed = keymap::fixed_rows().into_iter().map(localized_fixed_row).collect();
         options.import_formats = vec![craft_keymap::ui::Format {
             id: craft_keymap::ui::JSON_FORMAT,
             label: "craft-keymap set",
@@ -10168,12 +10168,22 @@ fn shortcut_editor_options() -> ShortcutOptions {
         }];
         options.accept = Some(Box::new(|_, binding| {
             if binding.trigger.double {
-                Err("Double-press bindings are not read here; record a single chord".to_owned())
+                Err(tl!("Double-press bindings are not read here; record a single chord").to_owned())
             } else {
                 Ok(())
             }
         }));
     })
+}
+
+/// A read-only fixed row in the interface language. `craft-keymap` paints a fixed row's label as it
+/// received it (the dialog only looks up its own strings), and the row's group and label are the
+/// shortcut overlay's own heading and action, so both are catalogue rows already. The translation
+/// happens here, before the row is handed over.
+fn localized_fixed_row(row: FixedRow) -> FixedRow {
+    let group = tl!(&row.group).to_owned();
+    let label = tl!(&row.label).to_owned();
+    FixedRow { group, label, ..row }
 }
 
 /// The craft-keymap editor behind Settings → Shortcuts (SL-I09): rebinding with conflict
@@ -10182,15 +10192,22 @@ fn shortcut_editor_options() -> ShortcutOptions {
 /// the runtime keymap the same frame, and OK hands the sets to the host to persist.
 fn shortcut_editor_dialog(ui: &mut Ui, state: &mut UiState, actions: &mut Vec<Action>) {
     let mut editor = state.shortcut_editor.take().unwrap_or_default();
+    // One adapter for the frame, so the review and the dialog paint the same words.
+    let text = CatalogText::new();
     // A file the host read lands before the frame draws, so the review opens on the set it read.
-    if let Some(text) = state.pending_shortcut_import.take() {
-        match ShortcutsDialog::new(&mut state.keys, &English).import_json(&mut editor, &text) {
-            Ok(name) => state.notice(format!("Imported shortcut set \u{201c}{name}\u{201d}")),
-            Err(error) => state.notice_problem(format!("Could not import the set: {error}")),
+    if let Some(import) = state.pending_shortcut_import.take() {
+        match ShortcutsDialog::new(&mut state.keys, &text).import_json(&mut editor, &import) {
+            Ok(name) => {
+                state.notice(crate::i18n::fmt("Imported shortcut set “{name}”", &[("name", &name)]));
+            }
+            Err(error) => {
+                let error = error.to_string();
+                state.notice_problem(crate::i18n::fmt("Could not import the set: {error}", &[("error", &error)]));
+            }
         }
     }
     let options = shortcut_editor_options();
-    let outcome = ShortcutsDialog::new(&mut state.keys, &English)
+    let outcome = ShortcutsDialog::new(&mut state.keys, &text)
         .sets(&mut state.profiles, keymap::BUILTINS)
         .options(&options)
         .show(ui.ctx(), &mut editor);
@@ -10201,7 +10218,7 @@ fn shortcut_editor_dialog(ui: &mut Ui, state: &mut UiState, actions: &mut Vec<Ac
         Some(ShortcutOutcome::Cancel) => {}
         Some(ShortcutOutcome::Ok) => {
             actions.push(Action::SaveShortcuts(state.profiles.clone()));
-            state.notice("Shortcuts saved");
+            state.notice(tl!("Shortcuts saved"));
         }
         Some(ShortcutOutcome::Import { .. }) => {
             state.shortcut_editor = Some(editor);
@@ -13242,6 +13259,73 @@ mod tests {
             engine_cell.borrow().photo(id).expect("photo").flag,
             Flag::Pick,
             "Q is flag as picked after OK"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The shortcut editor is `craft-keymap`'s dialog and looks its own strings up in the interface
+    /// catalogue through `CatalogText`: with Japanese chosen, the window title, a column heading and
+    /// the footer's import button all paint Japanese, and the English the editor used to show is
+    /// gone from the frame.
+    #[test]
+    fn the_shortcut_editor_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-editor-lang-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.shortcut_editor = Some(DialogState::new());
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        let mut run = |state: &mut UiState| -> egui::FullOutput {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            output
+        };
+        fn texts(output: &egui::FullOutput) -> Vec<String> {
+            fn walk(shape: &egui::Shape, sink: &mut Vec<String>) {
+                match shape {
+                    egui::Shape::Text(text) => sink.push(text.galley.job.text.clone()),
+                    egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, sink)),
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, &mut sink);
+            }
+            sink
+        }
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("ja is offered"));
+        let painted = texts(&run(&mut state));
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("en is offered"));
+
+        assert!(
+            painted.iter().any(|text| text.contains("キーボードショートカット")),
+            "the window title is the catalogue's: {painted:?}"
+        );
+        assert!(
+            painted.iter().any(|text| text.contains("コマンド")),
+            "the command column heading is the catalogue's: {painted:?}"
+        );
+        assert!(
+            painted.iter().any(|text| text.contains("読み込み…")),
+            "the footer's import button is the catalogue's: {painted:?}"
+        );
+        assert!(
+            !painted.iter().any(|text| text.contains("Import…")),
+            "no English button behind the translation: {painted:?}"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

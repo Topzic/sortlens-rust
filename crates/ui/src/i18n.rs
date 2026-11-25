@@ -13,6 +13,7 @@
 //! [`I18N`] built once from the embedded catalogues, a thread-local current language, and the
 //! `tl!`/`fmt`/`tn` helpers call sites use.
 
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::sync::LazyLock;
 
@@ -84,6 +85,50 @@ pub fn size(bytes: u64) -> String {
     I18N.file_size(current(), bytes, FileSize::DECIMAL)
 }
 
+/// The catalogue as `craft-keymap`'s dialog words: its own strings, the command labels and the
+/// menu paths look up the rows the rest of the shell paints, so the shortcut editor speaks the
+/// interface language without a second table (SL-L07). The language is read when the adapter is
+/// made, which is once per frame, after Settings has already changed it.
+pub struct CatalogText {
+    lang: Lang,
+}
+
+impl CatalogText {
+    /// An adapter over the current interface language.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { lang: current() }
+    }
+}
+
+impl Default for CatalogText {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl craft_keymap::ui::Text for CatalogText {
+    fn ui<'a>(&'a self, source: &'a str) -> Cow<'a, str> {
+        Cow::Borrowed(I18N.t(self.lang, source))
+    }
+
+    fn plural(&self, n: u64, one: &str, other: &str) -> String {
+        I18N.trn(self.lang, n, one, other)
+    }
+
+    fn command<'a>(&'a self, b: &'a craft_keymap::Bindable) -> Cow<'a, str> {
+        Cow::Borrowed(I18N.t(self.lang, b.label.as_str()))
+    }
+
+    fn segment<'a>(&'a self, s: &'a str) -> Cow<'a, str> {
+        Cow::Borrowed(I18N.t(self.lang, s))
+    }
+
+    fn rtl(&self) -> bool {
+        I18N.rtl(self.lang)
+    }
+}
+
 /// The interface direction for the chosen language under the app's direction setting, and the
 /// same override the suite checks mirrored layouts with (`CRAFT_UI_DIRECTION=rtl|ltr`).
 #[must_use]
@@ -139,6 +184,37 @@ mod tests {
             let missing: Vec<&String> = keys.iter().filter(|k| I18N.t(lang, k) == *k).collect();
             assert!(missing.is_empty(), "{code} is missing {} routed rows: {missing:#?}", missing.len());
         }
+    }
+
+    /// The shortcut editor's own words are the keymap crate's list, and both catalogues answer
+    /// every one: the dialog looks them up at paint time, so the source-reading audit above cannot
+    /// see them, and this is the guard that keeps a new crate string from arriving in English only.
+    /// A plural is an `@plural` row keyed by its two English forms, checked for its row rather than
+    /// for its output, because the English fallback would answer just as happily.
+    #[test]
+    fn every_keymap_editor_string_is_in_both_catalogues() {
+        let mut missing = Vec::new();
+        for code in ["ar", "ja"] {
+            let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
+            for source in craft_keymap::ui::STRINGS {
+                // Presence, not difference: a key name or an order-only template translates to
+                // itself on purpose, and the row is what says the translator has seen it.
+                if I18N.get(lang, "", source).is_none() {
+                    missing.push(format!("{code}: {source}"));
+                }
+            }
+            for (one, other) in craft_keymap::ui::PLURALS {
+                let key = format!("{one}|{other}");
+                if I18N.get(lang, "@plural", &key).is_none() {
+                    missing.push(format!("{code}: @plural {key}"));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "the shortcut editor still shows English for {} keys: {missing:#?}",
+            missing.len()
+        );
     }
 
     /// The picker's languages are exactly what is embedded, each named in itself, and the

@@ -588,8 +588,17 @@ through `Binding::localized_action`, and every section through `Context::localiz
 both count lines and the empty-search line are `tl!`/`fmt` keys. `every_shortcut_row_is_in_both_catalogues`
 reads the whole table and fails on a binding with no Japanese or Arabic row, so a new shortcut is a
 translation debt the suite names. `the_shortcuts_dialog_speaks_the_interface_language` paints the
-overlay in all three languages. `craft-keymap`'s editor dialog behind Settings → Shortcuts is still
-its own English chrome.
+overlay in all three languages.
+
+The editor dialog behind Settings → Shortcuts speaks the same catalogues through
+`i18n::CatalogText`, an implementation of `craft-keymap`'s `Text` trait: the crate's own strings
+(`craft_keymap::ui::STRINGS`), its `@plural` counts, the command labels and the menu paths are
+looked up at paint time, and the read-only fixed rows are translated before they are handed over
+because the dialog paints those raw. `every_keymap_editor_string_is_in_both_catalogues` walks the
+crate's lists and demands an Arabic and a Japanese row for every one — presence rather than
+difference, because key names and order-only templates translate to themselves on purpose — and
+`the_shortcut_editor_speaks_the_interface_language` paints the dialog with Japanese chosen. The
+import and saved toasts are `fmt`/`tl!` keys like every other notice.
 
 The Activity tab is routed from `sortlens-engine`'s own piece: `Job::detail_kind` returns a
 `JobDetail` — `Progress`, `Counts { files, dirs }`, `Finished { files, dirs, unreadable }`,

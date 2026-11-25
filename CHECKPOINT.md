@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-first) — the shortcut editor speaks the interface language, because the crate's own string list became the audit
+
+- **Why this came up.** The ninetieth entry's "Next" said `craft-keymap`'s editor chrome "lives in
+  the dependency and stays English until it offers its own keys". It already offers them: the pinned
+  rev exposes `ui::Text` (`ui`, `plural`, `command`, `segment`, `rtl`), `ui::STRINGS` (the 175
+  strings the dialog looks up) and `ui::PLURALS` (11 counts), and `ShortcutsDialog::new` takes
+  `&dyn Text`. Sortlens passed `&English`.
+- **`i18n::CatalogText`** implements that trait over the same TSV catalogues: `ui`/`command`/`segment`
+  look the English key up at paint time, `plural` goes through `I18N.trn` so Arabic reads its
+  `@plural` forms, and `rtl` follows the chosen language. The dialog's title, its captions and its
+  format labels already pass through `Text::ui`, so the whole chrome follows without a second
+  options path.
+- **Fixed rows are translated before the handoff.** `craft-keymap` paints a `FixedRow`'s group and
+  label raw, and those are the overlay's own context heading and action text;
+  `localized_fixed_row` looks both up as the options are built.
+- **Notices are routed too**: "Shortcuts saved", "Imported shortcut set “{name}”", "Could not import
+  the set: {error}" and the accept guard's double-press message are `tl!`/`fmt` keys.
+- **Catalogues grew by 183 rows each.** 167 of the 175 crate strings were missing (8 were already
+  routed by the overlay), all 11 `@plural` rows were missing, and this slice's five shell keys are
+  new; `ja.tsv` and `ar.tsv` now hold 572 lines each. Arabic's plural rows carry all six forms for
+  each pair, and every form keeps the pair's `{n}`. Presence is what the audit checks, not
+  difference: `Control`, `Shift` and templates like `{chord} ({scope})` translate to themselves on
+  purpose.
+- **Tests.** `every_keymap_editor_string_is_in_both_catalogues` walks `STRINGS` and `PLURALS` and
+  fails naming the language and the string when a row is absent — it first compared `I18N.t(...)`
+  with the source, which reported every intentional identity as missing, so it now asks
+  `I18N.get` for the row. `the_shortcut_editor_speaks_the_interface_language` opens the editor with
+  Japanese chosen and asserts the title, the `Command` heading and `Import…` paint Japanese while
+  the English button is gone from the frame. The source audit caught the new `fmt` key written with
+  `\u{201c}` escapes — it reads source text, so the call now carries the curly quotes directly.
+- **Files**: `crates/ui/src/i18n.rs`, `crates/ui/src/shell.rs`, `crates/ui/src/i18n/{ja,ar}.tsv`,
+  `docs/ROADMAP.md` (SL-L07), `docs/ARCHITECTURE.md` §8.4, `docs/FEATURES.md` (SL-L07), this entry.
+- **Verified locally**: `cargo test -p sortlens-ui i18n::` (3 pass),
+  `cargo test -p sortlens-ui shortcut_editor` (2 pass, the paint test included), and the full gates —
+  `cargo xtask ci`, `cargo xtask snapshot`, `cargo xtask deny`, `cargo xtask screenshots` — all green.
+  The baselines are byte-for-byte unchanged: no scene paints a non-English editor, and
+  `shortcut_editor_paints_in_both_themes` still passes.
+- **Next**: the i18n row has no buildable surface left inside the shell. What remains is the four
+  other languages (a translation pass) and the RTL screenshot baselines (a font build with an Arabic
+  face). If neither is available next tick, take the next unstarted row instead of re-opening i18n:
+  the roadmap's remaining unchecked rows are benchmarks part 2 (hardware), optional MBTiles (needs a
+  SQLite reader) and mobile 3b (external toolchains).
+
+In-flight: no release dispatch (only `crates/ui` and docs, no release surface). The push's CI run is
+the first thing the next tick checks.
+
 ## 2026-11-26 (ninetieth) — the Suggestions panel names its sources and confidences in your language, from the AI crate's own piece
 
 - **Why this came up.** The eighty-ninth entry's "Next" named Suggested keywords as the last routed

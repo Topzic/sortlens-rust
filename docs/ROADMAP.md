@@ -899,10 +899,13 @@ and none of M9 is closed until the remaining rows are ticked.
   literals, so a template with no row fails the test instead of showing English. The quit guard
   followed (eighty-fourth entry), worded from `sortlens-engine`'s own `UnsavedReason` pieces rather
   than its English sentences, so the guard and the support report cannot describe different work.
-  The remaining dialogs are English by omission, not by decision.
-  Open: the other four languages, the remaining dialogs (moves, changes, suggestions, shortcuts,
-  about) and engine-composed sentences, and RTL screenshots,
-  which need a font build with an Arabic face
+  The remaining dialogs went through too — moves, changes, suggestions, shortcuts and About — and the
+  shortcut editor's own chrome is the last surface (ninety-first entry): `CatalogText` implements
+  `craft-keymap`'s `Text` trait, so the crate's 175 dialog strings, its eleven `@plural` counts and
+  its read-only fixed rows paint from the same catalogues, and the crate's own `STRINGS`/`PLURALS`
+  lists are the audit that keeps a new crate string from arriving in English only.
+  Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
+  screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

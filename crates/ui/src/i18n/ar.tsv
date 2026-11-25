@@ -387,3 +387,186 @@
 	Nothing is written while this runs.	لا يُكتب شيء أثناء التشغيل.
 	Suggest for the whole library	اقترح للمكتبة كلها
 	{percent} from {source} — clicking adds it	{percent} من {source} — انقر للإضافة
+	Custom	مخصص
+	OK	موافق
+	Close	إغلاق
+	Undo	تراجع
+	Redo	إعادة
+	Reset All…	إعادة تعيين الكل…
+	Restore every default shortcut in this set?	هل تريد استعادة كل الاختصارات الافتراضية في هذه المجموعة؟
+	Reset All	إعادة تعيين الكل
+	Show:	إظهار:
+	Filter:	تصفية:
+	Search:	بحث:
+	Search by key	البحث بالمفتاح
+	All Commands	كل الأوامر
+	{menu} Menu	قائمة {menu}
+	Tools	أدوات
+	{panel} Panel	لوحة {panel}
+	Other	أخرى
+	Fixed Keys	مفاتيح ثابتة
+	All	الكل
+	With Shortcut	باختصار
+	Changed	مغيَّر
+	Conflicts	تعارضات
+	No matching commands	لا أوامر مطابقة
+	(cycles)	(دوري)
+	{label} (cycles)	{label} (دوري)
+	{label} (Changed)	{label} (مغيَّر)
+	Command	أمر
+	Commands	أوامر
+	Detail pane size	حجم جزء التفاصيل
+	Select a command to see and change its shortcuts	اختر أمرًا لعرض اختصاراته وتغييرها
+	Shortcut	اختصار
+	Default	افتراضي
+	{chord} (Default)	{chord} (افتراضي)
+	{chord} ({scope})	{chord} ({scope})
+	{label} ({scope})	{label} ({scope})
+	Application	التطبيق
+	Current shortcuts:	الاختصارات الحالية:
+	New shortcut:	اختصار جديد:
+	New shortcut: {chord}	اختصار جديد: {chord}
+	press keys	اضغط المفاتيح
+	{chord} (press again for a double press)	{chord} (اضغط مرة أخرى للضغط المزدوج)
+	Type…	كتابة…
+	Context:	السياق:
+	Assign	تعيين
+	Use Default	استخدام الافتراضي
+	Default: {chord}	الافتراضي: {chord}
+	Currently assigned to:	معيَّن حاليًا إلى:
+	Not assigned	غير معيَّن
+	{label} ({scope}, both work)	{label} ({scope}، كلاهما يعمل)
+	Add a shortcut to {label}	إضافة اختصار إلى {label}
+	Remove {chord} from {label}	إزالة {chord} من {label}
+	Restore the default for {label}	استعادة الافتراضي لـ {label}
+	{label}: {chord}	{label}: {chord}
+	{label}: press keys	{label}: اضغط المفاتيح
+	Now used by {label}	يستخدمه الآن {label}
+	{label}: {chord} (Now used by {holder})	{label}: {chord} (يستخدمه الآن {holder})
+	the shortcut has no key	لا مفتاح للاختصار
+	unknown modifier {key}	مُعدِّل غير معروف {key}
+	modifier {key} given twice	المُعدِّل {key} مذكور مرتين
+	key sequences are not supported	تسلسلات المفاتيح غير مدعومة
+	the scope name is not valid	اسم النطاق غير صالح
+	Keyboard	لوحة المفاتيح
+	Keyboard: US	لوحة المفاتيح: US
+	Keyboard: US (macOS)	لوحة المفاتيح: US (macOS)
+	Control	Control
+	Option	Option
+	Shift	Shift
+	Ctrl	Ctrl
+	Alt	Alt
+	Caps Lock	Caps Lock
+	Win	Win
+	Super	Super
+	Panel or context	لوحة أو سياق
+	Both	كلاهما
+	Modifier on	مُعدِّل مُفعَّل
+	{chord}: {label}	{chord}: {label}
+	Click a key to see its shortcuts	انقر على مفتاح لعرض اختصاراته
+	Key: {key}	المفتاح: {key}
+	Assign to Selected	تعيين للمحدد
+	Assign {chord} to {label}	تعيين {chord} إلى {label}
+	Select a command first	اختر أمرًا أولًا
+	Nothing uses this key	لا شيء يستخدم هذا المفتاح
+	⚠ {chord} is used by {label}	⚠ {chord} يستخدمه {label}
+	{chord} was removed from {label}	أُزيل {chord} من {label}
+	Also used by {label}	يستخدمه أيضًا {label}
+	{chord} is reserved by the system	{chord} محجوز من النظام
+	A command can have at most {n} shortcuts	يمكن للأمر أن يملك {n} اختصارات كحد أقصى
+	The scope {scope} is unknown	النطاق {scope} غير معروف
+	Too many shortcuts are assigned	عدد الاختصارات المعيَّنة كبير جدًا
+	This command is unknown	هذا الأمر غير معروف
+	Take It	خذه
+	Take It and Go to Conflict	خذه وانتقل إلى التعارض
+	Keep Both	الاحتفاظ بكليهما
+	Go to Conflict	الانتقال إلى التعارض
+	Cancel the new shortcut	إلغاء الاختصار الجديد
+	Dismiss	إغلاق
+	{key}: no command has this name	{key}: لا أمر بهذا الاسم
+	{key}: “{text}” is not a shortcut ({error})	{key}: «{text}» ليس اختصارًا ({error})
+	{key}: {text} is reserved by the system	{key}: {text} محجوز من النظام
+	{key}: the scope in “{text}” is unknown	{key}: النطاق في «{text}» غير معروف
+	{key}: listed more than once	{key}: مذكور أكثر من مرة
+	{key}: part of the entry was dropped	{key}: أُسقط جزء من المدخل
+	Set:	المجموعة:
+	(modified)	(معدَّلة)
+	New Set…	مجموعة جديدة…
+	Rename…	إعادة تسمية…
+	Revert Set	استرجاع المجموعة
+	Import…	استيراد…
+	Export…	تصدير…
+	Summarize…	تلخيص…
+	{title}: {set}	{title}: {set}
+	Create	إنشاء
+	Rename	إعادة تسمية
+	More	المزيد
+	Name:	الاسم:
+	Based on:	مستندة إلى:
+	Current shortcuts	الاختصارات الحالية
+	Save changes to “{set}”?	حفظ التغييرات إلى «{set}»؟
+	Don't Save	عدم الحفظ
+	Delete the set “{set}”?	حذف المجموعة «{set}»؟
+	Keyboard Shortcuts (JSON)	اختصارات لوحة المفاتيح (JSON)
+	The name is empty, too long or has control characters	الاسم فارغ أو طويل جدًا أو يحتوي محارف تحكم
+	A set with this name exists	توجد مجموعة بهذا الاسم
+	The set was not found	لم يتم العثور على المجموعة
+	Built-in sets cannot be changed	لا يمكن تغيير المجموعات المدمجة
+	There are too many sets	عدد المجموعات كبير جدًا
+	This is not a shortcut set file	هذا ليس ملف مجموعة اختصارات
+	This is not a craft-keymap file	هذا ليس ملف craft-keymap
+	This file is from a newer version (format {n})	هذا الملف من إصدار أحدث (تنسيق {n})
+	The file is too large	الملف كبير جدًا
+	Import “{set}”	استيراد «{set}»
+	Set name:	اسم المجموعة:
+	Import	استيراد
+	Cancel Import	إلغاء الاستيراد
+	line {n}	السطر {n}
+	Will change	سيتغير
+	Not matched	غير مطابق
+	Unreadable	غير قابل للقراءة
+	Approximated	تقريبي
+	{title} ({n})	{title} ({n})
+	Suggestions ({n})	اقتراحات ({n})
+	numeric keypad key read as main key	قُرئ مفتاح لوحة الأرقام كمفتاح رئيسي
+	Matched without change	مطابق دون تغيير
+	Command for {item}	أمر لـ {item}
+	Choose a command…	اختر أمرًا…
+	no command has this name	لا أمر بهذا الاسم
+	more than one command fits	أكثر من أمر مطابق
+	in a context that is not imported	في سياق غير مستورد
+	only a command of the other kind fits (tool or menu command)	ينطبق فقط أمر من النوع الآخر (أمر أداة أو قائمة)
+	empty shortcut	اختصار فارغ
+	the shortcut is too long	الاختصار طويل جدًا
+	unknown key {key}	مفتاح غير معروف {key}
+	unsupported modifier {key}	مُعدِّل غير مدعوم {key}
+	{label} keeps its shortcuts (matched by a panel menu name)	يحتفظ {label} باختصاراته (مطابقة باسم قائمة لوحة)
+	Import as New Set	استيراد كمجموعة جديدة
+	Imported	تم الاستيراد
+	Imported as “{set}”	تم الاستيراد باسم «{set}»
+	Skipped	تم التخطي
+	Taken from other commands	مأخوذ من أوامر أخرى
+	Not changed	لم يتغير
+	taken by {label}	أخذه {label}
+	taken by a later entry	أخذه مدخل لاحق
+	reserved by the system	محجوز من النظام
+	the scope is unknown	النطاق غير معروف
+	the set's shortcuts could not be added	تعذّرت إضافة اختصارات المجموعة
+	the shortcuts could not be removed	تعذّرت إزالة الاختصارات
+	Copy Report	نسخ التقرير
+	Double-press bindings are not read here; record a single chord	لا تُقرأ هنا روابط الضغط المزدوج؛ سجّل مفتاحًا واحدًا
+	craft-keymap set	مجموعة craft-keymap
+	Shortcuts saved	تم حفظ الاختصارات
+	Imported shortcut set “{name}”	تم استيراد مجموعة الاختصارات «{name}»
+	Could not import the set: {error}	تعذّر استيراد المجموعة: {error}
+@plural	{n} shortcut is assigned more than once|{n} shortcuts are assigned more than once	{n} اختصارات مُسندة أكثر من مرة|{n} اختصار واحد مُسند أكثر من مرة|{n} اختصاران مُسندان أكثر من مرة|{n} اختصارات مُسندة أكثر من مرة|{n} اختصارًا مُسندًا أكثر من مرة|{n} اختصار مُسند أكثر من مرة
+@plural	{n} saved shortcut could not be used|{n} saved shortcuts could not be used	{n} اختصارات محفوظة تعذّر استخدامها|{n} اختصار محفوظ واحد تعذّر استخدامه|{n} اختصاران محفوظان تعذّر استخدامهما|{n} اختصارات محفوظة تعذّر استخدامها|{n} اختصارًا محفوظًا تعذّر استخدامه|{n} اختصار محفوظ تعذّر استخدامه
+@plural	{n} command will change|{n} commands will change	{n} أوامر ستتغير|{n} أمر واحد سيتغير|{n} أمران سيتغيران|{n} أوامر ستتغير|{n} أمرًا سيتغير|{n} أمر سيتغير
+@plural	{n} item without a shortcut|{n} items without a shortcut	{n} عناصر بلا اختصار|{n} عنصر واحد بلا اختصار|{n} عنصران بلا اختصار|{n} عناصر بلا اختصار|{n} عنصرًا بلا اختصار|{n} عنصر بلا اختصار
+@plural	{n} item not matched|{n} items not matched	{n} عناصر غير مطابقة|{n} عنصر واحد غير مطابق|{n} عنصران غير مطابقين|{n} عناصر غير مطابقة|{n} عنصرًا غير مطابق|{n} عنصر غير مطابق
+@plural	{n} item could not be read|{n} items could not be read	{n} عناصر تعذّرت قراءتها|{n} عنصر واحد تعذّرت قراءته|{n} عنصران تعذّرت قراءتهما|{n} عناصر تعذّرت قراءتها|{n} عنصرًا تعذّرت قراءته|{n} عنصر تعذّرت قراءته
+@plural	{n} key read approximately|{n} keys read approximately	{n} مفاتيح قُرئت تقريبيًا|{n} مفتاح واحد قُرئ تقريبيًا|{n} مفتاحان قُرئا تقريبيًا|{n} مفاتيح قُرئت تقريبيًا|{n} مفتاحًا قُرئ تقريبيًا|{n} مفتاح قُرئ تقريبيًا
+@plural	{n} entry cut at a limit|{n} entries cut at a limit	{n} مدخلات قُطعت عند حد|{n} مدخل واحد قُطع عند حد|{n} مدخلان قُطعا عند حد|{n} مدخلات قُطعت عند حد|{n} مدخلًا قُطع عند حد|{n} مدخل قُطع عند حد
+@plural	{n} command changed|{n} commands changed	{n} أوامر تغيّرت|{n} أمر واحد تغيّر|{n} أمران تغيّرا|{n} أوامر تغيّرت|{n} أمرًا تغيّر|{n} أمر تغيّر
+@plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	{n} اختصارات تعمل أيضًا في نطاق آخر|{n} اختصار واحد يعمل أيضًا في نطاق آخر|{n} اختصاران يعملان أيضًا في نطاق آخر|{n} اختصارات تعمل أيضًا في نطاق آخر|{n} اختصارًا يعمل أيضًا في نطاق آخر|{n} اختصار يعمل أيضًا في نطاق آخر
+@plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	{n} مدخلات تم تجاهلها: أوامر كثيرة جدًا|{n} مدخل واحد تم تجاهله: أوامر كثيرة جدًا|{n} مدخلان تم تجاهلهما: أوامر كثيرة جدًا|{n} مدخلات تم تجاهلها: أوامر كثيرة جدًا|{n} مدخلًا تم تجاهله: أوامر كثيرة جدًا|{n} مدخل تم تجاهله: أوامر كثيرة جدًا
