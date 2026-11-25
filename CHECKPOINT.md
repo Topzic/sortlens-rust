@@ -1,5 +1,50 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifteenth) — the Arabic shell is painted right-to-left, and the harness stops borrowing the machine's fonts
+
+- **Why this came up.** The hundred-and-fourteenth entry's Next was exactly this. `crates/ui/tests/screenshots.rs`
+  paints egui's defaults, so the RTL frame SL-L07 still listed could not be painted — the Settings picker's
+  `العربية` was boxes in every committed baseline — and installing the app's own `fonts::stack()` there would
+  make a frame depend on whichever `CRAFT_FONTS_DIR` the machine happened to have.
+- **One comparable stack.** `fonts::stack_builtin()` and `install_builtin(ctx)` are egui's defaults plus the one
+  vendored Arabic face and never a craft face; the append is one `append_face` helper shared with `stack()`.
+  The harness's `context_setup` installs this stack, so every baseline is painted with the same faces on CI
+  and on a developer's checkout.
+- **The RTL scene.** `the_arabic_interface_paints_right_to_left_in_both_themes` sets the thread-local language
+  to `ar`, paints the scoped library at 1440×900 in Charcoal and Paper, and resets to English;
+  `rtl-library-charcoal` and `rtl-library-paper` are the two new baselines, both read. The sources sidebar sits
+  at the right edge with `المصادر`, `كل الصور`, the scope rows and the folders right-aligned; the inspector and
+  its tool rail are mirrored to the left; the bottom bar and the utility row are Arabic. The frames also show
+  what the row calls the unrouted canvas chrome still in English — the top bar's words, `12 photos`, the sort
+  value, the filter strip's chips and `1 shown` — which the row's open line now names outright.
+- **The Settings baselines repaint, and that is the face.** The Language row's `العربية` now draws real glyphs,
+  so the four `settings-{short,sync}-{charcoal,paper}` baselines moved (91511→90808, 96167→95450,
+  235110→236760, 248314→249826 bytes). `settings-short-charcoal` was opened: `العربية` paints in Arabic while
+  the other untranslated scripts remain boxes, which is the harness's documented limit rather than a defect.
+- **Tests that fail when the behaviour is absent.** `the_harness_stack_is_the_vendored_face_and_never_the_checkout`
+  requires exactly one face past egui's defaults, no craft face even in an embedded build, the Arabic face last
+  in both families, and its glyphs inside a painted frame. `the_harness_stack_draws_the_arabic_frames_words`
+  tests the setup itself, not the font table: if `context_setup` stopped installing the stack, the RTL frame
+  would compare its own tofu against its own baseline and pass, so this is the assertion that makes the face
+  more than a claim. The shell's RTL test carried a stale "CI has no Arabic face" comment; it now says what it
+  really proves (geometry and words, on egui's default fonts).
+- **Files.** `crates/ui/src/fonts.rs` (`append_face`, `stack_builtin`, `install_builtin`, one test);
+  `crates/ui/tests/screenshots.rs` (`context_setup`, the two shoot call sites, the RTL scene, one test);
+  `crates/ui/src/shell.rs` (a comment); the two new and four repainted baselines; `docs/ARCHITECTURE.md`
+  (the harness's face rule, seventeen surfaces, fifty reference PNGs); `docs/UX.md`, `docs/FEATURES.md`,
+  `docs/ROADMAP.md` (SL-L07 keeps its box for the unrouted surfaces and records the RTL frames as shipped).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the seven `fonts` tests pass;
+  `cargo xtask screenshots --update` painted 29 tests green and the frames above were opened; `cargo xtask ci`
+  green (fmt, clippy, the workspace suite, layers, roots, assets, fonts, version, attribution, a11y, docs,
+  templates, workflows), `cargo xtask snapshot` (5 pass) and `cargo xtask deny` (advisories, bans, licenses,
+  sources) green. No release workflow was dispatched: this slice touches no workflow, `apps/**`, a
+  `Cargo.toml` or release code.
+- **Next.** This commit changes the committed reference set, so its `CI` `screenshots` run is expected red:
+  read the run, `gh run download <id> -n screenshot-set`, read the frames and adopt the four `settings-*`
+  plus the two `rtl-library-*` with `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt <dir>`.
+  Then the unrouted canvas chrome the RTL frame put side by side: the canvas header's `{n} photos` count and
+  sort value, the filter strip's labels and hovers and its `{n} shown` summary, and `New collection`. No
+  release run is in flight.
 ## 2026-11-26 (hundred-and-fourteenth) — the Arabic interface ships the face it has always named, and `العربية` stops being a box
 
 - **Why this came up.** The hundred-and-thirteenth entry's Next named SL-L07's last item, the RTL screenshots,

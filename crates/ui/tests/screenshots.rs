@@ -368,7 +368,7 @@ fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engi
         .with_size(size)
         .with_pixels_per_point(1.0)
         .with_max_steps(240)
-        .with_context_setup(move |ctx| sortlens_ui::apply(ctx, kind))
+        .with_context_setup(move |ctx| context_setup(ctx, kind))
         .wgpu()
         .build_eframe(|_cc| scene);
     settle(&mut harness);
@@ -377,18 +377,57 @@ fn shoot_at(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engi
     harness.into_state().engine
 }
 
-/// The same, with tofu instead of a panic for glyphs the CI font build does not have.
+/// The faces every baseline paints with: egui's defaults and the one vendored Arabic face.
 ///
-/// The Settings dialog's language picker names every language in itself, so it paints Arabic and
-/// Japanese whether or not the machine has those faces — which CI's does not. The baseline is
-/// still a full read of the section; the tofu boxes are the documented gap (RTL screenshots wait
-/// for an Arabic-capable font build), not a silent defect.
+/// Never `fonts::stack()`, which also carries whichever craft faces this machine's
+/// `CRAFT_FONTS_DIR` named when it was built: a baseline painted through that stack would depend
+/// on the machine, and two developers would disagree about the same frame. The Arabic face is the
+/// exception that has to be here, because `ar` is a shipped language and the RTL scene is painted
+/// without it only as boxes.
+fn context_setup(ctx: &egui::Context, kind: ThemeKind) {
+    sortlens_ui::apply(ctx, kind);
+    sortlens_ui::fonts::install_builtin(ctx);
+}
+
+/// The harness's own font story: the stack it installs draws the Arabic words the RTL scene paints.
+///
+/// Without `install_builtin` the scene still paints and still compares against its baseline — as
+/// boxes — so the face would be a claim no test made. Arabic is asserted through the installed
+/// stack, not the table, so bytes egui cannot parse fail here too.
+#[test]
+fn the_harness_stack_draws_the_arabic_frames_words() {
+    let ctx = egui::Context::default();
+    context_setup(&ctx, ThemeKind::Charcoal);
+    let font = egui::FontId::proportional(14.0);
+    let mut covered = Vec::new();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))),
+        ..Default::default()
+    };
+    let mut output = ctx.run_ui(input, |ctx| {
+        for text in ["المصادر", "كل الصور", "العربية"] {
+            covered.push((text, ctx.fonts_mut(|fonts| fonts.has_glyphs(&font, text))));
+        }
+    });
+    output.textures_delta.clear();
+    for (text, has) in covered {
+        assert!(has, "{text} has no glyphs in the harness stack, so the RTL frame would be boxes");
+    }
+}
+
+/// The same, with tofu instead of a panic for glyphs the harness's font stack does not have.
+///
+/// The Settings dialog's language picker names every language in itself, so it paints Japanese,
+/// Korean, Thai and Traditional Chinese whether or not the machine has those faces — and the
+/// harness does not install them, on purpose, because a frame must not depend on the machine.
+/// Arabic is no longer one of these: the vendored face paints it. The baseline is still a full
+/// read of the section; the remaining boxes are the documented gap, not a silent defect.
 fn shoot_at_lenient(kind: ThemeKind, scene: Scene, name: &str, size: egui::Vec2) -> Engine {
     let mut harness = Harness::builder()
         .with_size(size)
         .with_pixels_per_point(1.0)
         .with_max_steps(240)
-        .with_context_setup(move |ctx| sortlens_ui::apply(ctx, kind))
+        .with_context_setup(move |ctx| context_setup(ctx, kind))
         .allow_missing_glyphs()
         .wgpu()
         .build_eframe(|_cc| scene);
@@ -585,6 +624,24 @@ fn library_grid_paints_both_layouts_in_both_themes() {
         let mut scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
         scene.state.grid_mode = GridMode::Square;
         library.keep(shoot(kind, scene, &format!("library-square-{}", kind_id(kind))));
+    }
+
+    assert_every_scene_matched();
+}
+
+/// The Arabic interface the picker offers, painted right-to-left in both themes: the sidebar moves to
+/// the reading start (the right edge) and the vendored face draws its words instead of boxes.
+///
+/// `context_setup` installs that one face and no craft face, so this frame is the same on a machine
+/// with a craft-fonts checkout and on CI without one. It is the RTL half of SL-L07's screenshots.
+#[test]
+fn the_arabic_interface_paints_right_to_left_in_both_themes() {
+    let mut library = library();
+    for kind in THEMES {
+        sortlens_ui::i18n::set_current(sortlens_ui::i18n::from_code("ar").expect("Arabic is offered"));
+        let scene = scoped(new_scene(kind, library.take(), &library.cache()), &library.root);
+        library.keep(shoot(kind, scene, &format!("rtl-library-{}", kind_id(kind))));
+        sortlens_ui::i18n::set_current(sortlens_ui::i18n::from_code("en").expect("English is offered"));
     }
 
     assert_every_scene_matched();

@@ -741,8 +741,11 @@ re-checks its own contrast pairs after applying.
   `Tiếng Việt` and every catalogued surface paints Vietnamese, with Vietnam's numbers and dates
   (`12.408`, `1,4 MB`, `03/10/2026 04:00`). It is Latin script, so no new face is needed and the
   phone's filter already names `Latn` — the six languages the design names are all shipped now.
-  The RTL screenshots are open (M9's row); the screenshot baselines are the proof a left-to-right
-  interface is unchanged.
+  The RTL screenshots shipped (hundred-and-fifteenth entry): `rtl-library-charcoal` and
+  `rtl-library-paper` paint the Arabic shell right-to-left, the sidebar at the reading start and the
+  vendored face drawing its words — and the frames also show which canvas chrome is still English
+  (the filter strip's chips, `N shown`), which is the open part of the language row rather than a
+  hidden gap.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

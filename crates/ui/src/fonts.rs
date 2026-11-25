@@ -122,29 +122,58 @@ pub fn install(ctx: &egui::Context) -> usize {
     added
 }
 
+/// Append one face to both families: always last, because a fallback that takes over Latin text
+/// is a bug.
+fn append_face(definitions: &mut FontDefinitions, key: String, bytes: &'static [u8]) {
+    definitions
+        .font_data
+        .insert(key.clone(), std::sync::Arc::new(FontData::from_static(bytes)));
+    for family in [FontFamily::Proportional, FontFamily::Monospace] {
+        definitions.families.entry(family).or_default().push(key.clone());
+    }
+}
+
 /// The font definitions this build would install: egui's defaults, with craft faces appended.
 ///
 /// Separate from [`install`] so the stack itself can be asserted in a test without a context.
 pub fn stack() -> FontDefinitions {
     let mut definitions = FontDefinitions::default();
-    let append = |definitions: &mut FontDefinitions, key: String, bytes: &'static [u8]| {
-        definitions
-            .font_data
-            .insert(key.clone(), std::sync::Arc::new(FontData::from_static(bytes)));
-        // Appended, never prepended: a fallback that takes over Latin text is a bug.
-        for family in [FontFamily::Proportional, FontFamily::Monospace] {
-            definitions.families.entry(family).or_default().push(key.clone());
-        }
-    };
     for font in CRAFT_FONTS {
-        append(&mut definitions, format!("{}::{}", font.family, font.style), font.bytes);
+        append_face(&mut definitions, format!("{}::{}", font.family, font.style), font.bytes);
     }
     // Last of all, because the craft set is the better face when a machine has it: the built-in
     // Arabic face exists so an Arabic interface is legible without that checkout.
     if !craft_covers_arabic() {
-        append(&mut definitions, BUILTIN_ARABIC_KEY.to_owned(), BUILTIN_ARABIC);
+        append_face(&mut definitions, BUILTIN_ARABIC_KEY.to_owned(), BUILTIN_ARABIC);
     }
     definitions
+}
+
+/// The stack a frame can be compared against on any machine: egui's defaults and the one vendored
+/// face, and never the optional craft-fonts checkout.
+///
+/// [`stack`] is what the app installs, and it carries whichever craft faces this machine's
+/// `CRAFT_FONTS_DIR` named at build time. A screenshot baseline painted through that stack would
+/// depend on the machine that painted it; the harness installs this one instead, so a frame is the
+/// same on a developer's checkout and on CI — and the Arabic face the shipped `ar` catalogue needs
+/// is still there, which is what makes an Arabic frame possible at all.
+pub fn stack_builtin() -> FontDefinitions {
+    let mut definitions = FontDefinitions::default();
+    append_face(&mut definitions, BUILTIN_ARABIC_KEY.to_owned(), BUILTIN_ARABIC);
+    definitions
+}
+
+/// Install [`stack_builtin`]: the harness's stack, one face past egui's defaults.
+///
+/// Returns how many faces were added, as [`install`] does.
+pub fn install_builtin(ctx: &egui::Context) -> usize {
+    let definitions = stack_builtin();
+    let added = definitions
+        .font_data
+        .len()
+        .saturating_sub(FontDefinitions::default().font_data.len());
+    ctx.set_fonts(definitions);
+    added
 }
 
 /// Whether this build's stack has the Arabic face: the craft one when the checkout is present,
@@ -212,6 +241,59 @@ mod tests {
                 defaults.families.get(&family).and_then(|names| names.first()),
                 "{family:?} lost its leading face to the Arabic fallback"
             );
+        }
+    }
+
+    /// The stack the screenshot harness installs: the vendored face and nothing a machine happens to
+    /// have. It must not carry a craft face even when this build has one, or a baseline would only
+    /// compare on the machine that painted it — and it must carry Arabic, or the RTL frame is boxes.
+    #[test]
+    fn the_harness_stack_is_the_vendored_face_and_never_the_checkout() {
+        let defaults = FontDefinitions::default();
+        let builtin = stack_builtin();
+        assert_eq!(
+            builtin.font_data.len(),
+            defaults.font_data.len() + 1,
+            "exactly one face past egui's defaults, whatever CRAFT_FONTS_DIR named"
+        );
+        assert!(
+            builtin.font_data.contains_key(BUILTIN_ARABIC_KEY),
+            "the vendored Arabic face is there"
+        );
+        for font in CRAFT_FONTS {
+            let key = format!("{}::{}", font.family, font.style);
+            assert!(!builtin.font_data.contains_key(&key), "{key} leaked into a comparable frame");
+        }
+        for family in [FontFamily::Proportional, FontFamily::Monospace] {
+            let names = builtin.families.get(&family).expect("both families are defined");
+            let default_names = defaults.families.get(&family).expect("both defaults are defined");
+            assert_eq!(names.len(), default_names.len() + 1, "{family:?} gained more than the one face");
+            assert_eq!(names.first(), default_names.first(), "{family:?} lost its leading face");
+            assert_eq!(
+                names.last().map(String::as_str),
+                Some(BUILTIN_ARABIC_KEY),
+                "{family:?} does not end in the fallback"
+            );
+        }
+
+        // And the face is asked of the installed stack, inside a painted frame: a key in
+        // `font_data` whose bytes egui cannot parse would still pass the assertions above.
+        let ctx = egui::Context::default();
+        assert_eq!(install_builtin(&ctx), 1);
+        let font = FontId::proportional(14.0);
+        let mut covered = Vec::new();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ctx| {
+            for text in ["العربية", "المصادر", "كل الصور"] {
+                covered.push((text, ctx.fonts_mut(|fonts| fonts.has_glyphs(&font, text))));
+            }
+        });
+        output.textures_delta.clear();
+        for (text, has) in covered {
+            assert!(has, "{text} has no glyphs in the harness stack");
         }
     }
 

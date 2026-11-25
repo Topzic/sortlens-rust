@@ -862,8 +862,8 @@ resumable uploads — see the Phase 4 item 3 row), the desktop's own server star
 day, and the device protocol shipped 2026-11-24 with it (`sortlens_remote::client` +
 `Engine::open_memory`, SL-J02's engine and protocol halves — see the Phase 4 item 3 row) while the
 native phone app (`apps/sortlens-mobile`) stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
-Arabic, Japanese and the direction plumbing — see the Phase 4 row — while vi, the unrouted
-surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
+Arabic, Japanese and the direction plumbing — see the Phase 4 row — while the unrouted
+surfaces stay open; the six catalogues and the RTL screenshots have shipped since); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
@@ -896,8 +896,10 @@ and none of M9 is closed until the remaining rows are ticked.
   (see the Phase 4 item 2d row). The Arabic face ships in the crate (2026-11-26, hundred-and-fourteenth
   entry): `assets/fonts/NotoSansArabic.ttf` is embedded by `crates/ui/src/fonts.rs` and appended last
   when the optional craft-fonts set has no Arabic face, so the `ar` catalogue paints words instead of
-  boxes on CI and on every clone; **the RTL baselines remain open** — the harness has no Arabic scene
-  yet, which is the next slice. The Welcome card, the indexing screen and the empty-filter screen
+  boxes on CI and on every clone. The RTL baselines shipped (hundred-and-fifteenth entry):
+  `crates/ui/tests/screenshots.rs` installs that one face and never the machine's checkout
+  (`fonts::stack_builtin`), and `rtl-library-{charcoal,paper}` paint the Arabic shell right-to-left
+  at 1440×900 — the sidebar at the reading start, the rail and the inspector mirrored. The Welcome card, the indexing screen and the empty-filter screen
   went through the catalogues on 2026-11-26 (seventy-sixth entry), so a first launch and a filter
   that hides everything read in the chosen language; the export dialog and its receipt followed
   later that day (seventy-eighth entry) by describing a spec from `sortlens-export`'s own
@@ -1009,7 +1011,9 @@ and none of M9 is closed until the remaining rows are ticked.
   `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
-  Open: the RTL screenshots, which need a font build with an Arabic face
+  Open: the canvas chrome the RTL frames still paint in English — the top bar's words, the canvas
+  header's count and sort value, the filter strip's chips and its `{n} shown` summary, and
+  `New collection` — which the row's earlier entries call the unrouted surfaces.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
@@ -1510,9 +1514,11 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     the real Settings widget, `SetLanguage` asked of the host, the sources header measured in the
     right half in Arabic and the left half again in English). All 19 screenshot baselines regenerated
     byte-identical — the proof a left-to-right interface paints exactly what it painted before. Not
-    shipped here, still open under the M9 row: the two languages the design names that have no
-    catalogue yet (vi), the remaining unrouted surfaces, and RTL screenshots of the painted
-    interface, which need an Arabic-capable font build (CI's has none). The export dialog and its receipt joined the
+    shipped here, and open under the M9 row at the time: the two languages the design names that had
+    no catalogue yet (vi), the remaining unrouted surfaces, and RTL screenshots of the painted
+    interface, which needed an Arabic-capable font build (CI had none). The languages and the RTL
+    frames have shipped since (hundred-and-twelfth and hundred-and-fifteenth entries); the unrouted
+    surfaces are what remains. The export dialog and its receipt joined the
     catalogues on 2026-11-26 (seventy-eighth entry): `sortlens-export` hands the shell
     `Spec::parts` and `Report::parts`, the pieces its English `summary`/`headline` are joined
     from, so a translated dialog cannot describe numbers the export will not write, and

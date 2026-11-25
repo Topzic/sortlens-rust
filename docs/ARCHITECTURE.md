@@ -878,12 +878,14 @@ visual checks, with provenance in `docs/ATTRIBUTION.md`.
 
 **Screenshot baselines** (`crates/ui/tests/screenshots.rs`, run by `cargo xtask screenshots`): the real
 shell — `sortlens_ui::show` inside an `eframe::App`, the same entry the window uses — painted at a fixed
-1440×900 with `pixels_per_point = 1.0` across sixteen surfaces (Empty Welcome, Library in both layouts,
-the empty-filter canvas, Cull, Detail, Compare, Similar, Places, Insights, Suggestions, the palette, Soft
-Focus, Missing, the active filter strip, and a 900×620 narrow window that keeps one theme because it is
-about geometry) in the Charcoal and Paper presets, and the 1200×800 filter baselines that share the strip's
-wrap. Forty-seven PNGs are committed under `crates/ui/tests/snapshots/` and diffed by `egui_kittest`, with the
-per-pixel tolerance
+1440×900 with `pixels_per_point = 1.0` across seventeen surfaces (Empty Welcome, Library in both
+layouts, the empty-filter canvas, Cull, Detail, Compare, Similar, Places, Insights, Suggestions, the palette,
+Soft Focus, Missing, the active filter strip, the Arabic interface right-to-left in both themes, and a
+900×620 narrow window that keeps one theme because it is about geometry) in the Charcoal and Paper presets,
+and the 1200×800 filter baselines that share the strip's wrap. The harness installs the vendored Arabic face
+and never the machine's craft-fonts checkout (`fonts::stack_builtin`), so a baseline is the same frame on a
+developer's build and on CI. Fifty PNGs are committed under `crates/ui/tests/snapshots/` and diffed by
+`egui_kittest`, with the per-pixel tolerance
 in `kittest.toml`; a mismatch writes the painted image and a diff beside the baseline and fails the run.
 A test does not stop at its first mismatch: `shoot` records the scene's name and error in a per-thread
 report instead of panicking, and each test ends with `assert_every_scene_matched()`, which fails with every

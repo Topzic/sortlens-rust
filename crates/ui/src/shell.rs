@@ -10847,8 +10847,9 @@ mod tests {
     /// The interface language (SL-L07 scaffolding): switching it in Settings is instant, asks the
     /// host to persist the code, and the sidebar's rows move to the reading start — right, in an
     /// Arabic interface — with the row's own label in Arabic and its count at the far end.
-    /// Switching back to English restores the left-to-right layout exactly. Headless on purpose:
-    /// the CI fonts have no Arabic face, so this proves the geometry, not the glyphs.
+    /// Switching back to English restores the left-to-right layout exactly. Headless on purpose,
+    /// and on egui's default fonts: this proves the geometry and the words the shell asks for; the
+    /// glyphs are checked where a frame installs the stack (`fonts` and the screenshots harness).
     #[test]
     fn the_language_switch_moves_the_sidebar_to_the_reading_start() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-language-{}", std::process::id()));
