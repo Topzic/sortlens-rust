@@ -156,9 +156,71 @@ fn mobile() -> Result<(), String> {
         Vec::new()
     };
     for target in targets {
+        let mut env = env.clone();
+        if *target == "aarch64-linux-android" {
+            env.extend(android_cc_env(target)?);
+        }
         run_env("cargo", &["check", "-p", "sortlens-mobile", "--target", target], &env)?;
     }
     Ok(())
+}
+
+/// The `cc` crate's view of the Android NDK: `CC_<target>` and `AR_<target>` pointing at the NDK's own
+/// clang and `llvm-ar`. `ring` compiles C and assembly for the target, and `cc-rs` looks for a bare
+/// `aarch64-linux-android-clang` that the NDK has not shipped since r23 — it ships
+/// `aarch64-linux-android<api>-clang`, in a directory that is on no `PATH`. Without this the check fails
+/// in `ring`'s build script before it reaches any of our code. The NDK is `ANDROID_NDK_HOME`, then
+/// `ANDROID_NDK_ROOT`, then the newest under `$ANDROID_HOME/ndk`; one that is not found leaves the
+/// environment alone, so a developer with their own `CC_aarch64_linux_android` still wins.
+fn android_cc_env(target: &str) -> Result<Vec<(String, String)>, String> {
+    let key = target.replace('-', "_");
+    if std::env::var_os(format!("CC_{key}")).is_some() {
+        return Ok(Vec::new());
+    }
+    let ndk = ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT"]
+        .iter()
+        .filter_map(std::env::var_os)
+        .map(PathBuf::from)
+        .find(|path| path.is_dir())
+        .or_else(|| {
+            let sdk = std::env::var_os("ANDROID_HOME").or_else(|| std::env::var_os("ANDROID_SDK_ROOT"))?;
+            let mut versions: Vec<PathBuf> = fs::read_dir(PathBuf::from(sdk).join("ndk"))
+                .ok()?
+                .filter_map(Result::ok)
+                .map(|e| e.path())
+                .collect();
+            versions.sort();
+            versions.pop()
+        });
+    let Some(ndk) = ndk else {
+        return Ok(Vec::new());
+    };
+    let host = match std::env::consts::OS {
+        "linux" => "linux-x86_64",
+        "macos" => "darwin-x86_64",
+        "windows" => "windows-x86_64",
+        other => return Err(format!("the Android NDK has no toolchain for {other}")),
+    };
+    let bin = ndk.join("toolchains").join("llvm").join("prebuilt").join(host).join("bin");
+    Ok(android_cc_env_in(&bin, target, MIN_ANDROID_API, std::env::consts::OS == "windows"))
+}
+
+/// The phone's `min_sdk_version` (`apps/sortlens-mobile/Cargo.toml`): the API level the NDK's clang
+/// wrapper for the target is named after.
+const MIN_ANDROID_API: u32 = 26;
+
+/// [`android_cc_env`] once the NDK's `bin` directory is known: the variables, as pure data.
+fn android_cc_env_in(bin: &Path, target: &str, api: u32, windows: bool) -> Vec<(String, String)> {
+    let key = target.replace('-', "_");
+    let (clang, ar) = if windows {
+        (format!("{target}{api}-clang.cmd"), "llvm-ar.exe".to_string())
+    } else {
+        (format!("{target}{api}-clang"), "llvm-ar".to_string())
+    };
+    vec![
+        (format!("CC_{key}"), bin.join(clang).display().to_string()),
+        (format!("AR_{key}"), bin.join(ar).display().to_string()),
+    ]
 }
 
 /// [`run`] with environment variables set for the child only.
@@ -941,4 +1003,25 @@ fn report(name: &str, problems: Vec<String>) -> Result<(), String> {
         eprintln!("  {problem}");
     }
     Err(format!("{name}: {} problem(s)", problems.len()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_android_check_names_the_ndk_s_clang_for_the_api_the_phone_ships() {
+        let env = android_cc_env_in(Path::new("/ndk/bin"), "aarch64-linux-android", 26, false);
+        assert_eq!(env[0].0, "CC_aarch64_linux_android");
+        assert!(
+            env[0]
+                .1
+                .replace(std::path::MAIN_SEPARATOR, "/")
+                .ends_with("/ndk/bin/aarch64-linux-android26-clang")
+        );
+        assert_eq!(env[1].0, "AR_aarch64_linux_android");
+        assert!(env[1].1.replace(std::path::MAIN_SEPARATOR, "/").ends_with("/ndk/bin/llvm-ar"));
+        let win = android_cc_env_in(Path::new("/ndk/bin"), "aarch64-linux-android", 26, true);
+        assert!(win[0].1.ends_with("aarch64-linux-android26-clang.cmd"));
+    }
 }
