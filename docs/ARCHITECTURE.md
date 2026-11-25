@@ -591,6 +591,16 @@ translation debt the suite names. `the_shortcuts_dialog_speaks_the_interface_lan
 overlay in all three languages. `craft-keymap`'s editor dialog behind Settings → Shortcuts is still
 its own English chrome.
 
+The Activity tab is routed from `sortlens-engine`'s own piece: `Job::detail_kind` returns a
+`JobDetail` — `Progress`, `Counts { files, dirs }`, `Finished { files, dirs, unreadable }`,
+`Cancelled`, `Failed` — and `Job::detail`, the line the report and the JSON print, is that piece's
+`english()`. The shell's `job_detail` words it through `i18n::fmt` with both counters (and the
+unreadable count) as `format_count` placeholders, so Arabic writes its own digits; the job's kind
+(`JobKind::label`) and state (`JobStatus::label`) are looked up by their English text, the empty
+hint and the stats rows are `tl!` keys, and a failed job's error stays the error the platform
+reported. English is byte for byte what the row painted before it took a piece, and
+`the_activity_row_speaks_the_interface_language` paints the tab in all three languages.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

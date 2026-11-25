@@ -334,3 +334,21 @@
 	{n} bindings	{n} ارتباط
 	{bound} of {total} bound	{bound} من {total} مرتبط
 	Nothing is bound to that.	لا شيء مرتبط بذلك.
+	Scan	فحص
+	Previews	معاينات
+	Sidecars	ملفات جانبية
+	Similar	مشابهة
+	Insights	رؤى
+	Sharpness	حِدّة
+	Model	نموذج
+	Update	تحديث
+	running	قيد التشغيل
+	done	منتهٍ
+	cancelled	ملغى
+	failed	فشل
+	{files} files · {dirs} folders	{files} ملف · {dirs} مجلد
+	{files} files · {dirs} folders · {unreadable} unreadable	{files} ملف · {dirs} مجلد · {unreadable} غير قابل للقراءة
+	cancelled before committing	أُلغي قبل الاعتماد
+	Nothing has run yet. Scans and exports appear here.	لم يُنفَّذ شيء بعد. تظهر الفحوصات وعمليات التصدير هنا.
+	Indexed	مفهرسة
+	On disk	على القرص

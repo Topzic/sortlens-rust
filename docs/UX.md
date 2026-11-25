@@ -661,8 +661,10 @@ re-checks its own contrast pairs after applying.
   the cull summary, the quit guard, the change viewer and the Batch applied receipt, each worded
   from the same pieces its English sentence is joined from, and the `?` shortcut overlay (its
   title, headings, notes, count lines and all forty-four action rows) joined them the same day.
-  Still English by omission: Suggested keywords, the craft-keymap editor's own chrome, and the
-  sentences the engine composes for the support report and the activity row's job lines.
+  The Activity tab joined them last: each job's kind and state are catalogue words, its detail line
+  is worded from `sortlens-engine`'s own `JobDetail` with both counters as placeholders, and the
+  empty hint and stats rows are catalogued. Still English by omission: Suggested keywords and the
+  craft-keymap editor's own chrome.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

@@ -25,7 +25,7 @@ use egui::{
 };
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
 use sortlens_cull::gesture::Gesture;
-use sortlens_engine::{Decision, Engine, Filter, Photo, Sort, TagOrder};
+use sortlens_engine::{Decision, Engine, Filter, Job, JobDetail, Photo, Sort, TagOrder};
 use std::collections::BTreeSet;
 
 /// A top-level destination in the bottom bar.
@@ -3324,11 +3324,11 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                 RightTab::Activity => {
                     let jobs = engine.jobs();
                     if jobs.is_empty() {
-                        hint(ui, t, "Nothing has run yet. Scans and exports appear here.");
+                        hint(ui, t, tl!("Nothing has run yet. Scans and exports appear here."));
                     }
                     for job in jobs.iter().rev().take(8) {
                         ui.horizontal(|ui| {
-                            ui.label(RichText::new(job.kind.label()).size(10.0).color(t.text_faint));
+                            ui.label(RichText::new(tl!(job.kind.label())).size(10.0).color(t.text_faint));
                             ui.label(RichText::new(truncate(&job.label, 22)).size(11.5).color(t.text));
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                 let colour = match job.status {
@@ -3337,7 +3337,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                                     sortlens_engine::JobStatus::Cancelled => t.text_faint,
                                     sortlens_engine::JobStatus::Failed => t.reject,
                                 };
-                                ui.label(RichText::new(job.status.label()).size(10.0).color(colour));
+                                ui.label(RichText::new(tl!(job.status.label())).size(10.0).color(colour));
                                 ui.label(
                                     RichText::new(format!("{:.1}s", job.elapsed().as_secs_f64()))
                                         .size(10.0)
@@ -3345,7 +3345,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                                 );
                             });
                         });
-                        ui.label(RichText::new(job.detail()).size(10.5).color(t.text_muted));
+                        ui.label(RichText::new(job_detail(job)).size(10.5).color(t.text_muted));
                         if job.status.is_running() {
                             if ui.button(RichText::new("Cancel").size(10.5)).clicked() {
                                 engine.cancel_scan();
@@ -3358,9 +3358,9 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
 
                     ui.separator();
                     let stats = engine.stats();
-                    detail_row(ui, t, "Indexed", &format_count(stats.total as u64));
-                    detail_row(ui, t, "On disk", &sortlens_core::format_bytes(stats.bytes));
-                    detail_row(ui, t, "Missing", &format_count(stats.missing as u64));
+                    detail_row(ui, t, tl!("Indexed"), &format_count(stats.total as u64));
+                    detail_row(ui, t, tl!("On disk"), &sortlens_core::format_bytes(stats.bytes));
+                    detail_row(ui, t, tl!("Missing"), &format_count(stats.missing as u64));
                     if !engine.warnings().is_empty() {
                         ui.add_space(6.0);
                         for warning in engine.warnings().iter().rev().take(4) {
@@ -10284,6 +10284,41 @@ fn format_count(count: u64) -> String {
     crate::format::count(count)
 }
 
+/// An activity row's detail line, worded from the engine's own piece (SL-L07).
+///
+/// The count templates keep both counts as placeholders, so a language that writes its digits
+/// differently writes both of them, and the row and the report the engine composes cannot
+/// describe different work.
+fn job_detail(job: &Job) -> String {
+    match job.detail_kind() {
+        JobDetail::Progress(text) => text,
+        JobDetail::Counts { files, dirs }
+        | JobDetail::Finished {
+            files,
+            dirs,
+            unreadable: None,
+        } => crate::i18n::fmt(
+            "{files} files · {dirs} folders",
+            &[("files", &format_count(files as u64)), ("dirs", &format_count(dirs as u64))],
+        ),
+        JobDetail::Finished {
+            files,
+            dirs,
+            unreadable: Some(unreadable),
+        } => crate::i18n::fmt(
+            "{files} files · {dirs} folders · {unreadable} unreadable",
+            &[
+                ("files", &format_count(files as u64)),
+                ("dirs", &format_count(dirs as u64)),
+                ("unreadable", &format_count(unreadable as u64)),
+            ],
+        ),
+        JobDetail::Cancelled => tl!("cancelled before committing").to_string(),
+        JobDetail::Failed(Some(error)) => error,
+        JobDetail::Failed(None) => tl!("failed").to_string(),
+    }
+}
+
 #[allow(dead_code)]
 fn cell_size(width: f32, columns: usize, gap: f32) -> Vec2 {
     vec2(((width - gap * columns.saturating_sub(1) as f32) / columns as f32).max(1.0), 0.0)
@@ -17038,6 +17073,103 @@ mod tests {
         assert!(label_at(&arabic, "Flag as picked").is_none(), "no English row behind it");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The activity row speaks the interface language, from the engine's own piece (SL-L07).
+    ///
+    /// A job's detail line was an English sentence built inside `sortlens-engine`, and its kind
+    /// and state were English words, painted under a panel header that had already been
+    /// translated; now the engine hands the shell a `JobDetail`, the same piece its own English
+    /// is joined from, so the row and the report cannot describe different work — and every
+    /// count is the reader's digits.
+    #[test]
+    fn the_activity_row_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-activity-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-activity-i18n");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [30, 60, 140], 64, 48), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let job = engine
+            .jobs()
+            .into_iter()
+            .find(|job| job.kind == sortlens_engine::JobKind::Scan)
+            .expect("the scan is in the activity stack");
+        assert_eq!(job.status, sortlens_engine::JobStatus::Done);
+        assert_eq!(
+            job.detail_kind(),
+            sortlens_engine::JobDetail::Finished {
+                files: 1,
+                dirs: 1,
+                unreadable: None
+            }
+        );
+        assert_eq!(job_detail(&job), job.detail());
+        assert_eq!(job_detail(&job), "1 files · 1 folders");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.right_tab = RightTab::Activity;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut settled = None;
+            for _ in 0..2 {
+                let mut out = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(360.0, 600.0))),
+                        ..egui::RawInput::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            right_panel(ui, state, &tokens, engine);
+                        });
+                    },
+                );
+                out.textures_delta.clear();
+                settled = Some(out);
+            }
+            settled.expect("two frames were painted")
+        };
+
+        // English first: the words the row has always painted, joined from the piece.
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&english, "Scan").is_some(), "the kind paints");
+        assert!(label_at(&english, "done").is_some(), "and the state");
+        assert!(label_at(&english, "1 files · 1 folders").is_some(), "and the counters");
+
+        // Japanese: the kind, the state and the counters are the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        assert_eq!(job_detail(&job), "1 ファイル · 1 フォルダー");
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&japanese, "スキャン").is_some(), "the kind is the catalogue's");
+        assert!(label_at(&japanese, "完了").is_some(), "and the state");
+        assert!(label_at(&japanese, "1 ファイル · 1 フォルダー").is_some(), "and the counters");
+        assert!(label_at(&japanese, "Scan").is_none(), "no English kind behind it");
+        assert!(label_at(&japanese, "done").is_none(), "no English state behind it");
+        assert!(
+            label_at(&japanese, "1 files · 1 folders").is_none(),
+            "no English counters behind it"
+        );
+
+        // Arabic: the same pieces, with the counts in Arabic-Indic digits.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = job_detail(&job);
+        assert!(arabic.contains('١') && !arabic.contains("files"), "{arabic}");
+        let arabic_frame = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&arabic_frame, "فحص").is_some(), "the kind is the catalogue's");
+        assert!(label_at(&arabic_frame, "منتهٍ").is_some(), "and the state");
+        assert!(label_at(&arabic_frame, "Scan").is_none(), "no English kind behind it");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Paint only the bottom bar and hand back what it drew.

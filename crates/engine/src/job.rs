@@ -78,6 +78,63 @@ impl JobStatus {
     }
 }
 
+/// The piece a job's one-line detail is joined from.
+///
+/// The shell words these in the interface language and [`Job::detail`] joins the English from
+/// them, so a translated activity row and the report the same library writes cannot describe
+/// different work.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JobDetail {
+    /// A running detail the counters cannot express — a download's bytes, for one.
+    Progress(String),
+    /// The counters while the job runs.
+    Counts {
+        /// Files accepted so far.
+        files: usize,
+        /// Folders visited so far.
+        dirs: usize,
+    },
+    /// The counters after it finished, with how many files it could not read.
+    Finished {
+        /// Files accepted.
+        files: usize,
+        /// Folders visited.
+        dirs: usize,
+        /// Files that could not be read; `None` when every one was.
+        unreadable: Option<usize>,
+    },
+    /// Stopped because the user asked.
+    Cancelled,
+    /// Stopped because something went wrong; the error when there is one.
+    Failed(Option<String>),
+}
+
+impl JobDetail {
+    /// The English line, byte for byte what the row said before it took a piece.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            Self::Progress(progress) => progress.clone(),
+            Self::Counts { files, dirs } => format!("{files} files · {dirs} folders"),
+            Self::Finished {
+                files,
+                dirs,
+                unreadable: None,
+            } => format!("{files} files · {dirs} folders"),
+            Self::Finished {
+                files,
+                dirs,
+                unreadable: Some(unreadable),
+            } => {
+                format!("{files} files · {dirs} folders · {unreadable} unreadable")
+            }
+            Self::Cancelled => "cancelled before committing".to_string(),
+            Self::Failed(Some(error)) => error.clone(),
+            Self::Failed(None) => "failed".to_string(),
+        }
+    }
+}
+
 /// One operation the engine ran or is running.
 #[derive(Debug, Clone)]
 pub struct Job {
@@ -128,23 +185,31 @@ impl Job {
         self.finished.unwrap_or_else(Instant::now).saturating_duration_since(self.started)
     }
 
-    /// One-line summary for the activity row.
-    pub fn detail(&self) -> String {
+    /// The piece the row is worded from: the shell translates it, and [`Self::detail`] is its
+    /// English.
+    #[must_use]
+    pub fn detail_kind(&self) -> JobDetail {
         if let Some(progress) = &self.progress {
-            return progress.clone();
+            return JobDetail::Progress(progress.clone());
         }
         match self.status {
-            JobStatus::Running => format!("{} files · {} folders", self.files, self.dirs),
-            JobStatus::Done => {
-                let mut text = format!("{} files · {} folders", self.files, self.dirs);
-                if self.unreadable > 0 {
-                    text.push_str(&format!(" · {} unreadable", self.unreadable));
-                }
-                text
-            }
-            JobStatus::Cancelled => "cancelled before committing".to_string(),
-            JobStatus::Failed => self.error.clone().unwrap_or_else(|| "failed".to_string()),
+            JobStatus::Running => JobDetail::Counts {
+                files: self.files,
+                dirs: self.dirs,
+            },
+            JobStatus::Done => JobDetail::Finished {
+                files: self.files,
+                dirs: self.dirs,
+                unreadable: (self.unreadable > 0).then_some(self.unreadable),
+            },
+            JobStatus::Cancelled => JobDetail::Cancelled,
+            JobStatus::Failed => JobDetail::Failed(self.error.clone()),
         }
+    }
+
+    /// One-line summary for the activity row.
+    pub fn detail(&self) -> String {
+        self.detail_kind().english()
     }
 
     /// Mark the job finished.
@@ -182,6 +247,55 @@ mod tests {
         job.error = Some("permission denied".into());
         job.finish(JobStatus::Failed);
         assert_eq!(job.detail(), "permission denied");
+    }
+
+    #[test]
+    fn the_detail_english_is_joined_from_its_piece() {
+        let mut job = Job::running(4, JobKind::Scan, "Shoot");
+        job.files = 12;
+        job.dirs = 3;
+        assert_eq!(job.detail_kind(), JobDetail::Counts { files: 12, dirs: 3 });
+        assert_eq!(job.detail(), job.detail_kind().english());
+        assert_eq!(job.detail(), "12 files · 3 folders");
+
+        job.finish(JobStatus::Done);
+        assert_eq!(
+            job.detail_kind(),
+            JobDetail::Finished {
+                files: 12,
+                dirs: 3,
+                unreadable: None
+            }
+        );
+        assert_eq!(job.detail(), "12 files · 3 folders");
+
+        job.unreadable = 2;
+        assert_eq!(
+            job.detail_kind(),
+            JobDetail::Finished {
+                files: 12,
+                dirs: 3,
+                unreadable: Some(2)
+            }
+        );
+        assert_eq!(job.detail(), "12 files · 3 folders · 2 unreadable");
+
+        job.progress = Some("1.5 MB of 4.0 MB".to_string());
+        assert_eq!(job.detail_kind(), JobDetail::Progress("1.5 MB of 4.0 MB".to_string()));
+        assert_eq!(job.detail(), "1.5 MB of 4.0 MB");
+
+        let mut cancelled = Job::running(5, JobKind::Export, "Out");
+        cancelled.finish(JobStatus::Cancelled);
+        assert_eq!(cancelled.detail_kind(), JobDetail::Cancelled);
+        assert_eq!(cancelled.detail(), "cancelled before committing");
+
+        let mut failed = Job::running(6, JobKind::Scan, "Shoot");
+        failed.finish(JobStatus::Failed);
+        assert_eq!(failed.detail_kind(), JobDetail::Failed(None));
+        assert_eq!(failed.detail(), "failed");
+        failed.error = Some("permission denied".into());
+        assert_eq!(failed.detail_kind(), JobDetail::Failed(Some("permission denied".into())));
+        assert_eq!(failed.detail(), "permission denied");
     }
 
     #[test]

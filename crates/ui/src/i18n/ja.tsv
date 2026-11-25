@@ -334,3 +334,21 @@
 	{n} bindings	{n} 件の割り当て
 	{bound} of {total} bound	{total} 件中 {bound} 件が割り当て済み
 	Nothing is bound to that.	それに割り当てられたキーはありません。
+	Scan	スキャン
+	Previews	プレビュー
+	Sidecars	サイドカー
+	Similar	類似
+	Insights	インサイト
+	Sharpness	シャープネス
+	Model	モデル
+	Update	アップデート
+	running	実行中
+	done	完了
+	cancelled	キャンセル済み
+	failed	失敗
+	{files} files · {dirs} folders	{files} ファイル · {dirs} フォルダー
+	{files} files · {dirs} folders · {unreadable} unreadable	{files} ファイル · {dirs} フォルダー · 読み取り不可 {unreadable}
+	cancelled before committing	確定前にキャンセルされました
+	Nothing has run yet. Scans and exports appear here.	まだ何も実行されていません。スキャンと書き出しがここに表示されます。
+	Indexed	登録済み
+	On disk	ディスク上

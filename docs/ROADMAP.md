@@ -1469,9 +1469,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     row cannot ship untranslated — `every_shortcut_row_is_in_both_catalogues` fails if one does —
     and the title, search hint, both count lines and the empty-search line are `tl!`/`fmt` keys
     with the counts as placeholders; `the_shortcuts_dialog_speaks_the_interface_language` paints
-    the overlay in all three. Still open on this row: Suggested keywords (it needs `sortlens-ai`'s
-    own suggestion wording), the craft-keymap editor's own English chrome, and the sentences the
-    engine composes for the support report and job lines.
+    the overlay in all three. The activity row's job lines joined them in the next tick
+    (eighty-ninth entry): `Job::detail_kind` returns a `JobDetail` (`Progress`, `Counts`,
+    `Finished` with its unreadable count, `Cancelled`, `Failed`) and `Job::detail` is that
+    piece's `english()`; the shell's `job_detail` words it through `i18n::fmt` with both counters
+    and the unreadable count as `format_count` placeholders, the kind and state are looked up by
+    their English text, and the empty hint and the Indexed/On disk/Missing rows are `tl!` keys, so
+    `the_activity_row_speaks_the_interface_language` paints the tab in all three. Still open on this
+    row: Suggested keywords (it needs `sortlens-ai`'s own suggestion wording) and the
+    craft-keymap editor's own English chrome.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

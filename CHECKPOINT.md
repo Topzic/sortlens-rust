@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-ninth) — the Activity tab's job rows are the engine's pieces, in the reader's digits
+
+- **Why this came up.** The eighty-eighth entry's "Next" named the sentences the engine composes for
+  the activity row's job lines: `Job::detail` built "12 files · 3 folders · 2 unreadable" inside
+  `sortlens-engine`, and `JobKind::label`/`JobStatus::label` painted "Scan"/"done" as English
+  words under a panel header that had already been translated, so no row of the tab could be.
+- **The engine hands back a piece.** `Job::detail_kind` returns a `JobDetail` — `Progress`,
+  `Counts { files, dirs }`, `Finished { files, dirs, unreadable }`, `Cancelled`, `Failed` —
+  and `Job::detail`, the line the report and the JSON print, is exactly `detail_kind().english()`,
+  pinned byte for byte for every shape by `the_detail_english_is_joined_from_its_piece`.
+- **The tab is routed.** The shell's `job_detail` words the piece through `i18n::fmt`: the two
+  counters (and the unreadable count) are placeholders filled by `format_count`, so Arabic writes
+  Arabic-Indic digits and Japanese the same digits in its own sentence. The kind and the state are
+  looked up by their English text (`JobKind::label`, `JobStatus::label` stay the source of truth,
+  as the keymap's rows do), the empty hint `Nothing has run yet. Scans and exports appear here.` and
+  the `Indexed`/`On disk`/`Missing` rows are `tl!` keys, and a failed job's error stays the
+  platform's own words. 18 new rows in each catalogue.
+- **Tests.** `the_detail_english_is_joined_from_its_piece` (engine) pins running, finished with and
+  without an unreadable file, a progress line, cancelled and failed with and without an error;
+  `the_activity_row_speaks_the_interface_language` opens a real scanned library and paints the real
+  Activity tab — English (`Scan`, `done`, `1 files · 1 folders`), Japanese (`スキャン`,
+  `完了`, `1 ファイル · 1 フォルダー`, and no English word behind any of them) and Arabic
+  (`فحص`, `منتهٍ`, the detail in Arabic-Indic digits). The catalogue audit demanded both
+  catalogues' 18 rows and passed.
+- **Files.** `crates/engine/src/job.rs` (the `JobDetail` piece, `detail_kind`, one test),
+  `crates/engine/src/lib.rs` (the re-export), `crates/ui/src/shell.rs` (`job_detail`, the routed
+  row, one paint test), `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (18 rows each),
+  `docs/ROADMAP.md` (Phase 4 item 2d), `docs/ARCHITECTURE.md` (8.4), `docs/UX.md` and
+  `docs/FEATURES.md` (SL-L07).
+- **Verified.** `cargo fmt --all`; `cargo clippy -p sortlens-engine -p sortlens-ui --all-targets
+  -- -D warnings` clean (exit 0); the engine's five job tests pass and the UI's activity-row and
+  catalogue-audit tests pass; `cargo xtask ci`, `snapshot`, `deny`, `wasm` and `screenshots`
+  green (27 scenes against the committed baselines, none moved — no scene paints the Activity tab
+  in a language other than English). No release workflow dispatched: this slice touches no workflow,
+  `xtask`, `Cargo.toml` or release code.
+- **Next.** Suggested keywords is the last routed surface on this row: it needs `sortlens-ai`'s
+  own suggestion wording (the AI suggestion card's `detail()` is engine-composed English) and a
+  piece per proposal shape before its panel can be translated; the `craft-keymap` editor's chrome
+  stays English in the dependency until it offers keys.
+
 ## 2026-11-26 (eighty-eighth) — the shortcut overlay speaks the interface language, and a new binding cannot arrive untranslated
 
 - **Why this came up.** The eighty-seventh entry's "Next" named Keyboard shortcuts: the overlay's

@@ -18,7 +18,7 @@ pub mod models;
 pub mod update;
 
 pub use command::{CommandSpec, Group, Registry, Status};
-pub use job::{Job, JobKind, JobStatus};
+pub use job::{Job, JobDetail, JobKind, JobStatus};
 pub use sortlens_ai::{Caps as SuggestionCaps, Source as SuggestionSource, Suggestion};
 pub use sortlens_catalog::backup::Backup;
 pub use sortlens_catalog::folder::{FolderMark, key_of as folder_key};
