@@ -72,9 +72,14 @@ phases"), and the list shrinks as those rows are ticked.
   one dock sheet at a time, a wordless bar, a two-row filter strip and a tray that stays on the screen.
   A release run (`git push --tags`, or a manual run of the `release` workflow for artefacts without a
   release) builds and attaches `sortlens-<version>-android.apk`: `cargo apk build --release` from the
-  crate's own `package.metadata.android`, zipaligned and signed with a keystore generated for the run —
-  a sideloaded APK needs no signing identity, but a key that lets one release update another in place
-  is a release secret the owner can add. No AAB (that is Play-distribution tooling), no `.ipa` (that
+  crate's own `package.metadata.android`, which aligns the APK and signs it with a keystore generated for
+  the run and handed to `cargo apk` as `CARGO_APK_RELEASE_KEYSTORE` and its `_PASSWORD` (a release build
+  stops before it signs without them), and the workflow then proves the signature with `apksigner verify`
+  before attaching the file — a sideloaded APK needs no signing identity, but a key that lets one release
+  update another in place is a release secret the owner can add. The build jobs attach their archives as
+  workflow artefacts with one glob per line, because `upload-artifact` reads `path` as newline-separated:
+  two globs on one line match nothing and still report success. No AAB (that is Play-distribution
+  tooling), no `.ipa` (that
   needs the Apple identity the M10 table names), and no device verification yet — `cargo xtask mobile`
   checks both targets on CI's runners, and running them on hardware waits for a machine with the NDK,
   Xcode and the iOS Photos framework. See §10 of `docs/ARCHITECTURE.md`.

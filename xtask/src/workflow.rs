@@ -217,6 +217,54 @@ fn release_problems(label: &str, text: &str) -> Vec<String> {
     {
         problems.push(format!("{label}: no step builds the phone's APK (`cargo apk build`)"));
     }
+    // A release build of the APK stops before it aligns or signs anything unless it is handed a
+    // keystore, and a run that signs without checking is a run that can attach nothing and say so.
+    let apk_build = runs
+        .iter()
+        .filter_map(|run| run.as_str())
+        .find(|run| run.contains("cargo apk build"));
+    if apk_build.is_some_and(|build| !build.contains("CARGO_APK_RELEASE_KEYSTORE=")) {
+        problems.push(format!(
+            "{label}: the APK build is not given `CARGO_APK_RELEASE_KEYSTORE`, so `cargo apk` stops before it signs"
+        ));
+    }
+    if !runs
+        .iter()
+        .filter_map(|run| run.as_str())
+        .any(|run| run.contains("keytool -genkeypair"))
+    {
+        problems.push(format!("{label}: no step generates the keystore the run signs with"));
+    }
+    if !runs
+        .iter()
+        .filter_map(|run| run.as_str())
+        .any(|run| run.contains("apksigner") && run.contains("verify"))
+    {
+        problems.push(format!("{label}: no step verifies the APK's signature (`apksigner verify`)"));
+    }
+    // `upload-artifact` splits `path` on newlines. Two globs on one line match a path that does not
+    // exist, so the step uploads nothing, warns, and passes; `publish` then attaches nothing.
+    let mut maps = Vec::new();
+    maps_of(&node, &mut maps);
+    for map in &maps {
+        let uses = map.field("uses").and_then(Node::as_str).unwrap_or_default();
+        if !uses.starts_with("actions/upload-artifact") {
+            continue;
+        }
+        let path = map.field("with").and_then(|with| with.field("path")).and_then(Node::as_str);
+        let Some(path) = path else {
+            problems.push(format!("{label}: an `upload-artifact` step has no `path`"));
+            continue;
+        };
+        for line in path.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            if line.split_whitespace().count() > 1 {
+                problems.push(format!(
+                    "{label}: `upload-artifact` path `{line}` holds more than one glob; the action splits `path` \
+                     on newlines, so that upload silently carries nothing"
+                ));
+            }
+        }
+    }
     let publish = node.field("jobs").and_then(|jobs| jobs.field("publish"));
     match publish {
         None => problems.push(format!("{label}: no `publish` job, so nothing is attached to the release")),
@@ -225,6 +273,18 @@ fn release_problems(label: &str, text: &str) -> Vec<String> {
             if !gate.contains("refs/tags/") {
                 problems.push(format!(
                     "{label}: `publish` is not gated on a tag, so a manual run would create a release"
+                ));
+            }
+            let mut maps = Vec::new();
+            maps_of(job, &mut maps);
+            let downloads = maps.iter().any(|map| {
+                map.field("uses")
+                    .and_then(Node::as_str)
+                    .is_some_and(|uses| uses.starts_with("actions/download-artifact"))
+            });
+            if !downloads {
+                problems.push(format!(
+                    "{label}: `publish` never downloads the built artefacts, so it would attach nothing"
                 ));
             }
             let mut files = Vec::new();
@@ -300,7 +360,7 @@ mod tests {
 
     const INTAKE: &str = "name: Agent intake\non:\n  issues:\n    types:\n      - opened\n      - edited\n      - labeled\npermissions:\n  contents: read\n  issues: write\njobs:\n  intake:\n    if: ${{ github.event.issue.pull_request == null }}\n    runs-on: ubuntu-latest\n    steps:\n      - name: Check the report\n        env:\n          SORTLENS_ISSUE_BODY: ${{ github.event.issue.body }}\n          SORTLENS_ISSUE_LABELS: ${{ github.event.issue.labels }}\n        run: |\n          if cargo xtask intake > intake.md; then\n            exit 0\n          fi\n          cat intake.md\n          gh issue comment \"$ISSUE\" --body-file intake.md\n          gh issue edit \"$ISSUE\" --remove-label triaged --add-label needs-info\n";
 
-    const RELEASE: &str = "name: release\non:\n  push:\n    tags:\n      - 'v*'\n  workflow_dispatch:\njobs:\n  android:\n    runs-on: ubuntu-latest\n    steps:\n      - name: build\n        run: cargo apk build --release -p sortlens-mobile\n      - name: sign\n        run: |\n          set -eu\n          apk=\"$(find target -name '*.apk' | head -n 1)\"\n          \"$tools/apksigner\" sign --out sortlens-android.apk \"$apk\"\n  publish:\n    if: startsWith(github.ref, 'refs/tags/')\n    needs: android\n    runs-on: ubuntu-latest\n    steps:\n      - name: checksums\n        run: |\n          cd dist\n          sha256sum *.tar.gz *.zip *.apk > SHA256SUMS\n      - uses: softprops/action-gh-release@v2\n        with:\n          files: |\n            dist/*.tar.gz\n            dist/*.apk\n";
+    const RELEASE: &str = "name: release\non:\n  push:\n    tags:\n      - 'v*'\n  workflow_dispatch:\njobs:\n  android:\n    runs-on: ubuntu-latest\n    steps:\n      - name: the signing key this run uses\n        run: |\n          keytool -genkeypair -keystore sortlens.keystore -alias sortlens\n      - name: build\n        run: |\n          set -eu\n          export CARGO_APK_RELEASE_KEYSTORE=sortlens.keystore\n          export CARGO_APK_RELEASE_KEYSTORE_PASSWORD=sortlens-key\n          cargo apk build --release -p sortlens-mobile\n      - name: the signature is on the APK\n        run: |\n          \"$tools/apksigner\" verify --print-certs sortlens-android.apk\n      - uses: actions/upload-artifact@v4\n        with:\n          name: android-apk\n          path: sortlens-*-android.apk\n  publish:\n    if: startsWith(github.ref, 'refs/tags/')\n    needs: android\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/download-artifact@v4\n        with:\n          path: dist\n          merge-multiple: true\n      - name: checksums\n        run: |\n          cd dist\n          sha256sum *.tar.gz *.zip *.apk > SHA256SUMS\n      - uses: softprops/action-gh-release@v2\n        with:\n          files: |\n            dist/*.tar.gz\n            dist/*.apk\n            dist/*.sha256";
 
     #[test]
     fn the_shipped_workflows_and_playbook_pass() {
@@ -355,6 +415,39 @@ mod tests {
             "{:#?}",
             release_problems("test", &unhashed)
         );
+    }
+
+    #[test]
+    fn a_release_that_puts_two_globs_on_one_upload_line_is_refused() {
+        let doubled = RELEASE.replace(
+            "          path: sortlens-*-android.apk",
+            "          path: sortlens-*-android.apk dist/*.zip",
+        );
+        let problems = release_problems("test", &doubled);
+        assert!(
+            problems.iter().any(|problem| problem.contains("more than one glob")),
+            "{problems:#?}"
+        );
+    }
+
+    #[test]
+    fn a_release_that_builds_the_apk_without_a_keystore_is_refused() {
+        let unsigned = RELEASE.replace("          export CARGO_APK_RELEASE_KEYSTORE=sortlens.keystore\n", "");
+        let problems = release_problems("test", &unsigned);
+        assert!(
+            problems.iter().any(|problem| problem.contains("CARGO_APK_RELEASE_KEYSTORE")),
+            "{problems:#?}"
+        );
+    }
+
+    #[test]
+    fn a_publish_that_downloads_nothing_is_refused() {
+        let without = RELEASE.replace(
+            "      - uses: actions/download-artifact@v4\n        with:\n          path: dist\n          merge-multiple: true\n",
+            "",
+        );
+        let problems = release_problems("test", &without);
+        assert!(problems.iter().any(|problem| problem.contains("never downloads")), "{problems:#?}");
     }
 
     #[test]

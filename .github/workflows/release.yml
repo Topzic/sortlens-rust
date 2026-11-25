@@ -3,9 +3,14 @@ name: release
 # Written in the block style `cargo xtask workflows` reads: block lists only (no flow lists), so the
 # small YAML reader that checks this file can parse it. The `verify` job runs the same gates a pull
 # request runs before anything is built; `android` builds the phone's APK — no signing identity is
-# needed, because a sideloaded APK is signed with a self-signed keystore generated for the run; and
-# `publish` runs only on a tag, so a manual run leaves its artefacts as workflow artefacts and never
-# creates a release by accident.
+# needed, because a sideloaded APK is signed with a self-signed keystore generated for the run, named
+# to `cargo apk` through `CARGO_APK_RELEASE_KEYSTORE` and its password (a release build stops before
+# it signs without them) and verified with `apksigner` afterwards; and `publish` runs only on a tag,
+# so a manual run leaves its artefacts as workflow artefacts and never creates a release by accident.
+#
+# Every `upload-artifact` step writes one glob per line: the action splits `path` on newlines, so two
+# globs on one line upload nothing and still report success, which is how a run can end green with no
+# artefacts at all.
 
 on:
   push:
@@ -57,24 +62,31 @@ jobs:
             "platforms;android-34" "build-tools;34.0.0" "ndk;26.3.11579264"
       - name: cargo-apk
         run: cargo install cargo-apk --locked
+      - name: the signing key this run uses
+        # A sideloaded APK needs a signature, not an identity: a self-signed keystore made here, used
+        # once, and never stored anywhere. `cargo apk` reads it from the two variables below and
+        # refuses a release build that has neither, so it exists before the build runs.
+        run: |
+          set -eu
+          keytool -genkeypair -keystore "$RUNNER_TEMP/sortlens.keystore" -alias sortlens \
+            -keyalg RSA -keysize 2048 -validity 10000 -storepass sortlens-key \
+            -keypass sortlens-key -dname "CN=Sortlens"
       - name: build
         run: |
           set -eu
           export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/26.3.11579264"
           export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
+          export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/sortlens.keystore"
+          export CARGO_APK_RELEASE_KEYSTORE_PASSWORD=sortlens-key
           cargo apk build --release -p sortlens-mobile
-      - name: sign
+      - name: the signature is on the APK
         run: |
           set -eu
           version="${GITHUB_REF_NAME#v}"
-          apk="$(find target -name '*.apk' | head -n 1)"
-          tools="$ANDROID_HOME/build-tools/34.0.0"
-          keytool -genkeypair -keystore sortlens.keystore -alias sortlens -keyalg RSA -keysize 2048 \
-            -validity 10000 -storepass sortlens-key -keypass sortlens-key -dname "CN=Sortlens"
-          "$tools/zipalign" -f -p 4 "$apk" aligned.apk
-          "$tools/apksigner" sign --ks sortlens.keystore --ks-pass pass:sortlens-key \
-            --key-pass pass:sortlens-key --out "sortlens-${version}-android.apk" aligned.apk
-          "$tools/apksigner" verify "sortlens-${version}-android.apk"
+          # `cargo apk` aligns the APK and signs it, leaving the unaligned one beside it.
+          apk="$(find target -name '*.apk' ! -name '*-unaligned.apk' | head -n 1)"
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$apk"
+          cp "$apk" "sortlens-${version}-android.apk"
           echo "The APK is signed with a keystore generated for this run; see docs/RELEASE.md."
       - uses: actions/upload-artifact@v4
         with:
@@ -129,7 +141,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: dist/*.tar.gz* dist/*.zip*
+          # One glob per line: the action splits `path` on newlines, so two globs on one line upload
+          # nothing at all and still report success.
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
 
   publish:
     name: attach to the release
