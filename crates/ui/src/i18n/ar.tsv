@@ -74,3 +74,33 @@
 	{n} photographs in this library, and the current filters exclude every one of them.	في هذه المكتبة {n} صورة، والمرشحات الحالية تستبعدها كلها.
 	Clear filters	مسح المرشحات
 	Clears the search text and every filter, and forgets the folder scope	يمسح نص البحث وكل مرشح، وينسى نطاق المجلد
+	Export finished	انتهى التصدير
+	The originals are where they were; an export only writes copies.	الصور الأصلية في مكانها؛ التصدير يكتب نسخًا فقط.
+	Export	تصدير
+	{n} photo(s) · {spec}	{n} صورة · {spec}
+	Format	التنسيق
+	Original	الأصل
+	A copy: same bytes, same name, no resize and no re-encode.	نسخة: البايتات نفسها والاسم نفسه، بلا تغيير حجم أو إعادة ترميز.
+	Longest edge	أطول ضلع
+	px · 0 keeps the original size	px · 0 يبقي الحجم الأصلي
+	Quality	الجودة
+	Keep EXIF and IPTC	الاحتفاظ ببيانات EXIF وIPTC
+	Carries the camera's metadata into the new file	ينقل بيانات الكاميرا الوصفية إلى الملف الجديد
+	PNG is lossless: no quality to pick, and alpha is kept.	PNG بلا فقد: لا جودة تختارها، وتُحفظ الشفافية.
+	If the name is taken	إذا كان الاسم مستخدمًا
+	Skip	تخطٍّ
+	Keep both	الاحتفاظ بكليهما
+	Replace	استبدال
+	quality {n}	جودة {n}
+	{n} px longest edge	أطول ضلع {n} px
+	without metadata	بلا بيانات وصفية
+	lossless	بلا فقد
+	{n} written	{n} مكتوبة
+	{n} skipped	{n} متخطاة
+	{n} failed	{n} فاشلة
+	{done} of {total}	{done} من {total}
+	Stop	إيقاف
+	Choose folder…	اختيار مجلد…
+	An export is already running, or nothing is selected	تصدير قيد التشغيل، أو لا شيء محدد
+	Cancel	إلغاء
+	Your photos stay where they are; this writes copies into the folder you pick.	تبقى صورك في مكانها؛ يكتب هذا نسخًا في المجلد الذي تختاره.

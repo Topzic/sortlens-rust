@@ -168,29 +168,75 @@ impl Spec {
     }
 
     /// One line describing what this will produce, for a dialog and a receipt.
+    ///
+    /// Built from [`Spec::parts`].
     #[must_use]
     pub fn summary(&self) -> String {
-        let mut text = self.format.label().to_string();
+        join_parts(self.parts().iter().map(SpecPart::english))
+    }
+
+    /// The sentence's own pieces, in the order it reads.
+    ///
+    /// The format is a [`Format`], not a word, because a dialog translates it, and the numbers are
+    /// numbers because a language writes them in its own digits. The shell joins these in the
+    /// reader's language, so a translated dialog and the English `summary` cannot drift apart.
+    #[must_use]
+    pub fn parts(&self) -> Vec<SpecPart> {
+        let mut parts = vec![SpecPart::Format(self.format)];
         match self.format {
             Format::Jpeg => {
-                text.push_str(&format!(" · quality {}", self.quality));
+                parts.push(SpecPart::Quality(self.quality));
                 if let Some(edge) = self.max_edge {
-                    text.push_str(&format!(" · {edge} px longest edge"));
+                    parts.push(SpecPart::LongestEdge(edge));
                 }
                 if !self.metadata {
-                    text.push_str(" · without metadata");
+                    parts.push(SpecPart::NoMetadata);
                 }
             }
             Format::Png => {
-                text.push_str(" · lossless");
+                parts.push(SpecPart::Lossless);
                 if let Some(edge) = self.max_edge {
-                    text.push_str(&format!(" · {edge} px longest edge"));
+                    parts.push(SpecPart::LongestEdge(edge));
                 }
             }
             Format::Original => {}
         }
-        text
+        parts
     }
+}
+
+/// One piece of a [`Spec`]'s description, in the order the sentence reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecPart {
+    /// The output format's own name, which the caller words in the reader's language.
+    Format(Format),
+    /// JPEG quality, 1·100.
+    Quality(u8),
+    /// Longest edge in pixels.
+    LongestEdge(u32),
+    /// No EXIF or IPTC is carried.
+    NoMetadata,
+    /// PNG's own word: nothing is lost.
+    Lossless,
+}
+
+impl SpecPart {
+    /// This piece in English: what [`Spec::summary`] joins, and what a receipt logs.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            SpecPart::Format(format) => format.label().to_string(),
+            SpecPart::Quality(quality) => format!("quality {quality}"),
+            SpecPart::LongestEdge(edge) => format!("{edge} px longest edge"),
+            SpecPart::NoMetadata => "without metadata".to_string(),
+            SpecPart::Lossless => "lossless".to_string(),
+        }
+    }
+}
+
+/// Join descriptive pieces the way every one of these sentences reads: ` · ` between them.
+fn join_parts(parts: impl Iterator<Item = String>) -> String {
+    parts.collect::<Vec<_>>().join(" · ")
 }
 
 /// One file to write.
@@ -422,18 +468,51 @@ impl Report {
     }
 
     /// One line for a receipt or a log.
+    ///
+    /// Built from [`Report::parts`]: the shell writes the same pieces in the reader's language.
     #[must_use]
     pub fn headline(&self) -> String {
-        let mut text = format!(
-            "{} written · {} skipped · {}",
-            self.written,
-            self.skipped,
-            sortlens_core::format_bytes(self.bytes)
-        );
+        join_parts(self.parts().iter().map(ReportPart::english))
+    }
+
+    /// The receipt's own pieces, in the order it reads.
+    #[must_use]
+    pub fn parts(&self) -> Vec<ReportPart> {
+        let mut parts = vec![
+            ReportPart::Written(self.written),
+            ReportPart::Skipped(self.skipped),
+            ReportPart::Bytes(self.bytes),
+        ];
         if !self.failures.is_empty() {
-            text.push_str(&format!(" · {} failed", self.failures.len()));
+            parts.push(ReportPart::Failed(self.failures.len()));
         }
-        text
+        parts
+    }
+}
+
+/// One piece of a [`Report`]'s receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReportPart {
+    /// Files written.
+    Written(usize),
+    /// Files deliberately not written.
+    Skipped(usize),
+    /// Bytes written; the caller formats them for the reader's region.
+    Bytes(u64),
+    /// Files that failed.
+    Failed(usize),
+}
+
+impl ReportPart {
+    /// This piece in English.
+    #[must_use]
+    pub fn english(&self) -> String {
+        match self {
+            ReportPart::Written(count) => format!("{count} written"),
+            ReportPart::Skipped(count) => format!("{count} skipped"),
+            ReportPart::Bytes(bytes) => sortlens_core::format_bytes(*bytes),
+            ReportPart::Failed(count) => format!("{count} failed"),
+        }
     }
 }
 
@@ -768,5 +847,70 @@ mod tests {
         };
         assert!(!failed.is_clean());
         assert!(failed.headline().contains("1 failed"));
+    }
+
+    /// The English sentence is the pieces joined: a dialog that translates the pieces and a receipt
+    /// that logs the sentence cannot describe different numbers, because there is one description.
+    #[test]
+    fn a_description_is_the_pieces_it_is_written_from() {
+        let jpeg = Spec {
+            format: Format::Jpeg,
+            max_edge: Some(2048),
+            quality: 82,
+            metadata: false,
+            collision: Collision::Skip,
+        };
+        assert_eq!(
+            jpeg.parts(),
+            vec![
+                SpecPart::Format(Format::Jpeg),
+                SpecPart::Quality(82),
+                SpecPart::LongestEdge(2048),
+                SpecPart::NoMetadata
+            ]
+        );
+        assert_eq!(jpeg.summary(), "JPEG · quality 82 · 2048 px longest edge · without metadata");
+        let png = Spec {
+            format: Format::Png,
+            max_edge: Some(1024),
+            ..Spec::default()
+        };
+        assert_eq!(
+            png.parts(),
+            vec![SpecPart::Format(Format::Png), SpecPart::Lossless, SpecPart::LongestEdge(1024)]
+        );
+        assert_eq!(png.summary(), "PNG · lossless · 1024 px longest edge");
+        assert_eq!(Spec::default().parts(), vec![SpecPart::Format(Format::Original)]);
+        assert_eq!(Spec::default().summary(), "Original");
+        for spec in [jpeg, png, Spec::default()] {
+            let joined = spec.parts().iter().map(SpecPart::english).collect::<Vec<_>>().join(" · ");
+            assert_eq!(joined, spec.summary(), "the sentence and its pieces disagree");
+        }
+    }
+
+    /// The receipt is its pieces too, and a failure is a piece rather than text stapled on.
+    #[test]
+    fn a_receipt_is_the_pieces_it_is_written_from() {
+        let clean = Report {
+            written: 3,
+            skipped: 1,
+            failures: Vec::new(),
+            bytes: 12_000,
+            dest: PathBuf::from("/out"),
+        };
+        assert_eq!(
+            clean.parts(),
+            vec![ReportPart::Written(3), ReportPart::Skipped(1), ReportPart::Bytes(12_000)]
+        );
+        let failed = Report {
+            failures: vec!["a.jpg: denied".into()],
+            ..clean.clone()
+        };
+        assert_eq!(failed.parts().last(), Some(&ReportPart::Failed(1)));
+        for report in [clean, failed] {
+            let joined = report.parts().iter().map(ReportPart::english).collect::<Vec<_>>().join(" · ");
+            assert_eq!(joined, report.headline(), "the receipt and its pieces disagree");
+            assert!(joined.contains("written") && joined.contains("skipped"));
+        }
     }
 }

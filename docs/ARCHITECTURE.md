@@ -504,6 +504,12 @@ empty-filter screen are routed through it: a sentence with a count in it is one 
 filled by `i18n::fmt`, so the count is written in the language's digits and a language that does
 not inflect the noun is not forced through English's plural.
 
+The export dialog and its receipt are routed the same way, but their numbers come from
+`sortlens-export`'s `Spec::parts` and `Report::parts` — the very pieces the engine's English
+`summary` and `headline` are joined from — and each piece is worded through the catalogues. A
+translated dialog therefore cannot describe a spec the export will not write, and the receipt is kept
+as those pieces until it is dismissed rather than as a sentence frozen in the language it was set in.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

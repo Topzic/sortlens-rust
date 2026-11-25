@@ -74,3 +74,33 @@
 	{n} photographs in this library, and the current filters exclude every one of them.	このライブラリには写真が {n} 枚あり、現在の絞り込みがそのすべてを除外しています。
 	Clear filters	絞り込みを解除
 	Clears the search text and every filter, and forgets the folder scope	検索語とすべての絞り込みを解除し、フォルダーの範囲も忘れます
+	Export finished	書き出しが完了しました
+	The originals are where they were; an export only writes copies.	元の写真はそのままの場所にあります。書き出しはコピーを作るだけです。
+	Export	書き出し
+	{n} photo(s) · {spec}	{n} 枚 · {spec}
+	Format	形式
+	Original	元のまま
+	A copy: same bytes, same name, no resize and no re-encode.	コピー：同じバイト、同じ名前。サイズ変更も再エンコードもありません。
+	Longest edge	長辺
+	px · 0 keeps the original size	px · 0 なら元のサイズ
+	Quality	品質
+	Keep EXIF and IPTC	EXIF と IPTC を保持
+	Carries the camera's metadata into the new file	カメラのメタデータを新しいファイルに引き継ぎます
+	PNG is lossless: no quality to pick, and alpha is kept.	PNG は可逆圧縮です。品質の指定はなく、アルファも保持されます。
+	If the name is taken	名前が使われている場合
+	Skip	スキップ
+	Keep both	両方を残す
+	Replace	置き換え
+	quality {n}	品質 {n}
+	{n} px longest edge	長辺 {n} px
+	without metadata	メタデータなし
+	lossless	可逆
+	{n} written	{n} 件書き出し
+	{n} skipped	{n} 件スキップ
+	{n} failed	{n} 件失敗
+	{done} of {total}	{done} / {total}
+	Stop	停止
+	Choose folder…	フォルダーを選択…
+	An export is already running, or nothing is selected	書き出し中か、何も選択されていません
+	Cancel	キャンセル
+	Your photos stay where they are; this writes copies into the folder you pick.	写真はそのままの場所に残ります。選んだフォルダーにコピーを書き出します。

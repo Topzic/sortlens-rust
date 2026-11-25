@@ -979,7 +979,7 @@ pub struct UiState {
     /// The photos the export dialog will write.
     pub export_ids: Vec<PhotoId>,
     /// The last export's receipt, kept on screen until dismissed.
-    pub export_receipt: Option<String>,
+    pub export_receipt: Option<ExportReceipt>,
     /// Last health check: (checked, present, missing).
     pub health: Option<(usize, usize, usize)>,
     /// Relative folder inside the chosen root, with a trailing slash, or empty for the whole root.
@@ -7971,19 +7971,101 @@ fn similar_delete_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &
     state.similar_delete_open = open && !close;
 }
 
+/// What an export left behind, kept as the pieces a receipt is written from rather than as a
+/// finished sentence: the language can change while the receipt is still on screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportReceipt {
+    /// Files written.
+    pub written: usize,
+    /// Files deliberately not written.
+    pub skipped: usize,
+    /// Files that failed.
+    pub failed: usize,
+    /// Bytes written.
+    pub bytes: u64,
+    /// Where they went.
+    pub dest: std::path::PathBuf,
+}
+
+impl ExportReceipt {
+    /// Read a finished export's report.
+    #[must_use]
+    pub fn from_report(report: &sortlens_engine::ExportReport) -> Self {
+        Self {
+            written: report.written,
+            skipped: report.skipped,
+            failed: report.failures.len(),
+            bytes: report.bytes,
+            dest: report.dest.clone(),
+        }
+    }
+}
+
+/// A format's name in the reader's language. `JPEG` and `PNG` are the formats' own names, not
+/// words to translate; `Original` is a word.
+fn export_format_name(format: sortlens_engine::ExportFormat) -> String {
+    match format {
+        sortlens_engine::ExportFormat::Original => tl!("Original").to_string(),
+        other => other.label().to_string(),
+    }
+}
+
+/// What the name policy means, in the reader's language.
+fn export_collision_name(policy: sortlens_engine::Collision) -> &'static str {
+    match policy {
+        sortlens_engine::Collision::Skip => tl!("Skip"),
+        sortlens_engine::Collision::Rename => tl!("Keep both"),
+        sortlens_engine::Collision::Overwrite => tl!("Replace"),
+    }
+}
+
+/// The spec's description in the reader's language, from the spec's own pieces — the same pieces
+/// the engine's English `summary` is joined from, so a dialog cannot describe numbers the export
+/// does not write.
+fn export_spec_line(spec: &sortlens_engine::ExportSpec) -> String {
+    spec.parts()
+        .iter()
+        .map(|part| match part {
+            sortlens_engine::ExportSpecPart::Format(format) => export_format_name(*format),
+            sortlens_engine::ExportSpecPart::Quality(quality) => {
+                crate::i18n::fmt("quality {n}", &[("n", &format_count(u64::from(*quality)))])
+            }
+            sortlens_engine::ExportSpecPart::LongestEdge(edge) => {
+                crate::i18n::fmt("{n} px longest edge", &[("n", &format_count(u64::from(*edge)))])
+            }
+            sortlens_engine::ExportSpecPart::NoMetadata => tl!("without metadata").to_string(),
+            sortlens_engine::ExportSpecPart::Lossless => tl!("lossless").to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
+/// A finished export's receipt in the reader's language.
+fn export_receipt_line(receipt: &ExportReceipt) -> String {
+    let mut parts = vec![
+        crate::i18n::fmt("{n} written", &[("n", &format_count(receipt.written as u64))]),
+        crate::i18n::fmt("{n} skipped", &[("n", &format_count(receipt.skipped as u64))]),
+        crate::i18n::size(receipt.bytes),
+    ];
+    if receipt.failed > 0 {
+        parts.push(crate::i18n::fmt("{n} failed", &[("n", &format_count(receipt.failed as u64))]));
+    }
+    format!("{} · {}", parts.join(" · "), receipt.dest.display())
+}
+
 fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     if let Some(receipt) = state.export_receipt.clone() {
         let mut open = true;
-        dialog_window("Export finished")
+        dialog_window(tl!("Export finished"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
             .default_width(380.0)
             .show(ui.ctx(), |ui| {
-                ui.label(RichText::new(&receipt).size(12.0));
+                ui.label(RichText::new(export_receipt_line(&receipt)).size(12.0));
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("The originals are where they were; an export only writes copies.")
+                    RichText::new(tl!("The originals are where they were; an export only writes copies."))
                         .size(10.5)
                         .color(t.text_muted),
                 );
@@ -7999,58 +8081,65 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     let progress = engine.export_progress();
     let mut open = state.export_open;
     let mut start = false;
-    dialog_window("Export")
+    dialog_window(tl!("Export"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(400.0)
         .show(ui.ctx(), |ui| {
             let count = state.export_ids.len();
-            ui.label(RichText::new(format!("{count} photo(s) · {}", state.export_spec.summary())).size(12.0));
+            let spec_line = export_spec_line(&state.export_spec);
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "{n} photo(s) · {spec}",
+                    &[("n", &format_count(count as u64)), ("spec", &spec_line)],
+                ))
+                .size(12.0),
+            );
             ui.add_space(6.0);
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Format").size(11.0).color(t.text_muted));
+                ui.label(RichText::new(tl!("Format")).size(11.0).color(t.text_muted));
                 for format in sortlens_engine::ExportFormat::ALL {
-                    if chip(ui, t, None, format.label(), state.export_spec.format == format).clicked() {
+                    if chip(ui, t, None, &export_format_name(format), state.export_spec.format == format).clicked() {
                         state.export_spec.format = format;
                     }
                 }
             });
             if state.export_spec.format == sortlens_engine::ExportFormat::Original {
-                hint(ui, t, "A copy: same bytes, same name, no resize and no re-encode.");
+                hint(ui, t, tl!("A copy: same bytes, same name, no resize and no re-encode."));
             } else {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Longest edge").size(11.0).color(t.text_muted));
+                    ui.label(RichText::new(tl!("Longest edge")).size(11.0).color(t.text_muted));
                     let mut edge = state.export_spec.max_edge.unwrap_or(0);
                     if ui.add(egui::DragValue::new(&mut edge).range(0..=12_000).speed(16)).changed() {
                         state.export_spec.max_edge = if edge == 0 { None } else { Some(edge.max(16)) };
                     }
-                    ui.label(RichText::new("px · 0 keeps the original size").size(10.0).color(t.text_muted));
+                    ui.label(RichText::new(tl!("px · 0 keeps the original size")).size(10.0).color(t.text_muted));
                 });
                 if state.export_spec.format == sortlens_engine::ExportFormat::Jpeg {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Quality").size(11.0).color(t.text_muted));
+                        ui.label(RichText::new(tl!("Quality")).size(11.0).color(t.text_muted));
                         let mut quality = u32::from(state.export_spec.quality);
                         if ui.add(egui::Slider::new(&mut quality, 1..=100)).changed() {
                             state.export_spec.quality = quality.min(100) as u8;
                         }
                     });
                     if ui
-                        .checkbox(&mut state.export_spec.metadata, "Keep EXIF and IPTC")
-                        .on_hover_text("Carries the camera's metadata into the new file")
+                        .checkbox(&mut state.export_spec.metadata, tl!("Keep EXIF and IPTC"))
+                        .on_hover_text(tl!("Carries the camera's metadata into the new file"))
                         .changed()
                     {}
                 } else {
-                    hint(ui, t, "PNG is lossless: no quality to pick, and alpha is kept.");
+                    hint(ui, t, tl!("PNG is lossless: no quality to pick, and alpha is kept."));
                 }
             }
 
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("If the name is taken").size(11.0).color(t.text_muted));
+                ui.label(RichText::new(tl!("If the name is taken")).size(11.0).color(t.text_muted));
                 for policy in sortlens_engine::Collision::ALL {
-                    if chip(ui, t, None, policy.label(), state.export_spec.collision == policy).clicked() {
+                    if chip(ui, t, None, export_collision_name(policy), state.export_spec.collision == policy).clicked() {
                         state.export_spec.collision = policy;
                     }
                 }
@@ -8059,8 +8148,11 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             if let Some((done, total)) = progress {
                 ui.add_space(8.0);
                 let share = if total == 0 { 0.0 } else { done as f32 / total as f32 };
-                ui.add(egui::ProgressBar::new(share).text(format!("{done} of {total}")));
-                if ui.button("Stop").clicked() {
+                ui.add(egui::ProgressBar::new(share).text(crate::i18n::fmt(
+                    "{done} of {total}",
+                    &[("done", &format_count(done as u64)), ("total", &format_count(total as u64))],
+                )));
+                if ui.button(tl!("Stop")).clicked() {
                     engine.cancel_export();
                 }
             }
@@ -8068,19 +8160,19 @@ fn export_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(progress.is_none() && count > 0, Button::new("Choose folder…"))
-                    .on_disabled_hover_text("An export is already running, or nothing is selected")
+                    .add_enabled(progress.is_none() && count > 0, Button::new(tl!("Choose folder…")))
+                    .on_disabled_hover_text(tl!("An export is already running, or nothing is selected"))
                     .clicked()
                 {
                     start = true;
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(tl!("Cancel")).clicked() {
                     state.export_open = false;
                 }
             });
             ui.add_space(4.0);
             ui.label(
-                RichText::new("Your photos stay where they are; this writes copies into the folder you pick.")
+                RichText::new(tl!("Your photos stay where they are; this writes copies into the folder you pick."))
                     .size(10.5)
                     .color(t.text_muted),
             );
@@ -14214,7 +14306,13 @@ mod tests {
 
         // A receipt draws too, and closing it clears it.
         state.export_open = false;
-        state.export_receipt = Some("3 written · 0 skipped · 12 kB → /tmp/out".to_string());
+        state.export_receipt = Some(ExportReceipt {
+            written: 3,
+            skipped: 0,
+            failed: 0,
+            bytes: 12_000,
+            dest: std::path::PathBuf::from("/tmp/out"),
+        });
         let mut actions: Vec<Action> = Vec::new();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -14224,6 +14322,114 @@ mod tests {
         output.textures_delta.clear();
         assert!(state.export_receipt.is_some(), "the receipt waits for the user");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The export dialog and its receipt speak the interface language (SL-L07): the spec line is
+    /// joined from the spec's own pieces, so a translated dialog writes the numbers the export
+    /// will actually write, and the receipt keeps those pieces until it is dismissed.
+    #[test]
+    fn the_export_dialog_and_its_receipt_speak_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-export-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.export_ids = vec![PhotoId(1), PhotoId(2)];
+        state.export_spec = sortlens_engine::ExportSpec {
+            format: sortlens_engine::ExportFormat::Jpeg,
+            max_edge: Some(2048),
+            quality: 82,
+            metadata: false,
+            collision: sortlens_engine::Collision::Rename,
+        };
+        state.export_open = true;
+        // The dialog is a window, which this egui names in its own layer: painting it proves it draws
+        // in every language, and the sentences it paints are asserted from the same helpers it uses.
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut actions: Vec<Action> = Vec::new();
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        export_dialog(ui, state, &tokens, engine, &mut actions);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+        };
+
+        // English first: the palette's English wording is what it always was, and it agrees with the
+        // engine's own sentence to the character.
+        paint(&ctx, &mut state, &mut engine);
+        let english = export_spec_line(&state.export_spec);
+        // The pieces are the engine's own wording; the digits are the interface's own (English
+        // groups four digits with a thin space, so the pixels read "2 048"), which is the point.
+        assert!(
+            english.starts_with("JPEG")
+                && english.contains("quality 82")
+                && english.contains("px longest edge")
+                && english.contains("without metadata"),
+            "{english}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        paint(&ctx, &mut state, &mut engine);
+        let japanese = export_spec_line(&state.export_spec);
+        assert!(
+            japanese.contains("品質 82") && japanese.contains("長辺") && japanese.contains("px") && japanese.contains("メタデータなし"),
+            "{japanese}"
+        );
+        assert!(
+            !japanese.contains("quality") && !japanese.contains("longest edge") && !japanese.contains("without metadata"),
+            "the sentence leaves no English behind: {japanese}"
+        );
+        assert!(
+            japanese.contains("JPEG"),
+            "a format's own name is not a word to translate: {japanese}"
+        );
+        assert_eq!(export_collision_name(sortlens_engine::Collision::Rename), "両方を残す");
+        assert!(
+            crate::i18n::fmt("{n} photo(s) · {spec}", &[("n", &format_count(2)), ("spec", &japanese)]).contains("枚"),
+            "the dialog's count line speaks the same language"
+        );
+
+        // The receipt is painted from the same pieces, in the same language.
+        state.export_open = false;
+        state.export_receipt = Some(ExportReceipt {
+            written: 3,
+            skipped: 0,
+            failed: 0,
+            bytes: 12_000,
+            dest: std::path::PathBuf::from("/tmp/out"),
+        });
+        paint(&ctx, &mut state, &mut engine);
+        let japanese_receipt = export_receipt_line(&state.export_receipt.clone().expect("the receipt is set"));
+        assert!(japanese_receipt.contains("3 件書き出し"), "{japanese_receipt}");
+        assert!(
+            japanese_receipt.contains("/tmp/out"),
+            "the folder is the receipt's own fact: {japanese_receipt}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        paint(&ctx, &mut state, &mut engine);
+        let arabic_receipt = export_receipt_line(&state.export_receipt.clone().expect("the receipt is set"));
+        assert!(
+            arabic_receipt.contains('٣') && arabic_receipt.contains("مكتوبة"),
+            "the receipt writes the count in Arabic digits: {arabic_receipt}"
+        );
+
+        // English again: the same pieces, unchanged from what they always said.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let english_receipt = export_receipt_line(&state.export_receipt.clone().expect("the receipt is set"));
+        assert!(english_receipt.starts_with("3 written"), "{english_receipt}");
+        assert!(english_receipt.contains("0 skipped"), "{english_receipt}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

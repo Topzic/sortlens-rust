@@ -758,6 +758,11 @@ While it runs, the dialog shows a progress bar with "n of total" and a **Stop** 
 panel shows the same job. When it finishes, a receipt replaces the dialog with what was written, into
 which folder, and the sentence that matters: the originals are where they were.
 
+Every word here comes from the catalogues (`crates/ui/src/i18n/`), and both the count line and the
+receipt are built from `sortlens-export`'s own pieces (`Spec::parts`, `Report::parts`) rather than
+from its English sentence, so a Japanese or Arabic dialog writes the numbers in its own digits about
+the same spec the engine reports on.
+
 ## Accessibility: what is claimed and what is checked
 
 Announcements are visible polite live regions (`a11y::live_line`), not invisible AccessKit-only text, so the

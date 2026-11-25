@@ -14,6 +14,7 @@ use craft_window::Prefix;
 use craft_window::policy::{Backend, Frame, TitleBarPref, apply as apply_titlebar, decide_for};
 use settings::Prefs;
 use sortlens_engine::{Engine, Sort};
+use sortlens_ui::shell::ExportReceipt;
 use sortlens_ui::{Action, Density, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 use sync::Sync;
 
@@ -295,11 +296,13 @@ impl App {
                 if let Some(folder) = rfd::FileDialog::new().set_title("Export into…").pick_folder() {
                     match self.engine.begin_export(&folder, &ids, &spec) {
                         Ok(0) => {
-                            let receipt = self
-                                .engine
-                                .last_export()
-                                .map(|report| report.headline())
-                                .unwrap_or_else(|| "nothing to write".to_string());
+                            let receipt = self.engine.last_export().map(ExportReceipt::from_report).unwrap_or(ExportReceipt {
+                                written: 0,
+                                skipped: 0,
+                                failed: 0,
+                                bytes: 0,
+                                dest: folder.clone(),
+                            });
                             self.ui.export_open = false;
                             self.ui.export_receipt = Some(receipt);
                         }
@@ -504,7 +507,7 @@ impl eframe::App for App {
         if let Some(report) = self.engine.poll_export() {
             self.ui.export_open = false;
             if self.ui.export_receipt.is_none() {
-                self.ui.export_receipt = Some(format!("{} → {}", report.headline(), report.dest.display()));
+                self.ui.export_receipt = Some(ExportReceipt::from_report(&report));
             }
             ctx.request_repaint();
         }

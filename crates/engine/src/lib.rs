@@ -28,7 +28,10 @@ pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, Ta
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result, TagSource};
 pub use sortlens_cull::trash::Receipt as ApplyReceipt;
 pub use sortlens_cull::{Decision, Summary as CullSummary};
-pub use sortlens_export::{Collision, Format as ExportFormat, Report as ExportReport, Spec as ExportSpec};
+pub use sortlens_export::{
+    Collision, Format as ExportFormat, Report as ExportReport, ReportPart as ExportReportPart, Spec as ExportSpec,
+    SpecPart as ExportSpecPart,
+};
 pub use sortlens_insights::{Highlight as InsightHighlight, Insights, Row as InsightRow, month_name};
 pub use sortlens_similar::{
     DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Match as SimilarMatch,

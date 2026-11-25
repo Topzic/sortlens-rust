@@ -1,5 +1,47 @@
 # Checkpoint
 
+## 2026-11-26 (seventy-eighth) — the export dialog tells you what it will write in your language, because a spec is now its own pieces
+
+- **Why this came up.** The i18n row's open list named "the unrouted surfaces", and the export dialog
+  was the next one a cull reaches: its count line printed `Spec::summary()`, an English sentence built
+  inside `sortlens-export`, so translating the dialog's labels would have left the one line that says
+  what will be written in English, and an export receipt is the same shape.
+- **The exporter hands back pieces now.** `Spec::parts()` yields `SpecPart::Format`, `Quality`,
+  `LongestEdge`, `NoMetadata` and `Lossless` in reading order; `Report::parts()` yields
+  `ReportPart::Written`, `Skipped`, `Bytes` and `Failed`. `summary()` and `headline()` join those
+  pieces, so the English is what it always said (pinned by
+  `a_description_is_the_pieces_it_is_written_from` and `a_receipt_is_the_pieces_it_is_written_from`,
+  which also assert the sentence equals its own pieces). The numbers stay numbers, which is what lets
+  the dialog group them the way the language does ("2 048 px" in English, "2,048 px" in Japanese)
+  while the engine's log line keeps its plain "2048".
+- **What the shell does with them.** `export_format_name`, `export_collision_name`,
+  `export_spec_line` and `export_receipt_line` word each piece through the catalogues; the dialog's
+  30 new keys are in `ar.tsv` and `ja.tsv`, and the catalogue audit demands both. A format's own
+  name (`JPEG`, `PNG`) is not a word to translate. `UiState::export_receipt` is now an
+  `ExportReceipt` (written, skipped, failed, bytes, dest) rather than a finished string, so a receipt
+  already on screen repaints when Settings → Language changes; the host builds it with
+  `ExportReceipt::from_report`.
+- **Tests.** `the_export_dialog_and_its_receipt_speak_the_interface_language` paints the dialog in
+  English, Japanese and Arabic, asserts the Japanese spec line ("JPEG · 品質 82 · 長辺 2,048 px ·
+  メタデータなし") and that no English word survives, that `JPEG` is not translated, and that the
+  Arabic receipt writes its count in Arabic-Indic digits; English is asserted to be the words it
+  always was. The audit covers the new rows because it reads `tl!` keys straight out of `shell.rs`.
+- **Files.** `crates/export/src/lib.rs` (parts, two tests), `crates/engine/src/lib.rs` (the
+  re-exports), `crates/ui/src/shell.rs` (`ExportReceipt`, the four wording helpers, the dialog, one
+  test), `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (30 rows each), `apps/sortlens/src/main.rs`
+  (receipt built from the report), `docs/ROADMAP.md`, `docs/FEATURES.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` — the same reconciliation.
+- **Verified.** `cargo xtask ci` green (its first run stopped at `cargo fmt --all -- --check`; the
+  workspace was formatted and the gate re-run), `cargo xtask snapshot`, `deny` and
+  `screenshots` green — all 27 scenes painted against the committed baselines, so the English
+  dialog the scenes contain did not move. No `wasm` gate exists in this workspace. No release
+  workflow was dispatched: the slice changes no packaging input (no workflow, `xtask`, `Cargo.toml`
+  or release code), and `cargo xtask ci` builds the app crate the release would package.
+- **Next.** The remaining dialogs are the next unrouted surface, and the delete confirmation is the
+  worst of them: its count and the mode words (`DeleteMode`) are English on the screen that destroys
+  files. After that: the four remaining catalogues (zh-TW, ko, th, vi) and RTL screenshots, which
+  still wait on a font build with an Arabic face.
+
 ## 2026-11-25 (seventy-seventh) — the lavapipe set is the whole shell again: forty-seven scenes, nothing missing
 
 - **Why this came up.** `CI`'s `screenshots` job had been red for six commits on four paper scenes, and the

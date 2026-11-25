@@ -889,10 +889,13 @@ and none of M9 is closed until the remaining rows are ticked.
   embedded ar/ja catalogues, Settings → Language, the reading-start/end panels and the mirrored rows
   (see the Phase 4 item 2d row). The Welcome card, the indexing screen and the empty-filter screen
   went through the catalogues on 2026-11-26 (seventy-sixth entry), so a first launch and a filter
-  that hides everything read in the chosen language; the dialogs and the sentences the engine
-  composes (an export receipt, `Spec::summary`) are still English by omission, not by decision.
-  Open: the other four languages, those surfaces, and RTL screenshots, which need a font build with
-  an Arabic face
+  that hides everything read in the chosen language; the export dialog and its receipt followed
+  later that day (seventy-eighth entry) by describing a spec from `sortlens-export`'s own
+  `Spec::parts`/`Report::parts` instead of its English sentence, so a Japanese dialog writes
+  "品質 82" about the same spec an English receipt reports on. The remaining dialogs are English by
+  omission, not by decision.
+  Open: the other four languages, the remaining dialogs and engine-composed sentences, and RTL
+  screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
@@ -1394,7 +1397,12 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     byte-identical — the proof a left-to-right interface paints exactly what it painted before. Not
     shipped here, still open under the M9 row: the other four languages the design names (zh-TW, ko,
     th, vi), the remaining unrouted surfaces, and RTL screenshots of the painted interface, which
-    need an Arabic-capable font build (CI's has none).
+    need an Arabic-capable font build (CI's has none). The export dialog and its receipt joined the
+    catalogues on 2026-11-26 (seventy-eighth entry): `sortlens-export` hands the shell
+    `Spec::parts` and `Report::parts`, the pieces its English `summary`/`headline` are joined
+    from, so a translated dialog cannot describe numbers the export will not write, and
+    `the_export_dialog_and_its_receipt_speak_the_interface_language` paints the dialog in all three
+    languages.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback
