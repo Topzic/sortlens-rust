@@ -857,6 +857,34 @@ pub struct AuditView {
     pub clean: bool,
 }
 
+/// Which sidebar sections are folded open.
+///
+/// One flag per heading rather than a map keyed by the painted title: a translated title is not a
+/// stable identity, and a language change must not reset what the person folded away. The defaults
+/// are all open, which is the sidebar a first launch has always shown.
+#[derive(Debug, Clone, Copy)]
+pub struct SidebarSections {
+    pub quick_actions: bool,
+    pub sources: bool,
+    pub subfolders: bool,
+    pub folders: bool,
+    pub keywords: bool,
+    pub collections: bool,
+}
+
+impl Default for SidebarSections {
+    fn default() -> Self {
+        Self {
+            quick_actions: true,
+            sources: true,
+            subfolders: true,
+            folders: true,
+            keywords: true,
+            collections: true,
+        }
+    }
+}
+
 /// Everything the shell remembers between frames.
 #[derive(Debug, Clone)]
 pub struct UiState {
@@ -889,8 +917,10 @@ pub struct UiState {
     pub narrow: bool,
     /// Right panel tab.
     pub right_tab: RightTab,
-    /// Left padding that clears the window controls in an integrated title bar.
+    /// Left padding that clears whatever the frame paints at the window's leading edge.
     pub title_inset: f32,
+    /// Which sidebar sections are folded open.
+    pub sections: SidebarSections,
     /// The frame is the app's own, so the bar is the title bar and draws the window's three
     /// buttons. False under a system title bar, where the OS draws them and a second set would
     /// be two answers to one question. The host decides, from the frame policy.
@@ -1120,6 +1150,7 @@ impl UiState {
             narrow: false,
             right_tab: RightTab::Details,
             title_inset,
+            sections: SidebarSections::default(),
             captions: false,
             settings_open: false,
             settings_height: 0.0,
@@ -2802,81 +2833,79 @@ fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     let photo = state.selection.primary().and_then(|id| engine.photo(id).cloned());
     let rating = photo.as_ref().map_or(0, |photo| photo.rating);
     let flag = photo.as_ref().map(|photo| photo.flag);
-    Frame::NONE
-        .fill(t.card)
-        .stroke(Stroke::new(1.0, t.border))
-        .corner_radius(t.corner())
-        .inner_margin(Margin::symmetric(8, 2))
-        .show(ui, |ui| {
-            ui.horizontal_centered(|ui| {
-                // A phone's tray is tighter: a desktop pill is a third wider than the room a collapsed
-                // tab row leaves it at 390 points, and the last flag button ran off the screen. The
-                // buttons keep their glyphs and their labels; what gives is the air between them.
-                if narrow {
-                    ui.spacing_mut().item_spacing.x = 3.0;
-                    ui.spacing_mut().button_padding = vec2(2.0, 5.0);
-                }
-                for stars in 1..=5u8 {
-                    let lit = stars <= rating;
-                    let colour = if lit { t.accent } else { t.text_faint };
-                    let button = ui.add(
-                        Button::image(crate::icons::image(crate::icons::Icon::Star, 12.0).tint(colour))
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::NONE),
-                    );
-                    let name = format!("{stars} star{}", if stars == 1 { "" } else { "s" });
-                    crate::a11y::label_widget(ui, &button, egui::Role::Button, &name, lit);
-                    if button
-                        .on_hover_text(format!("Rate {stars}★ — the same star again clears it"))
-                        .clicked()
-                    {
-                        rate_selection(state, engine, if rating == stars { 0 } else { stars });
-                    }
-                }
-                for (wanted, icon, name, colour) in [
-                    (sortlens_core::Flag::Pick, crate::icons::Icon::Pick, "Pick", t.pick),
-                    (sortlens_core::Flag::None, crate::icons::Icon::Flag, "Unflag", t.text_muted),
-                    (sortlens_core::Flag::Reject, crate::icons::Icon::Reject, "Reject", t.reject),
-                ] {
-                    let active = flag == Some(wanted);
-                    let tint = if active { colour } else { t.text_faint };
-                    let button = ui.add(
-                        Button::image(crate::icons::image(icon, 12.0).tint(tint))
-                            .fill(if active { t.selection } else { Color32::TRANSPARENT })
-                            .stroke(Stroke::NONE),
-                    );
-                    crate::a11y::label_widget(ui, &button, egui::Role::Button, name, active);
-                    if button.on_hover_text(name).clicked() {
-                        flag_selection(state, engine, wanted);
-                    }
-                }
-                // How many keywords the primary carries: a fact the inspector also shows, but the bar is
-                // where a person checks "did the keyword land" without opening a panel. On a phone the
-                // pill cannot spare the room — the inspector's Tags tab is one tap away — so the count
-                // stays on the desktop only.
-                if let Some(photo) = &photo
-                    && !photo.tags.is_empty()
-                    && !narrow
-                {
-                    ui.add_space(2.0);
-                    ui.add(crate::icons::image(crate::icons::Icon::Tag, 11.0).tint(t.text_faint))
-                        .on_hover_text(photo.tags.join(", "));
-                    ui.label(RichText::new(photo.tags.len().to_string()).size(10.5).color(t.text_faint));
-                }
-                ui.add_space(4.0);
-                let count = state.selection.len();
-                let text = match count {
-                    0 => "No selection".to_string(),
-                    1 => "1 selected".to_string(),
-                    many => format!("{many} selected"),
-                };
-                ui.label(
-                    RichText::new(text)
-                        .size(11.0)
-                        .color(if count == 0 { t.text_faint } else { t.text_muted }),
+    // The bar is the surface, not a card laid on top of it: filling with the bar's own colour keeps
+    // the controls grouped without drawing a second raised rectangle that reads as a panel which
+    // happened to land there. The margin stays so the glyphs keep their air.
+    Frame::NONE.fill(t.chrome).inner_margin(Margin::symmetric(8, 2)).show(ui, |ui| {
+        ui.horizontal_centered(|ui| {
+            // A phone's tray is tighter: a desktop pill is a third wider than the room a collapsed
+            // tab row leaves it at 390 points, and the last flag button ran off the screen. The
+            // buttons keep their glyphs and their labels; what gives is the air between them.
+            if narrow {
+                ui.spacing_mut().item_spacing.x = 3.0;
+                ui.spacing_mut().button_padding = vec2(2.0, 5.0);
+            }
+            for stars in 1..=5u8 {
+                let lit = stars <= rating;
+                let colour = if lit { t.accent } else { t.text_faint };
+                let button = ui.add(
+                    Button::image(crate::icons::image(crate::icons::Icon::Star, 12.0).tint(colour))
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::NONE),
                 );
-            });
+                let name = format!("{stars} star{}", if stars == 1 { "" } else { "s" });
+                crate::a11y::label_widget(ui, &button, egui::Role::Button, &name, lit);
+                if button
+                    .on_hover_text(format!("Rate {stars}★ — the same star again clears it"))
+                    .clicked()
+                {
+                    rate_selection(state, engine, if rating == stars { 0 } else { stars });
+                }
+            }
+            for (wanted, icon, name, colour) in [
+                (sortlens_core::Flag::Pick, crate::icons::Icon::Pick, "Pick", t.pick),
+                (sortlens_core::Flag::None, crate::icons::Icon::Flag, "Unflag", t.text_muted),
+                (sortlens_core::Flag::Reject, crate::icons::Icon::Reject, "Reject", t.reject),
+            ] {
+                let active = flag == Some(wanted);
+                let tint = if active { colour } else { t.text_faint };
+                let button = ui.add(
+                    Button::image(crate::icons::image(icon, 12.0).tint(tint))
+                        .fill(if active { t.selection } else { Color32::TRANSPARENT })
+                        .stroke(Stroke::NONE),
+                );
+                crate::a11y::label_widget(ui, &button, egui::Role::Button, name, active);
+                if button.on_hover_text(name).clicked() {
+                    flag_selection(state, engine, wanted);
+                }
+            }
+            // How many keywords the primary carries: a fact the inspector also shows, but the bar is
+            // where a person checks "did the keyword land" without opening a panel. On a phone the
+            // pill cannot spare the room — the inspector's Tags tab is one tap away — so the count
+            // stays on the desktop only.
+            if let Some(photo) = &photo
+                && !photo.tags.is_empty()
+                && !narrow
+            {
+                ui.add_space(2.0);
+                ui.add(crate::icons::image(crate::icons::Icon::Tag, 11.0).tint(t.text_faint))
+                    .on_hover_text(photo.tags.join(", "));
+                ui.label(RichText::new(photo.tags.len().to_string()).size(10.5).color(t.text_faint));
+            }
+            ui.add_space(4.0);
+            let count = state.selection.len();
+            let text = match count {
+                0 => "No selection".to_string(),
+                1 => "1 selected".to_string(),
+                many => format!("{many} selected"),
+            };
+            ui.label(
+                RichText::new(text)
+                    .size(11.0)
+                    .color(if count == 0 { t.text_faint } else { t.text_muted }),
+            );
         });
+    });
 }
 
 /// Rate the selection, saying what happened the way the keyboard does.
@@ -2933,7 +2962,12 @@ fn folder_scope(mark: &sortlens_engine::FolderMark, library_sort: Sort) -> (Sort
 /// Its own function because the sidebar had grown past the point where one closure could hold every section and
 /// stay readable — the complexity gate said so, which is the right time to split rather than to silence it.
 fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
-    nav_section(ui, t, tl!("Folders"));
+    if nav_section(ui, t, tl!("Folders"), state.sections.folders) {
+        state.sections.folders = !state.sections.folders;
+    }
+    if !state.sections.folders {
+        return;
+    }
     // Volumes once per root, not once per photo: an unplugged drive holding ten thousand photos is
     // one missing volume, and the sidebar says so beside the folder instead of after scrolling.
     let volumes = engine.root_volumes();
@@ -3081,48 +3115,57 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                 .id_salt("sidebar_sections")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    nav_section(ui, t, tl!("Sources"));
-                    let now = sortlens_engine::now_epoch();
-                    for source in Source::ALL {
-                        // Each row's count is what that row would show, not the library total: a Picks row reading
-                        // "0" while the grid holds thousands is the row doing its job.
-                        let count = source_count(engine, state, source, now);
-                        if nav_row(
-                            ui,
-                            t,
-                            source.icon(),
-                            source.label(),
-                            &format_count(count as u64),
-                            state.source_selected(source),
-                        )
-                        .clicked()
-                        {
-                            if source == Source::All {
-                                state.root = None;
-                            }
-                            state.apply_source(source);
-                        }
+                    quick_actions(ui, t, state, engine, actions);
+                    if nav_section(ui, t, tl!("Sources"), state.sections.sources) {
+                        state.sections.sources = !state.sections.sources;
                     }
-                    if let Some(progress) = engine.scan_progress()
-                        && engine.is_scanning()
-                    {
-                        ui.label(
-                            RichText::new(format!("Scanning · {} files", format_count(progress.files as u64)))
-                                .size(11.0)
-                                .color(t.accent),
-                        );
+                    if state.sections.sources {
+                        let now = sortlens_engine::now_epoch();
+                        for source in Source::ALL {
+                            // Each row's count is what that row would show, not the library total: a Picks row reading
+                            // "0" while the grid holds thousands is the row doing its job.
+                            let count = source_count(engine, state, source, now);
+                            if nav_row(
+                                ui,
+                                t,
+                                source.icon(),
+                                source.label(),
+                                &format_count(count as u64),
+                                state.source_selected(source),
+                            )
+                            .clicked()
+                            {
+                                if source == Source::All {
+                                    state.root = None;
+                                }
+                                state.apply_source(source);
+                            }
+                        }
+                        if let Some(progress) = engine.scan_progress()
+                            && engine.is_scanning()
+                        {
+                            ui.label(
+                                RichText::new(format!("Scanning · {} files", format_count(progress.files as u64)))
+                                    .size(11.0)
+                                    .color(t.accent),
+                            );
+                        }
                     }
 
                     if let Some(root) = state.root.clone() {
                         let folders = engine.subfolders(&root, &state.folder);
                         if !folders.is_empty() {
-                            nav_section(ui, t, tl!("Subfolders"));
-                        }
-                        for (name, count) in folders {
-                            let prefix = format!("{}{name}/", state.folder);
-                            let selected = state.folder == prefix;
-                            if nav_row(ui, t, crate::icons::Icon::Folder, &name, &format_count(count as u64), selected).clicked() {
-                                state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
+                            if nav_section(ui, t, tl!("Subfolders"), state.sections.subfolders) {
+                                state.sections.subfolders = !state.sections.subfolders;
+                            }
+                            if state.sections.subfolders {
+                                for (name, count) in folders {
+                                    let prefix = format!("{}{name}/", state.folder);
+                                    let selected = state.folder == prefix;
+                                    if nav_row(ui, t, crate::icons::Icon::Folder, &name, &format_count(count as u64), selected).clicked() {
+                                        state.folder = if selected { parent_prefix(&state.folder) } else { prefix };
+                                    }
+                                }
                             }
                         }
                     }
@@ -3136,48 +3179,50 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         TagOrder::Count => tl!("most used"),
                         TagOrder::Name => tl!("A–Z"),
                     };
-                    if keyword_section_header(ui, t, order_word) {
+                    if keyword_section_header(ui, t, state, order_word) {
                         state.tag_order = state.tag_order.flipped();
                     }
-                    let vocabulary = engine.tag_vocabulary_in(state.tag_order);
-                    if vocabulary.is_empty() {
-                        hint(ui, t, "Select a photo, press K and type a keyword.");
-                    }
-                    let mut tag_delete: Option<String> = None;
-                    for (tag, count) in vocabulary.iter().take(12) {
-                        let selected = state.tag_filters.iter().any(|active| active == tag);
-                        let aliases = engine.registry_aliases_of(tag);
-                        let row = if aliases.is_empty() {
-                            nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
-                        } else {
-                            // Say where a keyword came from: a rename leaves a trail behind it.
-                            nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
-                                .on_hover_text(format!("also written as {}", aliases.join(", ")))
-                        };
-                        if row.clicked() {
-                            if selected {
-                                state.tag_filters.retain(|active| active != tag);
-                            } else {
-                                state.tag_filters.push(tag.clone());
-                            }
+                    if state.sections.keywords {
+                        let vocabulary = engine.tag_vocabulary_in(state.tag_order);
+                        if vocabulary.is_empty() {
+                            hint(ui, t, "Select a photo, press K and type a keyword.");
                         }
-                        row.context_menu(|ui| {
-                            if ui.button("Rename or merge…").clicked() {
-                                state.tag_edit = Some((tag.clone(), tag.clone()));
-                                ui.close();
+                        let mut tag_delete: Option<String> = None;
+                        for (tag, count) in vocabulary.iter().take(12) {
+                            let selected = state.tag_filters.iter().any(|active| active == tag);
+                            let aliases = engine.registry_aliases_of(tag);
+                            let row = if aliases.is_empty() {
+                                nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
+                            } else {
+                                // Say where a keyword came from: a rename leaves a trail behind it.
+                                nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
+                                    .on_hover_text(format!("also written as {}", aliases.join(", ")))
+                            };
+                            if row.clicked() {
+                                if selected {
+                                    state.tag_filters.retain(|active| active != tag);
+                                } else {
+                                    state.tag_filters.push(tag.clone());
+                                }
                             }
-                            if ui
-                                .button("Delete everywhere")
-                                .on_hover_text("Take the keyword off every photo; one undo brings it back")
-                                .clicked()
-                            {
-                                tag_delete = Some(tag.clone());
-                                ui.close();
-                            }
-                        });
-                    }
-                    if let Some(tag) = tag_delete {
-                        delete_keyword_everywhere(state, engine, &tag);
+                            row.context_menu(|ui| {
+                                if ui.button("Rename or merge…").clicked() {
+                                    state.tag_edit = Some((tag.clone(), tag.clone()));
+                                    ui.close();
+                                }
+                                if ui
+                                    .button("Delete everywhere")
+                                    .on_hover_text("Take the keyword off every photo; one undo brings it back")
+                                    .clicked()
+                                {
+                                    tag_delete = Some(tag.clone());
+                                    ui.close();
+                                }
+                            });
+                        }
+                        if let Some(tag) = tag_delete {
+                            delete_keyword_everywhere(state, engine, &tag);
+                        }
                     }
 
                     collections_section(ui, t, state, engine);
@@ -3221,6 +3266,40 @@ const SIDEBAR_FOOT: [(PaletteCommand, crate::icons::Icon); 4] = [
     (PaletteCommand::History, crate::icons::Icon::History),
     (PaletteCommand::Shortcuts, crate::icons::Icon::Keyboard),
 ];
+
+/// The actions a person reaches for most while culling, at the top of the sidebar.
+///
+/// Each row is a palette command, like the foot: the words, the icon and the shortcut have one
+/// registry answer, and the click runs the same `run` the ⌘K palette and the keys use. Four is
+/// the whole list on purpose — a quick-actions section that grew to ten would be the menu again.
+const SIDEBAR_QUICK: [(PaletteCommand, crate::icons::Icon); 4] = [
+    (PaletteCommand::AddFolder, crate::icons::Icon::FolderPlus),
+    (PaletteCommand::StartCull, crate::icons::Icon::Judge),
+    (PaletteCommand::Export, crate::icons::Icon::Export),
+    (PaletteCommand::Insights, crate::icons::Icon::Chart),
+];
+
+/// The quick-actions section: the common commands as rows, above the library's own scopes.
+fn quick_actions(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
+    if nav_section(ui, t, tl!("Quick Actions"), state.sections.quick_actions) {
+        state.sections.quick_actions = !state.sections.quick_actions;
+    }
+    if !state.sections.quick_actions {
+        return;
+    }
+    let registry = sortlens_engine::command::Registry::v0();
+    for (command, icon) in SIDEBAR_QUICK {
+        let Some(spec) = registry.get(command.id()) else {
+            continue;
+        };
+        let row = nav_row(ui, t, icon, tl!(spec.label), spec.shortcut.unwrap_or_default(), false);
+        if row.clicked()
+            && let Err(reason) = command.run(state, engine, actions)
+        {
+            state.notice(reason);
+        }
+    }
+}
 
 /// A sidebar row's height, in points. Shared with the foot's own sizing: the strip asks the panel for an
 /// exact height built from this number, so a row cannot grow without the panel that pins it.
@@ -7902,7 +7981,12 @@ fn remember_search(state: &mut UiState, engine: &mut Engine) {
 
 /// Collections: favourites first, each with its colour, and the actions that change both.
 fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
-    nav_section(ui, t, tl!("Collections"));
+    if nav_section(ui, t, tl!("Collections"), state.sections.collections) {
+        state.sections.collections = !state.sections.collections;
+    }
+    if !state.sections.collections {
+        return;
+    }
     let collections = engine.collections();
     if collections.is_empty() {
         hint(ui, t, "Collect photos into named sets without moving them.");
@@ -10628,37 +10712,75 @@ fn shortcut_editor_dialog(ui: &mut Ui, state: &mut UiState, actions: &mut Vec<Ac
     }
 }
 
-fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
+/// A sidebar heading: a chevron that says whether the section is folded, the title, and the whole
+/// strip as one click target.
+///
+/// The heading is allocated by hand rather than painted as a label because it has to be a button
+/// whose glyph flips between the down and right chevrons, while keeping the tiny caption type the
+/// sidebar has always used. The reading-start helpers do the mirroring (SL-L07), so the chevron
+/// leads and the title follows in either direction.
+fn nav_section(ui: &mut Ui, t: &Tokens, title: &str, open: bool) -> bool {
     ui.add_space(10.0);
-    // Against the reading start, whatever direction the interface runs (SL-L07). The wrap is
-    // behind an RTL check on purpose: at Align::Min a `with_layout` rounds the label's origin
-    // differently from a bare `ui.label`, and a left-to-right interface must paint byte for byte
-    // what it painted before the scaffold existed.
-    if craft_ui::direction::is_rtl(ui) {
-        ui.with_layout(Layout::top_down(start_align(ui)), |ui| {
-            ui.label(RichText::new(title.to_uppercase()).size(9.5).color(t.text_faint));
-        });
+    let clicked = if craft_ui::direction::is_rtl(ui) {
+        ui.with_layout(Layout::top_down(start_align(ui)), |ui| nav_heading(ui, t, title, open))
+            .inner
     } else {
-        ui.label(RichText::new(title.to_uppercase()).size(9.5).color(t.text_faint));
-    }
+        nav_heading(ui, t, title, open)
+    };
     ui.add_space(2.0);
+    clicked
+}
+
+/// One heading's chevron and caption, sized to its text.
+fn nav_heading(ui: &mut Ui, t: &Tokens, title: &str, open: bool) -> bool {
+    let caption = title.to_uppercase();
+    let font = t.font(9.5);
+    let galley = ui.painter().layout_no_wrap(caption.clone(), font.clone(), t.text_faint);
+    let (rect, _) = ui.allocate_exact_size(vec2(14.0 + galley.size().x + 4.0, 16.0), Sense::hover());
+    let response = ui.interact(rect, ui.scope_id().with(("sidebar_section", title)), Sense::click());
+    let tint = if response.hovered() { t.text_muted } else { t.text_faint };
+    if response.hovered() {
+        ui.painter().rect_filled(rect.expand2(vec2(2.0, 0.0)), 4.0, t.hover);
+    }
+    let glyph = Rect::from_center_size(pos2(start_x(ui, rect) + forward(ui) * 6.0, rect.center().y), Vec2::splat(9.0));
+    crate::icons::paint(
+        ui,
+        if open {
+            crate::icons::Icon::Chevron
+        } else {
+            crate::icons::Icon::ChevronRight
+        },
+        glyph,
+        tint,
+    );
+    ui.painter().text(
+        pos2(start_x(ui, rect) + forward(ui) * 14.0, rect.center().y),
+        align2(ui, Align2::LEFT_CENTER),
+        caption,
+        font,
+        tint,
+    );
+    crate::a11y::label_widget(ui, &response, egui::Role::Button, title, open);
+    response.clicked()
 }
 
 /// The Keywords heading and its order toggle on one line, each at one end of the row.
 ///
-/// Laid out left to right this is the row the sidebar has always painted: `nav_section` inside a
-/// `right_to_left` trailing row. That shape cannot simply be mirrored — right to left `nav_section`
-/// already puts the heading at the reading start, and the trailing layout then keeps painting from
-/// the reading end, so the toggle lands on top of the heading (the hundred-and-sixteenth entry's
-/// first RTL defect). The mirrored branch gives each end its own room: the heading first at the
-/// reading start, the toggle in what is left at the reading end. Left to right the calls are the
-/// ones that were there, in the same order, so no committed baseline moves.
-fn keyword_section_header(ui: &mut Ui, t: &Tokens, order: &str) -> bool {
+/// Laid out left to right this is the row the sidebar has always painted: the heading inside a
+/// `right_to_left` trailing row. That shape cannot simply be mirrored — right to left the heading
+/// already sits at the reading start, and the trailing layout then keeps painting from the reading
+/// end, so the toggle lands on top of the heading (the hundred-and-sixteenth entry's first RTL
+/// defect). The mirrored branch gives each end its own room: the heading first at the reading
+/// start, the toggle in what is left at the reading end.
+fn keyword_section_header(ui: &mut Ui, t: &Tokens, state: &mut UiState, order: &str) -> bool {
     let mut clicked = false;
+    let mut folded = false;
+    // The same bands the other headings own, so Keywords sits in the rhythm even though its row
+    // carries a second control at the far end.
+    ui.add_space(10.0);
     if craft_ui::direction::is_rtl(ui) {
-        ui.add_space(10.0);
         craft_ui::direction::horizontal(ui, |ui| {
-            ui.label(RichText::new(tl!("Keywords").to_uppercase()).size(9.5).color(t.text_faint));
+            folded = nav_heading(ui, t, tl!("Keywords"), state.sections.keywords);
             ui.with_layout(craft_ui::direction::trailing(ui), |ui| {
                 clicked = ui
                     .add(Button::new(RichText::new(order).size(9.5)).frame(false))
@@ -10666,18 +10788,21 @@ fn keyword_section_header(ui: &mut Ui, t: &Tokens, order: &str) -> bool {
                     .clicked();
             });
         });
-        ui.add_space(2.0);
-        return clicked;
-    }
-    ui.horizontal(|ui| {
-        nav_section(ui, t, tl!("Keywords"));
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            clicked = ui
-                .add(Button::new(RichText::new(order).size(9.5)).frame(false))
-                .on_hover_text("Switch between most used and A–Z")
-                .clicked();
+    } else {
+        ui.horizontal(|ui| {
+            folded = nav_heading(ui, t, tl!("Keywords"), state.sections.keywords);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                clicked = ui
+                    .add(Button::new(RichText::new(order).size(9.5)).frame(false))
+                    .on_hover_text("Switch between most used and A–Z")
+                    .clicked();
+            });
         });
-    });
+    }
+    ui.add_space(2.0);
+    if folded {
+        state.sections.keywords = !state.sections.keywords;
+    }
     clicked
 }
 
@@ -15925,6 +16050,75 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Every sidebar heading folds its rows away, and the quick actions run the commands the
+    /// palette runs — not copies of them.
+    #[test]
+    fn the_sidebar_sections_fold_and_quick_actions_run() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-sections-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let screen = vec2(1280.0, 800.0);
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        left_panel(ui, state, &tokens, engine, actions);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            output
+        };
+        let press = |ctx: &egui::Context, at: egui::Pos2, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>| {
+            for input in press_and_release(at) {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        events: input.events,
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), screen)),
+                        ..egui::RawInput::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            left_panel(ui, state, &tokens, engine, actions);
+                        });
+                    },
+                );
+                output.textures_delta.clear();
+            }
+        };
+
+        let output = paint(&ctx, &mut state, &mut engine, &mut actions);
+        assert!(actions.is_empty(), "painting the sidebar presses nothing");
+        let heading = label_at(&output, "QUICK ACTIONS").expect("the quick actions heading");
+        assert!(label_at(&output, "Add Folder…").is_some(), "its rows are open by default");
+        assert!(label_at(&output, "SOURCES").is_some());
+
+        press(&ctx, heading.center(), &mut state, &mut engine, &mut actions);
+        let output = paint(&ctx, &mut state, &mut engine, &mut actions);
+        assert!(label_at(&output, "Add Folder…").is_none(), "the folded section hides its rows");
+        assert!(label_at(&output, "SOURCES").is_some(), "only the section that was clicked folds");
+        assert!(!state.sections.quick_actions);
+
+        let heading = label_at(&output, "QUICK ACTIONS").expect("the heading stays");
+        press(&ctx, heading.center(), &mut state, &mut engine, &mut actions);
+        let output = paint(&ctx, &mut state, &mut engine, &mut actions);
+        assert!(label_at(&output, "Add Folder…").is_some(), "clicking again opens it");
+
+        let row = label_at(&output, "Add Folder…").expect("the row is back");
+        press(&ctx, row.center(), &mut state, &mut engine, &mut actions);
+        assert_eq!(actions, vec![Action::PickFolder], "the quick action is the palette command");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Phase 3B.3: the Missing row asks about the filesystem and counts what is gone, and nothing else.
     ///
     /// A file is removed and the health check marks it — the same path a person's unmounted drive takes —
@@ -16088,9 +16282,12 @@ mod tests {
             .filter(|(rect, _)| !column.contains_rect(*rect))
             .map(|(rect, _)| rect.center().y)
             .fold(f32::MIN, f32::max);
+        // The quick-actions block now fills the top of a library this short, so the clearance is a
+        // hairline rather than the old sixty-point cushion. The foot-band count above is still the
+        // exact check: a section that paints into the band fails it, whatever the gap looks like.
         assert!(
-            lowest_section < column.min.y - 60.0,
-            "the sections end well above the foot (lowest {lowest_section} vs foot top {})",
+            lowest_section < column.min.y - 10.0,
+            "the sections stop above the foot (lowest {lowest_section} vs foot top {})",
             column.min.y
         );
 
@@ -19644,18 +19841,23 @@ mod tests {
         rects
     }
 
-    /// The annotation pill's own background: the one card-filled surface in the bar.
+    /// The annotation group's own surface: the one bar-coloured frame narrower than the bar.
     fn pill_in(output: &egui::FullOutput, tokens: &Tokens, screen: Vec2) -> Rect {
         output
             .shapes
             .iter()
             .find_map(|clipped| match &clipped.shape {
-                egui::Shape::Rect(shape) if shape.fill == tokens.card && shape.rect.center().y > screen.y - tokens.bottom_bar_h => {
+                egui::Shape::Rect(shape)
+                    if shape.fill == tokens.chrome
+                        && shape.rect.width() < screen.x * 0.6
+                        && shape.rect.height() < tokens.bottom_bar_h
+                        && shape.rect.center().y > screen.y - tokens.bottom_bar_h =>
+                {
                     Some(shape.rect)
                 }
                 _ => None,
             })
-            .expect("the annotation pill has a surface of its own")
+            .expect("the annotation group has a surface of its own")
     }
 
     /// Phase 3B.4 from the window: the centre pill rates and flags the selection, and clicking the star that

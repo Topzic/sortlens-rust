@@ -30,6 +30,7 @@ const CATALOG: &[(&str, &[u8])] = &[
     ("bell", include_bytes!("../../../assets/icons/bell.svg")),
     ("chart", include_bytes!("../../../assets/icons/chart.svg")),
     ("chevron", include_bytes!("../../../assets/icons/chevron.svg")),
+    ("chevron-right", include_bytes!("../../../assets/icons/chevron-right.svg")),
     ("clock", include_bytes!("../../../assets/icons/clock.svg")),
     ("close", include_bytes!("../../../assets/icons/close.svg")),
     ("compare", include_bytes!("../../../assets/icons/compare.svg")),
@@ -103,6 +104,8 @@ pub enum Icon {
     Chart,
     /// A menu below this control.
     Chevron,
+    /// A section that is folded away.
+    ChevronRight,
     /// Similar-photo results.
     Similar,
     /// Two photographs side by side.
@@ -155,11 +158,12 @@ pub enum Icon {
 
 impl Icon {
     /// Every icon, in catalog order.
-    pub const ALL: [Self; 40] = [
+    pub const ALL: [Self; 41] = [
         Self::Activity,
         Self::Bell,
         Self::Chart,
         Self::Chevron,
+        Self::ChevronRight,
         Self::Clock,
         Self::Close,
         Self::Compare,
@@ -205,6 +209,7 @@ impl Icon {
             Self::Bell => "bell",
             Self::Chart => "chart",
             Self::Chevron => "chevron",
+            Self::ChevronRight => "chevron-right",
             Self::Clock => "clock",
             Self::Close => "close",
             Self::Compare => "compare",

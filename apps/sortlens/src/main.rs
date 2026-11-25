@@ -18,8 +18,18 @@ use sortlens_ui::shell::ExportReceipt;
 use sortlens_ui::{Action, Density, ThemeKind, Thumbnails, UiState, apply as apply_theme};
 use sync::Sync;
 
-/// Left inset that clears the traffic lights in an integrated title bar.
-const MAC_TRAFFIC_LIGHTS: f32 = 78.0;
+/// The top bar's leading inset: how much room the frame needs before the app paints anything.
+///
+/// macOS keeps its traffic lights over the app's bar (`Frame::Inset`) and hands back the strip
+/// they occupy, so the mark starts after that strip. Windows and Linux have no leading controls —
+/// the app's own three buttons sit at the trailing end — so the bar's ordinary margin is enough.
+/// Giving them the traffic-light strip left a 78-point gap with nothing in it.
+fn title_inset(frame: &Frame) -> f32 {
+    match frame {
+        Frame::Inset(mac) => mac.leading,
+        Frame::Integrated(_) | Frame::Native => 10.0,
+    }
+}
 
 fn folder_name(path: &str) -> String {
     path.trim_end_matches(['/', '\\'])
@@ -83,10 +93,7 @@ fn window_icon() -> egui::IconData {
 
 fn main() -> eframe::Result {
     let decision = decide_for(Prefix::new("SORTLENS"), Backend::from_env(), TitleBarPref::Integrated);
-    let inset = match decision.frame {
-        Frame::Integrated(_) => MAC_TRAFFIC_LIGHTS,
-        _ => 10.0,
-    };
+    let inset = title_inset(&decision.frame);
     // Only a frame the app draws leaves the window's three buttons to the app: the system title bar
     // draws its own, and macOS keeps its traffic lights over the app's bar (`Frame::Inset`).
     let captions = matches!(decision.frame, Frame::Integrated(_));
@@ -591,5 +598,18 @@ mod tests {
 
     fn sortlens_icon_size() -> u32 {
         u32::try_from(sortlens_icon::SIZE).expect("a 512 px icon")
+    }
+
+    /// The bar starts after the traffic lights macOS paints over it, and leaves no dead strip where
+    /// no lights exist. The old rule used the 78-point strip for every integrated frame and ten
+    /// points for the inset one, which put the mark under the lights on macOS.
+    #[test]
+    fn the_title_bar_clears_whatever_the_frame_draws() {
+        let mac = craft_window::policy::MacInset {
+            leading: 78.0,
+            centre_from_top: 14.0,
+        };
+        assert!((title_inset(&Frame::Inset(mac)) - 78.0).abs() < f32::EPSILON);
+        assert!((title_inset(&Frame::Native) - 10.0).abs() < f32::EPSILON);
     }
 }
