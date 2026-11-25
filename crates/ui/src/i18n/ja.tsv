@@ -623,3 +623,8 @@
 	keeping {keep}	残す: {keep}
 	best	最良
 	Removed keyword {tag}	キーワード {tag} を外しました
+	Structure	構図
+	Either	どちらでも
+	Same layout and the same palette — the safe default.	同じ構図と同じ配色 — 安全な既定値です。
+	Same palette anywhere in the frame, whatever the layout.	構図にかかわらず、フレーム内のどこでも同じ配色。
+	Structure or palette; the widest net, more false pairs.	構図または配色。最も広い網で、誤検出のペアも増えます。

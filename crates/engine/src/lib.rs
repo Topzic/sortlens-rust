@@ -39,7 +39,7 @@ pub use sortlens_export::{
 pub use sortlens_insights::{Highlight as InsightHighlight, Insights, Row as InsightRow, month_name};
 pub use sortlens_similar::{
     DEFAULT_COLOUR as SIMILAR_COLOUR, DEFAULT_THRESHOLD as SIMILAR_THRESHOLD, Group as SimilarGroup, Match as SimilarMatch,
-    Member as SimilarMember,
+    MatchSense as SimilarSense, MatchWord as SimilarWord, Member as SimilarMember,
 };
 
 use serde_json::{Value, json};

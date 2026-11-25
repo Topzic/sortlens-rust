@@ -88,19 +88,33 @@ impl Match {
 
     /// Name for the picker.
     pub const fn label(self) -> &'static str {
-        match self {
-            Self::Families => "Structure",
-            Self::Colour => "Colour",
-            Self::Either => "Either",
-        }
+        self.word().en()
     }
 
     /// One line explaining what it lets through.
     pub const fn hint(self) -> &'static str {
+        self.sense().en()
+    }
+
+    /// The picker's word, as the piece a screen is written from rather than the English text.
+    ///
+    /// A surface that translates by piece matches on this and cannot go stale: the sentence this
+    /// crate answers and the one a catalogue paints are the same piece, and a test in the shell
+    /// fails when its literal drifts from this crate's.
+    pub const fn word(self) -> MatchWord {
         match self {
-            Self::Families => "Same layout and the same palette — the safe default.",
-            Self::Colour => "Same palette anywhere in the frame, whatever the layout.",
-            Self::Either => "Structure or palette; the widest net, more false pairs.",
+            Self::Families => MatchWord::Structure,
+            Self::Colour => MatchWord::Colour,
+            Self::Either => MatchWord::Either,
+        }
+    }
+
+    /// What the mode lets through, as the piece the line under the picker is written from.
+    pub const fn sense(self) -> MatchSense {
+        match self {
+            Self::Families => MatchSense::SafeDefault,
+            Self::Colour => MatchSense::PaletteAnywhere,
+            Self::Either => MatchSense::WidestNet,
         }
     }
 
@@ -113,6 +127,51 @@ impl Match {
             "colour" => Self::Colour,
             "either" => Self::Either,
             _ => Self::Families,
+        }
+    }
+}
+
+/// The picker's word for a mode: the piece a translated picker is built from, not the English
+/// text itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchWord {
+    /// Structure close, colour agreeing when both sides have a palette.
+    Structure,
+    /// Palette alone, whatever the layout.
+    Colour,
+    /// Either signal.
+    Either,
+}
+
+impl MatchWord {
+    /// The English word, which is what [`Match::label`] answers.
+    pub const fn en(self) -> &'static str {
+        match self {
+            Self::Structure => "Structure",
+            Self::Colour => "Colour",
+            Self::Either => "Either",
+        }
+    }
+}
+
+/// What a mode lets through: the piece the line under the picker is written from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchSense {
+    /// Layout and palette both agree.
+    SafeDefault,
+    /// Palette agrees anywhere in the frame.
+    PaletteAnywhere,
+    /// Either signal — the widest net.
+    WidestNet,
+}
+
+impl MatchSense {
+    /// The English sentence, which is what [`Match::hint`] answers.
+    pub const fn en(self) -> &'static str {
+        match self {
+            Self::SafeDefault => "Same layout and the same palette — the safe default.",
+            Self::PaletteAnywhere => "Same palette anywhere in the frame, whatever the layout.",
+            Self::WidestNet => "Structure or palette; the widest net, more false pairs.",
         }
     }
 }
@@ -386,6 +445,31 @@ mod tests {
             }),
             ..member(id, difference, 10, 0)
         }
+    }
+
+    /// The picker's word and the hint are the pieces, not a second table: a screen that translates
+    /// by piece cannot drift from what `label`/`hint` answer, every mode names itself once, and no
+    /// two modes can answer the same sentence.
+    #[test]
+    fn every_mode_answers_through_its_own_piece() {
+        for mode in Match::ALL {
+            assert_eq!(mode.label(), mode.word().en(), "{mode:?}");
+            assert_eq!(mode.hint(), mode.sense().en(), "{mode:?}");
+        }
+        assert_eq!(
+            Match::ALL.map(Match::word),
+            [MatchWord::Structure, MatchWord::Colour, MatchWord::Either]
+        );
+        assert_eq!(
+            Match::ALL.map(Match::sense),
+            [MatchSense::SafeDefault, MatchSense::PaletteAnywhere, MatchSense::WidestNet]
+        );
+        assert_ne!(MatchWord::Structure.en(), MatchWord::Colour.en());
+        assert_ne!(MatchWord::Colour.en(), MatchWord::Either.en());
+        assert_ne!(MatchWord::Structure.en(), MatchWord::Either.en());
+        assert_ne!(MatchSense::SafeDefault.en(), MatchSense::PaletteAnywhere.en());
+        assert_ne!(MatchSense::PaletteAnywhere.en(), MatchSense::WidestNet.en());
+        assert_ne!(MatchSense::SafeDefault.en(), MatchSense::WidestNet.en());
     }
 
     #[test]

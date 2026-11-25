@@ -1,5 +1,48 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-seventh) — the similar view's mode picker names its modes from the similar crate's own pieces
+
+- **Why this came up.** The ninety-sixth entry's Next named exactly this: `Structure`/`Colour`/`Either` and
+  their three hint sentences were `sortlens_similar::Match::label`/`hint` — English built inside the crate —
+  so the one English surface left on the Similar view was the one a person uses to *change* what it finds.
+- **The piece, not the sentence.** `sortlens-similar` gained two enums, `MatchWord` (the picker's word) and
+  `MatchSense` (what a mode lets through), each with `en()`; `Match::word()`/`sense()` are the mapping, and
+  `label`/`hint` are now built from `word().en()`/`sense().en()` — one table, so the English the engine answers
+  and the piece a screen translates are the same words by construction. The engine re-exports them as
+  `SimilarWord`/`SimilarSense` beside `SimilarMatch`.
+- **The shell matches on the piece, never on the text.** `similar_mode_word`/`similar_mode_hint` are exhaustive
+  matches over those enums whose arms are `tl!` literals, used for the three buttons, their hovers and the line
+  under the picker. `Colour` already had a row (the colour chip), so five keys are new — `Structure`, `Either`
+  and the three hints — in each of `ar.tsv` and `ja.tsv`; the catalogue audit's duplicate check would have
+  refused a second `Colour`.
+- **Tests that fail when the behaviour is absent.** `every_mode_answers_through_its_own_piece` in the similar
+  crate (label/hint equal their piece's English, the words and the senses are distinct); in the shell,
+  `every_similar_mode_translates_the_engines_own_piece` compares the shell's English literal against
+  `mode.label()`/`mode.hint()` for every mode — retype a sentence in the shell and it fails — and asserts the
+  `ja`/`ar` rows really differ from English rather than falling back. `the_similarity_view_speaks_the_interface_language`
+  gained the mode row: English paints `Structure`, `Colour`, `Either` and the default hint, Japanese paints
+  `構図`/`どちらでも`/`同じ構図と同じ配色 — 安全な既定値です。` with no English mode word left, Arabic paints
+  `البنية`/`أيّهما`.
+- **The test's own shape.** Its assertions moved into two module helpers, `painted_texts` (the text a frame
+  painted) and `assert_painted` (every expected string, naming the whole frame when one is missing), because
+  the seventh assertion pushed the function past clippy's 30-point complexity budget — the same failure a
+  growing language test will hit again, so the helper is the answer rather than an `allow`.
+- **Files.** `crates/similar/src/lib.rs`, `crates/engine/src/lib.rs` (the re-export), `crates/ui/src/shell.rs`,
+  `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (five rows each), `docs/ROADMAP.md` (the i18n row's prose; the row
+  stays unticked for the four missing languages and the RTL shots).
+- **Verified.** `cargo clippy -p sortlens-similar -p sortlens-engine -p sortlens-ui --all-targets -- -D warnings`
+  clean; the similar crate's 15 tests, the UI's three similarity tests and the catalogue audit pass. `cargo
+  xtask ci` green through every gate — its first run stopped at `cargo fmt --check` on the new test's
+  formatting, which `cargo fmt --all` fixed — and `cargo xtask snapshot`, `cargo xtask deny` and `cargo xtask
+  screenshots` green, the last painting all 27 committed scenes byte-identical to their baselines, which is the
+  proof that the English picker is unchanged (English has no catalogue, so a `tl!` with no row is its own key).
+- **Next.** The Insights screen is the next surface (`Nothing has happened yet` and its column headers), then
+  Places (`No photo has a location yet`, the `places.txt` line). Both are plain UI routing; no engine piece is
+  needed for either.
+
+In-flight: no release dispatch (this slice touches `crates/*` source, tests and docs — no build or release
+surface). CI for this commit is the next tick's first read, one `gh run view`.
+
 ## 2026-11-26 (ninety-sixth) — the similarity view's chrome speaks the interface language, and its counts are templates
 
 - **Why this came up.** The ninety-fifth entry's Next named it: after the cull screen, the Similar view still

@@ -6735,6 +6735,26 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
 }
 
 /// Near-duplicate groups, hashed on demand and cached by content key.
+/// A mode's picker word in the reader's language, from the piece the similar crate answers
+/// (`MatchWord::Structure`), never from the English sentence it prints.
+fn similar_mode_word(word: sortlens_engine::SimilarWord) -> &'static str {
+    match word {
+        sortlens_engine::SimilarWord::Structure => tl!("Structure"),
+        sortlens_engine::SimilarWord::Colour => tl!("Colour"),
+        sortlens_engine::SimilarWord::Either => tl!("Either"),
+    }
+}
+
+/// What a mode lets through, in the reader's language, from the same piece its English hint is
+/// written from.
+fn similar_mode_hint(sense: sortlens_engine::SimilarSense) -> &'static str {
+    match sense {
+        sortlens_engine::SimilarSense::SafeDefault => tl!("Same layout and the same palette — the safe default."),
+        sortlens_engine::SimilarSense::PaletteAnywhere => tl!("Same palette anywhere in the frame, whatever the layout."),
+        sortlens_engine::SimilarSense::WidestNet => tl!("Structure or palette; the widest net, more false pairs."),
+    }
+}
+
 fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails) {
     let progress = engine.hash_progress();
     let threshold = state.similar_threshold;
@@ -6792,11 +6812,11 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
         for mode in sortlens_engine::SimilarMatch::ALL {
             if ui
                 .add(
-                    Button::new(RichText::new(mode.label()).size(11.0).color(if state.similar_mode == mode {
-                        t.text
-                    } else {
-                        t.text_muted
-                    }))
+                    Button::new(
+                        RichText::new(similar_mode_word(mode.word()))
+                            .size(11.0)
+                            .color(if state.similar_mode == mode { t.text } else { t.text_muted }),
+                    )
                     .fill(if state.similar_mode == mode {
                         t.selection
                     } else {
@@ -6804,7 +6824,7 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                     })
                     .stroke(Stroke::NONE),
                 )
-                .on_hover_text(mode.hint())
+                .on_hover_text(similar_mode_hint(mode.sense()))
                 .clicked()
             {
                 state.similar_mode = mode;
@@ -6823,7 +6843,11 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
                 engine.regroup(state.similar_threshold, state.similar_colour, state.similar_mode);
             }
         }
-        ui.label(RichText::new(state.similar_mode.hint()).size(10.0).color(t.text_faint));
+        ui.label(
+            RichText::new(similar_mode_hint(state.similar_mode.sense()))
+                .size(10.0)
+                .color(t.text_faint),
+        );
     });
     ui.add_space(8.0);
 
@@ -12382,6 +12406,25 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The text a frame painted, in paint order: what a language test asserts against.
+    fn painted_texts(output: &egui::FullOutput) -> Vec<String> {
+        output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Every one of `expected` is on the frame, and the whole frame is named when one is missing.
+    fn assert_painted(texts: &[String], expected: &[&str]) {
+        for one in expected {
+            assert!(texts.iter().any(|text| text == one), "{one:?} is not painted: {texts:?}");
+        }
+    }
+
     /// The similarity view speaks the interface language (SL-L07): its controls, its group rows and
     /// its empty state are catalogue rows, and the counts are templates, so a Japanese or Arabic owner
     /// reads how many groups and photos the hashes found in their own words and digits.
@@ -12423,22 +12466,18 @@ mod tests {
                 },
             );
             out.textures_delta.clear();
-            out.shapes
-                .iter()
-                .filter_map(|clipped| match &clipped.shape {
-                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
-                    _ => None,
-                })
-                .collect::<Vec<String>>()
+            painted_texts(&out)
         };
 
         // Before anything is hashed: the empty state, in English, exactly as it painted before.
         let english = paint(&ctx, &mut state, &mut engine, &mut thumbs);
-        assert!(english.iter().any(|text| text == "Find similar photos"), "{english:?}");
-        assert!(english.iter().any(|text| text == "No groups yet"), "{english:?}");
-        assert!(
-            english.iter().any(|text| text == "Hash the library to find bursts and re-edits."),
-            "{english:?}"
+        assert_painted(
+            &english,
+            &[
+                "Find similar photos",
+                "No groups yet",
+                "Hash the library to find bursts and re-edits.",
+            ],
         );
 
         // Hash the four photos: the three copies form a group, and the view's chrome is English.
@@ -12451,40 +12490,59 @@ mod tests {
         }
         assert!(!engine.similar_groups().is_empty(), "the copies form a group");
         let english_groups = paint(&ctx, &mut state, &mut engine, &mut thumbs);
-        assert!(english_groups.iter().any(|text| text == "Match"), "{english_groups:?}");
-        assert!(english_groups.iter().any(|text| text == "3 photos"), "{english_groups:?}");
-        assert!(
-            english_groups.iter().any(|text| text == "Select all but the best"),
-            "{english_groups:?}"
-        );
-        assert!(
-            english_groups.iter().any(|text| text == "Select leftovers in every group (2)"),
-            "{english_groups:?}"
+        assert_painted(
+            &english_groups,
+            &[
+                "Match",
+                "Structure",
+                "Colour",
+                "Either",
+                "Same layout and the same palette — the safe default.",
+                "3 photos",
+                "Select all but the best",
+                "Select leftovers in every group (2)",
+            ],
         );
 
         crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
         let japanese = paint(&ctx, &mut state, &mut engine, &mut thumbs);
-        assert!(japanese.iter().any(|text| text == "似た写真を探す"), "{japanese:?}");
-        assert!(japanese.iter().any(|text| text == "一致基準"), "{japanese:?}");
-        assert!(japanese.iter().any(|text| text == "最良以外をすべて選択"), "{japanese:?}");
-        assert!(
-            japanese.iter().any(|text| text == "各グループの余りを選択 (2)"),
-            "the count is the catalogue's template and the language's own words: {japanese:?}"
+        assert_painted(
+            &japanese,
+            &[
+                "似た写真を探す",
+                "一致基準",
+                "最良以外をすべて選択",
+                "各グループの余りを選択 (2)",
+                "写真 3 枚",
+                "構図",
+                "どちらでも",
+                "同じ構図と同じ配色 — 安全な既定値です。",
+            ],
         );
-        assert!(japanese.iter().any(|text| text == "写真 3 枚"), "{japanese:?}");
+        const ENGLISH_CHROME: [&str; 8] = [
+            "Find similar photos",
+            "Match",
+            "No groups yet",
+            "Select all but the best",
+            "Select leftovers in every group (2)",
+            "Structure",
+            "Colour",
+            "Either",
+        ];
         assert!(
-            !japanese.iter().any(|text| text == "Find similar photos"
-                || text == "Match"
-                || text == "No groups yet"
-                || text == "Select all but the best"
-                || text == "Select leftovers in every group (2)"),
+            !japanese.iter().any(|text| ENGLISH_CHROME.contains(&text.as_str())),
             "the view leaves no English chrome behind: {japanese:?}"
+        );
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Same layout and the same palette — the safe default."),
+            "the default mode's English hint is not painted: {japanese:?}"
         );
 
         crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
         let arabic = paint(&ctx, &mut state, &mut engine, &mut thumbs);
-        assert!(arabic.iter().any(|text| text == "ابحث عن صور مشابهة"), "{arabic:?}");
-        assert!(arabic.iter().any(|text| text == "المطابقة"), "{arabic:?}");
+        assert_painted(&arabic, &["ابحث عن صور مشابهة", "المطابقة", "البنية", "أيّهما"]);
         assert!(
             arabic.iter().any(|text| text.contains('٣') && text.contains("صور")),
             "the group's count is written in the language's own digits: {arabic:?}"
@@ -12493,6 +12551,51 @@ mod tests {
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every mode's word and hint are the similar crate's own pieces: the shell's literal and the
+    /// engine's English sentence cannot drift, and no mode can borrow another's sentence (SL-L07).
+    /// It fails the moment a label is retyped in the shell or a mode is added without a row.
+    #[test]
+    fn every_similar_mode_translates_the_engines_own_piece() {
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for mode in sortlens_engine::SimilarMatch::ALL {
+            assert_eq!(similar_mode_word(mode.word()), mode.label(), "the word for {mode:?}");
+            assert_eq!(similar_mode_hint(mode.sense()), mode.hint(), "the hint for {mode:?}");
+        }
+        let words: Vec<&str> = sortlens_engine::SimilarMatch::ALL
+            .iter()
+            .map(|m| similar_mode_word(m.word()))
+            .collect();
+        let mut unique = words.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        assert_eq!(unique.len(), words.len(), "two modes answer the same word: {words:?}");
+        let hints: Vec<&str> = sortlens_engine::SimilarMatch::ALL
+            .iter()
+            .map(|m| similar_mode_hint(m.sense()))
+            .collect();
+        let mut unique_hints = hints.clone();
+        unique_hints.sort_unstable();
+        unique_hints.dedup();
+        assert_eq!(
+            unique_hints.len(),
+            hints.len(),
+            "two modes explain themselves the same way: {hints:?}"
+        );
+
+        // A catalogue row is what makes this a translation rather than the English fallback.
+        for (code, expected) in [("ja", "構図"), ("ar", "البنية")] {
+            crate::i18n::set_current(crate::i18n::from_code(code).expect("offered"));
+            let structure = similar_mode_word(sortlens_engine::SimilarWord::Structure);
+            assert_eq!(structure, expected, "{code} names the default mode");
+            assert_ne!(
+                similar_mode_hint(sortlens_engine::SimilarSense::SafeDefault),
+                sortlens_engine::SimilarSense::SafeDefault.en(),
+                "{code} translates the hint rather than falling back to English"
+            );
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// The overlay's two phases, and what reduced motion does to them.

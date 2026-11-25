@@ -623,3 +623,8 @@
 	keeping {keep}	الإبقاء على {keep}
 	best	الأفضل
 	Removed keyword {tag}	أُزيلت الكلمة المفتاحية {tag}
+	Structure	البنية
+	Either	أيّهما
+	Same layout and the same palette — the safe default.	التخطيط نفسه ولوحة الألوان نفسها — الخيار الافتراضي الآمن.
+	Same palette anywhere in the frame, whatever the layout.	لوحة الألوان نفسها في أي مكان من الإطار، أيًّا كان التخطيط.
+	Structure or palette; the widest net, more false pairs.	البنية أو لوحة الألوان؛ أوسع شبكة، وأزواج خاطئة أكثر.

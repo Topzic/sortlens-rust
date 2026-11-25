@@ -921,6 +921,10 @@ and none of M9 is closed until the remaining rows are ticked.
   line, `Match`, the strictness and palette sliders, the leftover/delete/clear row, both empty-state lines, the
   group headers and every select-all hover are catalogue rows, and their counts are templates — so a Japanese
   group reads `写真 3 枚` with `各グループの余りを選択 (2)`, and an Arabic one writes `٣ صور`.
+  Its mode picker followed the next day (ninety-seventh entry): `Structure`/`Colour`/`Either` and their three
+  hint sentences come from `sortlens-similar`'s own `MatchWord`/`MatchSense` pieces — the enum its English
+  `label`/`hint` are built from — so a language names the mode without the shell retyping the sentence, and
+  `every_similar_mode_translates_the_engines_own_piece` fails if a literal drifts from the crate's.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
