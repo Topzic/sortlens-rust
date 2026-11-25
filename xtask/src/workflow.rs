@@ -4,8 +4,11 @@
 //! `cargo xtask workflows` checks facts a workflow has one right answer about: every gate command
 //! is run by a step that can still fail, the workflow that promises them is triggered by a pull
 //! request, the intake that reads a filed report runs on issues only, may label them and nothing
-//! else, and never reaches a secret, and the release builds the phone's APK while `publish` runs
-//! only on a tag. It also holds `docs/AUTONOMOUS_AGENT.md` to the rules it is the only copy of,
+//! else, and never reaches a secret, and the release builds the phone's APK, hands that build the
+//! keystore `cargo apk` signs with, verifies the signature, uploads one glob per line (the action
+//! splits `path` on newlines, so two globs on a line upload nothing and pass) while `publish` runs
+//! only on a tag and downloads what it attaches. It also holds `docs/AUTONOMOUS_AGENT.md` to the
+//! rules it is the only copy of,
 //! because a playbook that quietly lost "never push to `main`" is a permission slip nobody notices
 //! was removed.
 //!

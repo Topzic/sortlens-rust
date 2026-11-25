@@ -4708,6 +4708,52 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Next.** Re-dispatch the release workflow; `verify` and the desktop matrix were already past `android`
   when it failed, so the APK job is the only leg unproven.
 
+## 2026-11-25 (seventy-third) — the release signs the APK it builds and uploads what it packages
+
+- **Why this came up.** The seventy-second entry fixed the compile the first dispatch run (45513471896)
+  stopped at, and left the APK leg "unproven" with a note to re-dispatch. The re-dispatch (45519830389)
+  came back with two failures that no local gate could see, and they were different in kind: the APK
+  build reached the last step and stopped there, while the three desktop jobs passed and attached
+  nothing at all.
+- **A release build of the APK refuses to sign without a key.** `cargo apk build --release` aligns the
+  APK and signs it with `apksigner` itself, and stops with `Configure a release keystore via
+  `[package.metadata.android.signing.release]`` when it has none — which is the state a public repo is
+  in on purpose. cargo-apk 0.10 reads `CARGO_APK_RELEASE_KEYSTORE` and its `_PASSWORD` before the
+  manifest (checked in the crate's own `src/apk.rs`), so the android job now generates a keystore for
+  the run, names it to `cargo apk`, and lets cargo-apk align and sign. The old `zipalign` + `apksigner`
+  pair is gone: it ran after a build that never produced an APK, and re-aligning a signed APK is the
+  one way to lose a signature that was already correct.
+- **The three desktop jobs uploaded nothing and passed.** `path: dist/*.tar.gz* dist/*.zip*` was read by
+  `upload-artifact` as one newline-separated list — so as one glob with a space in it, which matches no
+  file. The step warned, the action default (`if-no-files-found: warn`) kept the job green, and the run
+  ended with zero artifacts: a `publish` on a tag would have had nothing to checksum or attach. Both
+  upload steps now carry one glob per line.
+- **The checker could not have caught either.** `cargo xtask workflows` now refuses an APK build whose
+  step is not given `CARGO_APK_RELEASE_KEYSTORE=`, a release with no `keytool -genkeypair` and no
+  `apksigner verify`, an `upload-artifact` whose `path` line holds more than one glob, and a `publish`
+  that never downloads the built artefacts — four rules, four fixtures, plus the shipped file.
+- **Verified on the run itself** (45527734155, commit `09cd112`): every job green, `publish` skipped as
+  designed on a dispatch; the log says `Verifying alignment of .../target/release/apk/sortlens-mobile.apk
+  (4)`, `Signing ... with keystore /home/runner/work/_temp/sortlens.keystore`, and `apksigner verify
+  --print-certs` printed `Signer #1 certificate DN: CN=Sortlens` with SHA-256 `61be0349ac75…`. Four
+  artifacts exist where there were none: `android-apk` 71.3 MiB, `x86_64-unknown-linux-gnu` 138.3 MiB,
+  `x86_64-pc-windows-msvc` 33.9 MiB, `aarch64-apple-darwin` 35.7 MiB.
+- **Files.** `.github/workflows/release.yml` (the keystore step, the two variables, the verify step, one
+  glob per line, a header that says why); `xtask/src/workflow.rs` (four rules, the module doc, the
+  fixture and four tests); `docs/RELEASE.md` (what a release run signs with and why the archive step
+  uploads one glob per line); `docs/ROADMAP.md` (the 3b bullet rewritten around the two bugs and the
+  verified run).
+- **Tests.** `cargo test -p xtask workflow` (16 pass): `a_release_that_puts_two_globs_on_one_upload_line_
+  `is_refused`, `a_release_that_builds_the_apk_without_a_keystore_is_refused`,
+  `a_publish_that_downloads_nothing_is_refused`, and the three older release tests still refuse an
+  unattached APK, an ungated `publish` and a release with no `cargo apk build`. `cargo xtask ci` green
+  through every gate, `cargo xtask workflows` included.
+- **Next.** The `publish` job has still never run: it needs a `v*` tag, and a release is a decision a
+  person makes. Everything above it — `verify`, the four builds, the signing, the artifact upload — is
+  now proven by a real run. Phase 4 item 3b keeps its named unblockers: a device build, the iOS Photos
+  library, an `.ipa` (Apple identity), an AAB (Play tooling), and a release key the owner can add so one
+  APK updates another in place.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test

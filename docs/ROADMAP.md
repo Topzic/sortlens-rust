@@ -1517,19 +1517,26 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     the filtered build's generated table carries the five faces the filter keeps and not the
     Hangul one. Tests: manifest parsing, selection, the typo refusal, the coverage validation, the
     phone script set's definition, and a filtered build naming every shipped script.
-  - **The APK in the release workflow shipped 2026-11-24.** A release run (a `v*` tag, or a manual
-    dispatch that stops before `publish`) builds `sortlens-mobile` into an APK on the `aarch64-linux-android`
-    target with `cargo apk build --release` — the crate's own `package.metadata.android` is the
-    specification cargo-apk reads, so a manifest change and the package cannot disagree — zipaligns and
-    signs it with a keystore generated for the run (a sideloaded APK needs no signing identity; a key
-    that lets one release update another in place is a release secret the owner can add), verifies the
-    signature, and attaches it beside the desktop archives, with a checksum from the same one-runner
-    step as every other artefact. The workflow is written in the block style `cargo xtask workflows`
-    reads, which now checks the release file the way it checks `ci.yml` and the intake: a release
-    without a `cargo apk build` step, a `publish` not gated on a tag, checksums or an attachment that
-    leave the APK out, are all refused with tests (the same checker also refuses a flow list, which
-    caught `needs: [build, android]`, and fixed a `verify` job that had never run and was missing the
-    Linux windowing headers `cargo xtask ci` needs on Ubuntu).
+  - **The APK in the release workflow shipped and is proven by a real run 2026-11-25.** A release run (a
+    `v*` tag, or a manual dispatch that stops before `publish`) builds `sortlens-mobile` into an APK on
+    the `aarch64-linux-android` target with `cargo apk build --release` — the crate's own
+    `package.metadata.android` is the specification cargo-apk reads, so a manifest change and the package
+    cannot disagree. `cargo apk` aligns and signs it with a per-run keystore, named to it through
+    `CARGO_APK_RELEASE_KEYSTORE`/`_PASSWORD` (a release build refuses to sign without them), and the
+    workflow then proves the signature with `apksigner verify` before attaching the file beside the
+    desktop archives. A sideloaded APK needs no signing identity; a key that lets one release update
+    another in place is a release secret the owner can add. Two failures the first dispatches found are
+    now rules `cargo xtask workflows` enforces with tests: a build step with no keystore variable (the
+    APK job stopped at `cargo apk`'s last step), and an `upload-artifact` `path` holding two globs on one
+    line (the action splits `path` on newlines, so all three desktop jobs uploaded nothing, warned, and
+    passed — a tag run would have attached nothing). Run 45527734155 (commit `09cd112`) is green through
+    every job, `publish` skipped as designed, the log shows `Signing ... with keystore` and
+    `Signer #1 certificate DN: CN=Sortlens` (SHA-256 `61be0349…`), and four artifacts exist where there
+    were none: `android-apk` 71.3 MiB and one archive per desktop target. The checker also refuses a
+    `publish` that never downloads what it attaches (the same `publish` step order the bug crossed), a
+    release with no `apksigner verify`, and a flow list — which caught `needs: [build, android]`, and
+    fixed a `verify` job that had never run and was missing the Linux windowing headers `cargo xtask ci`
+    needs on Ubuntu. The `publish` job itself still waits for a tag, which is a person's decision.
   - **The APK leg compiles: the phone's trash is a folder move (2026-11-24, the same day).** The first
     release-workflow run caught what a `cargo check` never links into view: the `trash` crate does not
     compile for `aarch64-linux-android` (no freedesktop trash there). `Mode::Trash` on Android and iOS
