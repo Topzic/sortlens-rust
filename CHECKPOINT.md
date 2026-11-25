@@ -1,5 +1,44 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twentieth) — the lavapipe set adopts the counts' own paint, and the trunk goes green on the RTL canvas
+
+- **Why this came up.** `CI` on `main` was red on `d4469ab` (run `45652802395`) with exactly one failing job,
+  `screenshots`: `the_arabic_interface_paints_right_to_left_in_both_themes` reported both of its scenes
+  differing, `lavapipe/rtl-library-charcoal` by 293 pixels and `lavapipe/rtl-library-paper` by 284. The
+  hundred-and-nineteenth entry repainted the *reference* `rtl-library-*` frames and left the adapter's set at
+  the paint from before its count change. The other seven jobs — `ci` on Windows, Ubuntu and macOS, `deny`,
+  `snapshot` and both `mobile` legs — were green in this run, so `screenshots` was the only red job. A red trunk
+  is the tick's slice, not a new roadmap row.
+- **One artifact, two frames.** `gh run download 45652802395 -n screenshot-set -D .ci-shots` wrote exactly
+  `lavapipe/rtl-library-{charcoal,paper}.new.png` and nothing else, so the only scenes that differ are the two the
+  count change repainted, and only under Mesa. `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots
+  --adopt .ci-shots` copied them into `crates/ui/tests/snapshots/lavapipe/`; each adopted file hashes
+  byte-identical to the artifact's frame (`16820c15…`, `8a490eb0…`), so the committed baseline is the paint the
+  comparing run reported and not a second paint from this machine.
+- **The diff is the adapter's colour, not the layout.** `661526→661372` and `664312→664139` bytes; both frames
+  were opened at 1440×900 and carry the hundred-and-nineteenth entry's fix intact — the header reads `١٢ صور`,
+  the strip's right-hand column `١٢ معروضة`, both in Arabic-Indic digits, and no English count survives. What
+  they still paint in English is the next slice: `Added order`, `1 active`, `All Photos`, `Photos`,
+  `No Selection`, `+ New collection`.
+- **Verified, step by step.** `cargo xtask fmt` and `cargo xtask clippy` each exit 0; `cargo test --workspace`
+  written to a file exits 0 with every binary and doc-test `ok`; the ten post-test checks (`layers`, `roots`,
+  `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`) each report `ok`. The
+  aggregate `cargo xtask ci 2>&1` in a background job settled exit 1 with its capture ending mid doc-tests and no
+  failing assertion in it — the same harness artefact the hundred-and-eighteenth entry recorded — which is why
+  the gate is recorded as its steps rather than once. `cargo xtask screenshots` (29 scenes, the default set,
+  untouched by this commit), `cargo xtask snapshot` (5 pass) and `cargo xtask deny` (advisories, bans, licenses,
+  sources) green.
+- **Files.** `crates/ui/tests/snapshots/lavapipe/rtl-library-{charcoal,paper}.png`; this file. No `docs/ROADMAP.md`
+  row moves: the adoption repaints a baseline rather than shipping a row. No release workflow dispatched — two
+  baselines and this file touch no workflow, `apps/**`, a `Cargo.toml` or release code.
+- **Not verified by hand**: the frames were read and nothing past them — nobody has driven the Arabic shell with
+  a mouse.
+- **Next.** SL-L07's open canvas chrome, smallest first: the header's sort value (`Added order`, `Sort::label()`
+  from `sortlens-catalog`), then the filter strip's chips (`All`, `Picks`, `Rated`, `Missing`, `Rejects`,
+  `All kinds`, `Source`, `Edited`, `Clear`), then the top bar's `Library`, `Photos` and `New collection`. Every
+  one needs a frame, so extend a headless `run_ui` assertion and repaint the two `rtl-library-*` scenes in both
+  the default and the `lavapipe` sets — and read the `CI` run for that commit before starting the row after it,
+  since a repainted baseline is only proven on the runner. No release run is in flight.
 ## 2026-11-26 (hundred-and-nineteenth) — the canvas's two counts read the interface language
 
 - **Why this came up.** The hundred-and-eighteenth entry's Next named the SL-L07 row's open canvas
