@@ -1,5 +1,40 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-second) — the lavapipe set adopts the sort value's paint, and the trunk goes green
+
+- **Why this came up.** `CI` on `main` was red on `0d68218` (run `45662554285`) with exactly one failing job,
+  `screenshots`: `the_arabic_interface_paints_right_to_left_in_both_themes` reported both of its scenes differing,
+  `lavapipe/rtl-library-{charcoal,paper}`. The hundred-and-twenty-first entry repainted the *reference*
+  `rtl-library-*` frames and left the adapter's set at the paint from before the sort value changed. The other
+  seven jobs — `ci` on Windows, Ubuntu and macOS, `deny`, `snapshot` and both `mobile` legs — were green, so
+  `screenshots` was the only red job and a red trunk is the tick's slice rather than a new roadmap row.
+- **One artifact, two frames.** `gh run download 45662554285 -n screenshot-set -D /tmp/sl-lava` wrote exactly
+  `lavapipe/rtl-library-{charcoal,paper}.new.png` and nothing else. `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask
+  screenshots --adopt /tmp/sl-lava` copied them into `crates/ui/tests/snapshots/lavapipe/`; each adopted file
+  hashes byte-identical to the artifact's frame (`4d5c69d6…`, `32bedf58…`), so the committed baseline is the
+  paint the comparing run reported and not a second paint from this machine.
+- **The diff is the sort value.** `661372→661658` and `664139→664409` bytes. Both frames were opened at
+  1440×900: the canvas header now reads `ترتيب الإضافة` where it painted `Added order`, the count still reads
+  `١٢ صور` and the strip `١٢ معروضة`, and nothing else in either frame moved.
+- **What is still English is the next slice.** `Photos`, `1 active`, `All Photos`, the filter chips
+  (`+ keyword`, `Rating`, `Flags`, `اللون`, `All kinds`, `Source`, `Edited`, `Missing`, `Clear`),
+  `No Selection` and `+ New collection` — the hundred-and-twenty-first entry's list, unchanged.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, clippy, the workspace suite, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` (5 pass) and
+  `cargo xtask deny` (advisories, bans, licenses, sources all ok; run with `CARGO_HOME=/tmp/sortlens-cargo-deny`
+  because cargo-deny cannot read the advisory database under `.toolchain/` on this non-native volume). No
+  `cargo xtask screenshots` run of the default set: no code changed, the two adopted baselines live in the
+  adapter set only, and 22 of the 29 default-set scenes are red on this machine for the pre-existing
+  rasteriser difference the hundred-and-twenty-first entry recorded. No release workflow was dispatched: two
+  baselines and this file touch no workflow, `apps/**`, a `Cargo.toml` or release code.
+- **Not verified by hand**: the frames were read and nothing past them; the combo's open menu in Arabic is
+  still unclicked.
+- **Next.** SL-L07's open canvas chrome, smallest first: the filter strip's chips (`All`, `Picks`, `Rated`,
+  `Missing`, `Rejects`, `All kinds`, `Source`, `Edited`, `Clear`), then the top bar's `Library`, `Photos`
+  and `New collection`, then the canvas head's remaining `Photos` and `1 active`. Every one needs a frame, so
+  extend a headless `run_ui` assertion, repaint the two `rtl-library-*` scenes with `UPDATE_SNAPSHOTS=1` on
+  that one test, and adopt the `lavapipe` pair from this commit's `CI` artifact. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-twenty-first) — the canvas header's sort value reads in the interface language
 
 - **Why this came up.** The hundred-and-twentieth entry's Next named SL-L07's open canvas chrome,
