@@ -1,5 +1,47 @@
 # Checkpoint
 
+## 2026-11-26 (ninetieth) — the Suggestions panel names its sources and confidences in your language, from the AI crate's own piece
+
+- **Why this came up.** The eighty-ninth entry's "Next" named Suggested keywords as the last routed
+  surface on the row: the right-panel tab, the inspector's `Suggested` row and the whole-library
+  dialog painted `detector`/`camera`/`pack`/`caption`, the family headings and every count as English
+  literals under already-translated headers, so a Japanese screen could not read a proposal.
+- **`sortlens-ai` hands back the line's pieces.** `Suggestion::line_kind` returns a `SuggestionLine`
+  (the keyword, the `Source` and the confidence as a percentage), and `Suggestion::line` — the English
+  the panel and the report print — is exactly that piece's `english()`, pinned for all four sources by
+  `the_line_is_joined_from_its_piece`, so a translated row cannot name a source or score the English
+  sentence does not.
+- **The sources and families are looked up, not copied.** `source_word` and `family_word` read
+  `Source::label` and `SuggestKind::label` as catalogue keys at paint time (the keymap table's rule):
+  the four source words and `Objects`/`Scene`/`EXIF` now have Japanese and Arabic rows, and
+  `every_source_word_and_family_heading_is_the_catalogues` reads every one out of both catalogues so a
+  source the pipeline adds later cannot arrive with a word only English has.
+- **The surfaces are routed end to end.** The suggestions tab's hint, empty state, explanation,
+  `{proposals} for {photos}` count (each count worded by its own `{n}` template so English keeps its
+  plural), the family headers, `Accept all` and its hover, every row's percent/source/partial count,
+  the accept and dismiss toasts and hovers; the inspector's `Suggested` label and hover; and the
+  whole-library dialog's title, progress line, `Stop`, `Suggest for the whole library`, `Clear`,
+  explanation, empty state, `{n} photo(s) with something to suggest` line and per-row hover. 32 new
+  rows in each catalogue (`Stop` and `{done} of {total}` already existed). Confidences go through
+  `format_count`, so Arabic writes `٨٧%` where English writes `87%`.
+- **Tests.** `a_proposals_percentage_and_provenance_speak_the_interface_language` pins the hover and the
+  digits in all three languages; `the_suggestions_tab_speaks_the_interface_language` paints the real
+  right-panel tab at 360×600 in English, Japanese and Arabic and fails if the English hint is left
+  behind; the catalogue audit demanded rows for the new `tl!`/`fmt` keys and caught the three Arabic
+  rows this slice first forgot.
+- **Files.** `crates/ai/src/suggest.rs` (`SuggestionLine`, `line_kind`, one test),
+  `crates/ui/src/shell.rs` (`family_word`, `source_word`, `suggestion_percent`, `suggestion_hover`,
+  the tab, the inspector row and the dialog, two tests), `crates/ui/src/i18n/ja.tsv` and `ar.tsv`
+  (32 rows each), `docs/ROADMAP.md` (Phase 4 item 2d), `docs/ARCHITECTURE.md` (8.4), `docs/UX.md` and
+  `docs/FEATURES.md` (SL-L07).
+- **Verified.** `cargo fmt --all`; `cargo xtask ci` green (the first run failed on `fmt --check` and was
+  re-run after formatting); `snapshot`, `deny` and `screenshots` green (27 scenes against the committed
+  baselines, none moved — no scene paints a non-English suggestions panel). No release workflow
+  dispatched: this slice touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** The last open surface on the i18n row is `craft-keymap`'s editor chrome, which lives in the
+  dependency and stays English until it offers its own keys; the remaining four languages and the RTL
+  screenshots still wait for a translation pass and an Arabic-capable font build.
+
 ## 2026-11-26 (eighty-ninth) — the Activity tab's job rows are the engine's pieces, in the reader's digits
 
 - **Why this came up.** The eighty-eighth entry's "Next" named the sentences the engine composes for

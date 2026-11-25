@@ -663,8 +663,11 @@ re-checks its own contrast pairs after applying.
   title, headings, notes, count lines and all forty-four action rows) joined them the same day.
   The Activity tab joined them last: each job's kind and state are catalogue words, its detail line
   is worded from `sortlens-engine`'s own `JobDetail` with both counters as placeholders, and the
-  empty hint and stats rows are catalogued. Still English by omission: Suggested keywords and the
-  craft-keymap editor's own chrome.
+  empty hint and stats rows are catalogued. The Suggestions panel took the same route: its source
+  words (`detector`, `camera`, `pack`, `caption`), family headings and confidence are `sortlens-ai`'s
+  `SuggestionLine` worded through the catalogues, so the right-panel tab, the inspector's Suggested
+  row and the whole-library `Suggested keywords` dialog all read in the chosen language. Still
+  English by omission: the craft-keymap editor's own chrome.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

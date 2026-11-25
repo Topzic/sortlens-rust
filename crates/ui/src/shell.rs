@@ -197,6 +197,35 @@ impl SuggestKind {
     }
 }
 
+/// A family's heading in the reader's language. The English label is the catalogue key, as the
+/// shortcut table's rows are, so a new source cannot arrive with a heading no language has.
+fn family_word(kind: SuggestKind) -> &'static str {
+    tl!(kind.label())
+}
+
+/// A source's word in the reader's language. `Source::label` stays the English source of truth —
+/// it is also the report's and the JSON's word — and the catalogue row is looked up by it.
+fn source_word(source: sortlens_engine::SuggestionSource) -> &'static str {
+    tl!(source.label())
+}
+
+/// A confidence as a percentage in the reader's own digits.
+fn suggestion_percent(percent: f32) -> String {
+    format!("{}%", format_count(percent.round() as u64))
+}
+
+/// A proposal's provenance in the reader's language: which source offered it and how sure it was.
+fn suggestion_hover(tag: &str, source: sortlens_engine::SuggestionSource, percent: f32) -> String {
+    crate::i18n::fmt(
+        "{tag} · {percent} from {source}",
+        &[
+            ("tag", tag),
+            ("percent", &suggestion_percent(percent)),
+            ("source", source_word(source)),
+        ],
+    )
+}
+
 /// A request from the shell to the host.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
@@ -3528,7 +3557,7 @@ struct Proposal {
 fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     let ids = state.selection.ids();
     if ids.is_empty() {
-        hint(ui, t, "Select a photo to see what its own file and the keyword packs propose.");
+        hint(ui, t, tl!("Select a photo to see what its own file and the keyword packs propose."));
         return;
     }
 
@@ -3558,23 +3587,33 @@ fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     }
 
     if merged.is_empty() {
-        hint(ui, t, "Nothing to propose for this selection.");
+        hint(ui, t, tl!("Nothing to propose for this selection."));
         ui.add_space(4.0);
         ui.label(
-            RichText::new("Proposals come from each file's own EXIF and from the keyword packs that are switched on.")
-                .size(10.0)
-                .color(t.text_faint),
+            RichText::new(tl!(
+                "Proposals come from each file's own EXIF and from the keyword packs that are switched on."
+            ))
+            .size(10.0)
+            .color(t.text_faint),
         );
         return;
     }
 
+    // The two counts are worded separately so each language keeps its own plural and digits.
+    let proposals = if merged.len() == 1 {
+        crate::i18n::fmt("{n} proposal", &[("n", &format_count(merged.len() as u64))])
+    } else {
+        crate::i18n::fmt("{n} proposals", &[("n", &format_count(merged.len() as u64))])
+    };
+    let photos = if ids.len() == 1 {
+        crate::i18n::fmt("{n} photo", &[("n", &format_count(ids.len() as u64))])
+    } else {
+        crate::i18n::fmt("{n} photos", &[("n", &format_count(ids.len() as u64))])
+    };
     ui.label(
-        RichText::new(format!(
-            "{} proposal{} for {} photo{}",
-            merged.len(),
-            if merged.len() == 1 { "" } else { "s" },
-            ids.len(),
-            if ids.len() == 1 { "" } else { "s" }
+        RichText::new(crate::i18n::fmt(
+            "{proposals} for {photos}",
+            &[("proposals", &proposals), ("photos", &photos)],
         ))
         .size(10.5)
         .color(t.text_faint),
@@ -3587,21 +3626,21 @@ fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         }
         ui.add_space(7.0);
         ui.horizontal(|ui| {
-            ui.label(RichText::new(kind.label()).size(10.5).strong().color(t.text_muted));
-            ui.label(RichText::new(format!("{}", family.len())).size(10.0).color(t.text_faint));
+            ui.label(RichText::new(family_word(kind)).size(10.5).strong().color(t.text_muted));
+            ui.label(RichText::new(format_count(family.len() as u64)).size(10.0).color(t.text_faint));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let all: Vec<String> = family.iter().map(|proposal| proposal.tag.clone()).collect();
                 if ui
-                    .add(Button::new(RichText::new("Accept all").size(10.0)).frame(false))
-                    .on_hover_text(format!(
-                        "Add every {} proposal as a keyword, as one undo",
-                        kind.label().to_lowercase()
-                    ))
+                    .add(Button::new(RichText::new(tl!("Accept all")).size(10.0)).frame(false))
+                    .on_hover_text(tl!("Add every proposal in this family as a keyword, as one undo"))
                     .clicked()
                 {
                     match engine.accept_suggestions(&ids, &all) {
-                        Ok(0) => state.notice("Those keywords are already on every selected photo"),
-                        Ok(count) => state.notice(format!("Added {count} keyword(s) — one undo takes them back")),
+                        Ok(0) => state.notice(tl!("Those keywords are already on every selected photo")),
+                        Ok(count) => state.notice(crate::i18n::fmt(
+                            "Added {n} keyword(s) — one undo takes them back",
+                            &[("n", &format_count(count as u64))],
+                        )),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
@@ -3610,50 +3649,63 @@ fn suggestions_tab(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
 
         for proposal in family {
             ui.horizontal(|ui| {
+                let mut hover = suggestion_hover(&proposal.tag, proposal.source, proposal.score * 100.0);
+                if proposal.photos < ids.len() {
+                    hover.push_str(&crate::i18n::fmt(
+                        " · on {photos} of the {selected} selected photos",
+                        &[
+                            ("photos", &format_count(proposal.photos as u64)),
+                            ("selected", &format_count(ids.len() as u64)),
+                        ],
+                    ));
+                }
                 let accept = ui
                     .add(Button::new(RichText::new(format!("+ {}", proposal.tag)).size(11.0)).fill(t.card))
-                    .on_hover_text(format!(
-                        "{} · {:.0}% from {}{}",
-                        proposal.tag,
-                        proposal.score * 100.0,
-                        proposal.source.label(),
-                        if proposal.photos < ids.len() {
-                            format!(" · on {} of the {} selected photos", proposal.photos, ids.len())
-                        } else {
-                            String::new()
-                        }
-                    ));
+                    .on_hover_text(hover);
                 ui.label(
-                    RichText::new(format!("{:.0}%", proposal.score * 100.0))
+                    RichText::new(suggestion_percent(proposal.score * 100.0))
                         .size(10.0)
                         .color(t.text_faint),
                 );
-                ui.label(RichText::new(proposal.source.label()).size(10.0).color(t.text_faint));
+                ui.label(RichText::new(source_word(proposal.source)).size(10.0).color(t.text_faint));
                 // The count is printed only when the proposal does not cover the whole selection: "3×" beside every
                 // row of a three-photo selection is noise, and a bare row would hide that it is partial.
                 if proposal.photos < ids.len() {
-                    ui.label(RichText::new(format!("{}×", proposal.photos)).size(10.0).color(t.text_faint));
+                    ui.label(
+                        RichText::new(format!("{}×", format_count(proposal.photos as u64)))
+                            .size(10.0)
+                            .color(t.text_faint),
+                    );
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if ui
                         .add(Button::new(RichText::new("×").size(12.0).color(t.text_muted)).frame(false))
-                        .on_hover_text(format!(
-                            "Don't propose “{}” again for these photos — one undo brings it back",
-                            proposal.tag
+                        .on_hover_text(crate::i18n::fmt(
+                            "Don't propose “{tag}” again for these photos — one undo brings it back",
+                            &[("tag", &proposal.tag)],
                         ))
                         .clicked()
                     {
                         match engine.dismiss_suggestions(&ids, std::slice::from_ref(&proposal.tag)) {
-                            Ok(0) => state.notice(format!("“{}” was already dismissed", proposal.tag)),
-                            Ok(_) => state.notice(format!("Won't propose “{}” again — one undo brings it back", proposal.tag)),
+                            Ok(0) => state.notice(crate::i18n::fmt("“{tag}” was already dismissed", &[("tag", &proposal.tag)])),
+                            Ok(_) => state.notice(crate::i18n::fmt(
+                                "Won't propose “{tag}” again — one undo brings it back",
+                                &[("tag", &proposal.tag)],
+                            )),
                             Err(error) => state.notice_problem(error.to_string()),
                         }
                     }
                 });
                 if accept.clicked() {
                     match engine.accept_suggestions(&ids, std::slice::from_ref(&proposal.tag)) {
-                        Ok(0) => state.notice(format!("“{}” is already on every selected photo", proposal.tag)),
-                        Ok(_) => state.notice(format!("Added “{}” — one undo takes it back", proposal.tag)),
+                        Ok(0) => state.notice(crate::i18n::fmt(
+                            "“{tag}” is already on every selected photo",
+                            &[("tag", &proposal.tag)],
+                        )),
+                        Ok(_) => state.notice(crate::i18n::fmt(
+                            "Added “{tag}” — one undo takes it back",
+                            &[("tag", &proposal.tag)],
+                        )),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
@@ -5933,16 +5985,12 @@ fn suggestions_row(ui: &mut Ui, t: &Tokens, id: PhotoId, suggestions: &[sortlens
         return;
     }
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("Suggested").size(10.0).color(t.text_faint));
+        ui.label(RichText::new(tl!("Suggested")).size(10.0).color(t.text_faint));
         for suggestion in suggestions {
+            let line = suggestion.line_kind();
             let response = ui
                 .add(Button::new(RichText::new(format!("+ {}", suggestion.tag)).size(10.5)).frame(false))
-                .on_hover_text(format!(
-                    "{} · {:.0}% from {}",
-                    suggestion.tag,
-                    suggestion.score * 100.0,
-                    suggestion.source.label()
-                ));
+                .on_hover_text(suggestion_hover(line.tag, line.source, line.percent));
             if response.clicked() {
                 actions.push(Action::AcceptSuggestion(id, suggestion.tag.clone()));
             }
@@ -9881,7 +9929,7 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
 /// reviewed is the thing this panel exists to avoid.
 fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.suggest_open;
-    dialog_window("Suggested keywords")
+    dialog_window(tl!("Suggested keywords"))
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -9892,25 +9940,32 @@ fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                     let share = if total == 0 { 1.0 } else { done as f32 / total as f32 };
                     ui.add(
                         egui::ProgressBar::new(share)
-                            .text(format!("{done} of {total}"))
+                            .text(crate::i18n::fmt(
+                                "{done} of {total}",
+                                &[("done", &format_count(done as u64)), ("total", &format_count(total as u64))],
+                            ))
                             .desired_width(300.0),
                     );
-                    if ui.button(RichText::new("Stop").size(12.0)).clicked() {
+                    if ui.button(RichText::new(tl!("Stop")).size(12.0)).clicked() {
                         actions.push(Action::CancelSuggest);
                     }
-                    ui.label(RichText::new("Nothing is written while this runs.").size(10.5).color(t.text_faint));
+                    ui.label(
+                        RichText::new(tl!("Nothing is written while this runs."))
+                            .size(10.5)
+                            .color(t.text_faint),
+                    );
                 }
                 None => {
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("Suggest for the whole library").size(12.0)).clicked() {
+                        if ui.button(RichText::new(tl!("Suggest for the whole library")).size(12.0)).clicked() {
                             actions.push(Action::StartSuggest);
                         }
-                        if !engine.batch_results().is_empty() && ui.button(RichText::new("Clear").size(12.0)).clicked() {
+                        if !engine.batch_results().is_empty() && ui.button(RichText::new(tl!("Clear")).size(12.0)).clicked() {
                             actions.push(Action::ClearSuggest);
                         }
                     });
                     ui.label(
-                        RichText::new("Uses what each file says about itself and any keyword packs you switched on.")
+                        RichText::new(tl!("Uses what each file says about itself and any keyword packs you switched on."))
                             .size(10.5)
                             .color(t.text_faint),
                     );
@@ -9921,13 +9976,16 @@ fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
 
             let results = engine.batch_results().to_vec();
             if results.is_empty() {
-                ui.label(RichText::new("No proposals yet.").size(11.0).color(t.text_faint));
+                ui.label(RichText::new(tl!("No proposals yet.")).size(11.0).color(t.text_faint));
                 return;
             }
             ui.label(
-                RichText::new(format!("{} photo(s) with something to suggest", results.len()))
-                    .size(11.0)
-                    .color(t.text_muted),
+                RichText::new(crate::i18n::fmt(
+                    "{n} photo(s) with something to suggest",
+                    &[("n", &format_count(results.len() as u64))],
+                ))
+                .size(11.0)
+                .color(t.text_muted),
             );
             egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
                 for (id, suggestions) in results {
@@ -9938,12 +9996,12 @@ fn suggest_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new(name).size(11.0).color(t.text_muted));
                         for suggestion in suggestions {
+                            let line = suggestion.line_kind();
                             let response = ui
                                 .add(Button::new(RichText::new(format!("+ {}", suggestion.tag)).size(10.5)).frame(false))
-                                .on_hover_text(format!(
-                                    "{:.0}% from {} — clicking adds it",
-                                    suggestion.score * 100.0,
-                                    suggestion.source.label()
+                                .on_hover_text(crate::i18n::fmt(
+                                    "{percent} from {source} — clicking adds it",
+                                    &[("percent", &suggestion_percent(line.percent)), ("source", source_word(line.source))],
                                 ));
                             if response.clicked() {
                                 actions.push(Action::AcceptSuggestion(id, suggestion.tag.clone()));
@@ -17082,6 +17140,125 @@ mod tests {
     /// translated; now the engine hands the shell a `JobDetail`, the same piece its own English
     /// is joined from, so the row and the report cannot describe different work — and every
     /// count is the reader's digits.
+    /// Every source word and family heading is looked up by its English label at paint time, so
+    /// both catalogues must carry every one of them: a source the pipeline adds later cannot
+    /// arrive with a word only English has.
+    #[test]
+    fn every_source_word_and_family_heading_is_the_catalogues() {
+        use crate::i18n::from_code;
+        use sortlens_engine::SuggestionSource;
+
+        for (code, sources, families) in [
+            ("ja", ["検出器", "カメラ", "パック", "キャプション"], ["物体", "シーン", "EXIF"]),
+            ("ar", ["كاشف", "كاميرا", "حزمة", "تسمية"], ["أجسام", "مشهد", "EXIF"]),
+        ] {
+            set_current(from_code(code).expect("the language is offered"));
+            let spoken: Vec<&str> = [
+                SuggestionSource::Detector,
+                SuggestionSource::ExifHint,
+                SuggestionSource::Pack,
+                SuggestionSource::Caption,
+            ]
+            .into_iter()
+            .map(source_word)
+            .collect();
+            assert_eq!(spoken, sources, "{code} sources");
+            let headings: Vec<&str> = SuggestKind::ALL.into_iter().map(family_word).collect();
+            assert_eq!(headings, families, "{code} families");
+        }
+        set_current(from_code("en").expect("English is offered"));
+        assert_eq!(source_word(SuggestionSource::Detector), "detector");
+        assert_eq!(family_word(SuggestKind::Objects), "Objects");
+    }
+
+    /// The confidence is a percentage in the reader's digits, and the provenance line is a
+    /// template rather than an English sentence with the pieces pasted into it.
+    #[test]
+    fn a_proposals_percentage_and_provenance_speak_the_interface_language() {
+        use crate::i18n::from_code;
+        use sortlens_engine::SuggestionSource;
+
+        assert_eq!(suggestion_hover("dog", SuggestionSource::Detector, 87.0), "dog · 87% from detector");
+
+        set_current(from_code("ja").expect("Japanese is offered"));
+        assert_eq!(suggestion_percent(87.0), "87%");
+        assert_eq!(suggestion_hover("dog", SuggestionSource::Detector, 87.0), "dog · 検出器 による 87%");
+
+        set_current(from_code("ar").expect("Arabic is offered"));
+        assert_eq!(suggestion_percent(87.0), "٨٧%");
+        let arabic = suggestion_hover("dog", SuggestionSource::ExifHint, 4.0);
+        assert!(arabic.contains("كاميرا"), "{arabic}");
+        assert!(arabic.contains('٤'), "the confidence is in Arabic-Indic digits: {arabic}");
+
+        set_current(from_code("en").expect("English is offered"));
+    }
+
+    /// The Suggestions tab paints the catalogue's words, not English literals behind a translated
+    /// panel header.
+    #[test]
+    fn the_suggestions_tab_speaks_the_interface_language() {
+        use crate::i18n::from_code;
+
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-suggestions-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("library dir");
+        let mut engine = Engine::open(&dir).expect("open");
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.right_tab = RightTab::Suggestions;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut settled = None;
+            for _ in 0..2 {
+                let mut out = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(360.0, 600.0))),
+                        ..egui::RawInput::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            right_panel(ui, state, &tokens, engine);
+                        });
+                    },
+                );
+                out.textures_delta.clear();
+                settled = Some(out);
+            }
+            settled.expect("two frames were painted")
+        };
+
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(
+            label_at(&english, "Select a photo to see what its own file and the keyword packs propose.").is_some(),
+            "the empty tab paints its hint"
+        );
+
+        set_current(from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(
+            label_at(
+                &japanese,
+                "写真を選ぶと、そのファイル自体とキーワードパックが提案する内容を表示します。"
+            )
+            .is_some(),
+            "the hint is the catalogue's"
+        );
+        assert!(
+            label_at(&japanese, "Select a photo to see what its own file and the keyword packs propose.").is_none(),
+            "no English hint behind it"
+        );
+
+        set_current(from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&ctx, &mut state, &mut engine);
+        assert!(
+            label_at(&arabic, "اختر صورة لعرض ما يقترحه ملفها وحزم الكلمات المفتاحية.").is_some(),
+            "the hint is the catalogue's in Arabic too"
+        );
+
+        set_current(from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn the_activity_row_speaks_the_interface_language() {
         let dir = std::env::temp_dir().join(format!("sortlens-ui-activity-i18n-{}", std::process::id()));

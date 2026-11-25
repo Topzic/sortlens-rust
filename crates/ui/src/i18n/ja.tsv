@@ -352,3 +352,38 @@
 	Nothing has run yet. Scans and exports appear here.	まだ何も実行されていません。スキャンと書き出しがここに表示されます。
 	Indexed	登録済み
 	On disk	ディスク上
+	Select a photo to see what its own file and the keyword packs propose.	写真を選ぶと、そのファイル自体とキーワードパックが提案する内容を表示します。
+	Nothing to propose for this selection.	この選択に提案はありません。
+	Proposals come from each file's own EXIF and from the keyword packs that are switched on.	提案は各ファイル自身の EXIF と、有効にしたキーワードパックから作られます。
+	{proposals} for {photos}	{photos} に対して {proposals}
+	{n} proposal	提案 {n} 件
+	{n} proposals	提案 {n} 件
+	{n} photo	写真 {n} 枚
+	{n} photos	写真 {n} 枚
+	Accept all	すべて採用
+	Add every proposal in this family as a keyword, as one undo	この分類の提案をすべてキーワードとして追加（1回で元に戻せます）
+	Those keywords are already on every selected photo	これらのキーワードは選択中のすべての写真に付いています
+	Added {n} keyword(s) — one undo takes them back	キーワードを {n} 件追加しました — 1回の取り消しで戻せます
+	 · on {photos} of the {selected} selected photos	 · 選択中の {selected} 枚のうち {photos} 枚
+	Don't propose “{tag}” again for these photos — one undo brings it back	これらの写真に「{tag}」を再提案しない — 1回の取り消しで戻せます
+	“{tag}” was already dismissed	「{tag}」はすでに却下されています
+	Won't propose “{tag}” again — one undo brings it back	「{tag}」を再提案しません — 1回の取り消しで戻せます
+	“{tag}” is already on every selected photo	「{tag}」は選択中のすべての写真に付いています
+	Added “{tag}” — one undo takes it back	「{tag}」を追加しました — 1回の取り消しで戻せます
+	{tag} · {percent} from {source}	{tag} · {source} による {percent}
+	Suggested	提案
+	Suggested keywords	提案キーワード
+	Clear	クリア
+	Uses what each file says about itself and any keyword packs you switched on.	各ファイル自身の情報と、有効にしたキーワードパックを使います。
+	No proposals yet.	まだ提案はありません。
+	{n} photo(s) with something to suggest	提案のある写真 {n} 枚
+	Objects	物体
+	Scene	シーン
+	EXIF	EXIF
+	detector	検出器
+	camera	カメラ
+	pack	パック
+	caption	キャプション
+	Nothing is written while this runs.	実行中は何も書き込まれません。
+	Suggest for the whole library	ライブラリ全体に提案する
+	{percent} from {source} — clicking adds it	{source} による {percent} — クリックで追加

@@ -601,6 +601,17 @@ hint and the stats rows are `tl!` keys, and a failed job's error stays the error
 reported. English is byte for byte what the row painted before it took a piece, and
 `the_activity_row_speaks_the_interface_language` paints the tab in all three languages.
 
+The Suggestions panel is routed from `sortlens-ai`'s own pieces: `Suggestion::line_kind` returns a
+`SuggestionLine` (the keyword, the `Source`, and the confidence as a percentage) and
+`Suggestion::line` — the English the panel and the report print — is that piece's `english()`, so a
+translated row cannot name a different source or confidence. `source_word` and `family_word` look the
+four source labels (`detector`, `camera`, `pack`, `caption`) and the three family headings up at paint
+time, `suggestion_percent` writes the confidence through `format_count`, and the right-panel tab, the
+Suggested row in the inspector and the whole-library `Suggested keywords` dialog word their counts as
+`fmt` templates. `every_source_word_and_family_heading_is_the_catalogues` reads every one of them out
+of the catalogues, so a source the pipeline adds later cannot arrive with a word only English has, and
+`the_suggestions_tab_speaks_the_interface_language` paints the tab in all three languages.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

@@ -1475,8 +1475,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     piece's `english()`; the shell's `job_detail` words it through `i18n::fmt` with both counters
     and the unreadable count as `format_count` placeholders, the kind and state are looked up by
     their English text, and the empty hint and the Indexed/On disk/Missing rows are `tl!` keys, so
-    `the_activity_row_speaks_the_interface_language` paints the tab in all three. Still open on this
-    row: Suggested keywords (it needs `sortlens-ai`'s own suggestion wording) and the
+    `the_activity_row_speaks_the_interface_language` paints the tab in all three. The Suggestions
+    panel joined them in the next tick (ninetieth entry): `sortlens-ai`'s `Suggestion::line_kind`
+    returns a `SuggestionLine` (keyword, `Source`, percentage) and `line()` is that piece's
+    `english()`, pinned by `the_line_is_joined_from_its_piece`; the four source words and the three
+    family headings are looked up by their English text, the confidence is written through
+    `format_count`, and the right-panel tab, the inspector's Suggested row and the whole-library
+    dialog word their counts as `fmt` templates —
+    `every_source_word_and_family_heading_is_the_catalogues` and
+    `the_suggestions_tab_speaks_the_interface_language` are the guards. Still open on this row: the
     craft-keymap editor's own English chrome.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,

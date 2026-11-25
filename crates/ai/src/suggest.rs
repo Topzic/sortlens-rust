@@ -98,11 +98,42 @@ pub struct Suggestion {
     pub found: Option<Box>,
 }
 
+/// The pieces a suggestion's line is joined from: the keyword, the source that offered it,
+/// and the confidence as a percentage. A panel words these in the reader's language; the
+/// English is one of the many sentences these same pieces can be.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SuggestionLine<'a> {
+    /// The keyword it would add.
+    pub tag: &'a str,
+    /// Which source.
+    pub source: Source,
+    /// The confidence, 0..100.
+    pub percent: f32,
+}
+
+impl SuggestionLine<'_> {
+    /// The English line, exactly the sentence the panel printed before it was translated.
+    #[must_use]
+    pub fn english(&self) -> String {
+        format!("{} · {} {:.0}%", self.tag, self.source.label(), self.percent)
+    }
+}
+
 impl Suggestion {
+    /// The pieces of the panel's line, so a translation can put them in its own order.
+    #[must_use]
+    pub fn line_kind(&self) -> SuggestionLine<'_> {
+        SuggestionLine {
+            tag: &self.tag,
+            source: self.source,
+            percent: self.score * 100.0,
+        }
+    }
+
     /// One line for the panel.
     #[must_use]
     pub fn line(&self) -> String {
-        format!("{} · {} {:.0}%", self.tag, self.source.label(), self.score * 100.0)
+        self.line_kind().english()
     }
 }
 
@@ -331,5 +362,30 @@ mod tests {
         };
         assert_eq!(suggestion.line(), "dog · detector 87%");
         assert_eq!(Source::ExifHint.label(), "camera");
+    }
+
+    /// The line is joined from its pieces for every source, so a panel that reads the pieces
+    /// words the same claim the report's sentence does — and cannot disagree with it.
+    #[test]
+    fn the_line_is_joined_from_its_piece() {
+        let cases = [
+            ("dog", 0.87, Source::Detector, "dog · detector 87%"),
+            ("nikon z6", 0.9, Source::ExifHint, "nikon z6 · camera 90%"),
+            ("beach", 0.5, Source::Pack, "beach · pack 50%"),
+            ("a captioner's words", 0.04, Source::Caption, "a captioner's words · caption 4%"),
+        ];
+        for (tag, score, source, english) in cases {
+            let suggestion = Suggestion {
+                tag: tag.into(),
+                score,
+                source,
+                found: None,
+            };
+            assert_eq!(suggestion.line_kind().tag, tag);
+            assert_eq!(suggestion.line_kind().source, source);
+            assert!((suggestion.line_kind().percent - score * 100.0).abs() < 0.001);
+            assert_eq!(suggestion.line_kind().english(), english, "{tag}");
+            assert_eq!(suggestion.line(), english, "the sentence and its pieces disagree");
+        }
     }
 }

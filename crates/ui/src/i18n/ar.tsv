@@ -352,3 +352,38 @@
 	Nothing has run yet. Scans and exports appear here.	لم يُنفَّذ شيء بعد. تظهر الفحوصات وعمليات التصدير هنا.
 	Indexed	مفهرسة
 	On disk	على القرص
+	Select a photo to see what its own file and the keyword packs propose.	اختر صورة لعرض ما يقترحه ملفها وحزم الكلمات المفتاحية.
+	Nothing to propose for this selection.	لا شيء يُقترح لهذا التحديد.
+	Proposals come from each file's own EXIF and from the keyword packs that are switched on.	تأتي الاقتراحات من بيانات EXIF لكل ملف ومن حزم الكلمات المفتاحية المفعّلة.
+	{proposals} for {photos}	{proposals} لـ {photos}
+	{n} proposal	{n} اقتراح
+	{n} proposals	{n} اقتراحات
+	{n} photo	{n} صورة
+	{n} photos	{n} صور
+	Accept all	قبول الكل
+	Add every proposal in this family as a keyword, as one undo	إضافة كل اقتراح في هذه الفئة ككلمة مفتاحية، بتراجع واحد
+	Those keywords are already on every selected photo	هذه الكلمات المفتاحية موجودة على كل الصور المحددة
+	Added {n} keyword(s) — one undo takes them back	أُضيفت {n} كلمة مفتاحية — تراجع واحد يعيدها
+	 · on {photos} of the {selected} selected photos	 · على {photos} من {selected} صورة محددة
+	Don't propose “{tag}” again for these photos — one undo brings it back	لا تقترح «{tag}» مجددًا لهذه الصور — تراجع واحد يعيدها
+	“{tag}” was already dismissed	«{tag}» مرفوضة سابقًا
+	Won't propose “{tag}” again — one undo brings it back	لن يُقترح «{tag}» مجددًا — تراجع واحد يعيده
+	“{tag}” is already on every selected photo	«{tag}» موجودة على كل الصور المحددة
+	Added “{tag}” — one undo takes it back	أُضيفت «{tag}» — تراجع واحد يعيدها
+	{tag} · {percent} from {source}	{tag} · {percent} من {source}
+	Suggested	مقترحة
+	Suggested keywords	كلمات مفتاحية مقترحة
+	Clear	مسح
+	Uses what each file says about itself and any keyword packs you switched on.	يستخدم ما يقوله كل ملف عن نفسه وأي حزم كلمات مفتاحية فعّلتها.
+	No proposals yet.	لا اقتراحات بعد.
+	{n} photo(s) with something to suggest	{n} صورة فيها ما يُقترح
+	Objects	أجسام
+	Scene	مشهد
+	EXIF	EXIF
+	detector	كاشف
+	camera	كاميرا
+	pack	حزمة
+	caption	تسمية
+	Nothing is written while this runs.	لا يُكتب شيء أثناء التشغيل.
+	Suggest for the whole library	اقترح للمكتبة كلها
+	{percent} from {source} — clicking adds it	{percent} من {source} — انقر للإضافة
