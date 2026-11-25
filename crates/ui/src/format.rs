@@ -39,8 +39,8 @@ pub(crate) enum Order {
 
 /// The styles offered, one per language the picker offers. `en` is the shape the app has always
 /// painted; `ja` is Japan's comma grouping and slash date; `ko` is Korea's comma grouping and
-/// dotted year-first date; `ar` is Egyptian Arabic's Arabic-Indic digits with `٬` grouping, `٫`
-/// decimal and the day first.
+/// dotted year-first date; `th` is Thailand's comma grouping and slash day-first date; `ar` is
+/// Egyptian Arabic's Arabic-Indic digits with `٬` grouping, `٫` decimal and the day first.
 const STYLES: &[Style] = &[
     Style {
         lang: "en",
@@ -73,6 +73,14 @@ const STYLES: &[Style] = &[
         decimal: '.',
         order: Order::YearMonthDay,
         date_sep: '.',
+    },
+    Style {
+        lang: "th",
+        zero: '0',
+        group: Some(','),
+        decimal: '.',
+        order: Order::DayMonthYear,
+        date_sep: '/',
     },
     Style {
         lang: "zh-TW",
@@ -250,6 +258,7 @@ mod tests {
         assert_eq!(count_in(style("en"), 12_408), "12\u{202f}408");
         assert_eq!(count_in(style("ja"), 12_408), "12,408");
         assert_eq!(count_in(style("ko"), 12_408), "12,408");
+        assert_eq!(count_in(style("th"), 12_408), "12,408");
         assert_eq!(count_in(style("zh-TW"), 12_408), "12,408");
         assert_eq!(count_in(style("ar"), 12_408), "١٢٬٤٠٨");
         assert_eq!(count_in(style("ar"), 7), "٧");
@@ -284,6 +293,7 @@ mod tests {
         assert_eq!(date_time_in(style("en"), seconds), "2026-10-03 04:00");
         assert_eq!(date_time_in(style("ja"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ko"), seconds), "2026.10.03 04:00");
+        assert_eq!(date_time_in(style("th"), seconds), "03/10/2026 04:00");
         assert_eq!(date_time_in(style("zh-TW"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦ ٠٤:٠٠");
         // A date on its own is the same day, written the same way, with the time left off.

@@ -10989,6 +10989,19 @@ mod tests {
         assert!(text_rect(&output, "SOURCES").is_none(), "and English is not painted behind it");
         assert!(text_rect(&output, "所有照片").is_none(), "nor Traditional Chinese");
 
+        // Thai, the fifth catalogue: Thai script, written left to right, so the panels keep the
+        // reading start English used, and the sidebar's own words are the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("th").expect("Thai is offered"));
+        assert!(
+            matches!(crate::i18n::resolve_direction(), craft_ui::direction::Direction::Ltr),
+            "Thai runs left to right"
+        );
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(text_rect(&output, "แหล่งที่มา").is_some(), "the sources section reads แหล่งที่มา in Thai");
+        assert!(text_rect(&output, "รูปภาพทั้งหมด").is_some(), "the All Photos row reads รูปภาพทั้งหมด");
+        assert!(text_rect(&output, "SOURCES").is_none(), "and English is not painted behind it");
+        assert!(text_rect(&output, "모든 사진").is_none(), "nor Korean");
+
         // And back: English restores the left edge exactly.
         let mut english = UiState::new(ThemeKind::Charcoal, 0.0);
         english.settings_open = true;

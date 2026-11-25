@@ -1,5 +1,47 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-tenth) — the Thai catalogue ships, and the language row gains ไทย
+
+- **Why this came up.** The hundred-and-ninth entry's Next named `th.tsv` first: the same 754 key rows and
+  11 `@plural` counts as `ko.tsv`, in the audit's order, so every routed key already had an English source
+  and four catalogues to answer it.
+- **One catalogue, the same keys in the same order.** `crates/ui/src/i18n/th.tsv` was built by zipping
+  `ko.tsv`'s keys with Thai translations — 754 key rows, 11 `@plural` rows and the `@id` row, whose name is
+  `ไทย` — so the English column is the Korean catalogue's own text and the row count is asserted against it,
+  a key that cannot be mistyped. `I18n::check_all()` parses all 769 lines with no bad row.
+- **Two rows had to differ from English to be readable as translated.** The audit proves a row exists by
+  asking whether the lookup differs from its key, so a byte-identical translation reads as missing:
+  `1:1  Z` is now `ขนาดจริง  Z` (the actual-size label every other catalogue translates) and
+  `{name} · {kind}` is `{name} — {kind}` (Korean's dash). The audit stays honest rather than special-casing
+  a language.
+- **The rest is one row each.** `CATALOGS` gains `("th", "", include_str!("i18n/th.tsv"))`, `LANGUAGES`
+  offers `th` between `ko` and `zh-TW`, `format::STYLES` gives Thailand Latin digits, comma grouping, `.` as
+  the decimal mark and a day-first slash date (`12,408`, `03/10/2026 04:00`), and
+  `SHIPPED_LANGUAGE_SCRIPTS`/`PHONE_SCRIPTS` name `Thai`, so a phone build asks for a Thai face.
+- **Tests.** `catalogs_load_and_routed_keys_have_rows` and the keymap-strings audit now loop over `th` too;
+  `the_picker_names_every_language_and_directions_follow_the_script` expects `ไทย` in the row;
+  `the_language_switch_moves_the_sidebar_to_the_reading_start` paints a Thai leg (`แหล่งที่มา`,
+  `รูปภาพทั้งหมด`, no English and no Korean behind it, left to right); `numbers_follow_the_language` and
+  `dates_follow_the_language_order` pin `12,408` and `03/10/2026 04:00`; the font-manifest fixture gains a
+  Thai face (7→8 faces, `Thai` in the coverage problems list, `Noto Sans Thai` asserted in the phone set).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the `i18n` and `language`
+  filters pass (3 + 34 tests); `cargo xtask ci`, `snapshot` and `deny` green; `cargo xtask screenshots
+  --update` moved exactly the four Settings baselines, and each was read: six entries — English plus the five
+  non-Latin names — sit inside the dialog at 900 px in both themes with no clipping and no overlap (this
+  machine paints the non-Latin names as boxes, exactly as before, because `CRAFT_FONTS_DIR` is unset), and
+  nothing else in any frame moved. No release workflow was dispatched: `crates/ui` source, the catalogue and
+  four baselines touch no workflow, `apps/**`, a `Cargo.toml` or release code.
+- **Files.** `crates/ui/src/i18n/th.tsv` (new); `crates/ui/src/i18n.rs`; `crates/ui/src/format.rs`;
+  `crates/ui/src/font_manifest.rs`; `crates/ui/src/shell.rs` (one test); the four
+  `crates/ui/tests/snapshots/settings-{short,sync}-{charcoal,paper}.png`; `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/FEATURES.md`.
+- **Next.** `vi.tsv`: Vietnamese is Latin-script, so it needs no new face — the same 754 keys, 11 `@plural`
+  counts and `@id` row as `th.tsv`, in the audit's order; then the `CATALOGS`/`LANGUAGES`/`STYLES` rows
+  (Vietnamese groups with `.` and writes `12.408`, `1,4 MB`, `03/10/2026 04:00`), `("vi", "Latn")` in
+  `SHIPPED_LANGUAGE_SCRIPTS` (`Latn` is already in `PHONE_SCRIPTS`), the picker/format/headless language
+  tests, and the four Settings baselines in the default set via `--update`. Read this commit's CI run first —
+  `gh run list --workflow CI --limit 1 --json databaseId,conclusion,headSha` — and adopt its `screenshots`
+  frames with `SORTLENS_SNAPSHOT_SET` if it is red. No release run is in flight.
 ## 2026-11-26 (hundred-and-ninth) — the red trunk is adopted from its own paint, and the lavapipe set gains the fifth name
 
 - **Why this came up.** The trunk was red on `0ece80e` (`45624521129`) with exactly one failing job, `screenshots`;

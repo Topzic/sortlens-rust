@@ -1,0 +1,769 @@
+# Thai (th) catalogue for Sortlens' interface — Phase 4 item 2d scaffolding (SL-L07).
+# Format: context<TAB>source<TAB>translation; the shared column of the embedded table is empty,
+# so these are all Sortlens' own rows. A missing row is the English text, never an error.
+@id	language.name	ไทย
+	All Photos	รูปภาพทั้งหมด
+	Recently Added	เพิ่มเมื่อเร็วๆ นี้
+	Picks	ที่เลือกไว้
+	Rated	ให้ดาวแล้ว
+	Missing	หายไป
+	Rejects	ที่ตัดออก
+	Sources	แหล่งที่มา
+	Folders	โฟลเดอร์
+	Subfolders	โฟลเดอร์ย่อย
+	Keywords	คำค้น
+	Collections	คอลเลกชัน
+	Library	คลังภาพ
+	Detail	รายละเอียด
+	Places	สถานที่
+	Details	รายละเอียด
+	Tags	แท็ก
+	Suggestions	ข้อเสนอแนะ
+	Activity	กิจกรรม
+	Move to the Trash	ย้ายไปถังขยะ
+	Tag only, move nothing	ติดแท็กเท่านั้น ไม่ย้ายอะไร
+	Settings	การตั้งค่า
+	Appearance	รูปลักษณ์
+	Backup	สำรองข้อมูล
+	Shortcuts	แป้นลัด
+	Keyword packs	ชุดคำค้น
+	Language	ภาษา
+	Back up library…	สำรองคลังภาพ…
+	Restore into a folder…	กู้คืนลงในโฟลเดอร์…
+	Edit shortcuts…	แก้ไขแป้นลัด…
+	Write XMP sidecars beside photos	เขียนไฟล์ XMP ควบคู่ไว้ข้างรูป
+	AI models (local)	โมเดล AI (ในเครื่อง)
+	Updates	การอัปเดต
+	More settings arrive with the features they configure.	การตั้งค่าเพิ่มเติมจะมาพร้อมกับฟีเจอร์ที่ใช้มัน
+	Check Library	ตรวจสอบคลังภาพ
+	Recently Deleted	ลบล่าสุด
+	Recent Changes	การเปลี่ยนแปลงล่าสุด
+	Keyboard Shortcuts	แป้นลัดของแป้นพิมพ์
+	Applying a cull batch	กำลังใช้ชุดการคัด
+	Sync & devices	ซิงก์และอุปกรณ์
+	Stop serving	หยุดให้บริการ
+	Start serving	เริ่มให้บริการ
+	Revoke	เพิกถอน
+	Send to desktop	ส่งไปยังเดสก์ท็อป
+	Forget this desktop	ลืมเดสก์ท็อปนี้
+	Desktop address	ที่อยู่เดสก์ท็อป
+	Port	พอร์ต
+	Pairing code	รหัสจับคู่
+	Pair	จับคู่
+	Test connection	ทดสอบการเชื่อมต่อ
+	Stop sending	หยุดส่ง
+	Send the selection	ส่งรายการที่เลือก
+	Remove from this phone once the desktop holds them	ลบออกจากโทรศัพท์เครื่องนี้เมื่อเดสก์ท็อปเก็บไว้แล้ว
+	Sending…	กำลังส่ง…
+	Welcome to Sortlens	ยินดีต้อนรับสู่ Sortlens
+	Point it at a folder of photos and it builds a catalog beside your files.	ชี้ไปที่โฟลเดอร์รูปภาพ แล้วมันจะสร้างแคตตาล็อกไว้ข้างไฟล์ของคุณ
+	Your files stay put	ไฟล์ของคุณอยู่ที่เดิม
+	No upload, no rename, no moving. Sortlens only reads.	ไม่มีการอัปโหลด ไม่เปลี่ยนชื่อ ไม่ย้าย Sortlens อ่านเท่านั้น
+	Everything is undoable	ทุกอย่างย้อนกลับได้
+	Ratings, flags and keywords live in one log you can step back.	ดาว สถานะ และคำค้นอยู่ในบันทึกเดียวที่ย้อนกลับได้
+	Rejects wait for you	รูปที่ตัดออกรอคุณอยู่
+	Culling stages decisions; nothing is trashed until you apply.	การคัดจะพักการตัดสินใจไว้ ไม่มีอะไรลงถังขยะจนกว่าคุณจะใช้
+	Add Folder…	เพิ่มโฟลเดอร์…
+	Not now	ไว้ก่อน
+	JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate	JPEG, HEIC, TIFF, PNG, WebP, GIF, ไฟล์ดิบจากกล้อง และวิดีโอ — ภาพโปสเตอร์ ความยาว และอัตราเฟรม
+	Indexing…	กำลังทำดัชนี…
+	{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.	ขณะนี้ {files} ไฟล์ใน {folders} โฟลเดอร์ กำลังอ่านขนาดและคีย์เนื้อหา ไม่มีการย้ายสิ่งใด
+	scanning	กำลังสแกน
+	Found so far	พบแล้ว
+	Nothing yet	ยังไม่มี
+	Nothing matches these filters	ไม่มีอะไรตรงกับตัวกรองเหล่านี้
+	{n} photograph in this library, and the current filters exclude every one of them.	มีรูป {n} รูปในคลังภาพนี้ และตัวกรองปัจจุบันกันออกทั้งหมด
+	{n} photographs in this library, and the current filters exclude every one of them.	มีรูป {n} รูปในคลังภาพนี้ และตัวกรองปัจจุบันกันออกทั้งหมด
+	Clear filters	ล้างตัวกรอง
+	Clears the search text and every filter, and forgets the folder scope	ล้างข้อความค้นหาและตัวกรองทั้งหมด และลืมขอบเขตโฟลเดอร์
+	Export finished	ส่งออกเสร็จแล้ว
+	The originals are where they were; an export only writes copies.	ต้นฉบับอยู่ที่เดิม การส่งออกเขียนเฉพาะสำเนา
+	Export	ส่งออก
+	{n} photo(s) · {spec}	{n} รูป · {spec}
+	Format	รูปแบบ
+	Original	ต้นฉบับ
+	A copy: same bytes, same name, no resize and no re-encode.	สำเนา: ไบต์เดิม ชื่อเดิม ไม่ย่อขนาดและไม่เข้ารหัสใหม่
+	Longest edge	ด้านที่ยาวที่สุด
+	px · 0 keeps the original size	px · 0 คือคงขนาดเดิม
+	Quality	คุณภาพ
+	Keep EXIF and IPTC	เก็บ EXIF และ IPTC
+	Carries the camera's metadata into the new file	พาเมทาดาทาของกล้องไปยังไฟล์ใหม่
+	PNG is lossless: no quality to pick, and alpha is kept.	PNG ไม่สูญเสียข้อมูล ไม่ต้องเลือกคุณภาพ และคงความโปร่งใสไว้
+	If the name is taken	ถ้าชื่อซ้ำ
+	Skip	ข้าม
+	Keep both	เก็บทั้งคู่
+	Replace	แทนที่
+	quality {n}	คุณภาพ {n}
+	{n} px longest edge	ด้านยาว {n} px
+	without metadata	ไม่มีเมทาดาทา
+	lossless	ไม่สูญเสียข้อมูล
+	{n} written	เขียน {n} ไฟล์
+	{n} skipped	ข้าม {n} ไฟล์
+	{n} failed	ล้มเหลว {n} ไฟล์
+	{done} of {total}	{done} จาก {total}
+	Stop	หยุด
+	Choose folder…	เลือกโฟลเดอร์…
+	An export is already running, or nothing is selected	กำลังส่งออกอยู่แล้ว หรือยังไม่ได้เลือกอะไร
+	Cancel	ยกเลิก
+	Your photos stay where they are; this writes copies into the folder you pick.	รูปของคุณอยู่ที่เดิม นี่จะเขียนสำเนาลงในโฟลเดอร์ที่คุณเลือก
+	Delete selected photos	ลบรูปที่เลือก
+	{n} photo(s)	{n} รูป
+	What happens to them	จะเกิดอะไรกับรูปเหล่านี้
+	Files that changed on disk since they were indexed stop the whole batch.	ไฟล์ที่เปลี่ยนบนดิสก์หลังทำดัชนีจะหยุดทั้งชุด
+	Delete	ลบ
+	Deleted {n} photo(s)	ลบแล้ว {n} รูป
+	, {n} failed	, ล้มเหลว {n} รูป
+	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	พักการตัดสินใจไว้ {n} รูป {mode} ใช้เพื่อบันทึกการตัดสินใจ — ย้อนกลับได้ในขั้นเดียว
+	Apply cull batch	ใช้ชุดการคัด
+	{rejects} rejects · {picks} picks	ตัดออก {rejects} · เลือก {picks}
+	What happens to the rejects	จะเกิดอะไรกับรูปที่ตัดออก
+	Apply	ใช้
+	Applied {n} photo(s)	ใช้แล้ว {n} รูป
+	Empty the rejects bin?	ล้างถังรูปที่ตัดออกหรือไม่
+	{batches} batch(es), {files} file(s) will lose their restore record.	{batches} ชุด {files} ไฟล์จะสูญเสียบันทึกการกู้คืน
+	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	ไฟล์ที่ย้ายแล้วจะอยู่ในถังขยะของระบบ ไฟล์ที่แค่ติดสถานะจะอยู่ที่เดิม ไม่มีอะไรบนดิสก์ถูกลบตรงนี้ และย้อนกลับไม่ได้
+	Empty bin	ล้างถัง
+	Forgot {batches} batch(es) covering {files} file(s)	ลืมแล้ว {batches} ชุด ครอบคลุม {files} ไฟล์
+	Rename collection	เปลี่ยนชื่อคอลเลกชัน
+	Save	บันทึก
+	Renamed to {name}	เปลี่ยนชื่อเป็น {name}
+	About Sortlens	เกี่ยวกับ Sortlens
+	Version {version}	เวอร์ชัน {version}
+	Fast, local culling for photographers who shoot thousands of images.	การคัดภาพในเครื่องที่รวดเร็วสำหรับช่างภาพที่ถ่ายภาพหลายพันรูป
+	{commands} commands, {ready} ready today.	{commands} คำสั่ง ใช้ได้แล้ว {ready} คำสั่ง
+	Library health	สุขภาพคลังภาพ
+	Catalog files	ไฟล์แคตตาล็อก
+	Clean · {photos} photos · seq {seq}	ปกติ · {photos} รูป · seq {seq}
+	Recoverable · {photos} photos, {records} record(s) replayed	กู้คืนได้ · {photos} รูป เล่นบันทึก {records} รายการซ้ำ
+	Needs attention	ต้องดูแล
+	snapshot at seq {seq}	สแนปช็อตที่ seq {seq}
+	{n} record(s) replayed	เล่นบันทึก {n} รายการซ้ำ
+	{n} already covered	ครอบคลุมแล้ว {n} รายการ
+	{bytes} log bytes	ไบต์ของบันทึก {bytes}
+	none	ไม่มี
+	Check integrity	ตรวจสอบความสมบูรณ์
+	The check replays a copy of the log, so the library itself is never touched.	การตรวจจะเล่นสำเนาของบันทึกซ้ำ คลังภาพเองจึงไม่ถูกแตะต้อง
+	Compact	บีบอัด
+	Write a fresh snapshot and empty the log; also repairs a torn log tail	เขียนสแนปช็อตใหม่และล้างบันทึก ซ่อมปลายบันทึกที่ขาดด้วย
+	Catalog was already compact	แคตตาล็อกบีบอัดอยู่แล้ว
+	Compacted · {bytes} reclaimed	บีบอัดแล้ว · คืนพื้นที่ {bytes}
+	{present} of {checked} files present · {missing} missing	มีไฟล์ {present} จาก {checked} ไฟล์ · หาย {missing}
+	Not checked yet.	ยังไม่ได้ตรวจ
+	Check library	ตรวจสอบคลังภาพ
+	Checked {checked} files · {missing} missing · {changed} changed	ตรวจแล้ว {checked} ไฟล์ · หาย {missing} · เปลี่ยน {changed}
+	Stats every file and updates the missing badges in one undoable step.	ตรวจสถิติทุกไฟล์และอัปเดตป้ายว่าหายในขั้นเดียวที่ย้อนกลับได้
+	{n} file(s) changed on disk since they were indexed	{n} ไฟล์เปลี่ยนบนดิสก์หลังทำดัชนี
+	Refresh changed	รีเฟรชที่เปลี่ยน
+	Re-read metadata and identity for exactly those files	อ่านเมทาดาทาและตัวตนของไฟล์เหล่านั้นใหม่
+	Nothing could be refreshed	ไม่มีอะไรให้รีเฟรช
+	Refreshed {n} photo(s)	รีเฟรชแล้ว {n} รูป
+	Find moved photos	หารูปที่ถูกย้าย
+	No moved photos found under their roots	ไม่พบรูปที่ถูกย้ายใต้โฟลเดอร์รากของมัน
+	Relocated {n} photo(s)	ย้ายตำแหน่งแล้ว {n} รูป
+	Matches missing photos by content key under the same root.	จับคู่รูปที่หายด้วยคีย์เนื้อหาใต้โฟลเดอร์รากเดียวกัน
+	Point at…	ชี้ไปที่…
+	This folder moved or its volume was renamed	โฟลเดอร์นี้ถูกย้ายหรือไดรฟ์ถูกเปลี่ยนชื่อ
+	{n} photo(s) under {root}	{n} รูปใต้ {root}
+	Repointing checks a sample of photos in the new folder first.	การชี้ใหม่จะตรวจตัวอย่างรูปในโฟลเดอร์ใหม่ก่อน
+	No photos are waiting on a metadata retry	ไม่มีรูปที่รอการลองอ่านเมทาดาทาใหม่
+	{n} photo(s) could not be read when indexed	อ่าน {n} รูปไม่ได้ตอนทำดัชนี
+	Retry metadata	ลองเมทาดาทาใหม่
+	Try reading EXIF again for the photos that failed	ลองอ่าน EXIF อีกครั้งสำหรับรูปที่ล้มเหลว
+	Nothing recovered; {remaining} still unreadable	ไม่กู้คืนได้เลย อีก {remaining} รูปยังอ่านไม่ได้
+	Read metadata for {n} photo(s)	อ่านเมทาดาทา {n} รูป
+	Read {updated}; {remaining} still unreadable	อ่านได้ {updated} รูป อีก {remaining} รูปยังอ่านไม่ได้
+	Re-read all without EXIF	อ่านรูปที่ไม่มี EXIF ใหม่ทั้งหมด
+	{n} photo(s) have no camera and no date; try again with the current readers	{n} รูปไม่มีข้อมูลกล้องและวันที่ ลองใหม่ด้วยตัวอ่านปัจจุบัน
+	Remove missing from library	นำรูปที่หายออกจากคลังภาพ
+	Nothing is marked missing	ไม่มีอะไรถูกทำเครื่องหมายว่าหาย
+	Removed {n} missing photo(s) — undo restores them	นำรูปที่หายออกแล้ว {n} รูป — เลิกทำเพื่อคืนกลับ
+	Removes catalog entries only; the files are already gone.	ลบเฉพาะรายการในแคตตาล็อก ไฟล์หายไปแล้ว
+	Cull summary	สรุปการคัด
+	Nothing to cull	ไม่มีอะไรให้คัด
+	Judged all {total} photos	ตัดสินแล้วทั้ง {total} รูป
+	{judged} of {total} judged	ตัดสินแล้ว {judged} จาก {total}
+	Deferred	เลื่อนไว้
+	Not judged	ยังไม่ตัดสิน
+	{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.	{changed} รูปจะเปลี่ยนเมื่อใช้; การเลื่อน {deferred} รายการจะไม่ถูกบันทึก
+	Apply…	ใช้…
+	Keep culling	คัดต่อ
+	Jump to next	ไปยังรูปถัดไป
+	Skip to the first photo without a decision	ข้ามไปยังรูปแรกที่ยังไม่ตัดสิน
+	Discard	ทิ้ง
+	Drop every staged decision and restore the flags	ทิ้งการตัดสินใจที่พักไว้ทั้งหมดและคืนสถานะ
+	Cull discarded	ทิ้งการคัดแล้ว
+	Quit Sortlens?	ออกจาก Sortlens หรือไม่
+	An index scan is running; the files found so far are not saved yet.	กำลังสแกนทำดัชนี ไฟล์ที่พบยังไม่ถูกบันทึก
+	{staged} staged cull decision(s) have not been applied. The session is kept for next time.	การตัดสินใจคัด {staged} รายการยังไม่ถูกใช้ เซสชันจะถูกเก็บไว้ใช้ครั้งหน้า
+	A similarity pass is running; hashes finished so far are kept.	กำลังตรวจความคล้าย แฮชที่เสร็จแล้วจะถูกเก็บไว้
+	Keep working	ทำงานต่อ
+	Quit anyway	ออกอยู่ดี
+	Close the window now; unstaged work is dropped	ปิดหน้าต่างตอนนี้ งานที่ยังไม่พักจะหายไป
+	Indexed {path}	ทำดัชนี {path} แล้ว
+	Stopped indexing {path}	หยุดทำดัชนี {path} แล้ว
+	Added {file}	เพิ่ม {file} แล้ว
+	Removed {file}	นำ {file} ออกแล้ว
+	Marked photo #{id} as missing	ทำเครื่องหมายรูป #{id} ว่าหาย
+	Found photo #{id} again	พบรูป #{id} อีกครั้ง
+	Rated {photos}	ให้ดาว {photos}
+	Flagged {photos}	ติดสถานะ {photos}
+	Labelled {photos}	ติดป้ายสี {photos}
+	Set the capture date on {photos}	ตั้งวันที่ถ่ายให้ {photos}
+	Keyworded {photos}	ใส่คำค้น {photos}
+	Recorded where keywords came from on {photos}	บันทึกที่มาของคำค้นบน {photos}
+	Stopped suggesting {keywords}	หยุดเสนอ {keywords}
+	Found {photos} somewhere else	พบ {photos} ที่อื่น
+	Queued {photos} for a metadata retry	เข้าคิว {photos} เพื่อลองอ่านเมทาดาทาใหม่
+	Linked {aliases} keyword alias(es)	เชื่อมคำพ้องของคำค้น {aliases} รายการ
+	Repointed {from} to {to}	ชี้ {from} ไปยัง {to} ใหม่
+	Created the collection {name}	สร้างคอลเลกชัน {name}
+	Deleted the collection {name}	ลบคอลเลกชัน {name}
+	Renamed a collection to {name}	เปลี่ยนชื่อคอลเลกชันเป็น {name}
+	Collection change: +{added} -{removed}	เปลี่ยนคอลเลกชัน: +{added} -{removed}
+	Set a collection's colour to {colour}	ตั้งสีคอลเลกชันเป็น {colour}
+	Switched on the “{name}” keyword pack	เปิดชุดคำค้น “{name}”
+	Switched off the “{name}” keyword pack	ปิดชุดคำค้น “{name}”
+	Measured the sharpness of {photos}	วัดความคมชัดของ {photos}
+	Pinned {folder} and set it to {colour}	ปักหมุด {folder} และตั้งเป็น {colour}
+	Pinned {folder}	ปักหมุด {folder}
+	Set {folder} to {colour}	ตั้ง {folder} เป็น {colour}
+	Cleared the mark on {folder}	ล้างเครื่องหมายบน {folder}
+	{first} (+{others} more change(s))	{first} (อีก {others} การเปลี่ยนแปลง)
+	Dismissed nothing	ไม่ได้ปิดอะไร
+	Cleared a collection's colour	ล้างสีของคอลเลกชัน
+	Starred a collection	ติดดาวคอลเลกชัน
+	Unstarred a collection	เอาดาวออกจากคอลเลกชัน
+	Changed a collection's sort	เปลี่ยนการเรียงของคอลเลกชัน
+	Changed a collection's search	เปลี่ยนการค้นหาของคอลเลกชัน
+	Grouped change	การเปลี่ยนแปลงแบบกลุ่ม
+	Recent changes	การเปลี่ยนแปลงล่าสุด
+	No changes since the last snapshot.	ไม่มีการเปลี่ยนแปลงตั้งแต่สแนปช็อตล่าสุด
+	Every change is a record in the log; older ones are folded into the snapshot.	ทุกการเปลี่ยนแปลงเป็นบันทึกในล็อก รายการเก่าถูกพับลงในสแนปช็อต
+	Export report…	ส่งออกรายงาน…
+	Plain text, for a support request	ข้อความล้วน สำหรับคำขอความช่วยเหลือ
+	The report lists folder and file names; it never includes photo contents.	รายงานระบุชื่อโฟลเดอร์และไฟล์ ไม่มีเนื้อหารูปเลย
+	no date	ไม่มีวันที่
+	Red	แดง
+	Yellow	เหลือง
+	Green	เขียว
+	Blue	น้ำเงิน
+	Purple	ม่วง
+	{n} keyword(s)	{n} คำค้น
+	Batch applied	ใช้ชุดแล้ว
+	{n} photo handled	จัดการแล้ว {n} รูป
+	{n} photos handled	จัดการแล้ว {n} รูป
+	Moved to the system Trash	ย้ายไปถังขยะของระบบ
+	Left on disk and flagged as rejected	ไว้บนดิสก์และติดสถานะว่าตัดออก
+	Moved to {folder}	ย้ายไปยัง {folder}
+	{n} pick(s) written	บันทึกที่เลือก {n} รายการ
+	Batch {batch} · {n} file(s) kept on disk	ชุด {batch} · เก็บไฟล์ {n} ไฟล์บนดิสก์
+	{n} file(s) could not be handled	จัดการไฟล์ {n} ไฟล์ไม่ได้
+	Put them back	คืนกลับ
+	Done	เสร็จสิ้น
+	Restored the batch	คืนชุดแล้ว
+	Colour	สี
+	None	ไม่มี
+	Pinned and {colour}	ปักหมุดและ {colour}
+	Pinned to the top	ปักหมุดไว้บนสุด
+	Folder is {colour}	โฟลเดอร์เป็น {colour}
+	Folder mark cleared	ล้างเครื่องหมายโฟลเดอร์แล้ว
+	Collection is {colour}	คอลเลกชันเป็น {colour}
+	{n} collections are {colour}	คอลเลกชัน {n} แห่งเป็น {colour}
+	Collection colour cleared	ล้างสีคอลเลกชันแล้ว
+	Colour cleared on {n} collections	ล้างสีบนคอลเลกชัน {n} แห่งแล้ว
+	{colour} label	ป้าย {colour}
+	{colour} label on {n} photos	ป้าย {colour} บน {n} รูป
+	Colour filter: {colour}	ตัวกรองสี: {colour}
+	Colour filter: any colour	ตัวกรองสี: ทุกสี
+	Only photos with this colour label — an empty ring means every colour	เฉพาะรูปที่มีป้ายสีนี้ — วงแหวนว่างหมายถึงทุกสี
+	No colour label.	ไม่มีป้ายสี
+	Cleared the label	ล้างป้ายแล้ว
+	Cleared the label on {n} photos	ล้างป้ายบน {n} รูปแล้ว
+	Show every shortcut	แสดงแป้นลัดทั้งหมด
+	Close the dialog, overlay or detail view	ปิดไดอะล็อก แผ่นทับ หรือมุมมองรายละเอียด
+	Add a folder to the library	เพิ่มโฟลเดอร์ในคลังภาพ
+	Rescan the library for changes	สแกนคลังภาพใหม่เพื่อหาการเปลี่ยนแปลง
+	New collection	คอลเลกชันใหม่
+	Open the command palette, or close it	เปิดหรือปิดพาเลตต์คำสั่ง
+	Open settings	เปิดการตั้งค่า
+	Quit, asking about unsaved work	ออก โดยถามเรื่องงานที่ยังไม่บันทึก
+	Undo the last change	เลิกทำการเปลี่ยนแปลงล่าสุด
+	Redo the last undone change	ทำซ้ำการเปลี่ยนแปลงที่เพิ่งเลิกทำ
+	Flag as picked	ติดสถานะว่าเลือก
+	Flag as rejected	ติดสถานะว่าตัดออก
+	Clear the flag	ล้างสถานะ
+	Set the star rating, 0 clearing it	ตั้งคะแนนดาว 0 คือล้าง
+	Colour label: red, yellow, green, blue; again to clear	ป้ายสี: แดง เหลือง เขียว น้ำเงิน กดอีกครั้งเพื่อล้าง
+	Jump to the keyword field	ไปยังช่องคำค้น
+	Apply the keyword you last added to the selection	ใช้คำค้นล่าสุดที่เพิ่มกับรายการที่เลือก
+	Select one photo; ⌘-click adds or removes, Shift-click takes the run	เลือกรูปหนึ่งรูป ⌘-คลิกเพื่อเพิ่มหรือเอา out Shift-คลิกเพื่อเลือกช่วง
+	Select every photo in view	เลือกรูปหนึ่งรูป ⌘-คลิกเพื่อเพิ่มหรือถอด Shift-คลิกเพื่อเลือกช่วง
+	Marquee-select from the grid background	เลือกรูปแบบกรอบจากพื้นหลังตาราง
+	Grid layout: justified rows or a square lattice	เลย์เอาต์ตาราง: แถวชิดขอบหรือตารางสี่เหลี่ยม
+	Open the detail view	เปิดมุมมองรายละเอียด
+	Start a cull session from the filters	เริ่มเซสชันการคัดจากตัวกรอง
+	Open insights	เปิดอินไซต์
+	Open the map	เปิดแผนที่
+	Open the similar-photo search	เปิดการค้นหารูปคล้าย
+	Next photo in the sorted order	รูปถัดไปตามลำดับที่เรียง
+	Previous photo in the sorted order	รูปก่อนหน้าตามลำดับที่เรียง
+	Zoom to fit or 1:1	ซูมพอดีหรือ 1:1
+	Compare with the next photo	เปรียบเทียบกับรูปถัดไป
+	Close the detail view	ปิดมุมมองรายละเอียด
+	Keep this photo	เก็บรูปนี้
+	Reject this photo	ตัดรูปนี้ออก
+	Leave it undecided and move on	ปล่อยไว้ไม่ตัดสินแล้วไปต่อ
+	Mark undecided again	ทำเครื่องหมายว่ายังไม่ตัดสินอีกครั้ง
+	Step back one photo	ถอยกลับหนึ่งรูป
+	Apply the keyword you last added to this photo	ใช้คำค้นล่าสุดที่เพิ่มกับรูปนี้
+	Apply the staged rejections	ใช้การตัดออกที่พักไว้
+	Zoom to fit or 2×	ซูมพอดีหรือ 2×
+	Pan while zoomed	เลื่อนภาพขณะซูม
+	Close the compare	ปิดการเปรียบเทียบ
+	Swap the two sides	สลับสองฝั่ง
+	Step the pair together	เลื่อนทั้งคู่ไปพร้อมกัน
+	Detail view	มุมมองรายละเอียด
+	Cull session	เซสชันการคัด
+	Compare	เปรียบเทียบ
+	Anywhere	ที่ใดก็ได้
+	Nothing focused, no dialog open.	ไม่มีอะไรโฟกัส ไม่มีไดอะล็อกเปิดอยู่
+	D from the grid; Esc closes it.	D จากตาราง Esc ปิด
+	C starts a session from the current filters.	C เริ่มเซสชันจากตัวกรองปัจจุบัน
+	C in the detail view; S swaps sides.	C ในมุมมองรายละเอียด S สลับฝั่ง
+	Also works with a dialog open.	ใช้ได้แม้มีไดอะล็อกเปิดอยู่
+	Keyboard shortcuts	แป้นลัดของแป้นพิมพ์
+	Search keys or actions	ค้นหาแป้นหรือการกระทำ
+	{n} bindings	{n} การผูกแป้น
+	{bound} of {total} bound	ผูกแล้ว {bound} จาก {total}
+	Nothing is bound to that.	ไม่มีอะไรผูกกับแป้นนั้น
+	Scan	สแกน
+	Previews	ตัวอย่าง
+	Sidecars	ไฟล์ข้างเคียง
+	Similar	คล้ายกัน
+	Insights	อินไซต์
+	Sharpness	ความคมชัด
+	Model	โมเดล
+	Update	อัปเดต
+	running	กำลังทำงาน
+	done	เสร็จสิ้น
+	cancelled	ยกเลิกแล้ว
+	failed	ล้มเหลว
+	{files} files · {dirs} folders	{files} ไฟล์ · {dirs} โฟลเดอร์
+	{files} files · {dirs} folders · {unreadable} unreadable	{files} ไฟล์ · {dirs} โฟลเดอร์ · อ่านไม่ได้ {unreadable}
+	cancelled before committing	ยกเลิกก่อนยืนยัน
+	Nothing has run yet. Scans and exports appear here.	ยังไม่มีอะไรทำงาน การสแกนและการส่งออกจะปรากฏที่นี่
+	Indexed	ทำดัชนีแล้ว
+	On disk	บนดิสก์
+	Select a photo to see what its own file and the keyword packs propose.	เลือกรูปเพื่อดูว่าไฟล์ของมันและชุดคำค้นเสนออะไร
+	Nothing to propose for this selection.	ไม่มีอะไรจะเสนอสำหรับรายการที่เลือกนี้
+	Proposals come from each file's own EXIF and from the keyword packs that are switched on.	ข้อเสนอมาจาก EXIF ของแต่ละไฟล์และชุดคำค้นที่เปิดอยู่
+	{proposals} for {photos}	{proposals} สำหรับ {photos}
+	{n} proposal	{n} ข้อเสนอ
+	{n} proposals	{n} ข้อเสนอ
+	{n} photo	{n} รูป
+	{n} photos	{n} รูป
+	Accept all	ยอมรับทั้งหมด
+	Add every proposal in this family as a keyword, as one undo	เพิ่มทุกข้อเสนอในกลุ่มนี้เป็นคำค้น และย้อนกลับได้ในครั้งเดียว
+	Those keywords are already on every selected photo	คำค้นเหล่านั้นมีอยู่บนทุกรูปที่เลือกแล้ว
+	Added {n} keyword(s) — one undo takes them back	เพิ่มแล้ว {n} คำค้น — เลิกทำครั้งเดียวก็คืนกลับ
+	 · on {photos} of the {selected} selected photos	 · บน {photos} จาก {selected} รูปที่เลือก
+	Don't propose “{tag}” again for these photos — one undo brings it back	ไม่เสนอ “{tag}” อีกสำหรับรูปเหล่านี้ — เลิกทำครั้งเดียวก็คืนกลับ
+	“{tag}” was already dismissed	“{tag}” ถูกปิดไปแล้ว
+	Won't propose “{tag}” again — one undo brings it back	จะไม่เสนอ “{tag}” อีก — เลิกทำครั้งเดียวก็คืนกลับ
+	“{tag}” is already on every selected photo	“{tag}” มีอยู่บนทุกรูปที่เลือกแล้ว
+	Added “{tag}” — one undo takes it back	เพิ่ม “{tag}” แล้ว — เลิกทำครั้งเดียวก็คืนกลับ
+	{tag} · {percent} from {source}	{tag} · {percent} จาก {source}
+	Suggested	เสนอแล้ว
+	Suggested keywords	คำค้นที่เสนอ
+	Clear	ล้าง
+	Uses what each file says about itself and any keyword packs you switched on.	ใช้สิ่งที่แต่ละไฟล์บอกเกี่ยวกับตัวเองและชุดคำค้นที่คุณเปิดไว้
+	No proposals yet.	ยังไม่มีข้อเสนอ
+	{n} photo(s) with something to suggest	{n} รูปที่มีอะไรให้เสนอ
+	Objects	วัตถุ
+	Scene	ฉาก
+	EXIF	EXIF
+	detector	ตัวตรวจจับ
+	camera	กล้อง
+	pack	ชุด
+	caption	คำบรรยาย
+	Nothing is written while this runs.	ไม่มีการเขียนใดๆ ขณะทำงานนี้
+	Suggest for the whole library	เสนอสำหรับทั้งคลังภาพ
+	{percent} from {source} — clicking adds it	{percent} จาก {source} — คลิกเพื่อเพิ่ม
+	Custom	กำหนดเอง
+	OK	ตกลง
+	Close	ปิด
+	Undo	เลิกทำ
+	Redo	ทำซ้ำ
+	Reset All…	รีเซ็ตทั้งหมด…
+	Restore every default shortcut in this set?	คืนแป้นลัดเริ่มต้นทั้งหมดในชุดนี้หรือไม่
+	Reset All	รีเซ็ตทั้งหมด
+	Show:	แสดง:
+	Filter:	กรอง:
+	Search:	ค้นหา:
+	Search by key	ค้นหาด้วยแป้น
+	All Commands	ทุกคำสั่ง
+	{menu} Menu	เมนู {menu}
+	Tools	เครื่องมือ
+	{panel} Panel	แผง {panel}
+	Other	อื่นๆ
+	Fixed Keys	แป้นคงที่
+	All	ทั้งหมด
+	With Shortcut	มีแป้นลัด
+	Changed	เปลี่ยนแล้ว
+	Conflicts	ขัดแย้ง
+	No matching commands	ไม่มีคำสั่งที่ตรง
+	(cycles)	(วนซ้ำ)
+	{label} (cycles)	{label} (วนซ้ำ)
+	{label} (Changed)	{label} (เปลี่ยนแล้ว)
+	Command	คำสั่ง
+	Commands	คำสั่ง
+	Detail pane size	ขนาดบานรายละเอียด
+	Select a command to see and change its shortcuts	เลือกคำสั่งเพื่อดูและเปลี่ยนแป้นลัด
+	Shortcut	แป้นลัด
+	Default	ค่าเริ่มต้น
+	{chord} (Default)	{chord} (ค่าเริ่มต้น)
+	{chord} ({scope})	{chord} ({scope})
+	{label} ({scope})	{label} ({scope})
+	Application	แอปพลิเคชัน
+	Current shortcuts:	แป้นลัดปัจจุบัน:
+	New shortcut:	แป้นลัดใหม่:
+	New shortcut: {chord}	แป้นลัดใหม่: {chord}
+	press keys	กดแป้น
+	{chord} (press again for a double press)	{chord} (กดอีกครั้งเพื่อกดสองครั้ง)
+	Type…	พิมพ์…
+	Context:	บริบท:
+	Assign	กำหนด
+	Use Default	ใช้ค่าเริ่มต้น
+	Default: {chord}	ค่าเริ่มต้น: {chord}
+	Currently assigned to:	กำหนดให้กับ:
+	Not assigned	ยังไม่กำหนด
+	{label} ({scope}, both work)	{label} ({scope} ใช้ได้ทั้งคู่)
+	Add a shortcut to {label}	เพิ่มแป้นลัดให้ {label}
+	Remove {chord} from {label}	เอา {chord} ออกจาก {label}
+	Restore the default for {label}	คืนค่าเริ่มต้นของ {label}
+	{label}: {chord}	{label}: {chord}
+	{label}: press keys	{label}: กดแป้น
+	Now used by {label}	ตอนนี้ใช้โดย {label}
+	{label}: {chord} (Now used by {holder})	{label}: {chord} (ตอนนี้ใช้โดย {holder})
+	the shortcut has no key	แป้นลัดไม่มีแป้น
+	unknown modifier {key}	ตัวปรับสถานะ {key} ไม่รู้จัก
+	modifier {key} given twice	ตัวปรับสถานะ {key} ถูกระบุสองครั้ง
+	key sequences are not supported	ไม่รองรับลำดับแป้น
+	the scope name is not valid	ชื่อขอบเขตไม่ถูกต้อง
+	Keyboard	แป้นพิมพ์
+	Keyboard: US	แป้นพิมพ์: US
+	Keyboard: US (macOS)	แป้นพิมพ์: US (macOS)
+	Control	Control
+	Option	Option
+	Shift	Shift
+	Ctrl	Ctrl
+	Alt	Alt
+	Caps Lock	Caps Lock
+	Win	Win
+	Super	Super
+	Panel or context	แผงหรือบริบท
+	Both	ทั้งคู่
+	Modifier on	ตัวปรับสถานะเปิด
+	{chord}: {label}	{chord}: {label}
+	Click a key to see its shortcuts	คลิกแป้นเพื่อดูแป้นลัด
+	Key: {key}	แป้น: {key}
+	Assign to Selected	กำหนดให้รายการที่เลือก
+	Assign {chord} to {label}	กำหนด {chord} ให้ {label}
+	Select a command first	เลือกคำสั่งก่อน
+	Nothing uses this key	ไม่มีอะไรใช้แป้นนี้
+	⚠ {chord} is used by {label}	⚠ {chord} ถูกใช้โดย {label}
+	{chord} was removed from {label}	{chord} ถูกเอาออกจาก {label}
+	Also used by {label}	ใช้โดย {label} ด้วย
+	{chord} is reserved by the system	{chord} ถูกสงวนโดยระบบ
+	A command can have at most {n} shortcuts	คำสั่งหนึ่งมีแป้นลัดได้ไม่เกิน {n} แป้น
+	The scope {scope} is unknown	ไม่รู้จักขอบเขต {scope}
+	Too many shortcuts are assigned	กำหนดแป้นลัดไว้มากเกินไป
+	This command is unknown	ไม่รู้จักคำสั่งนี้
+	Take It	รับไป
+	Take It and Go to Conflict	รับไปและไปที่ข้อขัดแย้ง
+	Keep Both	เก็บทั้งคู่
+	Go to Conflict	ไปที่ข้อขัดแย้ง
+	Cancel the new shortcut	ยกเลิกแป้นลัดใหม่
+	Dismiss	ปิด
+	{key}: no command has this name	{key}: ไม่มีคำสั่งชื่อนี้
+	{key}: “{text}” is not a shortcut ({error})	{key}: “{text}” ไม่ใช่แป้นลัด ({error})
+	{key}: {text} is reserved by the system	{key}: {text} ถูกสงวนโดยระบบ
+	{key}: the scope in “{text}” is unknown	{key}: ไม่รู้จักขอบเขตใน “{text}”
+	{key}: listed more than once	{key}: ระบุมากกว่าหนึ่งครั้ง
+	{key}: part of the entry was dropped	{key}: บางส่วนของรายการถูกทิ้ง
+	Set:	ชุด:
+	(modified)	(แก้ไขแล้ว)
+	New Set…	ชุดใหม่…
+	Rename…	เปลี่ยนชื่อ…
+	Revert Set	คืนชุด
+	Import…	นำเข้า…
+	Export…	ส่งออก…
+	Summarize…	สรุป…
+	{title}: {set}	{title}: {set}
+	Create	สร้าง
+	Rename	เปลี่ยนชื่อ
+	More	เพิ่มเติม
+	Name:	ชื่อ:
+	Based on:	อ้างอิงจาก:
+	Current shortcuts	แป้นลัดปัจจุบัน
+	Save changes to “{set}”?	บันทึกการเปลี่ยนแปลงใน “{set}” หรือไม่
+	Don't Save	ไม่บันทึก
+	Delete the set “{set}”?	ลบชุด “{set}” หรือไม่
+	Keyboard Shortcuts (JSON)	แป้นลัดของแป้นพิมพ์ (JSON)
+	The name is empty, too long or has control characters	ชื่อว่าง ยาวเกินไป หรือมีอักขระควบคุม
+	A set with this name exists	มีชุดชื่อนี้อยู่แล้ว
+	The set was not found	ไม่พบชุด
+	Built-in sets cannot be changed	ชุดในตัวแก้ไขไม่ได้
+	There are too many sets	มีชุดมากเกินไป
+	This is not a shortcut set file	นี่ไม่ใช่ไฟล์ชุดแป้นลัด
+	This is not a craft-keymap file	นี่ไม่ใช่ไฟล์ craft-keymap
+	This file is from a newer version (format {n})	ไฟล์นี้มาจากเวอร์ชันใหม่กว่า (รูปแบบ {n})
+	The file is too large	ไฟล์ใหญ่เกินไป
+	Import “{set}”	นำเข้า “{set}”
+	Set name:	ชื่อชุด:
+	Import	นำเข้า
+	Cancel Import	ยกเลิกการนำเข้า
+	line {n}	บรรทัด {n}
+	Will change	จะเปลี่ยน
+	Not matched	ไม่ตรงกัน
+	Unreadable	อ่านไม่ได้
+	Approximated	ประมาณ
+	{title} ({n})	{title} ({n})
+	Suggestions ({n})	ข้อเสนอแนะ ({n})
+	numeric keypad key read as main key	แป้นบนแป้นพิมพ์ตัวเลขอ่านเป็นแป้นหลัก
+	Matched without change	ตรงกันโดยไม่เปลี่ยน
+	Command for {item}	คำสั่งสำหรับ {item}
+	Choose a command…	เลือกคำสั่ง…
+	no command has this name	ไม่มีคำสั่งชื่อนี้
+	more than one command fits	มีคำสั่งที่เข้าได้มากกว่าหนึ่ง
+	in a context that is not imported	อยู่ในบริบทที่ไม่ได้นำเข้า
+	only a command of the other kind fits (tool or menu command)	เข้าได้เฉพาะคำสั่งอีกชนิด (คำสั่งเครื่องมือหรือเมนู)
+	empty shortcut	แป้นลัดว่าง
+	the shortcut is too long	แป้นลัดยาวเกินไป
+	unknown key {key}	แป้น {key} ไม่รู้จัก
+	unsupported modifier {key}	ไม่รองรับตัวปรับสถานะ {key}
+	{label} keeps its shortcuts (matched by a panel menu name)	{label} เก็บแป้นลัดไว้ (ตรงกับชื่อเมนูของแผง)
+	Import as New Set	นำเข้าเป็นชุดใหม่
+	Imported	นำเข้าแล้ว
+	Imported as “{set}”	นำเข้าเป็น “{set}”
+	Skipped	ข้าม
+	Taken from other commands	เอามาจากคำสั่งอื่น
+	Not changed	ไม่เปลี่ยน
+	taken by {label}	ถูก {label} เอาไป
+	taken by a later entry	ถูกทับโดยรายการถัดไป
+	reserved by the system	ระบบสงวนไว้
+	the scope is unknown	ไม่รู้จักขอบเขต
+	the set's shortcuts could not be added	เพิ่มแป้นลัดของชุดไม่ได้
+	the shortcuts could not be removed	เอาแป้นลัดออกไม่ได้
+	Copy Report	คัดลอกรายงาน
+	Double-press bindings are not read here; record a single chord	ที่นี่ไม่รองรับการผูกกดสองครั้ง บันทึกเป็นคีย์ผสมเดียว
+	craft-keymap set	ชุด craft-keymap
+	Shortcuts saved	บันทึกแป้นลัดแล้ว
+	Imported shortcut set “{name}”	นำเข้าชุดแป้นลัด “{name}” แล้ว
+	Could not import the set: {error}	นำเข้าชุดไม่ได้: {error}
+@plural	{n} shortcut is assigned more than once|{n} shortcuts are assigned more than once	แป้นลัด {n} แป้นถูกกำหนดมากกว่าหนึ่งครั้ง
+@plural	{n} saved shortcut could not be used|{n} saved shortcuts could not be used	แป้นลัดที่บันทึกไว้ {n} แป้นใช้ไม่ได้
+@plural	{n} command will change|{n} commands will change	คำสั่ง {n} คำสั่งจะเปลี่ยน
+@plural	{n} item without a shortcut|{n} items without a shortcut	รายการ {n} รายการไม่มีแป้นลัด
+@plural	{n} item not matched|{n} items not matched	รายการ {n} รายการไม่ตรงกัน
+@plural	{n} item could not be read|{n} items could not be read	รายการ {n} รายการอ่านไม่ได้
+@plural	{n} key read approximately|{n} keys read approximately	แป้น {n} แป้นอ่านได้แบบประมาณ
+@plural	{n} entry cut at a limit|{n} entries cut at a limit	รายการ {n} รายการถูกตัดที่ขีดจำกัด
+@plural	{n} command changed|{n} commands changed	คำสั่ง {n} คำสั่งเปลี่ยนแล้ว
+@plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	แป้นลัด {n} แป้นใช้ได้ในขอบเขตอื่นด้วย
+@plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	รายการ {n} รายการถูกข้าม: คำสั่งมากเกินไป
+	Cull	คัด
+	No photos match the current filters.	ไม่มีรูปที่ตรงกับตัวกรองปัจจุบัน
+	{n} photos in view. Nothing moves until you apply.	มีรูป {n} รูปในมุมมอง ไม่มีอะไรเคลื่อนจนกว่าคุณจะใช้
+	Start culling {n} photos	เริ่มคัดรูป {n} รูป
+	Culling {n} photos	กำลังคัดรูป {n} รูป
+	P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down	P เลือก · X ตัดออก · Space เลื่อน · U ล้าง · ◀ ถอยหลัง · T คำค้นล่าสุด · ลากขึ้น/ลง
+	{position} of {total}	{position} จาก {total}
+	Summary	สรุป
+	End session	จบเซสชัน
+	Discard staged decisions; nothing has been written yet	ทิ้งการตัดสินใจที่พักไว้ ยังไม่มีการบันทึกใดๆ
+	{picked} picked · {rejected} rejected · {deferred} deferred	เลือก {picked} · ตัดออก {rejected} · เลื่อน {deferred}
+	Up next	ต่อไป
+	Session complete	เซสชันเสร็จสมบูรณ์
+	Pick	เลือก
+	Reject	ตัดออก
+	Defer	เลื่อน
+	Apply rejects…	ใช้การตัดออก…
+	Reject a photo first; picks and defers need no apply	ตัดรูปออกก่อน ส่วนการเลือกและการเลื่อนไม่ต้องใช้
+	Move picks…	ย้ายรูปที่เลือก…
+	Pick a photo first	เลือกรูปก่อน
+	Move the picks into a folder; keeps every rating and keyword	ย้ายรูปที่เลือกไปยังโฟลเดอร์ เก็บดาวและคำค้นไว้ทั้งหมด
+	Export picks…	ส่งออกรูปที่เลือก…
+	Write the picks into a folder; the originals are not touched	เขียนรูปที่เลือกลงโฟลเดอร์ ต้นฉบับไม่ถูกแตะ
+	Back	ย้อนกลับ
+	Remove keyword from this photo	เอาคำค้นออกจากรูปนี้
+	Add keyword to this photo	เพิ่มคำค้นให้รูปนี้
+	Add	เพิ่ม
+	That keyword is already on this photo	คำค้นนั้นอยู่บนรูปนี้แล้ว
+	Tagged “{tag}”	ติดแท็ก “{tag}” แล้ว
+	Find similar photos	หารูปที่คล้ายกัน
+	Hashing…	กำลังคำนวณแฮช…
+	Groups up to date	กลุ่มเป็นปัจจุบันแล้ว
+	Hashing {n} previews	กำลังคำนวณแฮชตัวอย่าง {n} ภาพ
+	{groups} groups · {bits} identical bits	{groups} กลุ่ม · {bits} บิตตรงกัน
+	strictness	ความเข้มงวด
+	Match	ตรงกัน
+	palette	จานสี
+	How far apart two palettes may be, per channel	สองจานสีต่างกันได้แค่ไหนต่อหนึ่งช่องสี
+	Select leftovers in every group ({n})	เลือกรูปส่วนเกินในทุกกลุ่ม ({n})
+	Ticks every photo that is not its group's best, so you can review them together	ติ๊กทุกรูปที่ไม่ใช่ที่สุดของกลุ่ม เพื่อให้ตรวจพร้อมกันได้
+	Selected {n} leftover(s) across {groups} group(s)	เลือก {n} รูปส่วนเกินจาก {groups} กลุ่ม
+	Delete the {n} selected…	ลบ {n} รูปที่เลือก…
+	Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets	ย้ายไปถังขยะ โฟลเดอร์ตัดออก หรือแท็ก หลังผ่านการตรวจความปลอดภัยเหมือนชุดการคัด
+	{n} group(s) · nothing selected	{n} กลุ่ม · ไม่ได้เลือกอะไร
+	No groups yet	ยังไม่มีกลุ่ม
+	Hash the library to find bursts and re-edits.	คำนวณแฮชคลังภาพเพื่อหาภาพชุดและภาพแก้ไขซ้ำ
+	spread {bits} bits	กระจาย {bits} บิต
+	Select all but the best	เลือกทั้งหมดยกเว้นที่สุด
+	Ticks every photo in this group except the one worth keeping	ติ๊กทุกรูปในกลุ่มนี้ยกเว้นรูปที่ควรเก็บ
+	{n} set aside	กันไว้ {n}
+	keeping {keep}	เก็บ {keep}
+	best	ที่สุด
+	Removed keyword {tag}	เอาคำค้น {tag} ออกแล้ว
+	Structure	โครงสร้าง
+	Either	อย่างใดอย่างหนึ่ง
+	Same layout and the same palette — the safe default.	เลย์เอาต์เดียวกันและจานสีเดียวกัน — ค่าเริ่มต้นที่ปลอดภัย
+	Same palette anywhere in the frame, whatever the layout.	จานสีเดียวกันที่ไหนในเฟรมก็ได้ ไม่ว่าเลย์เอาต์เป็นอย่างไร
+	Structure or palette; the widest net, more false pairs.	โครงสร้างหรือจานสี ตาข่ายกว้างที่สุด แต่คู่ผิดพลาดมากกว่า
+	Counting	กำลังนับ
+	Recount	นับใหม่
+	Count the library again on a worker, reporting progress as it goes	นับคลังภาพใหม่บนตัวทำงานเบื้องหลัง พร้อมรายงานความคืบหน้า
+	Photos	รูปภาพ
+	Keyworded	มีคำค้น
+	Ratings	คะแนนดาว
+	Unrated	ยังไม่ให้ดาว
+	Labels	ป้าย
+	Kinds	ชนิด
+	Images	รูปภาพ
+	Raw	RAW
+	Video	วิดีโอ
+	Cameras	กล้อง
+	Lenses	เลนส์
+	Timeline	ไทม์ไลน์
+	No capture dates yet	ยังไม่มีวันที่ถ่าย
+	{n} with no capture date	{n} รูปไม่มีวันที่ถ่าย
+	Months	เดือน
+	Nothing dated yet	ยังไม่มีอะไรมีวันที่
+	Busiest month	เดือนที่คึกคักที่สุด
+	Busiest day	วันที่คึกคักที่สุด
+	Most used camera	กล้องที่ใช้มากที่สุด
+	No capture date	ไม่มีวันที่ถ่าย
+	January	มกราคม
+	February	กุมภาพันธ์
+	March	มีนาคม
+	April	เมษายน
+	May	พฤษภาคม
+	June	มิถุนายน
+	July	กรกฎาคม
+	August	สิงหาคม
+	September	กันยายน
+	October	ตุลาคม
+	November	พฤศจิกายน
+	December	ธันวาคม
+	Winter	ฤดูหนาว
+	Spring	ฤดูใบไม้ผลิ
+	Summer	ฤดูร้อน
+	Autumn	ฤดูใบไม้ร่วง
+	{month} — {count} photo(s) · mostly {season}	{month} — {count} รูป · ส่วนใหญ่เป็น{season}
+	{month} — {count} photo(s)	{month} — {count} รูป
+	{date} — {count} photo(s)	{date} — {count} รูป
+	{camera} — {count} photo(s)	{camera} — {count} รูป
+	{count} photo(s), {percent} of the library	{count} รูป คิดเป็น {percent} ของคลังภาพ
+	Busiest: {month} · mostly {season}	คึกคักที่สุด: {month} · ส่วนใหญ่เป็น{season}
+	Busiest: {month}	คึกคักที่สุด: {month}
+	No photo has a location yet	ยังไม่มีรูปใดมีตำแหน่ง
+	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	กล้องบันทึกว่าถ่ายที่ไหนไว้ใน EXIF ของไฟล์ รูปที่ถ่ายโดยปิดบริการตำแหน่งหรือถูกเครื่องมืออื่นลบข้อมูลออกจะไม่มี
+	zoom {zoom}	ซูม {zoom}
+	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	รูปที่มีตำแหน่ง {located} รูป · จุด {dots} จุด · คลิกจุดเพื่อเลือก
+	No places.txt — dots show their coordinates	ไม่มี places.txt — จุดแสดงพิกัดของมัน
+	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	ตั้งชื่อจาก places.txt · สถานที่ {named} แห่ง · จุดที่อยู่ใน {km} กม. จะยืมชื่อ
+	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	เส้นชายฝั่งแบบแผนผัง · ติดตั้งโฟลเดอร์ไทล์หรือไฟล์ MBTiles เพื่อแผนที่ฐานจริง
+	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	ใส่ไทล์ {z}/{x}/{y}.png และ attribution.txt ใน {dir} — หรือไฟล์ tiles.mbtiles ที่มีแถวเมทาดาทา `attribution` อยู่ข้างๆ — เพื่อแทนที่เส้นโครง 1:110m ไม่มีการดาวน์โหลดใดๆ
+	The basemap cannot be used	ใช้แผนที่ฐานไม่ได้
+	Nothing selected	ไม่ได้เลือกอะไร
+	Pick a photo in the grid, then press D.	เลือกรูปในตาราง แล้วกด D
+	Back to the grid	กลับไปที่ตาราง
+	Loading preview…	กำลังโหลดตัวอย่าง…
+	Previous	ก่อนหน้า
+	Next	ถัดไป
+	No preview to measure	ไม่มีตัวอย่างให้วัด
+	Lookahead	ดูล่วงหน้า
+	P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close	P/X/U สถานะ · 1–5 ให้ดาว · ซ้าย/ขวา เดินรูป · Z ซูม · Esc ปิด
+	Open	เปิด
+	Hand this file to the desktop's default application	ส่งไฟล์นี้ให้แอปเริ่มต้นของเดสก์ท็อป
+	Show in folder	แสดงในโฟลเดอร์
+	Show this file where it lives on disk	แสดงไฟล์นี้ที่ตำแหน่งบนดิสก์
+	Write a copy somewhere; the original is not touched	เขียนสำเนาไว้ที่อื่น ต้นฉบับไม่ถูกแตะ
+	Close  Esc	ปิด  Esc
+	Fit  Z	พอดี  Z
+	1:1  Z	ขนาดจริง  Z
+	Swap  S	สลับ  S
+	Swap which pane is the left one	สลับว่าบานไหนอยู่ซ้าย
+	Close compare  C	ปิดการเปรียบเทียบ  C
+	Go back to the single photograph	กลับไปที่รูปเดี่ยว
+	Compare  C	เปรียบเทียบ  C
+	Show the next photo beside this one, at the same magnification	แสดงรูปถัดไปข้างรูปนี้ที่กำลังขยายเท่ากัน
+	Kind	ชนิด
+	Folder	โฟลเดอร์
+	Size	ขนาด
+	Dimensions	ขนาดพิกเซล
+	Camera	กล้อง
+	Lens	เลนส์
+	Exposure	การรับแสง
+	Captured	ถ่ายเมื่อ
+	Rating	คะแนนดาว
+	{rating} of 5	{rating} จาก 5
+	Flag	สถานะ
+	Label	ป้าย
+	Status	สถานะ
+	missing	หายไป
+	present	มีอยู่
+	Image	รูปภาพ
+	pick	เลือก
+	reject	ตัดออก
+	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	กด 1–5 เพื่อให้ดาว 0 เพื่อล้าง P เพื่อเลือก X เพื่อตัดออก U เพื่อล้างสถานะ
+	Select a photo to see camera, exposure and file details.	เลือกรูปเพื่อดูกล้อง การรับแสง และรายละเอียดไฟล์
+	stars	ดาว
+	label	ป้าย
+	exposure	การรับแสง
+	length	ความยาว
+	size	ขนาด
+	pixels	พิกเซล
+	{left} vs {right}	{left} เทียบ {right}
+	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} เทียบ {right_width}×{right_height}
+	Soft Focus	โฟกัสนุ่ม
+	A relative cut, never a verdict	การคัดแบบสัมพัทธ์ ไม่ใช่คำตัดสิน
+	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	ความคมชัดจัดอันดับเฟรมภายในคลังภาพนี้ ภายใต้แสงเดียวและระยะโฟกัสเดียว การคัดจะเอา N% ที่นุ่มที่สุด จึงบอกได้เพียงว่าสัมพันธ์กับรูปเหล่านี้
+	Measuring	กำลังวัด
+	Measure sharpness	วัดความคมชัด
+	Decode each photo and measure how much fine detail it has	ถอดรหัสแต่ละรูปและวัดว่ามีรายละเอียดปลีกย่อยมากแค่ไหน
+	{n} photo(s) have no current score	{n} รูปยังไม่มีคะแนนปัจจุบัน
+	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	ยังไม่ได้วัดอะไร ความคมชัดจัดอันดับเฟรมในคลังภาพนี้ ไม่ใช่คำตัดสินต่อรูปใด
+	Softest {percent}% · scores {low} to {high}	นุ่มที่สุด {percent}% · คะแนน {low} ถึง {high}
+	Select {n} photo(s)	เลือก {n} รูป
+	Ticks them in the library, where you can look before you act	ติ๊กไว้ในคลังภาพ เพื่อให้ดูก่อนลงมือ
+	Nothing at the cut	ไม่มีอะไรที่เส้นตัด
+	Nothing is scored yet	ยังไม่มีคะแนนเลย
+	Every photo scored the same, so a relative cut cannot separate them	ทุกรูปได้คะแนนเท่ากัน การคัดแบบสัมพัทธ์จึงแยกไม่ออก
+	1 photo at the cut, and {others} others share its score	1 รูปที่เส้นตัด และอีก {others} รูปได้คะแนนเท่ากัน
+	1 photo at or below the cut	1 รูปที่หรือต่ำกว่าเส้นตัด
+	{count} photos at or below the cut ({percent}%)	{count} รูปที่หรือต่ำกว่าเส้นตัด ({percent}%)
+	For You	สำหรับคุณ
+	On this day	วันนี้ในอดีต
+	This week in past years	สัปดาห์นี้ในปีก่อนๆ
+	Never looked at	ไม่เคยดู
+	Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.	นำกลับมาโดยวันที่ถ่ายและสิ่งที่คุณยังไม่ตัดสิน วันที่อ่านเป็น UTC
+	Nothing to resurface yet	ยังไม่มีอะไรนำกลับมา
+	Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.	การ์ดจะปรากฏเมื่อรูปมีวันที่ถ่ายในปีก่อน หรือมีอายุครบหนึ่งปีและยังไม่ให้ดาว
+	{cards} card(s): {kinds}	{cards} การ์ด: {kinds}
+	{month} {day}	{day} {month}
+	{shown} of {total} photos	{shown} จาก {total} รูป
+	{count} photo	{count} รูป
+	{count} photos	{count} รูป
+	{photos} · since {year}	{photos} · ตั้งแต่ {year}
+	{name} · {kind}	{name} — {kind}

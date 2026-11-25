@@ -3,7 +3,7 @@
 //!
 //! Every routed label is an English literal; a missing translation is the English itself, so a
 //! catalogue a translation has not reached yet never breaks the interface. The scaffold ships
-//! Arabic, Japanese, Korean and Traditional Chinese — four of the six languages the design names — and the direction
+//! Arabic, Japanese, Korean, Thai and Traditional Chinese — five of the six languages the design names — and the direction
 //! plumbing the rest stand on: [`apply_direction`] resolves the interface direction from the
 //! chosen language (overridable with `CRAFT_UI_DIRECTION`, the way `craft-ui` checks a mirrored
 //! layout before a right-to-left catalogue exists) and installs it on the context, and the
@@ -25,12 +25,13 @@ static CATALOGS: &Embedded = &[
     ("ar", "", include_str!("i18n/ar.tsv")),
     ("ja", "", include_str!("i18n/ja.tsv")),
     ("ko", "", include_str!("i18n/ko.tsv")),
+    ("th", "", include_str!("i18n/th.tsv")),
     ("zh-TW", "", include_str!("i18n/zh-TW.tsv")),
 ];
 
 /// The interface languages offered, in picker order: English first, then the embedded ones as
 /// `I18n::languages` sorts them.
-pub const LANGUAGES: &[&str] = &["en", "ar", "ja", "ko", "zh-TW"];
+pub const LANGUAGES: &[&str] = &["en", "ar", "ja", "ko", "th", "zh-TW"];
 
 /// The catalogues, parsed on each locale's first lookup. Bad rows are logged once, as a warning
 /// naming the line, and that row shows in English.
@@ -59,7 +60,7 @@ pub fn set_current(lang: Lang) {
     CURRENT.set(lang);
 }
 
-/// The language with this code, if the interface offers it (`en`, `ar`, `ja`, `ko`, `zh-TW`).
+/// The language with this code, if the interface offers it (`en`, `ar`, `ja`, `ko`, `th`, `zh-TW`).
 #[must_use]
 pub fn from_code(code: &str) -> Option<Lang> {
     I18N.from_code(code)
@@ -184,7 +185,7 @@ mod tests {
             "only {} routed keys found; the audit is not reading the sources",
             keys.len()
         );
-        for code in ["ar", "ja", "ko", "zh-TW"] {
+        for code in ["ar", "ja", "ko", "th", "zh-TW"] {
             let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
             let missing: Vec<&String> = keys.iter().filter(|k| I18N.t(lang, k) == *k).collect();
             assert!(missing.is_empty(), "{code} is missing {} routed rows: {missing:#?}", missing.len());
@@ -199,7 +200,7 @@ mod tests {
     #[test]
     fn every_keymap_editor_string_is_in_both_catalogues() {
         let mut missing = Vec::new();
-        for code in ["ar", "ja", "ko", "zh-TW"] {
+        for code in ["ar", "ja", "ko", "th", "zh-TW"] {
             let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
             for source in craft_keymap::ui::STRINGS {
                 // Presence, not difference: a key name or an order-only template translates to
@@ -239,6 +240,7 @@ mod tests {
                 ("ar".into(), "العربية"),
                 ("ja".into(), "日本語"),
                 ("ko".into(), "한국어"),
+                ("th".into(), "ไทย"),
                 ("zh-tw".into(), "繁體中文")
             ]
         );
@@ -247,6 +249,8 @@ mod tests {
         set_current(I18N.match_tag("ja").unwrap());
         assert!(matches!(resolve_direction(), craft_ui::direction::Direction::Ltr));
         set_current(I18N.match_tag("ko").unwrap());
+        assert!(matches!(resolve_direction(), craft_ui::direction::Direction::Ltr));
+        set_current(I18N.match_tag("th").unwrap());
         assert!(matches!(resolve_direction(), craft_ui::direction::Direction::Ltr));
         set_current(Lang::EN);
     }
