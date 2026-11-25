@@ -65,6 +65,14 @@ const STYLES: &[Style] = &[
         order: Order::YearMonthDay,
         date_sep: '/',
     },
+    Style {
+        lang: "zh-TW",
+        zero: '0',
+        group: Some(','),
+        decimal: '.',
+        order: Order::YearMonthDay,
+        date_sep: '/',
+    },
 ];
 
 /// The style for a language code, English when the code is not one the picker offers (an
@@ -232,6 +240,7 @@ mod tests {
     fn numbers_follow_the_language() {
         assert_eq!(count_in(style("en"), 12_408), "12\u{202f}408");
         assert_eq!(count_in(style("ja"), 12_408), "12,408");
+        assert_eq!(count_in(style("zh-TW"), 12_408), "12,408");
         assert_eq!(count_in(style("ar"), 12_408), "١٢٬٤٠٨");
         assert_eq!(count_in(style("ar"), 7), "٧");
         assert_eq!(size_in(style("en"), 1_400_000), "1.4 MB");
@@ -263,6 +272,7 @@ mod tests {
         let seconds = 1_791_000_000; // 2026-10-03 04:00 UTC
         assert_eq!(date_time_in(style("en"), seconds), "2026-10-03 04:00");
         assert_eq!(date_time_in(style("ja"), seconds), "2026/10/03 04:00");
+        assert_eq!(date_time_in(style("zh-TW"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦ ٠٤:٠٠");
         // A date on its own is the same day, written the same way, with the time left off.
         assert_eq!(date_in(style("en"), seconds), "2026-10-03");

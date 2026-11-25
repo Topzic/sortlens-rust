@@ -979,7 +979,15 @@ and none of M9 is closed until the remaining rows are ticked.
   stays English there is the composed assistive sentence (`Views, now …`).
   What stays English there is each side's own value (a colour token, the engine's exposure sentence,
   `format_bytes`) and the notices that open a compare.
-  Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
+  The Traditional Chinese catalogue followed (hundred-and-sixth entry): `crates/ui/src/i18n/zh-TW.tsv`
+  answers every routed key, the shortcut editor's 175 strings and its eleven `@plural` counts, so
+  Settings → Language offers `繁體中文` and the sidebar, canvas header and every catalogued dialog
+  paint that language's words — with Taiwan's numbers and dates (`12,408`, `2026/10/03 04:00`). The
+  font manifest's shipped-language table and the phone's script filter now name `Hani`, so a phone
+  build asks for the Han face a Traditional Chinese interface needs; the face itself comes from the
+  craft-fonts checkout, which a desktop build embeds whole when the checkout is present, and neither
+  set is committed here.
+  Open: the other three languages (ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English

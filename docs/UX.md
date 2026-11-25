@@ -683,7 +683,7 @@ re-checks its own contrast pairs after applying.
   chrome strokes doubled, text at AAA and muted text at AA against its black, with the same WCAG
   measure as the other presets.
 - i18n: every label is an English key; a missing translation is the English itself. The scaffold
-  ships Arabic and Japanese (Settings → Language, persisted) with the direction plumbing: RTL
+  ships Arabic, Japanese and Traditional Chinese (Settings → Language, persisted) with the direction plumbing: RTL
   mirrors the shell's chrome — the sidebar sits at the reading start, the tool strip and right
   panel at the reading end, rows read from their reading start — and the photo is never mirrored.
   The Welcome card, the indexing screen and the "Nothing matches these filters" screen are
@@ -718,8 +718,14 @@ re-checks its own contrast pairs after applying.
   title, its measure button and hover, its progress line, its empty and cut sentences, the histogram caption
   and the select button are rows, and the scores are `format::decimal` — Arabic writes "٠٫٥٠" with its own
   mark and digits.
-  The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
-  are the proof a left-to-right interface is unchanged.
+  Traditional Chinese joined them (2026-11-26, hundred-and-sixth entry): `crates/ui/src/i18n/zh-TW.tsv`
+  answers every routed key, the shortcut editor's own strings and its eleven counts, so Settings →
+  Language offers `繁體中文` beside `العربية` and `日本語`, the sidebar and every catalogued view paint
+  that language's words, and its numbers and dates are Taiwan's (`12,408`, `2026/10/03 04:00`). Its
+  glyphs need a Traditional Han face (`Hani`); the phone's font filter now names that script, and the
+  desktop build paints whichever face the craft-fonts manifest supplies.
+  The remaining three languages (ko/th/vi) and the RTL screenshots are open (M9's row); the screenshot
+  baselines are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

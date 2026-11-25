@@ -20,12 +20,12 @@ pub const REQUIRED_SCRIPTS: &[&str] = &["Latn", "Zsym"];
 
 /// The interface languages that ship with a translation, code by script: what
 /// `crate::i18n::LANGUAGES` offers, mapped to the ISO 15924 script each is written in.
-pub const SHIPPED_LANGUAGE_SCRIPTS: &[(&str, &str)] = &[("en", "Latn"), ("ar", "Arab"), ("ja", "Jpan")];
+pub const SHIPPED_LANGUAGE_SCRIPTS: &[(&str, &str)] = &[("en", "Latn"), ("ar", "Arab"), ("ja", "Jpan"), ("zh-TW", "Hani")];
 
 /// The scripts a phone build's filter must name: the interface's own two plus every shipped
 /// language's. `cargo xtask mobile` passes exactly this list as `CRAFT_FONTS_SCRIPTS`, and the
 /// test below holds it to that definition so adding a language updates both.
-pub const PHONE_SCRIPTS: &[&str] = &["Latn", "Zsym", "Arab", "Jpan"];
+pub const PHONE_SCRIPTS: &[&str] = &["Latn", "Zsym", "Arab", "Jpan", "Hani"];
 
 /// One non-comment line of craft-fonts' `fonts/manifest.txt`.
 ///
@@ -141,6 +141,7 @@ mod tests {
     const MANIFEST: &str = "BIZ UDPGothic | Regular | ja/BIZUDPGothic-Regular.ttf | Jpan,Latn\n\
                             BIZ UDPGothic | Bold | ja/BIZUDPGothic-Bold.ttf | Jpan,Latn\n\
                             Noto Naskh Arabic | Regular | ar/NotoNaskhArabic-Regular.ttf | Arab\n\
+                            Noto Sans TC | Regular | zh-TW/NotoSansTC-Regular.ttf | Hani\n\
                             NanumGothic | Regular | ko/NanumGothic-Regular.ttf | Hang,Kore\n\
                             Noto Sans Symbols | Regular | symbols/NotoSansSymbols-Regular.ttf | Zsym\n\
                             Noto Sans Symbols 2 | Regular | symbols/NotoSansSymbols2-Regular.ttf | Zsym\n";
@@ -148,10 +149,11 @@ mod tests {
     #[test]
     fn parse_reads_every_face_and_skips_comments() {
         let faces = parse(MANIFEST).expect("a well-formed manifest parses");
-        assert_eq!(faces.len(), 6);
+        assert_eq!(faces.len(), 7);
         assert_eq!(faces[0].family, "BIZ UDPGothic");
         assert_eq!(faces[0].scripts, vec!["Jpan", "Latn"]);
-        assert_eq!(faces[3].file, "ko/NanumGothic-Regular.ttf");
+        assert_eq!(faces[3].file, "zh-TW/NotoSansTC-Regular.ttf");
+        assert_eq!(faces[4].file, "ko/NanumGothic-Regular.ttf");
         assert_eq!(parse("# only a comment\n").expect("comments are not faces"), Vec::new());
         assert!(parse("family | style\n").is_err(), "a line without scripts is malformed");
     }
@@ -160,7 +162,7 @@ mod tests {
     fn no_filter_keeps_the_whole_manifest() {
         let faces = parse(MANIFEST).expect("parses");
         let kept = select(&faces, &[]).expect("no filter keeps everything");
-        assert_eq!(kept.len(), 6);
+        assert_eq!(kept.len(), 7);
         assert!(kept.iter().any(|face| face.family == "NanumGothic"));
     }
 
@@ -171,8 +173,9 @@ mod tests {
         let families: Vec<&str> = kept.iter().map(|face| face.family).collect();
         assert!(families.contains(&"BIZ UDPGothic"), "Japanese ships on the phone");
         assert!(families.contains(&"Noto Sans Symbols"), "Zsym is required");
+        assert!(families.contains(&"Noto Sans TC"), "Traditional Chinese ships on the phone");
         assert!(!families.contains(&"NanumGothic"), "no shipped language is Korean");
-        assert_eq!(kept.len(), 5);
+        assert_eq!(kept.len(), 6);
     }
 
     #[test]
@@ -209,8 +212,12 @@ mod tests {
             Vec::<String>::new()
         );
         let problems = validate(MANIFEST, &["Latn", "Zsym"]).expect("the filter itself is well-formed");
-        // The Latin request keeps BIZ UDPGothic, which covers Jpan too; only Arabic has no face left.
-        assert_eq!(problems, vec!["the embedded set does not cover Arab"]);
+        // The Latin request keeps BIZ UDPGothic, which covers Jpan too; Arabic and Traditional
+        // Chinese have no face left.
+        assert_eq!(
+            problems,
+            vec!["the embedded set does not cover Arab", "the embedded set does not cover Hani"]
+        );
         assert!(
             validate(MANIFEST, &["Latn", "Zsym", "Deva"]).is_err(),
             "a filter naming a script the manifest lacks is refused before coverage"

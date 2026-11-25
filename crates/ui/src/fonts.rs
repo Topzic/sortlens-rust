@@ -38,7 +38,7 @@ pub use crate::font_manifest::REQUIRED_SCRIPTS;
 
 /// Scripts a translation would add, each of which needs a face when the language ships.
 pub const TRANSLATED_SCRIPTS: &[&str] = &[
-    "Jpan", "Kore", "Hans", "Hebr", "Deva", "Beng", "Guru", "Gujr", "Orya", "Taml", "Telu", "Knda", "Mlym", "Arab", "Thai", "Geor",
+    "Jpan", "Kore", "Hans", "Hani", "Hebr", "Deva", "Beng", "Guru", "Gujr", "Orya", "Taml", "Telu", "Knda", "Mlym", "Arab", "Thai", "Geor",
 ];
 
 /// Whether the app was built with craft-fonts.

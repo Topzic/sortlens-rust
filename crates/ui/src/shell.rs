@@ -10960,6 +10960,22 @@ mod tests {
             "the sidebar's counts are written in the language's digits"
         );
 
+        // Traditional Chinese, the third catalogue: the sidebar paints that language's words too,
+        // and its script runs left to right, so the panels keep the reading start English used.
+        crate::i18n::set_current(crate::i18n::from_code("zh-TW").expect("Traditional Chinese is offered"));
+        assert!(
+            matches!(crate::i18n::resolve_direction(), craft_ui::direction::Direction::Ltr),
+            "Traditional Chinese runs left to right"
+        );
+        let output = frame(&mut state, egui::RawInput::default());
+        assert!(
+            text_rect(&output, "來源").is_some(),
+            "the sources section reads 來源 in Traditional Chinese"
+        );
+        assert!(text_rect(&output, "所有照片").is_some(), "the All Photos row reads 所有照片");
+        assert!(text_rect(&output, "SOURCES").is_none(), "and English is not painted behind it");
+        assert!(text_rect(&output, "المصادر").is_none(), "nor Arabic");
+
         // And back: English restores the left edge exactly.
         let mut english = UiState::new(ThemeKind::Charcoal, 0.0);
         english.settings_open = true;

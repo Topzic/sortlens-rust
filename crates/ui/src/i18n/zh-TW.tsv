@@ -1,0 +1,769 @@
+# Traditional Chinese (zh-TW) catalogue for Sortlens' interface — Phase 4 item 2d scaffolding (SL-L07).
+# Format: context<TAB>source<TAB>translation; the shared column of the embedded table is empty,
+# so these are all Sortlens' own rows. A missing row is the English text, never an error.
+@id	language.name	繁體中文
+	All Photos	所有照片
+	Recently Added	最近新增
+	Picks	精選
+	Rated	已評分
+	Missing	已遺失
+	Rejects	已排除
+	Sources	來源
+	Folders	資料夾
+	Subfolders	子資料夾
+	Keywords	關鍵字
+	Collections	選集
+	Library	圖庫
+	Detail	詳細資料
+	Places	地點
+	Details	詳細資訊
+	Tags	標籤
+	Suggestions	建議
+	Activity	活動
+	Move to the Trash	移到垃圾桶
+	Tag only, move nothing	只加標籤，不移動
+	Settings	設定
+	Appearance	外觀
+	Backup	備份
+	Shortcuts	快速鍵
+	Keyword packs	關鍵字套件
+	Language	語言
+	Back up library…	備份圖庫…
+	Restore into a folder…	還原到資料夾…
+	Edit shortcuts…	編輯快速鍵…
+	Write XMP sidecars beside photos	在照片旁寫入 XMP 附屬檔案
+	AI models (local)	AI 模型（本機）
+	Updates	更新
+	More settings arrive with the features they configure.	更多設定會隨著對應功能一起推出。
+	Check Library	檢查圖庫
+	Recently Deleted	最近刪除
+	Recent Changes	最近變更
+	Keyboard Shortcuts	鍵盤快速鍵
+	Applying a cull batch	套用篩選批次
+	Sync & devices	同步與裝置
+	Stop serving	停止提供服務
+	Start serving	開始提供服務
+	Revoke	撤銷
+	Send to desktop	傳送到電腦
+	Forget this desktop	忘記這台電腦
+	Desktop address	電腦位址
+	Port	連接埠
+	Pairing code	配對碼
+	Pair	配對
+	Test connection	測試連線
+	Stop sending	停止傳送
+	Send the selection	傳送選取項目
+	Remove from this phone once the desktop holds them	電腦收到後就從這支手機移除
+	Sending…	傳送中…
+	Welcome to Sortlens	歡迎使用 Sortlens
+	Point it at a folder of photos and it builds a catalog beside your files.	指向一個照片資料夾，它就會在檔案旁建立目錄。
+	Your files stay put	檔案保持原樣
+	No upload, no rename, no moving. Sortlens only reads.	不上傳、不改名、不移動。Sortlens 只會讀取。
+	Everything is undoable	一切都可復原
+	Ratings, flags and keywords live in one log you can step back.	評分、旗標與關鍵字都記錄在同一份日誌中，可逐步回復。
+	Rejects wait for you	已排除的照片等你決定
+	Culling stages decisions; nothing is trashed until you apply.	篩選只會暫存決定，套用之前不會刪除任何東西。
+	Add Folder…	新增資料夾…
+	Not now	稍後
+	JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate	JPEG、HEIC、TIFF、PNG、WebP、GIF、相機 RAW 與影片 — 海報畫格、長度與影格率
+	Indexing…	建立索引中…
+	{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.	目前 {files} 個檔案、{folders} 個資料夾。正在讀取大小與內容鍵；不會移動任何東西。
+	scanning	掃描中
+	Found so far	目前找到
+	Nothing yet	尚無
+	Nothing matches these filters	沒有符合這些篩選條件的照片
+	{n} photograph in this library, and the current filters exclude every one of them.	這個圖庫有 {n} 張照片，目前的篩選條件把它們全部排除了。
+	{n} photographs in this library, and the current filters exclude every one of them.	這個圖庫有 {n} 張照片，目前的篩選條件把它們全部排除了。
+	Clear filters	清除篩選
+	Clears the search text and every filter, and forgets the folder scope	清除搜尋文字與所有篩選條件，並忘掉資料夾範圍
+	Export finished	匯出完成
+	The originals are where they were; an export only writes copies.	原始檔仍在原位；匯出只會寫出副本。
+	Export	匯出
+	{n} photo(s) · {spec}	{n} 張 · {spec}
+	Format	格式
+	Original	原始
+	A copy: same bytes, same name, no resize and no re-encode.	副本：位元組相同、名稱相同，不縮放也不重新編碼。
+	Longest edge	長邊
+	px · 0 keeps the original size	px · 0 表示保留原始尺寸
+	Quality	品質
+	Keep EXIF and IPTC	保留 EXIF 與 IPTC
+	Carries the camera's metadata into the new file	把相機的中繼資料帶進新檔案
+	PNG is lossless: no quality to pick, and alpha is kept.	PNG 是無損格式：不需選擇品質，並保留透明色版。
+	If the name is taken	名稱重複時
+	Skip	略過
+	Keep both	兩者都保留
+	Replace	取代
+	quality {n}	品質 {n}
+	{n} px longest edge	長邊 {n} px
+	without metadata	不含中繼資料
+	lossless	無損
+	{n} written	已寫出 {n} 個
+	{n} skipped	已略過 {n} 個
+	{n} failed	{n} 個失敗
+	{done} of {total}	{done} / {total}
+	Stop	停止
+	Choose folder…	選擇資料夾…
+	An export is already running, or nothing is selected	已有匯出正在進行，或未選取任何照片
+	Cancel	取消
+	Your photos stay where they are; this writes copies into the folder you pick.	照片會留在原位；這會把副本寫入你選擇的資料夾。
+	Delete selected photos	刪除選取的照片
+	{n} photo(s)	{n} 張照片
+	What happens to them	它們會怎麼處理
+	Files that changed on disk since they were indexed stop the whole batch.	索引後在磁碟上變更過的檔案會中止整個批次。
+	Delete	刪除
+	Deleted {n} photo(s)	已刪除 {n} 張照片
+	, {n} failed	，{n} 個失敗
+	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	已暫存 {n} 張照片。套用後會以{mode}記錄這些決定 — 可以一步復原。
+	Apply cull batch	套用篩選批次
+	{rejects} rejects · {picks} picks	已排除 {rejects} · 精選 {picks}
+	What happens to the rejects	已排除的照片會怎麼處理
+	Apply	套用
+	Applied {n} photo(s)	已套用 {n} 張照片
+	Empty the rejects bin?	要清空已排除回收筒嗎？
+	{batches} batch(es), {files} file(s) will lose their restore record.	{batches} 個批次、{files} 個檔案會失去還原紀錄。
+	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	已移動的檔案會留在系統垃圾桶；只有被標記的檔案則留在原位。這裡不會刪除磁碟上的任何東西，而且此操作無法復原。
+	Empty bin	清空回收筒
+	Forgot {batches} batch(es) covering {files} file(s)	已忘掉涵蓋 {files} 個檔案的 {batches} 個批次
+	Rename collection	重新命名選集
+	Save	儲存
+	Renamed to {name}	已重新命名為 {name}
+	About Sortlens	關於 Sortlens
+	Version {version}	版本 {version}
+	Fast, local culling for photographers who shoot thousands of images.	為拍攝上千張影像的攝影師打造的快速本機篩選工具。
+	{commands} commands, {ready} ready today.	{commands} 個命令，目前 {ready} 個可用。
+	Library health	圖庫狀態
+	Catalog files	目錄檔案
+	Clean · {photos} photos · seq {seq}	正常 · {photos} 張照片 · 序號 {seq}
+	Recoverable · {photos} photos, {records} record(s) replayed	可復原 · {photos} 張照片，已重播 {records} 筆紀錄
+	Needs attention	需要留意
+	snapshot at seq {seq}	快照位於序號 {seq}
+	{n} record(s) replayed	已重播 {n} 筆紀錄
+	{n} already covered	{n} 筆已涵蓋
+	{bytes} log bytes	日誌 {bytes} 位元組
+	none	無
+	Check integrity	檢查完整性
+	The check replays a copy of the log, so the library itself is never touched.	檢查會重播日誌的副本，因此完全不會動到圖庫本身。
+	Compact	壓縮
+	Write a fresh snapshot and empty the log; also repairs a torn log tail	寫入新的快照並清空日誌；也會修復中斷的日誌尾端
+	Catalog was already compact	目錄已經是壓縮狀態
+	Compacted · {bytes} reclaimed	已壓縮 · 釋出 {bytes}
+	{present} of {checked} files present · {missing} missing	{checked} 個檔案中有 {present} 個存在 · 缺少 {missing} 個
+	Not checked yet.	尚未檢查。
+	Check library	檢查圖庫
+	Checked {checked} files · {missing} missing · {changed} changed	已檢查 {checked} 個檔案 · 缺少 {missing} 個 · 變更 {changed} 個
+	Stats every file and updates the missing badges in one undoable step.	統計每個檔案，並以一個可復原的步驟更新遺失標記。
+	{n} file(s) changed on disk since they were indexed	索引後有 {n} 個檔案在磁碟上變更
+	Refresh changed	重新整理變更
+	Re-read metadata and identity for exactly those files	只為這些檔案重新讀取中繼資料與身分
+	Nothing could be refreshed	沒有可重新整理的項目
+	Refreshed {n} photo(s)	已重新整理 {n} 張照片
+	Find moved photos	尋找已移動的照片
+	No moved photos found under their roots	在根目錄下找不到已移動的照片
+	Relocated {n} photo(s)	已重新定位 {n} 張照片
+	Matches missing photos by content key under the same root.	在相同的根目錄下以內容鍵比對遺失的照片。
+	Point at…	指定位置…
+	This folder moved or its volume was renamed	這個資料夾已移動，或其磁碟區已重新命名
+	{n} photo(s) under {root}	{root} 下的 {n} 張照片
+	Repointing checks a sample of photos in the new folder first.	重新指定前會先檢查新資料夾中的部分照片。
+	No photos are waiting on a metadata retry	沒有照片在等待重試中繼資料
+	{n} photo(s) could not be read when indexed	建立索引時有 {n} 張照片無法讀取
+	Retry metadata	重試中繼資料
+	Try reading EXIF again for the photos that failed	再為失敗的照片讀取一次 EXIF
+	Nothing recovered; {remaining} still unreadable	未復原任何內容；{remaining} 個仍無法讀取
+	Read metadata for {n} photo(s)	已讀取 {n} 張照片的中繼資料
+	Read {updated}; {remaining} still unreadable	已讀取 {updated} 個；{remaining} 個仍無法讀取
+	Re-read all without EXIF	重新讀取所有沒有 EXIF 的照片
+	{n} photo(s) have no camera and no date; try again with the current readers	{n} 張照片沒有相機資訊與日期；請用目前的讀取器再試一次
+	Remove missing from library	從圖庫移除遺失的照片
+	Nothing is marked missing	沒有標記為遺失的照片
+	Removed {n} missing photo(s) — undo restores them	已移除 {n} 張遺失的照片 — 復原即可還原
+	Removes catalog entries only; the files are already gone.	只移除目錄項目；檔案已經不存在。
+	Cull summary	篩選摘要
+	Nothing to cull	沒有可篩選的照片
+	Judged all {total} photos	已評判全部 {total} 張照片
+	{judged} of {total} judged	{total} 張中已評判 {judged} 張
+	Deferred	已暫緩
+	Not judged	未評判
+	{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.	套用後 {changed} 張照片會變更；{deferred} 個暫緩項目永遠不會寫入。
+	Apply…	套用…
+	Keep culling	繼續篩選
+	Jump to next	跳到下一張
+	Skip to the first photo without a decision	跳到第一張尚未決定的照片
+	Discard	捨棄
+	Drop every staged decision and restore the flags	丟掉所有暫存的決定並還原旗標
+	Cull discarded	已捨棄篩選
+	Quit Sortlens?	要結束 Sortlens 嗎？
+	An index scan is running; the files found so far are not saved yet.	索引掃描正在進行；目前找到的檔案尚未儲存。
+	{staged} staged cull decision(s) have not been applied. The session is kept for next time.	有 {staged} 個暫存的篩選決定尚未套用。工作階段會保留到下次。
+	A similarity pass is running; hashes finished so far are kept.	相似度比對正在進行；目前已完成的雜湊會保留。
+	Keep working	繼續工作
+	Quit anyway	仍要結束
+	Close the window now; unstaged work is dropped	立即關閉視窗；未暫存的工作會被丟棄
+	Indexed {path}	已建立索引 {path}
+	Stopped indexing {path}	已停止建立索引 {path}
+	Added {file}	已新增 {file}
+	Removed {file}	已移除 {file}
+	Marked photo #{id} as missing	已將照片 #{id} 標記為遺失
+	Found photo #{id} again	再次找到照片 #{id}
+	Rated {photos}	已評分 {photos}
+	Flagged {photos}	已標記 {photos}
+	Labelled {photos}	已加標籤 {photos}
+	Set the capture date on {photos}	已設定 {photos} 的拍攝日期
+	Keyworded {photos}	已為 {photos} 加上關鍵字
+	Recorded where keywords came from on {photos}	已記錄 {photos} 的關鍵字來源
+	Stopped suggesting {keywords}	已停止建議 {keywords}
+	Found {photos} somewhere else	在其他位置找到 {photos}
+	Queued {photos} for a metadata retry	已將 {photos} 排入中繼資料重試
+	Linked {aliases} keyword alias(es)	已連結 {aliases} 個關鍵字別名
+	Repointed {from} to {to}	已將 {from} 重新指向 {to}
+	Created the collection {name}	已建立選集 {name}
+	Deleted the collection {name}	已刪除選集 {name}
+	Renamed a collection to {name}	已將選集重新命名為 {name}
+	Collection change: +{added} -{removed}	選集變更：+{added} -{removed}
+	Set a collection's colour to {colour}	已將選集顏色設為{colour}
+	Switched on the “{name}” keyword pack	已開啟「{name}」關鍵字套件
+	Switched off the “{name}” keyword pack	已關閉「{name}」關鍵字套件
+	Measured the sharpness of {photos}	已測量 {photos} 的銳利度
+	Pinned {folder} and set it to {colour}	已釘選 {folder} 並設為{colour}
+	Pinned {folder}	已釘選 {folder}
+	Set {folder} to {colour}	已將 {folder} 設為{colour}
+	Cleared the mark on {folder}	已清除 {folder} 的標記
+	{first} (+{others} more change(s))	{first}（另有 {others} 項變更）
+	Dismissed nothing	未略過任何建議
+	Cleared a collection's colour	已清除選集的顏色
+	Starred a collection	已為選集加上星號
+	Unstarred a collection	已移除選集的星號
+	Changed a collection's sort	已變更選集的排序
+	Changed a collection's search	已變更選集的搜尋
+	Grouped change	合併變更
+	Recent changes	最近變更
+	No changes since the last snapshot.	自上次快照以來沒有變更。
+	Every change is a record in the log; older ones are folded into the snapshot.	每項變更都是日誌中的一筆紀錄；較舊的會摺入快照。
+	Export report…	匯出報告…
+	Plain text, for a support request	純文字，供支援請求使用
+	The report lists folder and file names; it never includes photo contents.	報告會列出資料夾與檔案名稱，絕不包含照片內容。
+	no date	沒有日期
+	Red	紅色
+	Yellow	黃色
+	Green	綠色
+	Blue	藍色
+	Purple	紫色
+	{n} keyword(s)	{n} 個關鍵字
+	Batch applied	已套用批次
+	{n} photo handled	已處理 {n} 張照片
+	{n} photos handled	已處理 {n} 張照片
+	Moved to the system Trash	已移到系統垃圾桶
+	Left on disk and flagged as rejected	留在磁碟上並標記為已排除
+	Moved to {folder}	已移到 {folder}
+	{n} pick(s) written	已寫入 {n} 個精選
+	Batch {batch} · {n} file(s) kept on disk	批次 {batch} · {n} 個檔案保留在磁碟上
+	{n} file(s) could not be handled	{n} 個檔案無法處理
+	Put them back	放回去
+	Done	完成
+	Restored the batch	已還原批次
+	Colour	顏色
+	None	無
+	Pinned and {colour}	已釘選並設為{colour}
+	Pinned to the top	已釘選至頂端
+	Folder is {colour}	資料夾為{colour}
+	Folder mark cleared	已清除資料夾標記
+	Collection is {colour}	選集為{colour}
+	{n} collections are {colour}	{n} 個選集為{colour}
+	Collection colour cleared	已清除選集顏色
+	Colour cleared on {n} collections	已清除 {n} 個選集的顏色
+	{colour} label	{colour}標籤
+	{colour} label on {n} photos	{n} 張照片上的{colour}標籤
+	Colour filter: {colour}	顏色篩選：{colour}
+	Colour filter: any colour	顏色篩選：任何顏色
+	Only photos with this colour label — an empty ring means every colour	只顯示帶有此顏色標籤的照片 — 空心圓環代表所有顏色
+	No colour label.	沒有顏色標籤。
+	Cleared the label	已清除標籤
+	Cleared the label on {n} photos	已清除 {n} 張照片的標籤
+	Show every shortcut	顯示所有快速鍵
+	Close the dialog, overlay or detail view	關閉對話框、覆蓋層或詳細檢視
+	Add a folder to the library	在圖庫中新增資料夾
+	Rescan the library for changes	重新掃描圖庫以反映變更
+	New collection	新選集
+	Open the command palette, or close it	開啟或關閉命令面板
+	Open settings	開啟設定
+	Quit, asking about unsaved work	結束（詢問未儲存的工作）
+	Undo the last change	復原上一次變更
+	Redo the last undone change	重做上一次復原的變更
+	Flag as picked	標記為精選
+	Flag as rejected	標記為已排除
+	Clear the flag	清除旗標
+	Set the star rating, 0 clearing it	設定星級評分，0 表示清除
+	Colour label: red, yellow, green, blue; again to clear	顏色標籤：紅、黃、綠、藍；再按一次即可清除
+	Jump to the keyword field	跳到關鍵字欄位
+	Apply the keyword you last added to the selection	將你最後新增的關鍵字套用到選取項目
+	Select one photo; ⌘-click adds or removes, Shift-click takes the run	選取一張照片；⌘ 點擊可新增或移除，Shift 點擊可選取連續範圍
+	Select every photo in view	選取檢視中的所有照片
+	Marquee-select from the grid background	從格狀背景以框選方式選取
+	Grid layout: justified rows or a square lattice	格狀配置：兩端對齊列或方格陣列
+	Open the detail view	開啟詳細檢視
+	Start a cull session from the filters	依目前篩選條件開始篩選工作階段
+	Open insights	開啟洞察
+	Open the map	開啟地圖
+	Open the similar-photo search	開啟相似照片搜尋
+	Next photo in the sorted order	排序中的下一張照片
+	Previous photo in the sorted order	排序中的上一張照片
+	Zoom to fit or 1:1	縮放至符合視窗或 1:1
+	Compare with the next photo	與下一張照片比較
+	Close the detail view	關閉詳細檢視
+	Keep this photo	保留這張照片
+	Reject this photo	排除這張照片
+	Leave it undecided and move on	保持未決定並繼續
+	Mark undecided again	再次標記為未決定
+	Step back one photo	退回一張照片
+	Apply the keyword you last added to this photo	將你最後新增的關鍵字套用到這張照片
+	Apply the staged rejections	套用暫存的排除決定
+	Zoom to fit or 2×	縮放至符合視窗或 2×
+	Pan while zoomed	放大時平移
+	Close the compare	關閉比較
+	Swap the two sides	交換兩側
+	Step the pair together	一起移動這一對
+	Detail view	詳細檢視
+	Cull session	篩選工作階段
+	Compare	比較
+	Anywhere	任何位置
+	Nothing focused, no dialog open.	沒有焦點，也沒有開啟的對話框。
+	D from the grid; Esc closes it.	在格狀檢視按 D；Esc 可關閉。
+	C starts a session from the current filters.	按 C 依目前篩選條件開始工作階段。
+	C in the detail view; S swaps sides.	在詳細檢視按 C；S 可交換兩側。
+	Also works with a dialog open.	開啟對話框時也能使用。
+	Keyboard shortcuts	鍵盤快速鍵
+	Search keys or actions	搜尋按鍵或動作
+	{n} bindings	{n} 個繫結
+	{bound} of {total} bound	{total} 個中已繫結 {bound} 個
+	Nothing is bound to that.	沒有為它繫結任何按鍵。
+	Scan	掃描
+	Previews	預覽
+	Sidecars	附屬檔案
+	Similar	相似
+	Insights	洞察
+	Sharpness	銳利度
+	Model	模型
+	Update	更新
+	running	執行中
+	done	完成
+	cancelled	已取消
+	failed	失敗
+	{files} files · {dirs} folders	{files} 個檔案 · {dirs} 個資料夾
+	{files} files · {dirs} folders · {unreadable} unreadable	{files} 個檔案 · {dirs} 個資料夾 · {unreadable} 個無法讀取
+	cancelled before committing	在確認前已取消
+	Nothing has run yet. Scans and exports appear here.	尚未執行任何作業。掃描與匯出會顯示在這裡。
+	Indexed	已建立索引
+	On disk	磁碟上
+	Select a photo to see what its own file and the keyword packs propose.	選取一張照片，看看它自己的檔案與關鍵字套件會提出什麼建議。
+	Nothing to propose for this selection.	這個選取項目沒有可建議的內容。
+	Proposals come from each file's own EXIF and from the keyword packs that are switched on.	建議來自每個檔案自身的 EXIF，以及已開啟的關鍵字套件。
+	{proposals} for {photos}	{photos} 的 {proposals}
+	{n} proposal	{n} 個建議
+	{n} proposals	{n} 個建議
+	{n} photo	{n} 張照片
+	{n} photos	{n} 張照片
+	Accept all	全部接受
+	Add every proposal in this family as a keyword, as one undo	將此類別的所有建議加為關鍵字（可一次復原）
+	Those keywords are already on every selected photo	這些關鍵字已加在每個選取的照片上
+	Added {n} keyword(s) — one undo takes them back	已新增 {n} 個關鍵字 — 一次復原即可收回
+	 · on {photos} of the {selected} selected photos	 · 選取的 {selected} 張中有 {photos} 張
+	Don't propose “{tag}” again for these photos — one undo brings it back	不再為這些照片建議「{tag}」— 一次復原即可恢復
+	“{tag}” was already dismissed	「{tag}」已經被略過
+	Won't propose “{tag}” again — one undo brings it back	不會再建議「{tag}」— 一次復原即可恢復
+	“{tag}” is already on every selected photo	「{tag}」已加在每個選取的照片上
+	Added “{tag}” — one undo takes it back	已新增「{tag}」— 一次復原即可收回
+	{tag} · {percent} from {source}	{tag} · {percent} 來自 {source}
+	Suggested	已建議
+	Suggested keywords	建議的關鍵字
+	Clear	清除
+	Uses what each file says about itself and any keyword packs you switched on.	使用每個檔案自身的資訊，以及你已開啟的關鍵字套件。
+	No proposals yet.	尚無建議。
+	{n} photo(s) with something to suggest	{n} 張照片有可建議的內容
+	Objects	物件
+	Scene	場景
+	EXIF	EXIF
+	detector	偵測器
+	camera	相機
+	pack	套件
+	caption	圖說
+	Nothing is written while this runs.	執行期間不會寫入任何東西。
+	Suggest for the whole library	為整個圖庫提出建議
+	{percent} from {source} — clicking adds it	{percent} 來自 {source} — 點擊即可新增
+	Custom	自訂
+	OK	OK
+	Close	關閉
+	Undo	復原
+	Redo	重做
+	Reset All…	全部重設…
+	Restore every default shortcut in this set?	要還原這組中的所有預設快速鍵嗎？
+	Reset All	全部重設
+	Show:	顯示：
+	Filter:	篩選：
+	Search:	搜尋：
+	Search by key	依按鍵搜尋
+	All Commands	所有命令
+	{menu} Menu	{menu} 選單
+	Tools	工具
+	{panel} Panel	{panel} 面板
+	Other	其他
+	Fixed Keys	固定按鍵
+	All	全部
+	With Shortcut	有快速鍵
+	Changed	已變更
+	Conflicts	衝突
+	No matching commands	沒有符合的命令
+	(cycles)	（循環）
+	{label} (cycles)	{label}（循環）
+	{label} (Changed)	{label}（已變更）
+	Command	命令
+	Commands	命令
+	Detail pane size	詳細窗格大小
+	Select a command to see and change its shortcuts	選取命令以查看並變更其快速鍵
+	Shortcut	快速鍵
+	Default	預設
+	{chord} (Default)	{chord}（預設）
+	{chord} ({scope})	{chord}（{scope}）
+	{label} ({scope})	{label}（{scope}）
+	Application	應用程式
+	Current shortcuts:	目前快速鍵：
+	New shortcut:	新快速鍵：
+	New shortcut: {chord}	新快速鍵：{chord}
+	press keys	按下按鍵
+	{chord} (press again for a double press)	{chord}（再按一次可設定雙擊）
+	Type…	輸入…
+	Context:	情境：
+	Assign	指派
+	Use Default	使用預設
+	Default: {chord}	預設：{chord}
+	Currently assigned to:	目前已指派給：
+	Not assigned	未指派
+	{label} ({scope}, both work)	{label}（{scope}，兩者皆可）
+	Add a shortcut to {label}	為 {label} 新增快速鍵
+	Remove {chord} from {label}	從 {label} 移除 {chord}
+	Restore the default for {label}	還原 {label} 的預設值
+	{label}: {chord}	{label}：{chord}
+	{label}: press keys	{label}：按下按鍵
+	Now used by {label}	目前由 {label} 使用
+	{label}: {chord} (Now used by {holder})	{label}：{chord}（目前由 {holder} 使用）
+	the shortcut has no key	此快速鍵沒有按鍵
+	unknown modifier {key}	不明的修飾鍵 {key}
+	modifier {key} given twice	修飾鍵 {key} 指定了兩次
+	key sequences are not supported	不支援按鍵序列
+	the scope name is not valid	情境名稱無效
+	Keyboard	鍵盤
+	Keyboard: US	鍵盤：US
+	Keyboard: US (macOS)	鍵盤：US（macOS）
+	Control	Control
+	Option	Option
+	Shift	Shift
+	Ctrl	Ctrl
+	Alt	Alt
+	Caps Lock	Caps Lock
+	Win	Win
+	Super	Super
+	Panel or context	面板或情境
+	Both	兩者
+	Modifier on	使用修飾鍵
+	{chord}: {label}	{chord}：{label}
+	Click a key to see its shortcuts	點擊按鍵以查看其快速鍵
+	Key: {key}	按鍵：{key}
+	Assign to Selected	指派給選取項目
+	Assign {chord} to {label}	將 {chord} 指派給 {label}
+	Select a command first	請先選取命令
+	Nothing uses this key	沒有東西使用這個按鍵
+	⚠ {chord} is used by {label}	⚠ {chord} 正由 {label} 使用
+	{chord} was removed from {label}	已從 {label} 移除 {chord}
+	Also used by {label}	{label} 也使用
+	{chord} is reserved by the system	{chord} 已由系統保留
+	A command can have at most {n} shortcuts	一個命令最多可有 {n} 個快速鍵
+	The scope {scope} is unknown	情境 {scope} 不明
+	Too many shortcuts are assigned	指派的快速鍵太多
+	This command is unknown	這個命令不明
+	Take It	接手
+	Take It and Go to Conflict	接手並前往衝突
+	Keep Both	兩者都保留
+	Go to Conflict	前往衝突
+	Cancel the new shortcut	取消新的快速鍵
+	Dismiss	關閉
+	{key}: no command has this name	{key}：沒有命令叫這個名稱
+	{key}: “{text}” is not a shortcut ({error})	{key}：「{text}」不是快速鍵（{error}）
+	{key}: {text} is reserved by the system	{key}：{text} 已由系統保留
+	{key}: the scope in “{text}” is unknown	{key}：「{text}」中的情境不明
+	{key}: listed more than once	{key}：登錄超過一次
+	{key}: part of the entry was dropped	{key}：項目的一部分已被捨棄
+	Set:	組合：
+	(modified)	（已修改）
+	New Set…	新組合…
+	Rename…	重新命名…
+	Revert Set	還原組合
+	Import…	匯入…
+	Export…	匯出…
+	Summarize…	摘要…
+	{title}: {set}	{title}：{set}
+	Create	建立
+	Rename	重新命名
+	More	更多
+	Name:	名稱：
+	Based on:	依據：
+	Current shortcuts	目前快速鍵
+	Save changes to “{set}”?	要儲存對「{set}」的變更嗎？
+	Don't Save	不儲存
+	Delete the set “{set}”?	要刪除組合「{set}」嗎？
+	Keyboard Shortcuts (JSON)	鍵盤快速鍵（JSON）
+	The name is empty, too long or has control characters	名稱為空、太長，或含有控制字元
+	A set with this name exists	已有同名的組合
+	The set was not found	找不到該組合
+	Built-in sets cannot be changed	內建組合無法變更
+	There are too many sets	組合太多
+	This is not a shortcut set file	這不是快速鍵組合檔案
+	This is not a craft-keymap file	這不是 craft-keymap 檔案
+	This file is from a newer version (format {n})	這個檔案來自較新的版本（格式 {n}）
+	The file is too large	檔案太大
+	Import “{set}”	匯入「{set}」
+	Set name:	組合名稱：
+	Import	匯入
+	Cancel Import	取消匯入
+	line {n}	第 {n} 行
+	Will change	將會變更
+	Not matched	未比對到
+	Unreadable	無法讀取
+	Approximated	近似
+	{title} ({n})	{title}（{n}）
+	Suggestions ({n})	建議（{n}）
+	numeric keypad key read as main key	數字鍵盤按鍵讀取為主鍵
+	Matched without change	未變更即比對到
+	Command for {item}	{item} 的命令
+	Choose a command…	選擇命令…
+	no command has this name	沒有命令叫這個名稱
+	more than one command fits	有多個命令符合
+	in a context that is not imported	在未匯入的情境中
+	only a command of the other kind fits (tool or menu command)	只有另一種命令符合（工具或選單命令）
+	empty shortcut	空快速鍵
+	the shortcut is too long	快速鍵太長
+	unknown key {key}	不明的按鍵 {key}
+	unsupported modifier {key}	不支援的修飾鍵 {key}
+	{label} keeps its shortcuts (matched by a panel menu name)	{label} 保留其快速鍵（以面板選單名稱比對）
+	Import as New Set	匯入為新組合
+	Imported	已匯入
+	Imported as “{set}”	已匯入為「{set}」
+	Skipped	已略過
+	Taken from other commands	取自其他命令
+	Not changed	未變更
+	taken by {label}	由 {label} 取得
+	taken by a later entry	由較後面的項目取得
+	reserved by the system	系統保留
+	the scope is unknown	情境不明
+	the set's shortcuts could not be added	無法新增該組合的快速鍵
+	the shortcuts could not be removed	無法移除快速鍵
+	Copy Report	複製報告
+	Double-press bindings are not read here; record a single chord	這裡不會讀取雙擊繫結；請記錄單一按鍵組合
+	craft-keymap set	craft-keymap 組合
+	Shortcuts saved	已儲存快速鍵
+	Imported shortcut set “{name}”	已匯入快速鍵組合「{name}」
+	Could not import the set: {error}	無法匯入組合：{error}
+@plural	{n} shortcut is assigned more than once|{n} shortcuts are assigned more than once	{n} 個快速鍵被重複指派
+@plural	{n} saved shortcut could not be used|{n} saved shortcuts could not be used	{n} 個已儲存的快速鍵無法使用
+@plural	{n} command will change|{n} commands will change	{n} 個命令將會變更
+@plural	{n} item without a shortcut|{n} items without a shortcut	{n} 個項目沒有快速鍵
+@plural	{n} item not matched|{n} items not matched	{n} 個項目未比對到
+@plural	{n} item could not be read|{n} items could not be read	{n} 個項目無法讀取
+@plural	{n} key read approximately|{n} keys read approximately	{n} 個按鍵以近似方式讀取
+@plural	{n} entry cut at a limit|{n} entries cut at a limit	{n} 個項目因上限被截斷
+@plural	{n} command changed|{n} commands changed	{n} 個命令已變更
+@plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	{n} 個快速鍵在其他情境也有效
+@plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	{n} 個項目被忽略：命令太多
+	Cull	篩選
+	No photos match the current filters.	沒有照片符合目前的篩選條件。
+	{n} photos in view. Nothing moves until you apply.	檢視中有 {n} 張照片。套用之前不會移動任何東西。
+	Start culling {n} photos	開始篩選 {n} 張照片
+	Culling {n} photos	正在篩選 {n} 張照片
+	P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down	P 精選 · X 排除 · 空白鍵 暫緩 · U 清除 · ◀ 上一張 · T 最後的關鍵字 · 上下拖曳
+	{position} of {total}	{total} 中的 {position}
+	Summary	摘要
+	End session	結束工作階段
+	Discard staged decisions; nothing has been written yet	捨棄暫存的決定；尚未寫入任何東西
+	{picked} picked · {rejected} rejected · {deferred} deferred	精選 {picked} · 已排除 {rejected} · 暫緩 {deferred}
+	Up next	接下來
+	Session complete	工作階段完成
+	Pick	精選
+	Reject	排除
+	Defer	暫緩
+	Apply rejects…	套用排除…
+	Reject a photo first; picks and defers need no apply	請先排除一張照片；精選與暫緩不需要套用
+	Move picks…	移動精選…
+	Pick a photo first	請先精選一張照片
+	Move the picks into a folder; keeps every rating and keyword	將精選移到資料夾；保留所有評分與關鍵字
+	Export picks…	匯出精選…
+	Write the picks into a folder; the originals are not touched	將精選寫入資料夾；不會動到原始檔
+	Back	返回
+	Remove keyword from this photo	從這張照片移除關鍵字
+	Add keyword to this photo	為這張照片新增關鍵字
+	Add	新增
+	That keyword is already on this photo	那個關鍵字已經在這張照片上
+	Tagged “{tag}”	已加上「{tag}」
+	Find similar photos	尋找相似照片
+	Hashing…	計算雜湊中…
+	Groups up to date	群組已是最新
+	Hashing {n} previews	正在雜湊 {n} 個預覽
+	{groups} groups · {bits} identical bits	{groups} 個群組 · {bits} 個相同位元
+	strictness	嚴格度
+	Match	比對
+	palette	色調
+	How far apart two palettes may be, per channel	兩個色調每個色版之間最多能差多少
+	Select leftovers in every group ({n})	在每個群組中選取多餘的照片（{n}）
+	Ticks every photo that is not its group's best, so you can review them together	勾選每個群組中最好的以外的所有照片，方便一起檢視
+	Selected {n} leftover(s) across {groups} group(s)	已在 {groups} 個群組中選取 {n} 張多餘照片
+	Delete the {n} selected…	刪除選取的 {n} 張…
+	Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets	經過與篩選批次相同的安全檢查後，將它們移到垃圾桶、排除資料夾或加上標籤
+	{n} group(s) · nothing selected	{n} 個群組 · 未選取
+	No groups yet	尚無群組
+	Hash the library to find bursts and re-edits.	為圖庫計算雜湊，找出連拍與重新編輯。
+	spread {bits} bits	分布 {bits} 個位元
+	Select all but the best	選取除了最佳以外的全部
+	Ticks every photo in this group except the one worth keeping	勾選這個群組中除了值得保留那一張以外的所有照片
+	{n} set aside	已擱置 {n} 張
+	keeping {keep}	保留 {keep}
+	best	最佳
+	Removed keyword {tag}	已移除關鍵字 {tag}
+	Structure	結構
+	Either	兩者皆可
+	Same layout and the same palette — the safe default.	相同構圖與相同色調 — 安全的預設值。
+	Same palette anywhere in the frame, whatever the layout.	不論構圖，畫面中任何位置都有相同色調。
+	Structure or palette; the widest net, more false pairs.	結構或色調；範圍最廣，誤配對也較多。
+	Counting	統計中
+	Recount	重新統計
+	Count the library again on a worker, reporting progress as it goes	在背景工作者上重新統計圖庫，並隨時回報進度
+	Photos	照片
+	Keyworded	已加關鍵字
+	Ratings	評分
+	Unrated	未評分
+	Labels	標籤
+	Kinds	類型
+	Images	影像
+	Raw	RAW
+	Video	影片
+	Cameras	相機
+	Lenses	鏡頭
+	Timeline	時間軸
+	No capture dates yet	尚無拍攝日期
+	{n} with no capture date	{n} 張沒有拍攝日期
+	Months	月份
+	Nothing dated yet	尚無有日期的照片
+	Busiest month	最繁忙的月份
+	Busiest day	最繁忙的一天
+	Most used camera	最常用的相機
+	No capture date	沒有拍攝日期
+	January	1 月
+	February	2 月
+	March	3 月
+	April	4 月
+	May	5 月
+	June	6 月
+	July	7 月
+	August	8 月
+	September	9 月
+	October	10 月
+	November	11 月
+	December	12 月
+	Winter	冬季
+	Spring	春季
+	Summer	夏季
+	Autumn	秋季
+	{month} — {count} photo(s) · mostly {season}	{month} — {count} 張 · 多為 {season}
+	{month} — {count} photo(s)	{month} — {count} 張
+	{date} — {count} photo(s)	{date} — {count} 張
+	{camera} — {count} photo(s)	{camera} — {count} 張
+	{count} photo(s), {percent} of the library	{count} 張照片，佔圖庫的 {percent}
+	Busiest: {month} · mostly {season}	最繁忙：{month} · 多為 {season}
+	Busiest: {month}	最繁忙：{month}
+	No photo has a location yet	尚無照片有位置資訊
+	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	相機會把所在位置記錄在檔案的 EXIF 中。關閉定位服務拍攝的照片，或被其他工具移除位置資訊的照片，不會有位置。
+	zoom {zoom}	縮放 {zoom}
+	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	有位置的照片 {located} 張 · {dots} 個點 · 點擊一個點即可選取
+	No places.txt — dots show their coordinates	沒有 places.txt — 各點顯示其座標
+	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	依 places.txt 命名 · {named} 個地點 · {km} 公里內的點會借用名稱
+	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	概略海岸線 · 安裝圖磚資料夾或 MBTiles 封存檔即可使用真實底圖
+	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	在 {dir} 放入 {z}/{x}/{y}.png 圖磚與 attribution.txt — 或在旁邊放入帶有 `attribution` 中繼資料列的 tiles.mbtiles 封存檔 — 即可取代 1:110m 輪廓。不會下載任何東西。
+	The basemap cannot be used	無法使用底圖
+	Nothing selected	未選取任何項目
+	Pick a photo in the grid, then press D.	在格狀檢視選取一張照片，然後按 D。
+	Back to the grid	返回格狀檢視
+	Loading preview…	載入預覽中…
+	Previous	上一張
+	Next	下一張
+	No preview to measure	沒有可測量的預覽
+	Lookahead	預先讀取
+	P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close	P/X/U 旗標 · 1–5 評分 · 左右走訪 · Z 縮放 · Esc 關閉
+	Open	開啟
+	Hand this file to the desktop's default application	將這個檔案交給電腦的預設應用程式開啟
+	Show in folder	在資料夾中顯示
+	Show this file where it lives on disk	在磁碟上顯示這個檔案所在的位置
+	Write a copy somewhere; the original is not touched	在別處寫出副本；不會動到原始檔
+	Close  Esc	關閉  Esc
+	Fit  Z	符合視窗  Z
+	1:1  Z	實際大小  Z
+	Swap  S	交換  S
+	Swap which pane is the left one	交換哪一個窗格在左側
+	Close compare  C	關閉比較  C
+	Go back to the single photograph	回到單張照片檢視
+	Compare  C	比較  C
+	Show the next photo beside this one, at the same magnification	以相同放大倍率在旁邊顯示下一張照片
+	Kind	類型
+	Folder	資料夾
+	Size	大小
+	Dimensions	尺寸
+	Camera	相機
+	Lens	鏡頭
+	Exposure	曝光
+	Captured	拍攝時間
+	Rating	評分
+	{rating} of 5	{rating} / 5
+	Flag	旗標
+	Label	標籤
+	Status	狀態
+	missing	遺失
+	present	存在
+	Image	影像
+	pick	精選
+	reject	排除
+	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	按 1–5 評分，0 清除，P 精選，X 排除，U 取消旗標。
+	Select a photo to see camera, exposure and file details.	選取一張照片以查看相機、曝光與檔案詳細資訊。
+	stars	星
+	label	標籤
+	exposure	曝光
+	length	長度
+	size	大小
+	pixels	像素
+	{left} vs {right}	{left} 對 {right}
+	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} 對 {right_width}×{right_height}
+	Soft Focus	柔焦
+	A relative cut, never a verdict	相對的取捨，絕非判定
+	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	銳利度會在相同光線與焦距下，為這個圖庫內的畫格排名。取捨會取最柔和的 N%，因此只能宣稱是相對於這些照片。
+	Measuring	測量中
+	Measure sharpness	測量銳利度
+	Decode each photo and measure how much fine detail it has	解碼每張照片並測量其細節多寡
+	{n} photo(s) have no current score	{n} 張照片沒有目前的評分
+	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	尚未測量。銳利度只為這個圖庫內的畫格排名，並非對任何一張的判定。
+	Softest {percent}% · scores {low} to {high}	最柔和的 {percent}% · 分數 {low} 到 {high}
+	Select {n} photo(s)	選取 {n} 張照片
+	Ticks them in the library, where you can look before you act	在圖庫中勾選它們，讓你能先看清楚再行動
+	Nothing at the cut	取捨處沒有項目
+	Nothing is scored yet	尚無評分
+	Every photo scored the same, so a relative cut cannot separate them	每張照片的分數都相同，相對取捨無法區分它們
+	1 photo at the cut, and {others} others share its score	取捨處有 1 張，另有 {others} 張同分
+	1 photo at or below the cut	取捨處及以下共 1 張
+	{count} photos at or below the cut ({percent}%)	取捨處及以下共 {count} 張（{percent}%）
+	For You	為你
+	On this day	這一天
+	This week in past years	往年這一週
+	Never looked at	從未看過
+	Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.	依拍攝日期與你尚未評判的內容重新浮現。日期以 UTC 讀取。
+	Nothing to resurface yet	尚無可重新浮現的內容
+	Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.	當照片有往年的拍攝日期，或已滿一年仍未評分時，就會出現卡片。
+	{cards} card(s): {kinds}	{cards} 張卡片：{kinds}
+	{month} {day}	{month}{day} 日
+	{shown} of {total} photos	{total} 張中的 {shown} 張
+	{count} photo	{count} 張照片
+	{count} photos	{count} 張照片
+	{photos} · since {year}	{photos} · {year} 年起
+	{name} · {kind}	{name}（{kind}）

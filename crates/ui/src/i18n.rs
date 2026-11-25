@@ -3,7 +3,7 @@
 //!
 //! Every routed label is an English literal; a missing translation is the English itself, so a
 //! catalogue a translation has not reached yet never breaks the interface. The scaffold ships
-//! Arabic and Japanese — the first of the six languages the design names — and the direction
+//! Arabic, Japanese and Traditional Chinese — three of the six languages the design names — and the direction
 //! plumbing the rest stand on: [`apply_direction`] resolves the interface direction from the
 //! chosen language (overridable with `CRAFT_UI_DIRECTION`, the way `craft-ui` checks a mirrored
 //! layout before a right-to-left catalogue exists) and installs it on the context, and the
@@ -21,11 +21,15 @@ use craft_i18n::{Embedded, FileSize, I18n, Lang};
 
 /// The embedded translation catalogues. The shared column is empty: Sortlens' rows are all its
 /// own until they graduate into `craft-i18n`. Missing rows are the English text, never an error.
-static CATALOGS: &Embedded = &[("ar", "", include_str!("i18n/ar.tsv")), ("ja", "", include_str!("i18n/ja.tsv"))];
+static CATALOGS: &Embedded = &[
+    ("ar", "", include_str!("i18n/ar.tsv")),
+    ("ja", "", include_str!("i18n/ja.tsv")),
+    ("zh-TW", "", include_str!("i18n/zh-TW.tsv")),
+];
 
 /// The interface languages offered, in picker order: English first, then the embedded ones as
 /// `I18n::languages` sorts them.
-pub const LANGUAGES: &[&str] = &["en", "ar", "ja"];
+pub const LANGUAGES: &[&str] = &["en", "ar", "ja", "zh-TW"];
 
 /// The catalogues, parsed on each locale's first lookup. Bad rows are logged once, as a warning
 /// naming the line, and that row shows in English.
@@ -179,7 +183,7 @@ mod tests {
             "only {} routed keys found; the audit is not reading the sources",
             keys.len()
         );
-        for code in ["ar", "ja"] {
+        for code in ["ar", "ja", "zh-TW"] {
             let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
             let missing: Vec<&String> = keys.iter().filter(|k| I18N.t(lang, k) == *k).collect();
             assert!(missing.is_empty(), "{code} is missing {} routed rows: {missing:#?}", missing.len());
@@ -194,7 +198,7 @@ mod tests {
     #[test]
     fn every_keymap_editor_string_is_in_both_catalogues() {
         let mut missing = Vec::new();
-        for code in ["ar", "ja"] {
+        for code in ["ar", "ja", "zh-TW"] {
             let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
             for source in craft_keymap::ui::STRINGS {
                 // Presence, not difference: a key name or an order-only template translates to
@@ -229,7 +233,12 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            vec![("en".into(), "English"), ("ar".into(), "العربية"), ("ja".into(), "日本語")]
+            vec![
+                ("en".into(), "English"),
+                ("ar".into(), "العربية"),
+                ("ja".into(), "日本語"),
+                ("zh-tw".into(), "繁體中文")
+            ]
         );
         set_current(I18N.match_tag("ar").unwrap());
         assert!(matches!(resolve_direction(), craft_ui::direction::Direction::Rtl));
