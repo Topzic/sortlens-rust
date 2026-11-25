@@ -1422,10 +1422,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     `headline()`/`detail()` are joined from, pinned by `the_headline_and_detail_are_joined_from_their_pieces`
     — and the shell words them, keeping them in `AuditView` so the section repaints on a language
     switch; `the_library_health_audit_speaks_the_interface_language` paints it in all three languages
-    with the audit's numbers in the reader's digits. Still open on this row: the rest of Library health
-    (the health check's counts, root repointing, the metadata retry and the remove-missing row), Recent
-    changes, Quit Sortlens? (its reasons are `Engine::unsaved` sentences), Cull summary, Batch applied,
-    Suggested keywords and Keyboard shortcuts.
+    with the audit's numbers in the reader's digits. The rest of the dialog joined them in the next tick
+    (eighty-second entry): the health check's own count line and its toast, the changed-on-disk line and
+    `Refresh changed`, the root rows (`{n} photo(s) under {root}`, `Point at…`), the metadata retry
+    lines and `Remove missing from library` are `tl!`/`fmt` keys with every count a placeholder, so
+    Arabic writes its own digits there too; `every_word_in_the_library_health_dialog_is_a_catalogued_one`,
+    `the_library_health_dialog_speaks_japanese` and `the_library_health_dialog_speaks_arabic_with_its_own_digits`
+    are the wording tests, and the audit test now also sees `Check library` and `Not checked yet.` painted
+    in Japanese. Still open on this row: Recent changes, Quit Sortlens? (its reasons are `Engine::unsaved`
+    sentences), Cull summary, Batch applied, Suggested keywords and Keyboard shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

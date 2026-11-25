@@ -1,5 +1,50 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-second) — every word in Library health is a translator's, and the toast is a sentence the catalogue words
+
+- **Why this came up.** The eighty-first entry left the dialog half-routed and named the exact half: the
+  health check's own counts, its `format!` toast, the changed-on-disk line, the root rows, the metadata
+  retry and the remove-missing row. Those were shell-only strings — no engine piece was missing — so this
+  tick could finish the dialog rather than start another.
+- **What is routed now.** `health_stats` words the `{present} of {checked} files present · {missing}
+  missing` line; `health_checked_notice` the `Checked … · … missing · … changed` toast; `health_changed_line`,
+  `health_refreshed_notice`, `health_relocated_notice`, `health_root_line` (`{n} photo(s) under {root}`,
+  with the folder a placeholder so a right-to-left path cannot reorder its sentence), `health_retry_line`,
+  `health_retried_notice` (nothing recovered, a full read, or a partial one), `health_reread_notice`,
+  `health_exifless_hover` and `health_removed_notice` the rest. Every count is a placeholder filled by
+  `i18n::fmt` with `format_count`, so Arabic writes its own digits; the buttons, hover texts and the
+  remove-missing helper line are `tl!` keys. English is byte for byte what it was, which is why no
+  baseline moved.
+- **The toast is worded when it is raised, not kept.** `health_checked_notice` is built when the check
+  finishes, the same rule the delete toasts follow (seventy-ninth entry): a toast is momentary, unlike the
+  export receipt or `AuditView`, which are kept as pieces because they stay on screen across a language
+  switch. The dialog itself repaints its routed labels on a switch; the last toast does not follow it.
+- **Thirty-one keys, both catalogues.** ja and ar rows for every new source; the placeholders keep their
+  names (`{n}`, `{checked}`, `{root}`, `{remaining}`), so `fmt` fills each language's own order.
+- **Tests.** `every_word_in_the_library_health_dialog_is_a_catalogued_one` pins the thirteen English
+  sentences character for character. `the_library_health_dialog_speaks_japanese` asserts the Japanese
+  button/keys and the translated count lines with no English left (`Checked`, `camera`).
+  `the_library_health_dialog_speaks_arabic_with_its_own_digits` asserts Arabic-Indic digits in the stats,
+  check, retried and removed lines. The existing paint test
+  `the_library_health_audit_speaks_the_interface_language` now also sees `ライブラリを確認` and
+  `まだ確認していません。` on the painted dialog and no `Check library` behind them, and the catalogue audit
+  (`catalogs_load_and_routed_keys_have_rows`) reads the new `tl!`/`fmt` keys and demands a row in both
+  languages — it passed first try, so the rows and the sources agree. The three wording tests were one
+  test until clippy refused it at 32/30 cognitive complexity; splitting it by language is also a better
+  failure message.
+- **Files.** `crates/ui/src/shell.rs` (eleven wording helpers, the dialog's routed body, three tests and
+  two paint assertions), `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (31 rows each), `docs/ROADMAP.md`
+  (Phase 4 item 2d), `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the `health` filter's
+  four tests and the catalogue audit pass; `cargo xtask snapshot`, `deny` and `screenshots` green (no
+  baseline moved, which is the proof English is unchanged). `cargo xtask ci` first stopped at its last
+  step, `cargo fmt --all -- --check`, on three hand-wrapped lines `health_root_line`, the root row's
+  `ui.label` and two asserts; `cargo fmt --all` fixed exactly those, and the re-run is green. No release
+  workflow dispatched: this slice touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Recent changes, the next unrouted surface, then Quit Sortlens? (its reasons are
+  `Engine::unsaved` sentences, so it needs the same pieces-before-labels treatment Library health got),
+  Cull summary, Batch applied, Suggested keywords and Keyboard shortcuts.
+
 ## 2026-11-26 (eighty-first) — the library-health audit speaks your language, from the catalog's own pieces
 
 - **Why this came up.** The eightieth entry's "Next" named Library health, and named the reason it had

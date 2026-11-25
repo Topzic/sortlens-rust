@@ -145,3 +145,34 @@
 	Write a fresh snapshot and empty the log; also repairs a torn log tail	اكتب لقطة جديدة وأفرغ السجل؛ يعالج أيضًا نهاية سجل مقطوعة
 	Catalog was already compact	كان الفهرس مضغوطًا بالفعل
 	Compacted · {bytes} reclaimed	ضُغط · استُعيد {bytes}
+	{present} of {checked} files present · {missing} missing	{present} من {checked} ملفًا موجود · {missing} مفقود
+	Not checked yet.	لم يتم الفحص بعد.
+	Check library	فحص المكتبة
+	Checked {checked} files · {missing} missing · {changed} changed	فُحص {checked} ملفًا · {missing} مفقود · {changed} متغيّر
+	Stats every file and updates the missing badges in one undoable step.	يحصي كل ملف ويحدّث شارات المفقود في خطوة واحدة قابلة للتراجع.
+	{n} file(s) changed on disk since they were indexed	تغيّر {n} ملفًا على القرص منذ فهرسته
+	Refresh changed	تحديث المتغيّرات
+	Re-read metadata and identity for exactly those files	إعادة قراءة البيانات الوصفية والهوية لتلك الملفات فقط
+	Nothing could be refreshed	لم يتسنَّ تحديث أي شيء
+	Refreshed {n} photo(s)	حُدّثت {n} صورة
+	Find moved photos	العثور على الصور المنقولة
+	No moved photos found under their roots	لم تُعثر على صور منقولة داخل جذورها
+	Relocated {n} photo(s)	أُعيد توطين {n} صورة
+	Matches missing photos by content key under the same root.	يطابق الصور المفقودة بمفتاح المحتوى داخل الجذر نفسه.
+	Point at…	الإشارة إلى…
+	This folder moved or its volume was renamed	نُقل هذا المجلد أو أُعيدت تسمية وحدته
+	{n} photo(s) under {root}	{n} صورة تحت {root}
+	Repointing checks a sample of photos in the new folder first.	تتحقق إعادة الإشارة من عيّنة من الصور في المجلد الجديد أولًا.
+	No photos are waiting on a metadata retry	لا توجد صور بانتظار إعادة محاولة البيانات الوصفية
+	{n} photo(s) could not be read when indexed	تعذّرت قراءة {n} صورة عند الفهرسة
+	Retry metadata	إعادة محاولة البيانات الوصفية
+	Try reading EXIF again for the photos that failed	حاول قراءة EXIF مجددًا للصور التي فشلت
+	Nothing recovered; {remaining} still unreadable	لم يُستعد شيء؛ {remaining} ما زالت غير مقروءة
+	Read metadata for {n} photo(s)	قُرئت البيانات الوصفية لـ {n} صورة
+	Read {updated}; {remaining} still unreadable	قُرئ {updated}؛ {remaining} ما زالت غير مقروءة
+	Re-read all without EXIF	إعادة قراءة كل ما بلا EXIF
+	{n} photo(s) have no camera and no date; try again with the current readers	{n} صورة بلا كاميرا وبلا تاريخ؛ أعد المحاولة بالقارئات الحالية
+	Remove missing from library	إزالة المفقود من المكتبة
+	Nothing is marked missing	لا شيء موسوم كمفقود
+	Removed {n} missing photo(s) — undo restores them	أُزيلت {n} صورة مفقودة — التراجع يعيدها
+	Removes catalog entries only; the files are already gone.	يزيل مدخلات الفهرس فقط؛ الملفات ذهبت بالفعل.

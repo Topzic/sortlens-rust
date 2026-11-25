@@ -532,8 +532,11 @@ and `detail()` are joined from exactly those pieces, so the dialog cannot descri
 did not find. The shell words each piece through `i18n::fmt` and groups the counts with
 `format_count`, and keeps the pieces in `AuditView` rather than the English sentence, so the section
 repaints when Settings → Language moves — the same rule the export receipt follows. The rest of the
-dialog (the health check's own counts, the root repointing, the metadata retry and the remove-missing
-row) is still English and is the next slice.
+dialog is routed the same way: the health check's count line and its toast, the changed-on-disk line and
+`Refresh changed`, the root rows (`{n} photo(s) under {root}`, `Point at…`) and the metadata retry and
+remove-missing lines are `tl!` keys or `fmt` templates, so every count in them is a placeholder a
+language places — and a language whose digits are not ASCII writes them (`health_stats` and its
+siblings are the wording helpers the tests read).
 
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping

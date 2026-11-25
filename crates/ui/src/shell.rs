@@ -8356,6 +8356,99 @@ fn audit_part(part: &sortlens_engine::AuditPart) -> String {
     }
 }
 
+fn health_stats(checked: usize, present: usize, missing: usize) -> String {
+    crate::i18n::fmt(
+        "{present} of {checked} files present · {missing} missing",
+        &[
+            ("present", &format_count(present as u64)),
+            ("checked", &format_count(checked as u64)),
+            ("missing", &format_count(missing as u64)),
+        ],
+    )
+}
+
+/// What a finished check found. A toast is worded when it is raised, so it lives as a sentence.
+fn health_checked_notice(checked: usize, missing: usize, changed: usize) -> String {
+    crate::i18n::fmt(
+        "Checked {checked} files · {missing} missing · {changed} changed",
+        &[
+            ("checked", &format_count(checked as u64)),
+            ("missing", &format_count(missing as u64)),
+            ("changed", &format_count(changed as u64)),
+        ],
+    )
+}
+
+fn health_changed_line(changed: usize) -> String {
+    crate::i18n::fmt(
+        "{n} file(s) changed on disk since they were indexed",
+        &[("n", &format_count(changed as u64))],
+    )
+}
+
+fn health_refreshed_notice(count: usize) -> String {
+    crate::i18n::fmt("Refreshed {n} photo(s)", &[("n", &format_count(count as u64))])
+}
+
+fn health_relocated_notice(count: usize) -> String {
+    crate::i18n::fmt("Relocated {n} photo(s)", &[("n", &format_count(count as u64))])
+}
+
+/// One root's row: the count and the folder are both placeholders, so neither reorders the other.
+fn health_root_line(count: usize, root: &str) -> String {
+    crate::i18n::fmt("{n} photo(s) under {root}", &[("n", &format_count(count as u64)), ("root", root)])
+}
+
+/// The retry section's idle line, or how many files are queued for a retry.
+fn health_retry_line(queued: usize) -> String {
+    if queued == 0 {
+        tl!("No photos are waiting on a metadata retry").to_string()
+    } else {
+        crate::i18n::fmt(
+            "{n} photo(s) could not be read when indexed",
+            &[("n", &format_count(queued as u64))],
+        )
+    }
+}
+
+/// A retry's outcome: nothing recovered, everything read, or a partial read.
+fn health_retried_notice(updated: usize, remaining: usize) -> String {
+    if updated == 0 {
+        crate::i18n::fmt(
+            "Nothing recovered; {remaining} still unreadable",
+            &[("remaining", &format_count(remaining as u64))],
+        )
+    } else if remaining == 0 {
+        health_reread_notice(updated)
+    } else {
+        crate::i18n::fmt(
+            "Read {updated}; {remaining} still unreadable",
+            &[
+                ("updated", &format_count(updated as u64)),
+                ("remaining", &format_count(remaining as u64)),
+            ],
+        )
+    }
+}
+
+fn health_reread_notice(updated: usize) -> String {
+    crate::i18n::fmt("Read metadata for {n} photo(s)", &[("n", &format_count(updated as u64))])
+}
+
+fn health_exifless_hover(count: usize) -> String {
+    crate::i18n::fmt(
+        "{n} photo(s) have no camera and no date; try again with the current readers",
+        &[("n", &format_count(count as u64))],
+    )
+}
+
+fn health_removed_notice(count: usize) -> String {
+    crate::i18n::fmt(
+        "Removed {n} missing photo(s) — undo restores them",
+        &[("n", &format_count(count as u64))],
+    )
+}
+
 fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.health_open;
     dialog_window(tl!("Library health"))
@@ -8366,64 +8459,53 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
         .show(ui.ctx(), |ui| {
             match state.health {
                 Some((checked, present, missing)) => {
-                    ui.label(
-                        RichText::new(format!("{present} of {checked} files present · {missing} missing"))
-                            .size(12.5)
-                            .strong(),
-                    );
+                    ui.label(RichText::new(health_stats(checked, present, missing)).size(12.5).strong());
                 }
-                None => hint(ui, t, "Not checked yet."),
+                None => hint(ui, t, tl!("Not checked yet.")),
             }
             ui.add_space(8.0);
-            if ui.button(RichText::new("Check library").size(11.5)).clicked() {
+            if ui.button(RichText::new(tl!("Check library")).size(11.5)).clicked() {
                 match engine.check_health() {
                     Ok(health) => {
                         state.health = Some((health.checked, health.present, health.missing));
                         state.health_modified = health.modified;
-                        state.notice(format!(
-                            "Checked {} files · {} missing · {} changed",
-                            health.checked, health.missing, health.modified
-                        ));
+                        state.notice(health_checked_notice(health.checked, health.missing, health.modified));
                     }
                     Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.label(
-                RichText::new("Stats every file and updates the missing badges in one undoable step.")
+                RichText::new(tl!("Stats every file and updates the missing badges in one undoable step."))
                     .size(10.5)
                     .color(t.text_faint),
             );
             if state.health_modified > 0 {
-                ui.label(
-                    RichText::new(format!("{} file(s) changed on disk since they were indexed", state.health_modified))
-                        .size(11.0)
-                        .color(t.text),
-                );
+                ui.label(RichText::new(health_changed_line(state.health_modified)).size(11.0).color(t.text));
                 if ui
-                    .button(RichText::new("Refresh changed").size(11.5))
-                    .on_hover_text("Re-read metadata and identity for exactly those files")
+                    .button(RichText::new(tl!("Refresh changed")).size(11.5))
+                    .on_hover_text(tl!("Re-read metadata and identity for exactly those files"))
                     .clicked()
                 {
                     match engine.refresh_changed() {
-                        Ok(0) => state.notice("Nothing could be refreshed"),
+                        Ok(0) => state.notice(tl!("Nothing could be refreshed")),
                         Ok(count) => {
                             state.health_modified = 0;
-                            state.notice(format!("Refreshed {count} photo(s)"));
+                            state.notice(health_refreshed_notice(count));
                         }
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
             }
             ui.add_space(8.0);
-            if ui.button(RichText::new("Find moved photos").size(11.5)).clicked() {
+            if ui.button(RichText::new(tl!("Find moved photos")).size(11.5)).clicked() {
                 match engine.relocate_missing() {
-                    Ok(0) => state.notice("No moved photos found under their roots"),
-                    Ok(count) => state.notice(format!("Relocated {count} photo(s)")),
+                    Ok(0) => state.notice(tl!("No moved photos found under their roots")),
+                    Ok(count) => state.notice(health_relocated_notice(count)),
                     Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.label(
-                RichText::new("Matches missing photos by content key under the same root.")
+                RichText::new(tl!("Matches missing photos by content key under the same root."))
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -8436,22 +8518,18 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                     ui.label(RichText::new(folder_name(&root)).size(11.5).color(t.text));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui
-                            .button(RichText::new("Point at…").size(11.0))
-                            .on_hover_text("This folder moved or its volume was renamed")
+                            .button(RichText::new(tl!("Point at…")).size(11.0))
+                            .on_hover_text(tl!("This folder moved or its volume was renamed"))
                             .clicked()
                         {
                             actions.push(Action::RemapRoot(root.clone()));
                         }
                     });
                 });
-                ui.label(
-                    RichText::new(format!("{count} photo(s) under {}", root))
-                        .size(10.0)
-                        .color(t.text_faint),
-                );
+                ui.label(RichText::new(health_root_line(count, &root)).size(10.0).color(t.text_faint));
             }
             ui.label(
-                RichText::new("Repointing checks a sample of photos in the new folder first.")
+                RichText::new(tl!("Repointing checks a sample of photos in the new folder first."))
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -8461,38 +8539,30 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             let queued = engine.retry_count();
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(if queued == 0 {
-                        "No photos are waiting on a metadata retry".to_string()
-                    } else {
-                        format!("{queued} photo(s) could not be read when indexed")
-                    })
-                    .size(11.0)
-                    .color(if queued == 0 { t.text_faint } else { t.text }),
+                    RichText::new(health_retry_line(queued))
+                        .size(11.0)
+                        .color(if queued == 0 { t.text_faint } else { t.text }),
                 );
             });
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(queued > 0, Button::new(RichText::new("Retry metadata").size(11.5)))
-                    .on_hover_text("Try reading EXIF again for the photos that failed")
+                    .add_enabled(queued > 0, Button::new(RichText::new(tl!("Retry metadata")).size(11.5)))
+                    .on_hover_text(tl!("Try reading EXIF again for the photos that failed"))
                     .clicked()
                 {
                     match engine.retry_metadata(false) {
-                        Ok((0, remaining)) => state.notice(format!("Nothing recovered; {remaining} still unreadable")),
-                        Ok((updated, 0)) => state.notice(format!("Read metadata for {updated} photo(s)")),
-                        Ok((updated, remaining)) => state.notice(format!("Read {updated}; {remaining} still unreadable")),
+                        Ok((updated, remaining)) => state.notice(health_retried_notice(updated, remaining)),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
                 let exifless = engine.exifless_count();
                 if ui
-                    .add_enabled(exifless > 0, Button::new(RichText::new("Re-read all without EXIF").size(11.5)))
-                    .on_hover_text(format!(
-                        "{exifless} photo(s) have no camera and no date; try again with the current readers"
-                    ))
+                    .add_enabled(exifless > 0, Button::new(RichText::new(tl!("Re-read all without EXIF")).size(11.5)))
+                    .on_hover_text(health_exifless_hover(exifless))
                     .clicked()
                 {
                     match engine.retry_metadata(true) {
-                        Ok((updated, _)) => state.notice(format!("Read metadata for {updated} photo(s)")),
+                        Ok((updated, _)) => state.notice(health_reread_notice(updated)),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                 }
@@ -8546,15 +8616,15 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
                     .color(t.text_faint),
             );
             ui.add_space(8.0);
-            if ui.button(RichText::new("Remove missing from library").size(11.5)).clicked() {
+            if ui.button(RichText::new(tl!("Remove missing from library")).size(11.5)).clicked() {
                 match engine.remove_missing() {
-                    Ok(0) => state.notice("Nothing is marked missing"),
-                    Ok(count) => state.notice(format!("Removed {count} missing photo(s) — undo restores them")),
+                    Ok(0) => state.notice(tl!("Nothing is marked missing")),
+                    Ok(count) => state.notice(health_removed_notice(count)),
                     Err(error) => state.notice_problem(error.to_string()),
                 }
             }
             ui.label(
-                RichText::new("Removes catalog entries only; the files are already gone.")
+                RichText::new(tl!("Removes catalog entries only; the files are already gone."))
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -14817,6 +14887,9 @@ mod tests {
         assert!(label_at(&japanese, "ライブラリの状態").is_some(), "the title is the catalogue's");
         assert!(label_at(&japanese, "カタログファイル").is_some(), "and the section");
         assert!(label_at(&japanese, "整合性を確認").is_some(), "and the button");
+        assert!(label_at(&japanese, "ライブラリを確認").is_some(), "and the check button");
+        assert!(label_at(&japanese, "まだ確認していません。").is_some(), "and its idle line");
+        assert!(label_at(&japanese, "Check library").is_none(), "no English button behind it");
         assert!(label_at(&japanese, "Library health").is_none(), "no English title behind it");
         let ja_headline = audit_headline(&kept.headline);
         assert!(
@@ -14858,6 +14931,77 @@ mod tests {
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         assert_eq!(audit_headline(&bothered), "Needs attention");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every word in Library health is one a translator can reach, and every count is a
+    /// placeholder so a language places it — including the health check's own toast, which used
+    /// to be a `format!` sentence and left English on a translated screen (SL-L07).
+    #[test]
+    fn every_word_in_the_library_health_dialog_is_a_catalogued_one() {
+        // English first: the wording is byte for byte what the dialog painted before routing.
+        assert_eq!(health_stats(120, 118, 2), "118 of 120 files present · 2 missing");
+        assert_eq!(health_checked_notice(120, 2, 1), "Checked 120 files · 2 missing · 1 changed");
+        assert_eq!(health_changed_line(1), "1 file(s) changed on disk since they were indexed");
+        assert_eq!(health_refreshed_notice(1), "Refreshed 1 photo(s)");
+        assert_eq!(health_relocated_notice(3), "Relocated 3 photo(s)");
+        assert_eq!(health_root_line(12, "/photos"), "12 photo(s) under /photos");
+        assert_eq!(health_retry_line(0), "No photos are waiting on a metadata retry");
+        assert_eq!(health_retry_line(4), "4 photo(s) could not be read when indexed");
+        assert_eq!(health_retried_notice(0, 4), "Nothing recovered; 4 still unreadable");
+        assert_eq!(health_retried_notice(3, 0), "Read metadata for 3 photo(s)");
+        assert_eq!(health_retried_notice(2, 1), "Read 2; 1 still unreadable");
+        assert_eq!(
+            health_exifless_hover(5),
+            "5 photo(s) have no camera and no date; try again with the current readers"
+        );
+        assert_eq!(health_removed_notice(2), "Removed 2 missing photo(s) — undo restores them");
+    }
+
+    /// The same sentences in Japanese, with none of them keeping an English word.
+    #[test]
+    fn the_library_health_dialog_speaks_japanese() {
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        assert_eq!(tl!("Check library"), "ライブラリを確認");
+        assert_eq!(tl!("Not checked yet."), "まだ確認していません。");
+        assert_eq!(tl!("Point at…"), "場所を指定…");
+        assert_eq!(tl!("Remove missing from library"), "欠落した写真をライブラリから削除");
+        let stats = health_stats(120, 118, 2);
+        assert!(stats.contains("件中") && stats.contains("欠落"), "{stats}");
+        let checked = health_checked_notice(120, 2, 1);
+        assert!(checked.contains("件を確認") && !checked.contains("Checked"), "{checked}");
+        assert_eq!(health_retry_line(0), "メタデータの再試行待ちの写真はありません");
+        let retried = health_retried_notice(2, 1);
+        assert!(
+            retried.contains("件を読み取り") && retried.contains("まだ読み取れません"),
+            "{retried}"
+        );
+        let root = health_root_line(12, "/photos");
+        assert!(root.ends_with("内の 12 件の写真"), "{root}");
+        let hover = health_exifless_hover(5);
+        assert!(hover.contains("カメラ情報") && !hover.contains("camera"), "{hover}");
+        assert!(health_removed_notice(2).contains("取り消すと復元"), "{}", health_removed_notice(2));
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The same sentences in Arabic, with every count in the reader's own digits.
+    #[test]
+    fn the_library_health_dialog_speaks_arabic_with_its_own_digits() {
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        assert_eq!(tl!("Check library"), "فحص المكتبة");
+        let stats = health_stats(120, 118, 2);
+        assert!(stats.contains('١') && stats.contains('٢') && !stats.contains("files"), "{stats}");
+        let checked = health_checked_notice(120, 2, 1);
+        assert!(checked.contains('١') && checked.contains('٢'), "{checked}");
+        let retried = health_retried_notice(2, 1);
+        assert!(
+            retried.contains('٢') && retried.contains('١') && !retried.contains("unreadable"),
+            "{retried}"
+        );
+        let removed = health_removed_notice(2);
+        assert!(removed.contains('٢') && removed.contains("التراجع"), "{removed}");
+        let retry = health_retry_line(4);
+        assert!(retry.contains('٤') && health_root_line(12, "/photos").contains("صورة"), "{retry}");
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// The batch panel has to paint with no pass, during a pass, and with proposals to accept — and it

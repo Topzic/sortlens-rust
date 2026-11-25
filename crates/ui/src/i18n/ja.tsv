@@ -145,3 +145,34 @@
 	Write a fresh snapshot and empty the log; also repairs a torn log tail	新しいスナップショットを書き、ログを空にします。途中で切れたログの末尾も修復します
 	Catalog was already compact	カタログはすでに圧縮されています
 	Compacted · {bytes} reclaimed	圧縮しました · {bytes} を解放
+	{present} of {checked} files present · {missing} missing	{checked} 件中 {present} 件が存在 · 欠落 {missing} 件
+	Not checked yet.	まだ確認していません。
+	Check library	ライブラリを確認
+	Checked {checked} files · {missing} missing · {changed} changed	{checked} 件を確認 · 欠落 {missing} 件 · 変更 {changed} 件
+	Stats every file and updates the missing badges in one undoable step.	すべてのファイルを集計し、欠落バッジを一度に更新します（取り消し可能）。
+	{n} file(s) changed on disk since they were indexed	インデックス後に {n} 件のファイルがディスク上で変更されました
+	Refresh changed	変更分を更新
+	Re-read metadata and identity for exactly those files	該当するファイルだけメタデータと識別情報を読み直します
+	Nothing could be refreshed	更新できるものはありませんでした
+	Refreshed {n} photo(s)	{n} 件の写真を更新しました
+	Find moved photos	移動した写真を探す
+	No moved photos found under their roots	ルート内に移動した写真は見つかりませんでした
+	Relocated {n} photo(s)	{n} 件の写真を再配置しました
+	Matches missing photos by content key under the same root.	同じルート内で内容キーにより欠落した写真を照合します。
+	Point at…	場所を指定…
+	This folder moved or its volume was renamed	このフォルダーが移動したか、ボリューム名が変更されました
+	{n} photo(s) under {root}	{root} 内の {n} 件の写真
+	Repointing checks a sample of photos in the new folder first.	指定し直す前に、新しいフォルダー内の写真を一部確認します。
+	No photos are waiting on a metadata retry	メタデータの再試行待ちの写真はありません
+	{n} photo(s) could not be read when indexed	インデックス時に {n} 件の写真を読み取れませんでした
+	Retry metadata	メタデータを再試行
+	Try reading EXIF again for the photos that failed	失敗した写真の EXIF をもう一度読み取ります
+	Nothing recovered; {remaining} still unreadable	復元できず、{remaining} 件はまだ読み取れません
+	Read metadata for {n} photo(s)	{n} 件の写真のメタデータを読み取りました
+	Read {updated}; {remaining} still unreadable	{updated} 件を読み取り、{remaining} 件はまだ読み取れません
+	Re-read all without EXIF	EXIF のない写真をすべて読み直す
+	{n} photo(s) have no camera and no date; try again with the current readers	{n} 件の写真にカメラ情報と日付がありません。現在のリーダーでもう一度お試しください
+	Remove missing from library	欠落した写真をライブラリから削除
+	Nothing is marked missing	欠落として記録された写真はありません
+	Removed {n} missing photo(s) — undo restores them	欠落した {n} 件の写真を削除しました — 取り消すと復元されます
+	Removes catalog entries only; the files are already gone.	カタログの項目だけを削除します。ファイルはすでに存在しません。
