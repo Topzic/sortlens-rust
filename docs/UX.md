@@ -443,6 +443,12 @@ The footer states what is on the map — "4,182 photo(s) with a location · 96 d
 the state of the basemap: the shipped coastline (with where to put a tile folder or archive to replace it), refused
 (with the reason), or the person's own tiles.
 
+The view's own words come from the catalogues: the empty state, the counts, the `zoom` label, the gazetteer line and
+both basemap notes, with the numbers as templates — a Japanese map reads "位置情報のある写真 3 枚 · 1 地点", an Arabic one
+writes "٣ صورة بموقع". The click notice and the tile refusal's reason are still English (the first is a notice, the
+second is `TileError::message()`, an engine sentence that would need a piece of its own); the map's assistive name is
+too, which this document counts as announcement rather than painted chrome.
+
 **Names come from the person's own gazetteer.** A `places.txt` beside the catalog, tab-separated
 `name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a dot within
 30 km of a listed place prints its name beneath it, and clicking it says "Selected 42 photo(s) near

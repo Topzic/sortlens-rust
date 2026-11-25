@@ -674,3 +674,12 @@
 	{count} photo(s), {percent} of the library	写真 {count} 枚、ライブラリの {percent}
 	Busiest: {month} · mostly {season}	最多: {month} · 主に {season}
 	Busiest: {month}	最多: {month}
+	No photo has a location yet	位置情報を持つ写真はまだありません
+	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	カメラは撮影場所をファイルの EXIF に記録します。位置情報サービスをオフにして撮った写真や、別のツールで削除された写真には記録がありません。
+	zoom {zoom}	ズーム {zoom}
+	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	位置情報のある写真 {located} 枚 · {dots} 地点 · 地点をクリックして選択
+	No places.txt — dots show their coordinates	places.txt がないため、地点は座標で表示されます
+	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	places.txt から命名 · {named} 地点 · {km} km 以内の地点は名前を借用
+	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	略式の海岸線 · 実際の地図にするにはタイルフォルダーか MBTiles アーカイブを配置
+	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	{dir} に {z}/{x}/{y}.png タイルと attribution.txt を置くか、`attribution` メタデータ行を持つ tiles.mbtiles アーカイブを隣に置くと、1:110m の輪郭を置き換えられます。ダウンロードは行いません。
+	The basemap cannot be used	地図を利用できません

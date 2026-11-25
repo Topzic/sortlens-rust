@@ -7045,12 +7045,11 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     if located == 0 {
         ui.allocate_ui_with_layout(map_size, Layout::top_down(Align::Center), |ui| {
             ui.add_space(map_height / 3.0);
-            ui.label(RichText::new("No photo has a location yet").size(15.0).strong());
+            ui.label(RichText::new(tl!("No photo has a location yet")).size(15.0).strong());
             ui.label(
-                RichText::new(
-                    "A camera records where it was in the file's EXIF. Photos taken with location services \
-                         off, or stripped by another tool, do not have one.",
-                )
+                RichText::new(tl!(
+                    "A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one."
+                ))
                 .size(11.0)
                 .color(t.text_muted),
             );
@@ -7222,7 +7221,11 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
                 state.places_zoom_chosen = true;
                 zoom_changed = true;
             }
-            ui.label(RichText::new(format!("zoom {zoom}")).size(10.5).color(t.text_muted));
+            ui.label(
+                RichText::new(crate::i18n::fmt("zoom {zoom}", &[("zoom", &format_count(u64::from(zoom)))]))
+                    .size(10.5)
+                    .color(t.text_muted),
+            );
         });
     });
 
@@ -7238,10 +7241,12 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         }
         ui.add_space(8.0);
         ui.label(
-            RichText::new(format!(
-                "{} photo(s) with a location · {} dot(s) · click a dot to select it",
-                format_count(located as u64),
-                format_count(clusters.len() as u64)
+            RichText::new(crate::i18n::fmt(
+                "{located} photo(s) with a location · {dots} dot(s) · click a dot to select it",
+                &[
+                    ("located", &format_count(located as u64)),
+                    ("dots", &format_count(clusters.len() as u64)),
+                ],
             ))
             .size(9.5)
             .color(t.text_faint),
@@ -7258,7 +7263,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         (None, 0) => {
             ui.add_space(2.0);
             ui.label(
-                RichText::new("No places.txt — dots show their coordinates")
+                RichText::new(tl!("No places.txt — dots show their coordinates"))
                     .size(9.5)
                     .color(t.text_faint),
             );
@@ -7266,9 +7271,12 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         (None, named) => {
             ui.add_space(2.0);
             ui.label(
-                RichText::new(format!(
-                    "Named from places.txt · {named} place(s) · dots within {:.0} km borrow a name",
-                    places::LABEL_KM
+                RichText::new(crate::i18n::fmt(
+                    "Named from places.txt · {named} place(s) · dots within {km} km borrow a name",
+                    &[
+                        ("named", &format_count(named as u64)),
+                        ("km", &format_count(places::LABEL_KM as u64)),
+                    ],
                 ))
                 .size(9.5)
                 .color(t.text_faint),
@@ -7289,17 +7297,17 @@ fn basemap_status(
         None => {
             ui.add_space(4.0);
             ui.label(
-                RichText::new("Schematic coastline · install a tile folder or an MBTiles archive for a real basemap")
-                    .size(10.5)
-                    .color(t.text_muted),
+                RichText::new(tl!(
+                    "Schematic coastline · install a tile folder or an MBTiles archive for a real basemap"
+                ))
+                .size(10.5)
+                .color(t.text_muted),
             );
             if let Some(dir) = engine.tiles_dir() {
                 ui.label(
-                    RichText::new(format!(
-                        "Put {{z}}/{{x}}/{{y}}.png tiles and an attribution.txt in {} — or a tiles.mbtiles archive \
-                         with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is \
-                         downloaded.",
-                        dir.display()
+                    RichText::new(crate::i18n::fmt(
+                        "Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.",
+                        &[("dir", &dir.display().to_string())],
                     ))
                     .size(9.5)
                     .color(t.text_faint),
@@ -7308,7 +7316,10 @@ fn basemap_status(
         }
         Some(Err(error)) => {
             ui.add_space(4.0);
-            ui.label(RichText::new("The basemap cannot be used").size(10.5).strong().color(t.reject));
+            ui.label(RichText::new(tl!("The basemap cannot be used")).size(10.5).strong().color(t.reject));
+            // The tile error is the geo crate's own sentence, like the export spec and the job
+            // detail: an engine word routed by piece, not a shell literal, and the piece it would
+            // need does not exist yet. Named as not shipped rather than looked up as English.
             ui.label(RichText::new(error.message()).size(9.5).color(t.text_muted));
         }
         Some(Ok(_)) => {}
@@ -11596,6 +11607,139 @@ mod tests {
         });
         output.textures_delta.clear();
         assert!(!output.shapes.is_empty(), "the empty state paints too");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Places view speaks the interface language (SL-L07): its empty state, the counts under the
+    /// map, its `places.txt` line and the basemap note are catalogue rows, and the counts are
+    /// templates, so a Japanese or Arabic owner reads where their photographs were in their own
+    /// words and digits.
+    #[test]
+    fn the_places_view_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-places-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-places-words");
+        for (name, lat) in [("BRIGHTON_1.jpg", 50.8225_f64), ("BRIGHTON_2.jpg", 50.8227_f64)] {
+            std::fs::copy(
+                fixture.jpeg_with_location(name, [40, 90, 160], 48, 32, lat, -0.1372),
+                root.join(name),
+            )
+            .expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.geotagged(), 2);
+
+        // `fmt` isolates a value that has to hold its direction in right-to-left text; the frame is
+        // read without those marks, so the sentence's own words are what is compared.
+        let plain = |text: &str| -> String {
+            text.chars()
+                .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                .collect()
+        };
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let paint = |state: &mut UiState, engine: &Engine| -> Vec<String> {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    places_view(ui, &tokens, state, engine);
+                });
+            });
+            output.textures_delta.clear();
+            painted_texts(&output).into_iter().map(|text| plain(&text)).collect()
+        };
+
+        // A library with no locations: the two empty-state lines and the basemap note.
+        let empty = Engine::open(dir.join("elsewhere")).expect("open");
+        let mut empty_state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let english = paint(&mut empty_state, &empty);
+        assert_painted(
+            &english,
+            &[
+                "No photo has a location yet",
+                "A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.",
+                "Schematic coastline · install a tile folder or an MBTiles archive for a real basemap",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut empty_state, &empty);
+        assert_painted(
+            &japanese,
+            &[
+                "位置情報を持つ写真はまだありません",
+                "略式の海岸線 · 実際の地図にするにはタイルフォルダーか MBTiles アーカイブを配置",
+            ],
+        );
+        assert!(!japanese.iter().any(|text| text == "No photo has a location yet"), "{japanese:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut empty_state, &empty);
+        assert_painted(
+            &arabic,
+            &[
+                "لا توجد صورة تحمل موقعًا بعد",
+                "خط ساحلي تخطيطي · ثبّت مجلد بلاطات أو أرشيف MBTiles للحصول على خريطة حقيقية",
+            ],
+        );
+
+        // A located library: the footer counts, the zoom label and the gazetteer line.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let english = paint(&mut state, &engine);
+        let zoom = u64::from(state.places_zoom);
+        assert_painted(
+            &english,
+            &[
+                &format!("zoom {}", format_count(zoom)),
+                &format!(
+                    "{} photo(s) with a location · {} dot(s) · click a dot to select it",
+                    format_count(2),
+                    format_count(1)
+                ),
+                "No places.txt — dots show their coordinates",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state, &engine);
+        assert_painted(
+            &japanese,
+            &[
+                &format!("ズーム {}", format_count(zoom)),
+                &format!(
+                    "位置情報のある写真 {} 枚 · {} 地点 · 地点をクリックして選択",
+                    format_count(2),
+                    format_count(1)
+                ),
+                "places.txt がないため、地点は座標で表示されます",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state, &engine);
+        assert_painted(
+            &arabic,
+            &[
+                &format!("تكبير {}", format_count(zoom)),
+                &format!("{} صورة بموقع · {} نقطة · انقر نقطة لتحديدها", format_count(2), format_count(1)),
+                "لا يوجد places.txt — تعرض النقاط إحداثياتها",
+            ],
+        );
+        assert!(
+            !arabic.iter().any(|text| text.contains("photo(s) with a location")),
+            "the footer is not English in Arabic: {arabic:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

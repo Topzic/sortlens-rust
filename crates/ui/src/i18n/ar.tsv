@@ -674,3 +674,12 @@
 	{count} photo(s), {percent} of the library	{count} صورة، {percent} من المكتبة
 	Busiest: {month} · mostly {season}	الأكثر: {month} · غالبًا {season}
 	Busiest: {month}	الأكثر: {month}
+	No photo has a location yet	لا توجد صورة تحمل موقعًا بعد
+	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	تسجّل الكاميرا مكان التقاطها في بيانات EXIF الخاصة بالملف. الصور الملتقطة مع إيقاف خدمات الموقع، أو التي حُذفت بياناتها بأداة أخرى، لا تحمل موقعًا.
+	zoom {zoom}	تكبير {zoom}
+	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	{located} صورة بموقع · {dots} نقطة · انقر نقطة لتحديدها
+	No places.txt — dots show their coordinates	لا يوجد places.txt — تعرض النقاط إحداثياتها
+	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	الأسماء من places.txt · {named} مكان · النقاط ضمن {km} كم تستعير اسمًا
+	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	خط ساحلي تخطيطي · ثبّت مجلد بلاطات أو أرشيف MBTiles للحصول على خريطة حقيقية
+	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	ضع بلاطات {z}/{x}/{y}.png وملف attribution.txt في {dir} — أو أرشيف tiles.mbtiles يحوي صف بيانات وصفية `attribution` بجانبه — لاستبدال مخطط 1:110m. لا يُنزَّل أي شيء.
+	The basemap cannot be used	لا يمكن استخدام الخريطة

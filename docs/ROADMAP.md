@@ -935,6 +935,12 @@ and none of M9 is closed until the remaining rows are ticked.
   `Busiest: … · mostly …` line is worded from the same pieces — nothing on that page is English by
   omission. The busiest day's date now goes through the shell's `format::date`, so Arabic writes
   `١٠/٠٢/٢٠٢٤`.
+  The Places view followed (hundredth entry): its empty state's two lines, the `zoom` label, the footer
+  counts, both `places.txt` lines, the basemap note and the tile-folder instruction are catalogue rows, and
+  the counts are templates — so a Japanese map reads `位置情報のある写真 3 枚 · 1 地点` and an Arabic one
+  writes `٣ صورة بموقع`. What stays English on that view is the click notice and the tile refusal's own
+  sentence (`TileError::message()`, an engine word with no piece yet), plus the map's assistive name, which
+  the row does not count as painted chrome.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

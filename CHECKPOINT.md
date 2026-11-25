@@ -1,5 +1,43 @@
 # Checkpoint
 
+## 2026-11-26 (hundredth) — the Places view speaks the interface language
+
+- **Why this came up.** The ninety-ninth entry's Next named it: Places was the last plainly English surface the
+  ninety-sixth entry had listed — a Japanese owner's cull screen, Similar and Insights had all learned the catalogue
+  while the screen that answers "where were these taken?" still painted English.
+- **What is routed.** Nine keys in each of `ar.tsv` and `ja.tsv`: the empty state's title and its EXIF sentence,
+  `zoom {zoom}`, the footer's `{located} photo(s) with a location · {dots} dot(s) · click a dot to select it`,
+  `No places.txt — dots show their coordinates`, `Named from places.txt · {named} place(s) · dots within {km} km
+  borrow a name`, the schematic-coastline note, the tile-folder instruction that carries the tile directory, and
+  `The basemap cannot be used`.
+- **The counts are templates, and so are the digits.** `located`, `dots`, `named`, the 30 km of the gazetteer line
+  and the zoom level are all placeholders filled through `crate::i18n::fmt` with the shell's own `format_count`, so a
+  Japanese footer reads `位置情報のある写真 2 枚 · 1 地点 · 地点をクリックして選択` and an Arabic one writes `٢ صورة بموقع
+  · ١ نقطة`. The tile instruction keeps `{z}/{x}/{y}` as literal text (no argument of those names exists, so the
+  filler leaves them alone) and puts only the directory in `{dir}`.
+- **Named as not shipped.** The click notice (`places::selection_notice`, "Selected 2 photo(s) near Brighton…") is
+  still English: it belongs to the notice class, not the view chrome, and the same is true of dozens of toasts. The
+  basemap refusal's reason is `TileError::message()`, an engine sentence like the export spec and the job detail — it
+  needs a piece of its own, not a lookup. The map's assistive name stays English, which the ROADMAP row does not count
+  as painted chrome. All three are recorded in the ROADMAP row and UX.md rather than implied done.
+- **Tests that fail when the behaviour is absent.** `the_places_view_speaks_the_interface_language` paints the real
+  `places_view` headlessly twice: an empty library (the two empty-state lines and the basemap note in English,
+  Japanese and Arabic) and a two-photograph geotagged library (the zoom label, both footer counts and the
+  `places.txt` line in all three), stripping `fmt`'s isolates before comparing, so the Arabic frame proves its own
+  digits. The catalogue audit reads all nine `tl!`/`fmt` literals and fails if either catalogue loses a row.
+- **Files.** `crates/ui/src/shell.rs` (`places_view`, `basemap_status`, one test), `crates/ui/src/i18n/ar.tsv` and
+  `ja.tsv` (nine rows each), `docs/ROADMAP.md` (the i18n row's prose), `docs/UX.md` (the Places section).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test and the catalogue
+  audit pass. `cargo xtask ci` green through every gate; `cargo xtask snapshot` (5 tests),
+  `cargo xtask deny` (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask screenshots` (all 27
+  committed scenes byte-identical to their baselines, which is the proof the English Places view did not move —
+  English has no catalogue, so a `tl!` with no row is its own key). There is no `cargo xtask wasm` in this
+  workspace (removed in the sixty-first entry when the wasm target went), so no wasm gate ran. No release
+  dispatch: this slice touches `crates/ui` source, catalogues, tests and docs, no build or release surface.
+- **Next.** The Detail view's chrome — `Nothing selected`, `Pick a photo in the grid, then press D.`, `Previous`/
+  `Next`, `Lookahead`, the keyboard hint and the sidecar lines — then Compare, Soft Focus and For You, before the
+  four catalogues (zh-TW/ko/th/vi) and the RTL screenshots.
+
 ## 2026-11-26 (ninety-ninth) — the Insights highlights name their months and seasons in your language
 
 - **Why this came up.** The ninety-eighth entry's Next named it: the highlights strip above the
