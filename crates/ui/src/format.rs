@@ -100,6 +100,11 @@ pub(crate) fn size_in(style: &Style, bytes: u64) -> String {
     format!("{} {unit}", decimal_in(style, value, places))
 }
 
+/// A decimal number: `0.50`, `0.50`, `٠٫٥٠`.
+pub(crate) fn decimal(value: f64, places: usize) -> String {
+    decimal_in(current(), value, places)
+}
+
 /// A civil date and time: `2026-11-21 14:32`, `2026/11/21 14:32`, `٢١/١١/٢٠٢٦ ١٤:٣٢`.
 pub(crate) fn date_time(seconds: i64) -> String {
     date_time_in(current(), seconds)
@@ -227,6 +232,23 @@ mod tests {
         assert_eq!(size_in(style("ja"), 1_400_000), "1.4 MB");
         assert_eq!(size_in(style("ar"), 1_400_000), "١٫٤ MB");
         assert_eq!(size_in(style("ar"), 812_000_000_000), "٨١٢ GB");
+    }
+
+    /// A decimal number is the language's mark and digits too: the score caption that reads
+    /// `0.50 to 4.50` in English writes `٠٫٥٠ إلى ٤٫٥٠` in Arabic, and English keeps the shape it
+    /// has always painted so the committed scenes do not move.
+    #[test]
+    fn a_decimal_writes_the_languages_mark_and_digits() {
+        for value in [0.5_f64, 4.25, 10.0, 0.0] {
+            assert_eq!(
+                decimal_in(style("en"), value, 2),
+                format!("{value:.2}"),
+                "English keeps the decimal mark and digits it always painted"
+            );
+        }
+        assert_eq!(decimal_in(style("ja"), 0.5, 2), "0.50");
+        assert_eq!(decimal_in(style("ar"), 0.5, 2), "٠٫٥٠");
+        assert_eq!(decimal_in(style("ar"), 4.5, 2), "٤٫٥٠");
     }
 
     /// The date's field order follows the language, and its digits come with it.

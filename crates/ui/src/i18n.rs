@@ -161,7 +161,7 @@ mod tests {
         // routes them — the same audit craft font-manager runs on its own panel. Both routes are
         // read: a literal (`tl!`) and a sentence with placeholders (`fmt`), because a template whose
         // row is missing shows English just as quietly as a missing label does.
-        let sources = [include_str!("shell.rs"), include_str!("theme.rs")];
+        let sources = [include_str!("shell.rs"), include_str!("theme.rs"), include_str!("sharpness.rs")];
         let mut keys: Vec<String> = Vec::new();
         for source in sources {
             for marker in ["tl!(", "crate::i18n::fmt("] {

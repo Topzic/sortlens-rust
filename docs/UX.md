@@ -410,6 +410,10 @@ button (shown when photos have no current score, with how many),
 a histogram of stored scores, a slider for how much of the library to review, and a "Select N photo(s)" action that
 ticks them in the library so you can look before acting. It never deletes; it is a review surface.
 
+Its words are the interface language's: the measure button and its hover, the progress and empty states, the
+histogram caption and the select action are catalogue rows, and the counts, the percentage and the two scores
+are formatted in the chosen language's digits and decimal mark.
+
 **The cut is relative — the softest N% of this library, not "blurry".** A sharpness score is unitless: it ranks
 frames inside one library, in one light, at one focal length, and no absolute number means the same in another. So
 the section says what a relative cut can actually claim, and when every score is identical it says that a relative
@@ -699,7 +703,10 @@ re-checks its own contrast pairs after applying.
   its position and rating are templates, so Arabic writes "١ من ٢". Compare's facts row closed the
   set: its six fact names, the join between each pair and the pixel pair are rows, so Arabic reads
   "٥ مقابل ٣" — the values each side carries (a colour token, an exposure sentence, a byte size) stay
-  the engine's own words.
+  the engine's own words. Soft Focus closed the last unrouted view: its
+  title, its measure button and hover, its progress line, its empty and cut sentences, the histogram caption
+  and the select button are rows, and the scores are `format::decimal` — Arabic writes "٠٫٥٠" with its own
+  mark and digits.
   The remaining languages and the RTL screenshots are open (M9's row); the screenshot baselines
   are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

@@ -7620,14 +7620,15 @@ fn soft_focus_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         }
     }
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Soft Focus").size(15.0).strong().color(t.text));
-        ui.label(RichText::new("A relative cut, never a verdict").size(10.5).color(t.text_faint));
+        ui.label(RichText::new(tl!("Soft Focus")).size(15.0).strong().color(t.text));
+        ui.label(RichText::new(tl!("A relative cut, never a verdict")).size(10.5).color(t.text_faint));
     });
     hint(
         ui,
         t,
-        "Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the \
-         softest N%, so it can only ever claim to be relative to these photographs.",
+        tl!(
+            "Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs."
+        ),
     );
     ui.add_space(8.0);
     egui::ScrollArea::vertical()
@@ -7641,19 +7642,26 @@ fn soft_focus_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
 /// section says "the softest N% of this library" rather than "blurry" — and when the scores cannot be separated at
 /// all, it says that instead of offering a button that would select everything.
 fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
-    ui.label(RichText::new("Sharpness").size(12.0).strong());
+    ui.label(RichText::new(tl!("Sharpness")).size(12.0).strong());
     let todo = engine.sharpness_todo();
     if let Some((done, total)) = engine.sharpness_progress() {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Measuring").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("Measuring")).size(11.0).color(t.text_muted));
             ui.add(egui::ProgressBar::new(if total == 0 { 0.0 } else { done as f32 / total as f32 }).desired_width(220.0));
-            ui.label(RichText::new(format!("{done} of {total}")).size(10.5).color(t.text_faint));
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "{done} of {total}",
+                    &[("done", &format_count(done as u64)), ("total", &format_count(total as u64))],
+                ))
+                .size(10.5)
+                .color(t.text_faint),
+            );
         });
         ui.add_space(6.0);
     } else if todo > 0 && !engine.read_only() {
         if ui
-            .button(RichText::new("Measure sharpness").size(11.0))
-            .on_hover_text("Decode each photo and measure how much fine detail it has")
+            .button(RichText::new(tl!("Measure sharpness")).size(11.0))
+            .on_hover_text(tl!("Decode each photo and measure how much fine detail it has"))
             .clicked()
         {
             match engine.begin_sharpness() {
@@ -7663,9 +7671,12 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
             }
         }
         ui.label(
-            RichText::new(format!("{todo} photo(s) have no current score"))
-                .size(10.5)
-                .color(t.text_faint),
+            RichText::new(crate::i18n::fmt(
+                "{n} photo(s) have no current score",
+                &[("n", &format_count(todo as u64))],
+            ))
+            .size(10.5)
+            .color(t.text_faint),
         );
     }
 
@@ -7674,9 +7685,11 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
     ui.add_space(6.0);
     if review.scored == 0 {
         ui.label(
-            RichText::new("Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.")
-                .size(10.5)
-                .color(t.text_faint),
+            RichText::new(tl!(
+                "Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them."
+            ))
+            .size(10.5)
+            .color(t.text_faint),
         );
         return;
     }
@@ -7697,9 +7710,13 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
         .collect();
     charts::columns(ui, t, &columns, charts::COLUMN_HEIGHT);
     ui.label(
-        RichText::new(format!(
-            "Softest {:.0}% · scores {:.2} to {:.2}",
-            state.sharpness_percentile, review.low, review.high
+        RichText::new(crate::i18n::fmt(
+            "Softest {percent}% · scores {low} to {high}",
+            &[
+                ("percent", &format_count(state.sharpness_percentile.round() as u64)),
+                ("low", &crate::format::decimal(f64::from(review.low), 2)),
+                ("high", &crate::format::decimal(f64::from(review.high), 2)),
+            ],
         ))
         .size(10.5)
         .color(t.text_faint),
@@ -7719,8 +7736,14 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
     ui.add_space(4.0);
     if review.can_select() {
         if ui
-            .button(RichText::new(format!("Select {} photo(s)", review.count())).size(11.0))
-            .on_hover_text("Ticks them in the library, where you can look before you act")
+            .button(
+                RichText::new(crate::i18n::fmt(
+                    "Select {n} photo(s)",
+                    &[("n", &format_count(review.count() as u64))],
+                ))
+                .size(11.0),
+            )
+            .on_hover_text(tl!("Ticks them in the library, where you can look before you act"))
             .clicked()
         {
             state.selection.select_many(&review.below);
@@ -7728,7 +7751,7 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
             state.notice(format!("Selected the {} softest", review.count()));
         }
     } else if review.separable {
-        ui.label(RichText::new("Nothing at the cut").size(10.5).color(t.text_faint));
+        ui.label(RichText::new(tl!("Nothing at the cut")).size(10.5).color(t.text_faint));
     }
 }
 
@@ -14376,6 +14399,181 @@ mod tests {
             !arabic.iter().any(|text| text == "stars" || text.contains(" vs ")),
             "the Arabic compare keeps no English fact names or joins: {arabic:?}"
         );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Soft Focus view speaks the interface language (SL-L07): its measure button, its score
+    /// words, its histogram caption and its select action are catalogue rows and templates, so a
+    /// Japanese or Arabic owner reads the review in their own words and digits rather than an English
+    /// sentence with Latin numerals.
+    #[test]
+    fn the_soft_focus_view_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-soft-focus-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-soft-focus-words");
+        for index in 1..=5 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40, 70, 90 + index as u8], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let photo_ids: Vec<PhotoId> = engine.all_photos().into_iter().map(|photo| photo.id).collect();
+        assert_eq!(photo_ids.len(), 5);
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 760.0))),
+            ..egui::RawInput::default()
+        };
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.view = View::SoftFocus;
+
+        // `fmt` isolates a value so it holds its direction in right-to-left text; the frame is read
+        // without those marks, so a caption is compared by its words and its digits.
+        let plain = |texts: Vec<String>| -> Vec<String> {
+            texts
+                .into_iter()
+                .map(|text| {
+                    text.chars()
+                        .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                        .collect()
+                })
+                .collect()
+        };
+        let paint = |state: &mut UiState, engine: &mut Engine| -> Vec<String> {
+            let mut output = ctx.run_ui(input.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    soft_focus_view(ui, &tokens, state, engine);
+                });
+            });
+            output.textures_delta.clear();
+            plain(painted_texts(&output))
+        };
+
+        // Nothing measured: the view offers the pass and says how many photos are waiting on it.
+        let english = paint(&mut state, &mut engine);
+        assert_painted(
+            &english,
+            &[
+                "Soft Focus",
+                "A relative cut, never a verdict",
+                "Sharpness",
+                "Measure sharpness",
+                "5 photo(s) have no current score",
+                "Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state, &mut engine);
+        assert_painted(
+            &japanese,
+            &[
+                "ソフトフォーカス",
+                "相対的な切り口であり、判定ではありません",
+                "シャープネス",
+                "シャープさを測定",
+                "5 枚の写真に現在のスコアがありません",
+                "まだ計測していません。シャープさはこのライブラリ内のフレームを順位づけるもので、どれかへの判定ではありません。",
+            ],
+        );
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Measure sharpness" || text.starts_with("Nothing measured yet")),
+            "the Japanese review keeps no English chrome: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state, &mut engine);
+        assert_painted(
+            &arabic,
+            &[
+                "تركيز ناعم",
+                "قطع نسبي، لا حكم",
+                "حِدّة",
+                "قياس الحِدّة",
+                "٥ صورة بلا درجة حالية",
+                "لم يُقس شيء بعد. الحِدّة ترتّب إطارات هذه المكتبة، وليست حكمًا على أيٍّ منها.",
+            ],
+        );
+
+        // Five different scores: the cut can be separated, so its caption and its button paint.
+        let measured: Vec<(PhotoId, sortlens_quality::Score)> = photo_ids
+            .iter()
+            .enumerate()
+            .map(|(index, id)| {
+                (
+                    *id,
+                    sortlens_quality::Score {
+                        value: 0.5 + index as f32,
+                        version: sortlens_quality::SCORE_VERSION,
+                    },
+                )
+            })
+            .collect();
+        engine.set_scores(&measured).expect("store scores");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let english = paint(&mut state, &mut engine);
+        assert_painted(
+            &english,
+            &[
+                "Softest 10% · scores 0.50 to 4.50",
+                "1 photo at or below the cut",
+                "Select 1 photo(s)",
+            ],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&mut state, &mut engine);
+        assert_painted(
+            &japanese,
+            &["最も柔らかい 10% · スコア 0.50〜4.50", "切り口以下は 1 枚", "1 枚の写真を選択"],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&mut state, &mut engine);
+        assert_painted(
+            &arabic,
+            &[
+                "الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠",
+                "صورة واحدة عند القطع أو دونه",
+                "تحديد ١ صورة",
+            ],
+        );
+        assert!(
+            !arabic.iter().any(|text| text.contains("Select ") || text.contains("scores ")),
+            "the Arabic review keeps no English action or caption: {arabic:?}"
+        );
+
+        // Every score identical: a relative cut cannot separate them, and the words say so.
+        let flat: Vec<(PhotoId, sortlens_quality::Score)> = photo_ids
+            .iter()
+            .map(|id| {
+                (
+                    *id,
+                    sortlens_quality::Score {
+                        value: 2.0,
+                        version: sortlens_quality::SCORE_VERSION,
+                    },
+                )
+            })
+            .collect();
+        engine.set_scores(&flat).expect("flatten");
+        let arabic = paint(&mut state, &mut engine);
+        assert_painted(&arabic, &["كل الصور حصلت على الدرجة نفسها، لذا لا يفصلها قطع نسبي"]);
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

@@ -94,17 +94,33 @@ impl Review {
     }
 
     /// The cut in words, for the label under the histogram.
+    ///
+    /// The words are catalogue rows (SL-L07): the counts and the percentage are placeholders filled in
+    /// the interface language's own digits, so a Japanese cut reads `切り口以下は 1 枚` and an Arabic one
+    /// writes `صورة واحدة عند القطع أو دونه` rather than an English sentence with Latin numerals.
     pub fn cut_label(&self) -> String {
         if self.scored == 0 {
-            return "Nothing is scored yet".to_string();
+            return crate::i18n::tl!("Nothing is scored yet").to_string();
         }
         if !self.separable {
-            return "Every photo scored the same, so a relative cut cannot separate them".to_string();
+            return crate::i18n::tl!("Every photo scored the same, so a relative cut cannot separate them").to_string();
         }
         match self.count() {
-            1 if self.ties > 1 => format!("1 photo at the cut, and {} others share its score", self.ties - 1),
-            1 => "1 photo at or below the cut".to_string(),
-            count => format!("{count} photos at or below the cut ({:.0}%)", self.share() * 100.0),
+            1 if self.ties > 1 => crate::i18n::fmt(
+                "1 photo at the cut, and {others} others share its score",
+                &[("others", &crate::format::count((self.ties - 1) as u64))],
+            ),
+            1 => crate::i18n::tl!("1 photo at or below the cut").to_string(),
+            count => {
+                let percent = (self.share() * 100.0).round() as u64;
+                crate::i18n::fmt(
+                    "{count} photos at or below the cut ({percent}%)",
+                    &[
+                        ("count", &crate::format::count(count as u64)),
+                        ("percent", &crate::format::count(percent)),
+                    ],
+                )
+            }
         }
     }
 }

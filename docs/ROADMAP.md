@@ -955,6 +955,15 @@ and none of M9 is closed until the remaining rows are ticked.
   `label`, `exposure`, `length`, `size`, `pixels`), the join (`{left} vs {right}`) and the pixel pair
   (`{left_width}×{left_height} vs {right_width}×{right_height}`) — is catalogue rows and templates, and
   the ratings are `format_count` digits, so an Arabic compare reads `٥ مقابل ٣` where it read `5 vs 3`.
+  The Soft Focus view followed (hundred-and-third entry): its title and subtitle, the hint that says what a
+  relative cut can claim, `Sharpness`, `Measuring`, the `{done} of {total}` progress line, `Measure sharpness`
+  and its hover, the `{n} photo(s) have no current score` line, `Nothing measured yet…`, the histogram caption
+  `Softest {percent}% · scores {low} to {high}`, the review's own words (`Nothing is scored yet`, the tie and
+  cut sentences), `Select {n} photo(s)` and its hover are catalogue rows and templates, and the counts, the
+  percentage and the two scores go through `format::count`/`format::decimal`, so an Arabic review reads
+  `الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠` and `تحديد ١ صورة`. What stays English on that view is its notices
+  (`Measured … photo(s)`, `Selected the … softest`) and the slider's assistive name, which the row does not
+  count as painted chrome, plus the bottom bar's destination names, which still come from `View::label()`.
   What stays English there is each side's own value (a colour token, the engine's exposure sentence,
   `format_bytes`) and the notices that open a compare.
   Open: the other four languages (zh-TW/ko/th/vi), which wait for a translation pass, and RTL

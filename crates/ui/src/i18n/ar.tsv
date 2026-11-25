@@ -734,4 +734,21 @@
 	pixels	البكسلات
 	{left} vs {right}	{left} مقابل {right}
 	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} مقابل {right_width}×{right_height}
+	Soft Focus	تركيز ناعم
+	A relative cut, never a verdict	قطع نسبي، لا حكم
+	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	ترتّب الحِدّة إطارات هذه المكتبة في ضوء واحد وطول بؤري واحد. ويأخذ القطع أضعف N%، فلا يدّعي إلا أنه نسبي إلى هذه الصور.
+	Measuring	القياس جارٍ
+	Measure sharpness	قياس الحِدّة
+	Decode each photo and measure how much fine detail it has	فكّ ترميز كل صورة وقياس مقدار التفاصيل الدقيقة فيها
+	{n} photo(s) have no current score	{n} صورة بلا درجة حالية
+	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	لم يُقس شيء بعد. الحِدّة ترتّب إطارات هذه المكتبة، وليست حكمًا على أيٍّ منها.
+	Softest {percent}% · scores {low} to {high}	الأضعف {percent}% · الدرجات من {low} إلى {high}
+	Select {n} photo(s)	تحديد {n} صورة
+	Ticks them in the library, where you can look before you act	تؤشّرها في المكتبة حيث يمكنك النظر قبل التصرف
+	Nothing at the cut	لا شيء عند القطع
+	Nothing is scored yet	لم تُسجَّل أي درجة بعد
+	Every photo scored the same, so a relative cut cannot separate them	كل الصور حصلت على الدرجة نفسها، لذا لا يفصلها قطع نسبي
+	1 photo at the cut, and {others} others share its score	صورة واحدة عند القطع ويشاركها {others} في الدرجة نفسها
+	1 photo at or below the cut	صورة واحدة عند القطع أو دونه
+	{count} photos at or below the cut ({percent}%)	{count} صورة عند القطع أو دونه ({percent}%)
 

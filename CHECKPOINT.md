@@ -1,5 +1,64 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-third) — the Soft Focus view speaks the interface language
+
+- **Why this came up.** The hundred-and-second entry's Next named it: after Compare, Soft Focus was the last
+  view painting its own chrome in English — the title and subtitle, `Measure sharpness` and its hover, the
+  progress line, the histogram caption, the review's score words and the `Select N photo(s)` action.
+- **What is routed.** 17 new rows in each of `ar.tsv` and `ja.tsv`; `Sharpness` and `{done} of {total}`
+  already had rows from the Insights slice, so they are reused rather than duplicated. The title, `A relative
+  cut, never a verdict`, the hint that says what a relative cut can claim, `Measuring`, `Measure sharpness`
+  and its hover, `{n} photo(s) have no current score`, the `Nothing measured yet…` empty review, the caption
+  `Softest {percent}% · scores {low} to {high}`, `Select {n} photo(s)` and its hover, `Nothing at the cut`,
+  and the cut's own words — `Nothing is scored yet`, the "every photo scored the same" refusal, the tie
+  sentence, the single-photo sentence and `{count} photos at or below the cut ({percent}%)`.
+- **The cut's words live in `sharpness.rs`, not the shell.** `Review::cut_label` is arithmetic and prose in
+  one place, so routing it there means the catalogue audit (`catalogs_load_and_routed_keys_have_rows`) now
+  reads `sharpness.rs` as a third routed source beside `shell.rs` and `theme.rs`; a row that goes missing
+  from a catalogue fails the audit rather than showing English. Its English assertions still hold unchanged.
+- **The numbers are templates, and the digits are the language's.** A new `format::decimal` writes a value
+  with the language's decimal mark and digits (`0.50`, `٠٫٥٠`), so the score range and the percentage are
+  placeholders filled through `format_count`/`format::decimal` rather than `{:.2}` inside the shell.
+  English is byte-identical: `Softest 10% · scores 0.50 to 4.50`, `1 photo at or below the cut`,
+  `Select 1 photo(s)` — which is why the committed scenes did not move. An Arabic review reads
+  `الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠` and `تحديد ١ صورة`, Japanese
+  `最も柔らかい 10% · スコア 0.50〜4.50` and `1 枚の写真を選択`.
+- **Named as not shipped.** The notices (`Measured … photo(s)`, `Sharpness pass stopped after …`,
+  `Every photo already has a current score`, `Selected the … softest`) stay English — they belong to the
+  notice class, the same call the Places, Detail and Compare entries recorded. The slider's assistive name
+  (`Softest share of the library to review`) stays English because it is what assistive technology speaks,
+  which the ROADMAP row does not count as painted chrome. The bottom bar's destination names still come from
+  `View::label()` and are not routed yet, so the tab beside this translated title still reads `Soft Focus`
+  in a Japanese window; that gap is recorded in the ROADMAP row and UX.md, not implied done.
+- **Tests that fail when the behaviour is absent.** `the_soft_focus_view_speaks_the_interface_language`
+  paints the real `soft_focus_view` at 1000×760 over five photographs in three states: nothing measured
+  (the title, subtitle, `Sharpness`, `Measure sharpness` and the `5 photo(s) have no current score`
+  line, plus the empty review's whole sentence, in English then Japanese then Arabic), five different
+  scores (the caption, `1 photo at or below the cut` and `Select 1 photo(s)`; Arabic's own digits and
+  `٫`, with the English action and caption asserted absent), and five identical scores (the refusal
+  sentence in Arabic). `fmt` isolates a value, so the frame is read through the same isolate filter the
+  other language tests use. `a_decimal_writes_the_languages_mark_and_digits` holds `format::decimal` to
+  English's `{:.2}` shape and to Arabic's `٫`, and the catalogue audit reads all 17 new rows.
+- **Files.** `crates/ui/src/shell.rs` (`soft_focus_view`, `sharpness_section`, one test),
+  `crates/ui/src/sharpness.rs` (`cut_label`), `crates/ui/src/format.rs` (`decimal`, one test),
+  `crates/ui/src/i18n.rs` (the audit's source list), `crates/ui/src/i18n/ar.tsv` and `ja.tsv` (17 rows
+  each), `docs/ROADMAP.md` (the SL-L07 row), `docs/UX.md` (§5.8 and the i18n paragraph), this entry.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the new test,
+  `a_decimal_writes_the_languages_mark_and_digits` and `catalogs_load_and_routed_keys_have_rows` pass, and
+  the sharpness module's nine tests are unchanged and green. `cargo xtask ci` green through every gate
+  (fmt --check, clippy `--workspace --all-targets` with `-D warnings`, the full test suite, layers, roots,
+  assets, version, attribution, a11y, docs, templates and workflows); `cargo xtask snapshot` (5 tests),
+  `cargo xtask deny` (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask screenshots`
+  (27 scenes, `soft_focus_paints_in_both_themes` among them, byte-identical to the committed baselines).
+  There is no `cargo xtask wasm` in this workspace (removed in the sixty-first entry), so no wasm gate ran.
+  No release dispatch: this slice touches `crates/ui` source, catalogues, tests and docs, so no build or
+  release surface changed.
+- **Next.** For You is the last view still painting English chrome — its title and hint, its empty state,
+  and the `memories.headline()`/`card.detail()` sentences, which need pieces in `sortlens-engine` the way
+  the Insights highlights strip got them. Then the four catalogues (zh-TW/ko/th/vi) and the RTL screenshots.
+  The bottom bar's destination labels (`View::label()`) are still an unrouted English key. No release run
+  in flight.
+
 ## 2026-11-26 (hundred-and-second) — the Compare view speaks the interface language
 
 - **Why this came up.** The hundred-and-first entry's Next named Compare and Soft Focus as the two views still

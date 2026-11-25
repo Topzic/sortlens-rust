@@ -734,4 +734,21 @@
 	pixels	ピクセル
 	{left} vs {right}	{left} 対 {right}
 	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} 対 {right_width}×{right_height}
+	Soft Focus	ソフトフォーカス
+	A relative cut, never a verdict	相対的な切り口であり、判定ではありません
+	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	シャープさは、このライブラリ内のフレームを同じ光と焦点距離で順位づけします。切り口は最も柔らかい N% を取るため、これらの写真に対して相対的であるとしか言えません。
+	Measuring	計測中
+	Measure sharpness	シャープさを測定
+	Decode each photo and measure how much fine detail it has	各写真をデコードし、細部の量を測定します
+	{n} photo(s) have no current score	{n} 枚の写真に現在のスコアがありません
+	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	まだ計測していません。シャープさはこのライブラリ内のフレームを順位づけるもので、どれかへの判定ではありません。
+	Softest {percent}% · scores {low} to {high}	最も柔らかい {percent}% · スコア {low}〜{high}
+	Select {n} photo(s)	{n} 枚の写真を選択
+	Ticks them in the library, where you can look before you act	ライブラリ内で印を付け、実行前に確認できます
+	Nothing at the cut	切り口に該当なし
+	Nothing is scored yet	まだスコアがありません
+	Every photo scored the same, so a relative cut cannot separate them	すべての写真が同じスコアのため、相対的な切り口では分けられません
+	1 photo at the cut, and {others} others share its score	切り口に 1 枚、ほかに {others} 枚が同じスコアです
+	1 photo at or below the cut	切り口以下は 1 枚
+	{count} photos at or below the cut ({percent}%)	切り口以下は {count} 枚（{percent}%）
 
