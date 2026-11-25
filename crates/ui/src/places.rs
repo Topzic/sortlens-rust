@@ -8,11 +8,18 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use sortlens_geo::TileCell;
+use sortlens_core::PhotoId;
 use sortlens_geo::tiles::TileSet;
+use sortlens_geo::{LatLon, Point, TileCell};
 
 /// The zoom a map opens at: a country and its neighbours, which is the scale a photo library's spread is legible at.
 pub const DEFAULT_ZOOM: u8 = 5;
+
+/// The deepest zoom Places offers when no tile set says otherwise.
+///
+/// The shipped coastline has no detail this deep, but the pins do: zooming in is how a cluster of
+/// photographs from one street comes apart, so the map must not stop at the outline's own ceiling.
+pub const MAX_ZOOM: u8 = 18;
 
 /// The radius of the smallest dot, in pixels. Small enough that a single photograph is a point rather than a blob.
 pub const MIN_DOT: f32 = 4.5;
@@ -49,6 +56,64 @@ pub fn dot_radius(count: usize) -> f32 {
     MIN_DOT + DOT_GROWTH * count.sqrt()
 }
 
+/// The radius the map actually draws and hit-tests a pin at.
+///
+/// A cluster keeps the area-true radius it has always had, but never shrinks below a tappable disc; a
+/// single photograph is a small thumbnail, so its square needs the reach of half its side. Keeping
+/// this beside [`dot_radius`] means the painted shape and the clickable shape cannot disagree.
+pub fn pin_radius(count: usize) -> f32 {
+    if count <= 1 { 17.0 } else { dot_radius(count).clamp(15.0, MAX_DOT) }
+}
+
+/// The centre after dragging the map by `drag` screen pixels.
+///
+/// The map follows the pointer, so the centre moves the other way. Kept here rather than in the
+/// view because dragging is arithmetic over the projection, and arithmetic is the part worth a
+/// test without a window.
+pub fn pan_centre(centre: LatLon, zoom: u8, drag: (f64, f64)) -> Option<LatLon> {
+    let point = sortlens_geo::project(centre, zoom)?;
+    sortlens_geo::unproject(
+        Point {
+            x: point.x - drag.0,
+            y: point.y - drag.1,
+        },
+        zoom,
+    )
+}
+
+/// The centre that keeps `anchor` over the same place while the zoom changes.
+///
+/// A wheel or pinch zooms about the pointer, not the middle of the window: the coast under the
+/// finger must stay under the finger. `viewport` and `anchor` are in screen pixels, `anchor` being
+/// measured from the map's top-left corner.
+pub fn zoom_centre(centre: LatLon, old_zoom: u8, new_zoom: u8, viewport: (f64, f64), anchor: (f64, f64)) -> Option<LatLon> {
+    let point = sortlens_geo::project(centre, old_zoom)?;
+    let under = Point {
+        x: point.x + anchor.0 - viewport.0 / 2.0,
+        y: point.y + anchor.1 - viewport.1 / 2.0,
+    };
+    let place = sortlens_geo::unproject(under, old_zoom)?;
+    let next = sortlens_geo::project(place, new_zoom)?;
+    sortlens_geo::unproject(
+        Point {
+            x: next.x + viewport.0 / 2.0 - anchor.0,
+            y: next.y + viewport.1 / 2.0 - anchor.1,
+        },
+        new_zoom,
+    )
+}
+
+/// The photographs a click opened, held so the map can paint their strip under the pins.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Tray {
+    /// The selected photographs, in the order the cluster held them.
+    pub members: Vec<PhotoId>,
+    /// The place the cluster stood for, so the strip can say where these were taken.
+    pub centre: LatLon,
+    /// A gazetteer name near that place, when the library's own file supplies one.
+    pub name: Option<String>,
+}
+
 /// One dot on screen, and the cluster it stands for.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Dot {
@@ -79,7 +144,7 @@ pub fn dots(clusters: &[sortlens_geo::Cluster], zoom: u8, origin: sortlens_geo::
         dots.push(Dot {
             cluster: index,
             at: (at.x as f32, at.y as f32),
-            radius: dot_radius(cluster.len()),
+            radius: pin_radius(cluster.len()),
         });
     }
     dots
@@ -366,6 +431,37 @@ mod tests {
         assert_eq!(dot_radius(1_000_000), MAX_DOT.max(dot_radius(1_000_000)));
         // A count of zero is one dot's worth, not a negative radius.
         assert_eq!(dot_radius(0), dot_radius(1));
+    }
+
+    #[test]
+    fn a_single_photo_is_a_tappable_thumbnail_and_a_cluster_never_shrinks_away() {
+        assert_eq!(pin_radius(0), pin_radius(1));
+        assert!(pin_radius(1) > dot_radius(1), "an icon is wider than a hairline dot");
+        assert!(pin_radius(2) >= 15.0, "two photographs are still a target");
+        assert!(pin_radius(4) < pin_radius(400), "the bubble still grows with its count");
+        assert_eq!(pin_radius(1_000_000), MAX_DOT, "and stops at a region");
+    }
+
+    #[test]
+    fn dragging_moves_the_centre_the_other_way_and_zooming_keeps_the_anchor_still() {
+        let brighton = sortlens_geo::LatLon::new(50.8225, -0.1372).expect("a place");
+        let moved = pan_centre(brighton, 8, (40.0, 0.0)).expect("a coordinate");
+        assert!(
+            moved.lon < brighton.lon,
+            "dragging right moves the map right, so the centre moves west"
+        );
+        assert!((moved.lat - brighton.lat).abs() < f64::EPSILON, "a horizontal drag does not tilt");
+
+        let viewport = (800.0, 600.0);
+        let centred = zoom_centre(brighton, 8, 10, viewport, (400.0, 300.0)).expect("a coordinate");
+        assert!((centred.lat - brighton.lat).abs() < 0.001 && (centred.lon - brighton.lon).abs() < 0.001);
+
+        let left_edge = zoom_centre(brighton, 8, 10, viewport, (0.0, 300.0)).expect("a coordinate");
+        assert!(
+            left_edge.lon < brighton.lon,
+            "zooming in about the left edge pulls the centre toward it"
+        );
+        assert!((left_edge.lat - brighton.lat).abs() < 0.001);
     }
 
     #[test]

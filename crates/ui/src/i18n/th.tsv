@@ -680,7 +680,7 @@
 	No photo has a location yet	ยังไม่มีรูปใดมีตำแหน่ง
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	กล้องบันทึกว่าถ่ายที่ไหนไว้ใน EXIF ของไฟล์ รูปที่ถ่ายโดยปิดบริการตำแหน่งหรือถูกเครื่องมืออื่นลบข้อมูลออกจะไม่มี
 	zoom {zoom}	ซูม {zoom}
-	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	รูปที่มีตำแหน่ง {located} รูป · จุด {dots} จุด · คลิกจุดเพื่อเลือก
+	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	รูปที่มีตำแหน่ง {located} รูป · หมุด {pins} จุด · ลากเพื่อเลื่อน เลื่อนเพื่อซูม
 	No places.txt — dots show their coordinates	ไม่มี places.txt — จุดแสดงพิกัดของมัน
 	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	ตั้งชื่อจาก places.txt · สถานที่ {named} แห่ง · จุดที่อยู่ใน {km} กม. จะยืมชื่อ
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	เส้นชายฝั่งแบบแผนผัง · ติดตั้งโฟลเดอร์ไทล์หรือไฟล์ MBTiles เพื่อแผนที่ฐานจริง

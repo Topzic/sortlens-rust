@@ -963,6 +963,16 @@ pub struct UiState {
     pub places_tiles: places::TileCache,
     /// Place names from the library's own `places.txt`, re-read when the file changes.
     pub places_names: places::Names,
+    /// The map centre once the person has moved it, or `None` while the view still fits the library.
+    ///
+    /// The fit is recomputed every frame until someone pans or zooms; after that this is the view,
+    /// even when a scan adds a photograph elsewhere. Losing a chosen view to a background scan would
+    /// move the map under the pointer for no reason the person asked for.
+    pub places_centre: Option<sortlens_geo::LatLon>,
+    /// The photographs a pin opened, shown as a strip over the bottom of the map.
+    pub places_tray: Option<places::Tray>,
+    /// Wheel and pinch travel not yet spent on one whole zoom step.
+    pub places_zoom_accum: f32,
     /// Where a marquee drag started, while the pointer is still down.
     pub marquee: Option<egui::Pos2>,
     /// Where each visible cell was drawn last frame, so a drag that starts on the background can hit-test
@@ -1240,6 +1250,9 @@ impl UiState {
             places_zoom_chosen: false,
             places_tiles: places::TileCache::new(),
             places_names: places::Names::new(),
+            places_centre: None,
+            places_tray: None,
+            places_zoom_accum: 0.0,
             similar_delete_open: false,
         }
     }
@@ -4019,7 +4032,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                 View::Cull => cull_view(ui, t, state, engine, thumbs, actions),
                 View::Insights => insights_view(ui, t, state, engine),
                 View::Similar => similar_view(ui, t, state, engine, thumbs),
-                View::Places => places_view(ui, t, state, engine),
+                View::Places => places_view(ui, t, state, engine, thumbs),
             }
             keyboard(ui, state, engine, actions);
         });
@@ -7217,7 +7230,7 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
 /// The map opens **fitted to the library's own photographs**: centred on the middle of their spread and zoomed to the
 /// deepest level that still shows all of them. The old fixed zoom 5 opened over the Atlantic with both clusters off
 /// screen for a library on two continents, which reads as an empty map.
-fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
+fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &mut Thumbnails) {
     let located = engine.geotagged();
     let tileset = engine.tileset();
     let usable = matches!(&tileset, Some(Ok(_)));
@@ -7249,17 +7262,14 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         _ => None,
     };
     let located_photos = engine.located();
-    // Every located photograph is a point to fit the view around, whether or not it clusters into a dot of its own.
+    // Every located photograph is a point to fit the view around, whether or not it clusters into a pin of its own.
     let centres: Vec<sortlens_geo::LatLon> = located_photos.iter().map(|(_, at)| *at).collect();
     // A tileset's top zoom is the deepest that can be drawn; with the shipped coastline the fit's own ceiling applies.
     let highest = range.map_or(sortlens_geo::coastline::MAX_FIT_ZOOM, |(_, high)| high);
-    // The middle of the spread, not the mean of the latitudes: the mean of Brighton and Lima is 1,400 km north of the
-    // box's middle, so a view centred on it pushes one dot towards the edge of its own fit. The fallback cannot be
-    // reached with an empty list because `located == 0` returned above.
-    let centre = sortlens_geo::coastline::bounds_centre(&centres).unwrap_or(located_photos[0].1);
+    let fitted_centre = sortlens_geo::coastline::bounds_centre(&centres).unwrap_or(located_photos[0].1);
     if !state.places_zoom_chosen {
         // With the shipped outline the fitted view can be so deep that an inland library has no coast on screen, which
-        // is a blank rectangle with a dot on it rather than a map. The outline fit widens the view until a shoreline
+        // is a blank rectangle with a pin on it rather than a map. The outline fit widens the view until a shoreline
         // is in it; a person's own tiles are already geography at any zoom, so they keep the plain fit.
         state.places_zoom = if range.is_none() {
             sortlens_geo::coastline::fit_zoom_with_outline(&centres, f64::from(map_size.x), f64::from(map_size.y), highest)
@@ -7270,26 +7280,99 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
     if let Some(range) = range {
         state.places_zoom = places::clamp_zoom(state.places_zoom, range);
     }
-    let zoom = state.places_zoom;
+    let (low, high) = range.unwrap_or((0, places::MAX_ZOOM));
+    state.places_zoom = state.places_zoom.clamp(low, high);
 
-    let (rect, response) = ui.allocate_exact_size(map_size, Sense::click());
-    // A clickable region that a screen reader can land on and name: the map, and how many dots it holds.
-    let dot_count = engine.places(zoom).len();
+    let (rect, response) = ui.allocate_exact_size(map_size, Sense::click_and_drag());
+    let mut centre = state.places_centre.unwrap_or(fitted_centre);
+
+    // Panning follows the pointer: the world under the finger stays under the finger. `pointer.delta` is the movement
+    // since the last frame, not since the drag began, so applying it every frame does not multiply the gesture.
+    if response.dragged_by(egui::PointerButton::Primary) {
+        let delta = ui.input(|input| input.pointer.delta());
+        if delta != Vec2::ZERO
+            && let Some(moved) = places::pan_centre(centre, state.places_zoom, (f64::from(delta.x), f64::from(delta.y)))
+        {
+            state.places_centre = Some(moved);
+            state.places_zoom_chosen = true;
+            centre = moved;
+        }
+    }
+
+    // Wheel and pinch are gathered into whole zoom levels. A trackpad reports tens of small scrolls for one nudge;
+    // spending one level on each would cross the whole range before the fingers stopped moving.
+    let pointer_at = ui.ctx().pointer_hover_pos().filter(|at| rect.contains(*at));
+    if response.hovered() && !response.dragged() {
+        let (scroll, pinch) = ui.input(|input| (input.smooth_scroll_delta.y, input.zoom_delta()));
+        if scroll.abs() > 0.0 {
+            state.places_zoom_accum += scroll / 40.0;
+        }
+        if (pinch - 1.0).abs() > 0.0001 {
+            state.places_zoom_accum += pinch.ln() / 0.40;
+        }
+    } else {
+        state.places_zoom_accum = 0.0;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let steps = state.places_zoom_accum.trunc().clamp(-3.0, 3.0) as i32;
+    state.places_zoom_accum -= steps as f32;
+    if steps != 0 {
+        let anchor = pointer_at.map_or((map_size.x / 2.0, map_size.y / 2.0), |at| (at.x - rect.min.x, at.y - rect.min.y));
+        let wanted = (i32::from(state.places_zoom) + steps).clamp(i32::from(low), i32::from(high));
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let wanted = wanted as u8;
+        if wanted != state.places_zoom {
+            if let Some(moved) = places::zoom_centre(
+                centre,
+                state.places_zoom,
+                wanted,
+                (f64::from(map_size.x), f64::from(map_size.y)),
+                (f64::from(anchor.0), f64::from(anchor.1)),
+            ) {
+                state.places_centre = Some(moved);
+                centre = moved;
+            }
+            state.places_zoom = wanted;
+            state.places_zoom_chosen = true;
+            ui.ctx().request_repaint();
+        } else {
+            // Already at the near or far end: do not keep a backlog that would jump when the map turns around.
+            state.places_zoom_accum = 0.0;
+        }
+    }
+    let zoom = state.places_zoom;
+    let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map_size.x), f64::from(map_size.y));
+    let clusters = engine.places(zoom);
+    let dots = origin.map_or_else(Vec::new, |origin| places::dots(&clusters, zoom, origin, map_size.x, map_size.y));
+    let pointer_local = pointer_at.map(|at| (at.x - rect.min.x, at.y - rect.min.y));
+    let hovered_dot = pointer_local.and_then(|at| places::dot_at(&dots, at));
+    if response.hovered() || response.dragged() {
+        let cursor = if response.dragged_by(egui::PointerButton::Primary) {
+            egui::CursorIcon::Grabbing
+        } else if hovered_dot.is_some() {
+            egui::CursorIcon::PointingHand
+        } else {
+            egui::CursorIcon::Grab
+        };
+        ui.ctx().set_cursor_icon(cursor);
+    }
+
+    // A clickable region that a screen reader can land on and name: the map, and how many pins it holds.
+    let dot_count = clusters.len();
     a11y::label_widget(
         ui,
         &response,
         egui::Role::Canvas,
         &format!(
-            "Map of {located} photo(s) with a location, in {dot_count} dot(s) at zoom {zoom}. \
-             Click a dot to select its photos."
+            "Map of {located} photo(s) with a location, in {dot_count} pin(s) at zoom {zoom}. \
+             Drag to pan, scroll or pinch to zoom, and click a pin to see its photos."
         ),
         false,
     );
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, t.thumb_bg);
-    let origin = sortlens_geo::viewport_origin(zoom, centre, f64::from(map_size.x), f64::from(map_size.y));
 
-    // Tiles first, then the shipped coastline if there are none, then dots: the coastline is the backdrop, not a
+    // Tiles first, then the shipped coastline if there are none, then pins: the coastline is the backdrop, not a
     // participant. The credit for whichever was drawn is printed below.
     if let (Some(Ok(set)), Some(origin)) = (&tileset, origin) {
         for cell in sortlens_geo::visible_tiles(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
@@ -7314,7 +7397,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         }
     } else if let Some(origin) = origin {
         // No tile folder, so the embedded outline is the basemap. One stroke per run of visible coast, painted before
-        // the dots so a dot always sits on top of the land it is on.
+        // the pins so a pin always sits on top of the land it is on.
         let coastline = sortlens_geo::coastline::Coastline::shipped();
         for line in coastline.screen_lines(zoom, origin, f64::from(map_size.x), f64::from(map_size.y)) {
             if line.len() < 2 {
@@ -7328,27 +7411,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         }
     }
 
-    // The dots, and the hit test the click below uses — one list, so what is drawn and what is clickable cannot drift.
-    let clusters = engine.places(zoom);
-    let dots = origin.map_or_else(Vec::new, |origin| places::dots(&clusters, zoom, origin, map_size.x, map_size.y));
-    for dot in &dots {
-        let cluster = &clusters[dot.cluster];
-        let centre_px = egui::pos2(rect.min.x + dot.at.0, rect.min.y + dot.at.1);
-        painter.circle_filled(centre_px, dot.radius, t.accent.gamma_multiply(0.82));
-        painter.circle_stroke(centre_px, dot.radius, egui::Stroke::new(1.0, t.accent_fg.gamma_multiply(0.7)));
-        if !cluster.is_single() {
-            painter.text(
-                centre_px,
-                Align2::CENTER_CENTER,
-                format_count(cluster.len() as u64),
-                FontId::proportional(10.0),
-                t.accent_fg,
-            );
-        }
-    }
-
-    // Place names for the dots, from the library's own gazetteer. The borrow is resolved into owned strings here so
-    // the click handler below can touch the selection.
+    // Names are resolved once, before the pins, so the strip and the labels cannot disagree about where a pin is.
     let places_file = engine.places_file();
     let (labels, names_len, names_error) = {
         let gazetteer = state.places_names.for_file(places_file.as_deref());
@@ -7362,58 +7425,40 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
             .collect();
         (labels, state.places_names.len(), state.places_names.error().map(str::to_string))
     };
-    for dot in &dots {
-        let Some(label) = labels.get(dot.cluster).and_then(Option::as_ref) else {
-            continue;
-        };
-        painter.text(
-            egui::pos2(rect.min.x + dot.at.0, rect.min.y + dot.at.1 + dot.radius + 2.0),
-            Align2::CENTER_TOP,
-            label,
-            FontId::proportional(10.0),
-            t.text,
-        );
-    }
 
-    // Clicking a dot selects exactly the photos it stands for. Clicking the map itself selects nothing: a click on
-    // the sea is not a way to clear a selection the person made on purpose.
-    let clicked_cluster = response
+    paint_places_pins(
+        ui,
+        t,
+        state,
+        engine,
+        thumbs,
+        PinScene {
+            clusters: &clusters,
+            dots: &dots,
+            labels: &labels,
+            map: rect,
+            hovered: hovered_dot,
+        },
+    );
+
+    // A click opens the photographs a pin stands for; a double-click goes closer on a group, or into Detail on a
+    // single frame. Clicking the sea still selects nothing: a click on the map is not a way to clear a deliberate
+    // selection.
+    let hit = response
         .interact_pointer_pos()
-        .filter(|_| response.clicked())
-        // The pointer arrives in screen coordinates and the dots are relative to the map's own corner, so the origin
-        // is subtracted here. Without it every click missed by the panel's margin — which is what the click test was
-        // written to catch, and did.
+        .filter(|_| response.clicked() || response.double_clicked())
         .and_then(|pointer| places::dot_at(&dots, (pointer.x - rect.min.x, pointer.y - rect.min.y)))
         .map(|index| dots[index].cluster);
-    if let Some(index) = clicked_cluster {
+    if let Some(index) = hit {
         let cluster = &clusters[index];
-        state.selection.select_many(&cluster.members);
-        let name = labels.get(index).and_then(Option::as_deref);
-        state.notice(places::selection_notice(cluster.len(), cluster.centre, name));
+        let name = labels.get(index).and_then(Option::as_ref);
+        handle_places_pin_click(ui, state, cluster, name, zoom, high, response.double_clicked());
     }
 
-    // The zoom controls sit over the map's corner, where a map puts them.
-    let mut zoom_changed = false;
-    ui.scope_builder(egui::UiBuilder::new().max_rect(rect.shrink(8.0)), |ui| {
-        ui.with_layout(Layout::right_to_left(Align::Max), |ui| {
-            let (low, high) = range.unwrap_or((zoom, zoom));
-            if ui.add_enabled(zoom < high, Button::new(RichText::new("+").size(13.0))).clicked() {
-                state.places_zoom = zoom.saturating_add(1);
-                state.places_zoom_chosen = true;
-                zoom_changed = true;
-            }
-            if ui.add_enabled(zoom > low, Button::new(RichText::new("−").size(13.0))).clicked() {
-                state.places_zoom = zoom.saturating_sub(1);
-                state.places_zoom_chosen = true;
-                zoom_changed = true;
-            }
-            ui.label(
-                RichText::new(crate::i18n::fmt("zoom {zoom}", &[("zoom", &format_count(u64::from(zoom)))]))
-                    .size(10.5)
-                    .color(t.text_muted),
-            );
-        });
-    });
+    // The zoom controls sit over the map's top corner, where a map puts them. The bottom is the photograph strip.
+    let zoom_changed = places_zoom_controls(ui, t, state, rect, zoom, low, high, centre);
+
+    places_tray(ui, t, state, engine, thumbs, rect);
 
     // The credit, over the map, every frame it is drawn. Never hidden behind a menu or a hover.
     ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), Layout::left_to_right(Align::Center), |ui| {
@@ -7428,10 +7473,10 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         ui.add_space(8.0);
         ui.label(
             RichText::new(crate::i18n::fmt(
-                "{located} photo(s) with a location · {dots} dot(s) · click a dot to select it",
+                "{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom",
                 &[
                     ("located", &format_count(located as u64)),
-                    ("dots", &format_count(clusters.len() as u64)),
+                    ("pins", &format_count(clusters.len() as u64)),
                 ],
             ))
             .size(9.5)
@@ -7470,6 +7515,274 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
         }
     }
     basemap_status(ui, t, engine, &tileset);
+}
+
+/// The pins, labels and map rectangle one Places frame paints together.
+struct PinScene<'a> {
+    clusters: &'a [sortlens_geo::Cluster],
+    dots: &'a [places::Dot],
+    labels: &'a [Option<String>],
+    map: Rect,
+    hovered: Option<usize>,
+}
+
+/// Paint the pins and their place labels over a map rectangle.
+///
+/// One photograph is a small framed thumbnail with a tail; a group is an accent disc with its count.
+/// The shapes are drawn at the radius [`places::dot_at`] hit-tests, so tapping aims at what was seen.
+fn paint_places_pins(ui: &mut Ui, t: &Tokens, state: &UiState, engine: &Engine, thumbs: &mut Thumbnails, scene: PinScene<'_>) {
+    let painter = ui.painter_at(scene.map);
+    for (index, dot) in scene.dots.iter().enumerate() {
+        let cluster = &scene.clusters[dot.cluster];
+        let selected = cluster.members.iter().any(|id| state.selection.contains(*id));
+        let scale = if scene.hovered == Some(index) { 1.07 } else { 1.0 };
+        let centre = egui::pos2(scene.map.min.x + dot.at.0, scene.map.min.y + dot.at.1);
+        if cluster.is_single() {
+            let side = 30.0 * scale;
+            let pin = Rect::from_center_size(centre + vec2(0.0, -1.0), vec2(side, side));
+            painter.rect_filled(pin.translate(vec2(0.0, 2.0)), t.corner(), t.shadow);
+            painter.rect_filled(pin, t.corner(), t.thumb_bg);
+            let texture = cluster
+                .members
+                .first()
+                .and_then(|id| engine.photo(*id))
+                .and_then(|photo| thumbs.get(ui.ctx(), photo, 128).cloned());
+            if let Some(texture) = texture {
+                painter.image(texture.id(), pin, cover_uv(texture.size_vec2(), pin.size()), Color32::WHITE);
+            }
+            painter.rect_stroke(
+                pin,
+                t.corner(),
+                Stroke::new(if selected { 2.0 } else { 1.5 }, if selected { t.accent } else { t.card }),
+                StrokeKind::Middle,
+            );
+            // A short tail turns a floating thumbnail into a pin without adding a second shape to read.
+            let tail = vec![
+                egui::pos2(pin.center().x - 4.0, pin.bottom() - 1.0),
+                egui::pos2(pin.center().x, pin.bottom() + 4.0),
+                egui::pos2(pin.center().x + 4.0, pin.bottom() - 1.0),
+            ];
+            painter.add(egui::Shape::convex_polygon(tail, t.card, Stroke::NONE));
+        } else {
+            let radius = dot.radius * scale;
+            painter.circle_filled(centre + vec2(0.0, 2.0), radius, t.shadow);
+            painter.circle_filled(centre, radius, t.accent);
+            painter.circle_stroke(
+                centre,
+                radius,
+                Stroke::new(if selected { 2.5 } else { 2.0 }, if selected { t.text } else { t.card }),
+            );
+            let count = format_count(cluster.len() as u64);
+            let size = if count.chars().count() > 3 { 8.5 } else { 10.0 };
+            painter.text(centre, Align2::CENTER_CENTER, count, FontId::proportional(size), t.accent_fg);
+        }
+    }
+
+    // Place names under the pins, with a one-pixel shadow so a label stays legible over the coastline.
+    for dot in scene.dots {
+        let Some(label) = scene.labels.get(dot.cluster).and_then(Option::as_ref) else {
+            continue;
+        };
+        let at = egui::pos2(scene.map.min.x + dot.at.0, scene.map.min.y + dot.at.1 + dot.radius + 2.0);
+        painter.text(
+            at + vec2(0.0, 1.0),
+            Align2::CENTER_TOP,
+            label,
+            FontId::proportional(9.5),
+            t.thumb_bg,
+        );
+        painter.text(at, Align2::CENTER_TOP, label, FontId::proportional(9.5), t.text);
+    }
+}
+
+/// Act on a click or double-click on one pin.
+///
+/// A single click always opens the strip; a double-click on one frame goes to Detail, and on a group
+/// goes two levels closer until the map's ceiling, where the strip is the only honest answer left.
+fn handle_places_pin_click(
+    ui: &mut Ui,
+    state: &mut UiState,
+    cluster: &sortlens_geo::Cluster,
+    name: Option<&String>,
+    zoom: u8,
+    high: u8,
+    double: bool,
+) {
+    if double {
+        if cluster.is_single() {
+            if let Some(id) = cluster.members.first() {
+                state.selection.replace(*id);
+                state.view = View::Detail;
+            }
+        } else if zoom < high {
+            state.places_zoom = zoom.saturating_add(2).min(high);
+            state.places_zoom_chosen = true;
+            state.places_centre = Some(cluster.centre);
+            state.places_tray = None;
+            ui.ctx().request_repaint();
+        } else {
+            show_places_tray(state, cluster, name);
+        }
+    } else {
+        show_places_tray(state, cluster, name);
+        state.notice(places::selection_notice(cluster.len(), cluster.centre, name.map(String::as_str)));
+    }
+}
+
+/// Select a pin's photographs and open the strip that shows them.
+fn show_places_tray(state: &mut UiState, cluster: &sortlens_geo::Cluster, name: Option<&String>) {
+    state.selection.select_many(&cluster.members);
+    state.places_tray = Some(places::Tray {
+        members: cluster.members.clone(),
+        centre: cluster.centre,
+        name: name.cloned(),
+    });
+}
+
+/// The two zoom steppers and the current level, pinned to the map's top corner.
+///
+/// `new_child`, not `scope_builder`: an overlay must paint at the map's corner without moving the
+/// parent's cursor to that corner, which would lay the footer over the map instead of under it.
+fn places_zoom_controls(
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &mut UiState,
+    map: Rect,
+    zoom: u8,
+    low: u8,
+    high: u8,
+    centre: sortlens_geo::LatLon,
+) -> bool {
+    let mut changed = false;
+    let mut controls = ui.new_child(egui::UiBuilder::new().max_rect(map.shrink(8.0)));
+    controls.with_layout(Layout::right_to_left(Align::Min), |ui| {
+        if ui.add_enabled(zoom < high, Button::new(RichText::new("+").size(13.0))).clicked() {
+            state.places_zoom = zoom.saturating_add(1).min(high);
+            state.places_zoom_chosen = true;
+            state.places_centre = Some(centre);
+            changed = true;
+        }
+        if ui.add_enabled(zoom > low, Button::new(RichText::new("−").size(13.0))).clicked() {
+            state.places_zoom = zoom.saturating_sub(1).max(low);
+            state.places_zoom_chosen = true;
+            state.places_centre = Some(centre);
+            changed = true;
+        }
+        ui.label(
+            RichText::new(crate::i18n::fmt("zoom {zoom}", &[("zoom", &format_count(u64::from(zoom)))]))
+                .size(10.5)
+                .color(t.text_muted),
+        );
+    });
+    changed
+}
+/// The strip under the pins: the photographs a pin opened, as a row of thumbnails on the map.
+///
+/// It stays over the map rather than taking layout space, so opening a group does not shift the coast
+/// and every pin the person was just looking at. Closing it leaves the selection alone.
+fn places_tray(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, thumbs: &mut Thumbnails, map: Rect) {
+    let Some(tray) = state.places_tray.clone() else {
+        return;
+    };
+    let height = 116.0_f32.min(map.height() - 20.0);
+    if height < 64.0 {
+        return;
+    }
+    let tray_rect = Rect::from_min_max(
+        egui::pos2(map.left() + 10.0, map.bottom() - height - 10.0),
+        egui::pos2(map.right() - 10.0, map.bottom() - 10.0),
+    );
+    let mut close = false;
+    let mut open = false;
+    let selected = state.selection.primary();
+    let mut tray_ui = ui.new_child(egui::UiBuilder::new().max_rect(tray_rect));
+    {
+        let ui = &mut tray_ui;
+        Frame::NONE
+            .fill(t.card)
+            .stroke(Stroke::new(1.0, t.border))
+            .corner_radius(t.corner())
+            .inner_margin(Margin::symmetric(10, 8))
+            .show(ui, |ui| {
+                ui.set_width((tray_rect.width() - 24.0).max(120.0));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(tray.name.as_deref().unwrap_or(tl!("Photos"))).size(12.0).strong());
+                    ui.label(
+                        RichText::new(crate::i18n::fmt("{n} photo(s)", &[("n", &format_count(tray.members.len() as u64))]))
+                            .size(10.5)
+                            .color(t.text_muted),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.small_button(RichText::new(tl!("Close")).size(10.0)).clicked() {
+                            close = true;
+                        }
+                        if ui
+                            .add_enabled(selected.is_some(), Button::new(RichText::new(tl!("Open")).size(10.0)))
+                            .clicked()
+                        {
+                            open = true;
+                        }
+                    });
+                });
+                ui.add_space(6.0);
+                let cell = 58.0_f32;
+                let count = tray.members.len();
+                egui::ScrollArea::horizontal()
+                    .id_salt("places-tray")
+                    .max_height(58.0)
+                    .show_viewport(ui, |ui, viewport| {
+                        let first = (viewport.min.x / cell).floor().max(0.0) as usize;
+                        let last = ((viewport.max.x / cell).ceil() as usize).min(count);
+                        ui.horizontal(|ui| {
+                            ui.add_space(first as f32 * cell);
+                            for id in &tray.members[first.min(count)..last] {
+                                let (thumb, response) = ui.allocate_exact_size(vec2(52.0, 52.0), Sense::click());
+                                let painter = ui.painter();
+                                let active = selected == Some(*id);
+                                painter.rect_filled(thumb, t.corner(), t.thumb_bg);
+                                if let Some(photo) = engine.photo(*id) {
+                                    if let Some(texture) = thumbs.get(ui.ctx(), photo, 128).cloned() {
+                                        painter.image(texture.id(), thumb, cover_uv(texture.size_vec2(), thumb.size()), Color32::WHITE);
+                                    }
+                                    let spoken = a11y::describe_photo(photo);
+                                    a11y::label_widget(ui, &response, egui::Role::Button, &spoken, active);
+                                }
+                                painter.rect_stroke(
+                                    thumb,
+                                    t.corner(),
+                                    Stroke::new(
+                                        if active { 2.0 } else { 1.0 },
+                                        if active {
+                                            t.accent
+                                        } else if response.hovered() {
+                                            t.text_muted
+                                        } else {
+                                            t.border
+                                        },
+                                    ),
+                                    StrokeKind::Middle,
+                                );
+                                if response.clicked() {
+                                    state.selection.replace(*id);
+                                }
+                                if response.double_clicked() {
+                                    state.selection.replace(*id);
+                                    state.view = View::Detail;
+                                }
+                                ui.add_space(6.0);
+                            }
+                            ui.add_space((count.saturating_sub(last)) as f32 * cell);
+                        });
+                    });
+            });
+    }
+    if close {
+        state.places_tray = None;
+    }
+    if open && let Some(id) = state.selection.primary().or_else(|| tray.members.first().copied()) {
+        state.selection.replace(id);
+        state.view = View::Detail;
+    }
 }
 
 /// The basemap's state as a sentence: which outline is drawn, and what a real one would cost.
@@ -7961,7 +8274,8 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
 }
 
 /// The seven headline figures, in equal columns so the row reads as one instrument rather than
-/// seven labels at whatever width their text happened to take.
+/// seven labels at whatever width their text happened to take. A hairline between columns is the
+/// engraved rule of an instrument face: it separates without boxing each number in.
 fn figures_grid(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
     let figures = [
         (tl!("Photos"), format_count(insights.stats.total as u64)),
@@ -7973,7 +8287,6 @@ fn figures_grid(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
         (tl!("Missing"), format_count(insights.stats.missing as u64)),
     ];
     let width = ui.available_width();
-    let gap = 10.0;
     // Seven across while there is room for the longest caption and value; otherwise four and a
     // second row. Two columns on a phone keep the labels from breaking mid-word.
     let columns = if width >= 600.0 {
@@ -7983,15 +8296,22 @@ fn figures_grid(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
     } else {
         2
     };
-    let cell = ((width - gap * columns as f32) / columns as f32).max(64.0);
+    // The rule gets 8 px of air on each side. Taking that out before dividing means every column is
+    // the same width instead of the separators squeezing the last one against the card's edge.
+    let rule = 17.0;
     let rtl = craft_ui::direction::is_rtl(ui);
     for (row, chunk) in figures.chunks(columns).enumerate() {
         if row > 0 {
             ui.add_space(10.0);
         }
+        let across = chunk.len() as f32;
+        let cell = ((width - rule * (across - 1.0)) / across).max(56.0);
         let draw = |ui: &mut Ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            for (caption, value) in chunk {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            for (index, (caption, value)) in chunk.iter().enumerate() {
+                if index > 0 {
+                    figure_rule(ui, t);
+                }
                 figure(ui, t, caption, value, cell);
             }
         };
@@ -8003,10 +8323,22 @@ fn figures_grid(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
     }
 }
 
-/// One headline number with a caption.
+/// The hairline between two figures: an engraved mark, not a box around either number.
+fn figure_rule(ui: &mut Ui, t: &Tokens) {
+    let (rect, _) = ui.allocate_exact_size(vec2(17.0, 50.0), Sense::hover());
+    ui.painter().line_segment(
+        [
+            egui::pos2(rect.center().x, rect.top() + 9.0),
+            egui::pos2(rect.center().x, rect.bottom() - 10.0),
+        ],
+        Stroke::new(1.0, t.border),
+    );
+}
+
+/// One headline number with a caption, centred in its own column so the rules read as even spacing.
 fn figure(ui: &mut Ui, t: &Tokens, caption: &str, value: &str, width: f32) {
     ui.allocate_ui(vec2(width, 50.0), |ui| {
-        ui.vertical(|ui| {
+        ui.vertical_centered(|ui| {
             ui.label(RichText::new(value).size(20.0).strong().color(t.text));
             ui.add_space(3.0);
             ui.label(RichText::new(caption).size(10.5).color(t.text_muted));
@@ -12413,10 +12745,11 @@ mod tests {
 
         let ctx = egui::Context::default();
         let tokens = Tokens::CHARCOAL;
+        let mut thumbs = place_thumbs(&dir);
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                places_view(ui, &tokens, &mut state, &engine);
+                places_view(ui, &tokens, &mut state, &engine, &mut thumbs);
             });
         });
         output.textures_delta.clear();
@@ -12429,7 +12762,7 @@ mod tests {
         let mut empty_state = UiState::new(ThemeKind::Charcoal, 0.0);
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                places_view(ui, &tokens, &mut empty_state, &empty);
+                places_view(ui, &tokens, &mut empty_state, &empty, &mut thumbs);
             });
         });
         output.textures_delta.clear();
@@ -12474,10 +12807,11 @@ mod tests {
         };
         let ctx = egui::Context::default();
         let tokens = Tokens::CHARCOAL;
-        let paint = |state: &mut UiState, engine: &Engine| -> Vec<String> {
+        let mut thumbs = place_thumbs(&dir);
+        let mut paint = |state: &mut UiState, engine: &Engine| -> Vec<String> {
             let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    places_view(ui, &tokens, state, engine);
+                    places_view(ui, &tokens, state, engine, &mut thumbs);
                 });
             });
             output.textures_delta.clear();
@@ -12528,7 +12862,7 @@ mod tests {
             &[
                 &format!("zoom {}", format_count(zoom)),
                 &format!(
-                    "{} photo(s) with a location · {} dot(s) · click a dot to select it",
+                    "{} photo(s) with a location · {} pin(s) · drag to pan, scroll to zoom",
                     format_count(2),
                     format_count(1)
                 ),
@@ -12543,7 +12877,7 @@ mod tests {
             &[
                 &format!("ズーム {}", format_count(zoom)),
                 &format!(
-                    "位置情報のある写真 {} 枚 · {} 地点 · 地点をクリックして選択",
+                    "位置情報のある写真 {} 枚 · {} ピン · ドラッグで移動、スクロールでズーム",
                     format_count(2),
                     format_count(1)
                 ),
@@ -12557,7 +12891,11 @@ mod tests {
             &arabic,
             &[
                 &format!("تكبير {}", format_count(zoom)),
-                &format!("{} صورة بموقع · {} نقطة · انقر نقطة لتحديدها", format_count(2), format_count(1)),
+                &format!(
+                    "{} صورة بموقع · {} دبوس · اسحب للتحريك، ومرّر للتكبير",
+                    format_count(2),
+                    format_count(1)
+                ),
                 "لا يوجد places.txt — تعرض النقاط إحداثياتها",
             ],
         );
@@ -12610,11 +12948,12 @@ mod tests {
 
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
+        let mut thumbs = place_thumbs(&dir);
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
-        let frame = |state: &mut UiState, input: egui::RawInput| {
+        let mut frame = |state: &mut UiState, input: egui::RawInput| {
             let mut output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    places_view(ui, &tokens, state, &engine);
+                    places_view(ui, &tokens, state, &engine, &mut thumbs);
                 });
             });
             output.textures_delta.clear();
@@ -12660,7 +12999,7 @@ mod tests {
                 ..Default::default()
             },
         );
-        frame(
+        let released = frame(
             &mut state,
             egui::RawInput {
                 events: vec![released],
@@ -12671,9 +13010,22 @@ mod tests {
         let ids = engine.located().iter().map(|(id, _)| *id).collect::<Vec<_>>();
         assert_eq!(state.selection.ids(), ids, "the whole dot was selected");
         assert!(state.selection.contains(ids[0]));
+        let tray = state.places_tray.as_ref().expect("a click opens the strip of photographs");
+        assert_eq!(tray.members.len(), ids.len(), "the strip holds every photo the pin stood for");
+        let cells = all_shapes(&released)
+            .into_iter()
+            .filter(|shape| {
+                matches!(shape, egui::Shape::Rect(rect)
+                    if rect.fill == tokens.thumb_bg
+                        && (rect.rect.width() - 52.0).abs() < 0.5
+                        && (rect.rect.height() - 52.0).abs() < 0.5)
+            })
+            .count();
+        assert_eq!(cells, ids.len(), "the strip painted one cell per photograph");
 
-        // A click on the map away from the dot selects nothing and, crucially, clears nothing.
-        let sea = egui::pos2(map.max.x - 4.0, map.max.y - 4.0);
+        // A click on the map away from the dot selects nothing and, crucially, clears nothing. Use
+        // the top-left, because the strip now covers the bottom of the map.
+        let sea = egui::pos2(map.min.x + 4.0, map.min.y + 4.0);
         frame(
             &mut state,
             egui::RawInput {
@@ -12702,6 +13054,130 @@ mod tests {
             },
         );
         assert_eq!(state.selection.ids(), ids, "the sea is not a way to clear a selection");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The map is a map, not a picture of one: a drag pans it and a wheel zooms it even when no tile
+    /// folder is installed. The reported defect was precisely the no-tile case, where the controls
+    /// were disabled and a drag did nothing because the view had no stored centre to move.
+    #[test]
+    fn dragging_and_scrolling_move_and_zoom_the_map_without_a_tile_set() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-panzoom-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-panzoom");
+        std::fs::copy(
+            fixture.jpeg_with_location("PARIS.jpg", [40, 90, 160], 48, 32, 48.8566, 2.3522),
+            root.join("PARIS.jpg"),
+        )
+        .expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.geotagged(), 1);
+
+        let tokens = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        let mut thumbs = place_thumbs(&dir);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0));
+        let mut frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    places_view(ui, &tokens, state, &engine, &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let input = || egui::RawInput {
+            screen_rect: Some(screen),
+            ..Default::default()
+        };
+        let output = frame(&mut state, input());
+        let map = all_shapes(&output)
+            .into_iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect) if rect.fill == tokens.thumb_bg && rect.rect.width() > 100.0 => Some(rect.rect),
+                _ => None,
+            })
+            .expect("the map painted");
+        let original = engine.located()[0].1;
+        assert!(state.places_centre.is_none(), "the fitted view has not needed a stored centre yet");
+
+        let start = map.center();
+        let end = start + vec2(54.0, 28.0);
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![
+                    egui::Event::PointerMoved(start),
+                    egui::Event::PointerButton {
+                        pos: start,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: egui::Modifiers::default(),
+                    },
+                ],
+                ..input()
+            },
+        );
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![egui::Event::PointerMoved(end)],
+                ..input()
+            },
+        );
+        frame(
+            &mut state,
+            egui::RawInput {
+                events: vec![egui::Event::PointerButton {
+                    pos: end,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::default(),
+                }],
+                ..input()
+            },
+        );
+        let moved = state.places_centre.expect("the drag stored the new centre");
+        assert_ne!(moved, original, "the drag did not move the centre");
+        assert!(state.places_zoom_chosen, "panning is a choice the fit must not undo");
+
+        let before = state.places_zoom;
+        for _ in 0..4 {
+            frame(
+                &mut state,
+                egui::RawInput {
+                    events: vec![
+                        egui::Event::PointerMoved(map.center()),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: vec2(0.0, 120.0),
+                            phase: egui::TouchPhase::Move,
+                            source: egui::MouseWheelSource::Wheel,
+                            modifiers: egui::Modifiers::default(),
+                        },
+                    ],
+                    ..input()
+                },
+            );
+        }
+        assert!(
+            state.places_zoom > before,
+            "the wheel did not zoom in: {} -> {}",
+            before,
+            state.places_zoom
+        );
+        assert!(state.places_zoom_chosen, "zooming is a choice the fit must not undo");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -12743,11 +13219,12 @@ mod tests {
 
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
+        let mut thumbs = place_thumbs(&dir);
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
-        let paint = |state: &mut UiState| {
+        let mut paint = |state: &mut UiState| {
             let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    places_view(ui, &tokens, state, &engine);
+                    places_view(ui, &tokens, state, &engine, &mut thumbs);
                 });
             });
             output.textures_delta.clear();
@@ -12829,18 +13306,19 @@ mod tests {
 
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
+        let mut thumbs = place_thumbs(&dir);
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
         // A fixed, real window: the cache holds 512 tiles and 1920×1080 at zoom 5 asks for about forty, so nothing
         // the test wants to count can be evicted mid-run. The raw input's default screen is ten thousand pixels on a
         // side, which asks for the whole zoom-5 world and would make a cache-limit claim instead of a paint claim.
         let window = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
-        let paint = |state: &mut UiState, engine: &Engine| {
+        let mut paint = |state: &mut UiState, engine: &Engine| {
             let input = egui::RawInput {
                 screen_rect: Some(window),
                 ..egui::RawInput::default()
             };
             let output = ctx.run_ui(input, |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| places_view(ui, &tokens, state, engine));
+                egui::CentralPanel::default().show(ctx, |ui| places_view(ui, &tokens, state, engine, &mut thumbs));
             });
             let mut output = output;
             output.textures_delta.clear();
@@ -12945,6 +13423,7 @@ mod tests {
 
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
+        let mut thumbs = place_thumbs(&dir);
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0));
         let mut output = ctx.run_ui(
@@ -12954,7 +13433,7 @@ mod tests {
             },
             |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    places_view(ui, &tokens, &mut state, &engine);
+                    places_view(ui, &tokens, &mut state, &engine, &mut thumbs);
                 });
             },
         );
@@ -12995,15 +13474,12 @@ mod tests {
         let runs = coastline_runs(&output, &tokens);
         assert!(!runs.is_empty(), "the inland map painted no coastline");
         assert!(runs.iter().any(|run| run.points.len() >= 2), "the outline is a line, not a dot");
-        let dots: Vec<_> = painted_circles(&output)
-            .into_iter()
-            .filter(|circle| (circle.radius - places::dot_radius(1)).abs() < 0.5 && circle.fill.a() > 0)
-            .collect();
-        assert_eq!(dots.len(), 1, "the photograph still has its dot");
+        let pins = painted_pins(&output, &tokens);
+        assert_eq!(pins.len(), 1, "the photograph still has its pin");
         assert!(
-            map.contains(dots[0].center),
-            "the dot at {:?} is outside the map {map:?}",
-            dots[0].center
+            map.contains(pins[0].center()),
+            "the pin at {:?} is outside the map {map:?}",
+            pins[0].center()
         );
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -13038,9 +13514,10 @@ mod tests {
 
         let tokens = Tokens::CHARCOAL;
         let ctx = egui::Context::default();
+        let mut thumbs = place_thumbs(&dir);
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0));
-        let frame = |state: &mut UiState| {
+        let mut frame = |state: &mut UiState| {
             let mut output = ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(screen),
@@ -13048,7 +13525,7 @@ mod tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        places_view(ui, &tokens, state, &engine);
+                        places_view(ui, &tokens, state, &engine, &mut thumbs);
                     });
                 },
             );
@@ -13072,14 +13549,19 @@ mod tests {
                 _ => None,
             })
             .expect("the map painted");
-        let dots: Vec<_> = painted_circles(&output)
-            .into_iter()
-            // A dot is a filled circle plus a ring around it, so the fill is what counts one dot once.
-            .filter(|circle| (circle.radius - places::dot_radius(1)).abs() < 0.5 && circle.fill.a() > 0)
-            .collect();
-        assert_eq!(dots.len(), 2, "one dot per continent, got {}", dots.len());
-        for dot in &dots {
-            assert!(map.contains(dot.center), "the dot at {:?} is outside the map {map:?}", dot.center);
+        let credit = exact_label_at(&output, sortlens_geo::coastline::CREDIT).expect("the outline is credited");
+        assert!(
+            credit.top() >= map.bottom(),
+            "the map's credit and counts belong under it, not inside it: credit {credit:?}, map {map:?}"
+        );
+        let pins = painted_pins(&output, &tokens);
+        assert_eq!(pins.len(), 2, "one pin per continent, got {}", pins.len());
+        for pin in &pins {
+            assert!(
+                map.contains(pin.center()),
+                "the pin at {:?} is outside the map {map:?}",
+                pin.center()
+            );
         }
 
         // The coastline under them, in its own colour, as polylines.
@@ -13108,7 +13590,7 @@ mod tests {
             },
             |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    places_view(ui, &tokens, &mut empty_state, &empty);
+                    places_view(ui, &tokens, &mut empty_state, &empty, &mut thumbs);
                 });
             },
         );
@@ -13474,6 +13956,12 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// A thumbnail service for a headless Places frame. The icons have no decoded texture on the
+    /// first frame, which is exactly the fallback the view has to paint anyway.
+    fn place_thumbs(dir: &std::path::Path) -> Thumbnails {
+        Thumbnails::with_queue_bound(dir.join("places-thumbs"), 1, 64)
     }
 
     /// Every one of `expected` is on the frame, and the whole frame is named when one is missing.
@@ -16868,6 +17356,24 @@ mod tests {
                         && matches!(path.stroke.color, egui::epaint::ColorMode::Solid(color) if color == tokens.map_coast) =>
                 {
                     Some(path)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The square picture pins, in paint order. A single photograph is now a thumbnail with a card
+    /// stroke; only a group is still a circle, so counting photographs must not count circles.
+    fn painted_pins(output: &egui::FullOutput, tokens: &Tokens) -> Vec<Rect> {
+        all_shapes(output)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Rect(rect)
+                    if rect.stroke.color == tokens.card
+                        && (20.0..40.0).contains(&rect.rect.width())
+                        && (rect.rect.width() - rect.rect.height()).abs() < 1.0 =>
+                {
+                    Some(rect.rect)
                 }
                 _ => None,
             })

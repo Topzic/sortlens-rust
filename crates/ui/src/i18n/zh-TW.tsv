@@ -680,7 +680,7 @@
 	No photo has a location yet	尚無照片有位置資訊
 	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	相機會把所在位置記錄在檔案的 EXIF 中。關閉定位服務拍攝的照片，或被其他工具移除位置資訊的照片，不會有位置。
 	zoom {zoom}	縮放 {zoom}
-	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	有位置的照片 {located} 張 · {dots} 個點 · 點擊一個點即可選取
+	{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom	有位置的照片 {located} 張 · {pins} 個圖釘 · 拖曳平移，捲動縮放
 	No places.txt — dots show their coordinates	沒有 places.txt — 各點顯示其座標
 	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	依 places.txt 命名 · {named} 個地點 · {km} 公里內的點會借用名稱
 	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	概略海岸線 · 安裝圖磚資料夾或 MBTiles 封存檔即可使用真實底圖
