@@ -204,6 +204,13 @@ pub enum Action {
     SetTheme(ThemeKind),
     /// Close the window, flushing settings first.
     Quit,
+    /// The bar's own minimize button. Only the host can press it: the window is the host's.
+    MinimizeWindow,
+    /// The bar's zoom button: maximize the window, or restore it when it already is.
+    ToggleZoom,
+    /// The bar's close button. The same request the system close button makes, so the
+    /// unsaved-changes guard still runs before anything is closed.
+    CloseWindow,
     /// Show a transient message in the bottom bar.
     Notice(String),
     /// Ask the host for a folder to index.
@@ -826,6 +833,10 @@ pub struct UiState {
     pub right_tab: RightTab,
     /// Left padding that clears the window controls in an integrated title bar.
     pub title_inset: f32,
+    /// The frame is the app's own, so the bar is the title bar and draws the window's three
+    /// buttons. False under a system title bar, where the OS draws them and a second set would
+    /// be two answers to one question. The host decides, from the frame policy.
+    pub captions: bool,
     /// Settings dialog visibility.
     pub settings_open: bool,
     /// Height the Settings body painted at, measured each frame so a short window can cap its window
@@ -1051,6 +1062,7 @@ impl UiState {
             narrow: false,
             right_tab: RightTab::Details,
             title_inset,
+            captions: false,
             settings_open: false,
             settings_height: 0.0,
             detail_footer: 0.0,
@@ -1756,6 +1768,13 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    // The window's own buttons come first, which right-to-left makes them the last thing on
+                    // the bar: nothing the shell adds can push them off it, and they stay where every
+                    // Windows and Linux window keeps them.
+                    if state.captions {
+                        caption_buttons(ui, t, actions);
+                        ui.add_space(10.0);
+                    }
                     // Every control from here on is a glyph with a name: the bar is what a person looks at
                     // while deciding about a photograph, so it carries no words a picture can carry. The
                     // four value chips that used to live here (theme, density, layout, motion) are gone:
@@ -1808,6 +1827,102 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                 });
             });
         });
+}
+
+/// Which of a window's three buttons a caption is.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Caption {
+    Minimize,
+    Zoom,
+    Close,
+}
+
+/// How wide a caption button is. A square, the height of the bar's glyphs, so the three read as
+/// the window's own controls rather than as three more app glyphs.
+const CAPTION_W: f32 = 28.0;
+
+/// The window's three buttons, drawn at the bar's trailing end because the frame is the app's.
+///
+/// Windows and Linux hand an undecorated window to the app: no title bar, and with it no minimize,
+/// maximize or close button at all, which leaves a window that cannot be put away. They are added
+/// in the order those systems use — minimize, zoom, close, left to right, which the right-to-left
+/// layout reaches by adding close first. Each returns an [`Action`] rather than sending a viewport
+/// command, because the window belongs to the host and not to the shell.
+///
+/// The three responses are returned in that same order so a test can press them.
+fn caption_buttons(ui: &mut Ui, t: &Tokens, actions: &mut Vec<Action>) -> [egui::Response; 3] {
+    // Windows draws the three flush against each other; the bar's own spacing would put a gap
+    // between them that the eye reads as app controls.
+    let spacing = ui.spacing().item_spacing.x;
+    ui.spacing_mut().item_spacing.x = 2.0;
+    let maximized = ui.input(|input| input.viewport().maximized).unwrap_or(false);
+    let minimize = caption_button(ui, t, Caption::Minimize, "Minimize", maximized);
+    let zoom = caption_button(ui, t, Caption::Zoom, if maximized { "Restore" } else { "Maximize" }, maximized);
+    let close = caption_button(ui, t, Caption::Close, "Close", maximized);
+    ui.spacing_mut().item_spacing.x = spacing;
+    if minimize.clicked() {
+        actions.push(Action::MinimizeWindow);
+    }
+    if zoom.clicked() {
+        actions.push(Action::ToggleZoom);
+    }
+    if close.clicked() {
+        actions.push(Action::CloseWindow);
+    }
+    [minimize, zoom, close]
+}
+
+/// One caption button: a square that lights under the pointer, named for assistive technology,
+/// and destructive-red for close the way the rest of the shell marks a destructive control.
+fn caption_button(ui: &mut Ui, t: &Tokens, caption: Caption, label: &str, maximized: bool) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(CAPTION_W), Sense::click());
+    let hovered = response.hovered();
+    let background = match (hovered, caption) {
+        (false, _) => Color32::TRANSPARENT,
+        (true, Caption::Close) => t.reject,
+        (true, _) => t.hover,
+    };
+    if background != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, t.corner(), background);
+    }
+    let ink = match (hovered, caption) {
+        (true, Caption::Close) => t.bg,
+        (true, _) => t.text,
+        (false, _) => t.text_muted,
+    };
+    caption_glyph(ui.painter(), rect, caption, ink, maximized);
+    a11y::label_widget(ui, &response, egui::Role::Button, label, false);
+    response.on_hover_text(label)
+}
+
+/// The glyph, in the geometry those systems draw: a rule, a frame with the corner of the one behind
+/// it when the window is already as large as the screen, and two strokes crossed for close.
+fn caption_glyph(painter: &egui::Painter, rect: Rect, caption: Caption, ink: Color32, maximized: bool) {
+    let stroke = Stroke::new(1.2, ink);
+    let c = rect.center();
+    let reach = 5.0;
+    match caption {
+        Caption::Minimize => {
+            painter.line_segment([pos2(c.x - reach, c.y), pos2(c.x + reach, c.y)], stroke);
+        }
+        Caption::Zoom if maximized => {
+            // Restore: the window is already as large as the screen, so the glyph shows where it came
+            // from — a smaller frame in front, the corner of the one behind it.
+            let front = Rect::from_center_size(c + vec2(1.5, 1.5), Vec2::splat(7.0));
+            let back = Rect::from_center_size(c - vec2(1.5, 1.5), Vec2::splat(7.0));
+            painter.rect_stroke(front, 1.0, stroke, StrokeKind::Inside);
+            painter.line_segment([pos2(back.left(), back.bottom()), pos2(back.left(), back.top())], stroke);
+            painter.line_segment([pos2(back.left(), back.top()), pos2(back.right(), back.top())], stroke);
+        }
+        Caption::Zoom => {
+            painter.rect_stroke(Rect::from_center_size(c, Vec2::splat(reach * 2.0)), 1.0, stroke, StrokeKind::Inside);
+        }
+        Caption::Close => {
+            let d = 4.0;
+            painter.line_segment([c - vec2(d, d), c + vec2(d, d)], stroke);
+            painter.line_segment([c + vec2(-d, d), c - vec2(-d, d)], stroke);
+        }
+    }
 }
 
 /// What the search field's hint says on this platform: the shortcut is the palette's, and the
@@ -9683,6 +9798,117 @@ fn cell_size(width: f32, columns: usize, gap: f32) -> Vec2 {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// A screen the bar can be laid out on, so a click has somewhere to land.
+    fn bar_input() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0))),
+            ..egui::RawInput::default()
+        }
+    }
+
+    /// Diagonal strokes painted at or right of `edge`: the close glyph's cross, and nothing else
+    /// the bar draws.
+    fn diagonals(shapes: &[egui::epaint::ClippedShape], edge: f32) -> usize {
+        fn walk(shape: &egui::Shape, edge: f32, count: &mut usize) {
+            match shape {
+                egui::Shape::LineSegment { points, .. } => {
+                    let run = (points[0].x - points[1].x).abs();
+                    let fall = (points[0].y - points[1].y).abs();
+                    if (run - fall).abs() < 0.5 && run > 2.0 && points[0].min(points[1]).x >= edge {
+                        *count += 1;
+                    }
+                }
+                egui::Shape::Vec(inner) => inner.iter().for_each(|shape| walk(shape, edge, count)),
+                _ => {}
+            }
+        }
+        let mut count = 0;
+        for clipped in shapes {
+            walk(&clipped.shape, edge, &mut count);
+        }
+        count
+    }
+
+    /// The window's three buttons are the frame's to draw, not the shell's: they appear only when
+    /// the app owns the bar, each says what it does to a screen reader, and close asks the window
+    /// instead of quitting past the unsaved-changes guard.
+    #[test]
+    fn the_window_buttons_appear_with_the_app_s_own_frame_and_ask_the_host() {
+        let t = Tokens::CHARCOAL;
+        let crossed = |captions: bool| {
+            let ctx = egui::Context::default();
+            let engine = std::cell::RefCell::new(Engine::new());
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            state.captions = captions;
+            let mut actions = Vec::new();
+            let mut output = ctx.run_ui(bar_input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    top_bar(ui, &mut state, &t, &mut engine.borrow_mut(), &mut actions);
+                });
+            });
+            output.textures_delta.clear();
+            diagonals(&output.shapes, 1280.0 - 130.0)
+        };
+        assert_eq!(crossed(false), 0, "a system title bar draws its own");
+        assert!(
+            crossed(true) >= 2,
+            "with the app's frame the close glyph is painted, and it is two strokes"
+        );
+
+        // Each button's name, and a press on close.
+        let ctx = egui::Context::default();
+        // AccessKit is opt-in on a bare context; the window turns it on.
+        ctx.enable_accesskit();
+        let mut actions = Vec::new();
+        let mut seen: Vec<(String, Rect)> = Vec::new();
+        let frame = |input: egui::RawInput, actions: &mut Vec<Action>, seen: &mut Vec<(String, Rect)>| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    for button in caption_buttons(ui, &t, actions) {
+                        let label =
+                            ui.ctx().accesskit_node_builder(button.id, |node| node.label().map(str::to_owned));
+                        seen.push((label.flatten().unwrap_or_default(), button.rect));
+                    }
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        frame(bar_input(), &mut actions, &mut seen);
+        let labels: Vec<String> = seen.iter().map(|(label, _)| label.clone()).collect();
+        assert_eq!(
+            labels,
+            vec!["Minimize", "Maximize", "Close"],
+            "each button says what it does, in the order those systems use"
+        );
+        let close = seen.last().map(|(_, rect)| *rect).unwrap_or(Rect::NOTHING);
+        assert!(close.width() > 0.0, "close is on the bar");
+        let at = close.center();
+        let click = |pressed: bool| egui::RawInput {
+            events: vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+            ..bar_input()
+        };
+        frame(click(true), &mut actions, &mut Vec::new());
+        frame(click(false), &mut actions, &mut Vec::new());
+        assert!(
+            actions.iter().any(|action| matches!(action, Action::CloseWindow)),
+            "close asks the window to close, so the guard runs: {:?}",
+            actions
+        );
+        assert!(
+            !actions.iter().any(|action| matches!(action, Action::Quit)),
+            "and not for a quit that says the guard was already answered"
+        );
+    }
 
     /// The interface language (SL-L07 scaffolding): switching it in Settings is instant, asks the
     /// host to persist the code, and the sidebar's rows move to the reading start — right, in an

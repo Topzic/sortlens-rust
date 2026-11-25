@@ -86,6 +86,9 @@ fn main() -> eframe::Result {
         Frame::Integrated(_) => MAC_TRAFFIC_LIGHTS,
         _ => 10.0,
     };
+    // Only a frame the app draws leaves the window's three buttons to the app: the system title bar
+    // draws its own, and macOS keeps its traffic lights over the app's bar (`Frame::Inset`).
+    let captions = matches!(decision.frame, Frame::Integrated(_));
 
     let viewport = apply_titlebar(
         egui::ViewportBuilder::default()
@@ -100,7 +103,7 @@ fn main() -> eframe::Result {
         viewport,
         ..Default::default()
     };
-    eframe::run_native("Sortlens", options, Box::new(move |cc| Ok(Box::new(App::new(cc, inset)))))
+    eframe::run_native("Sortlens", options, Box::new(move |cc| Ok(Box::new(App::new(cc, inset, captions)))))
 }
 
 /// The application: one engine, one shell, one settings store.
@@ -117,7 +120,7 @@ struct App {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, title_inset: f32) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, title_inset: f32, captions: bool) -> Self {
         // Before the first frame, so no frame is drawn in a font that is about to be replaced. With
         // no craft-fonts checkout this is a no-op and egui's own faces stay.
         let faces = sortlens_ui::fonts::install(&cc.egui_ctx);
@@ -134,6 +137,7 @@ impl App {
         apply_theme(&cc.egui_ctx, kind);
 
         let mut ui = UiState::new(kind, title_inset);
+        ui.captions = captions;
         ui.density = Density::from_id(&store.get().appearance.density);
         ui.grid_mode = sortlens_ui::GridMode::from_id(&store.get().appearance.grid);
         ui.motion = sortlens_ui::Motion::from_id(&store.get().appearance.motion);
@@ -245,6 +249,16 @@ impl App {
                 let _ = self.store.flush();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+            // The three the bar draws when the frame is the app's. They are viewport commands, which
+            // is why the shell asks rather than sends: the window is the host's.
+            Action::MinimizeWindow => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+            Action::ToggleZoom => {
+                let maximized = ctx.input(|input| input.viewport().maximized).unwrap_or(false);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+            }
+            // The system's own close request, not `Quit`: `Quit` says the guard was already answered,
+            // and this button has not asked. The window's close handling below runs its guard.
+            Action::CloseWindow => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             Action::Notice(text) => self.ui.notice(text),
             Action::Reveal(id) => self.show_in_folder(id),
             Action::OpenExternal(id) => self.open_externally(id),
