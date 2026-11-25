@@ -7588,19 +7588,76 @@ fn insight_highlight_line(fact: &sortlens_engine::InsightFact) -> String {
     }
 }
 
-/// The strip of notable facts above the figures, one label and one sentence each.
+/// The notable facts, each given its own column: a micro-label above the sentence that answers it.
+///
+/// The old strip ran four label-and-sentence pairs together on one line, so at a normal window
+/// "Busiest month October — 207 photo(s) · mostly Autumn" read as a paragraph of metadata rather
+/// than four facts. A column per fact lets the eye land on the label first and the answer second.
 fn highlights_strip(ui: &mut Ui, t: &Tokens, highlights: &[sortlens_engine::InsightHighlight]) {
     if highlights.is_empty() {
         return;
     }
-    ui.add_space(6.0);
-    ui.horizontal_wrapped(|ui| {
-        for highlight in highlights {
-            ui.label(RichText::new(insight_highlight_word(highlight.kind)).size(10.0).color(t.text_faint));
-            ui.label(RichText::new(insight_highlight_line(&highlight.fact)).size(11.0).color(t.text));
-            ui.add_space(14.0);
+    let width = ui.available_width();
+    let gap = 12.0;
+    // A 2×2 grid, not four skinny columns: a camera name and the sentence that explains it need the
+    // half-width a two-column card gives them, and the extra row is cheaper than a name wrapped
+    // under its own label. A phone gets one column.
+    let room = if width >= 400.0 { 2 } else { 1 };
+    // Two facts should not huddle in the first half of a two-column row; the card's width is shared
+    // by the facts it actually has.
+    let columns = highlights.len().min(room);
+    let cell = ((width - gap * columns as f32) / columns as f32).max(120.0);
+    // Rows are explicit. horizontal_wrapped laid a nested vertical out at the available width rather
+    // than wrapping it, which let a third fact paint straight through the card's edge.
+    let rtl = craft_ui::direction::is_rtl(ui);
+    for (row, chunk) in highlights.chunks(columns).enumerate() {
+        if row > 0 {
+            ui.add_space(12.0);
         }
-    });
+        let draw = |ui: &mut Ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for highlight in chunk {
+                ui.vertical(|ui| {
+                    ui.set_width(cell);
+                    ui.label(
+                        RichText::new(insight_highlight_word(highlight.kind).to_uppercase())
+                            .size(9.5)
+                            .color(t.text_faint),
+                    );
+                    ui.add_space(3.0);
+                    ui.label(RichText::new(insight_highlight_line(&highlight.fact)).size(12.0).color(t.text));
+                });
+            }
+        };
+        if rtl {
+            ui.with_layout(Layout::right_to_left(Align::Min), draw);
+        } else {
+            ui.horizontal_top(draw);
+        }
+    }
+}
+
+/// The overview: the notable facts and the seven headline figures, held in one quiet card.
+///
+/// They used to be loose rows above the scrolling distributions, with the facts squeezed onto one
+/// line and the figures at whatever width a label happened to take. One card with a rule between
+/// the two groups gives the numbers a place to start from and keeps the facts and figures together
+/// instead of one floating above the other.
+fn insights_summary(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
+    Frame::NONE
+        .fill(t.card)
+        .stroke(Stroke::new(1.0, t.border))
+        .corner_radius(t.corner())
+        .inner_margin(Margin::symmetric(14, 12))
+        .show(ui, |ui| {
+            ui.label(RichText::new(tl!("Summary")).size(12.0).strong());
+            ui.add_space(10.0);
+            highlights_strip(ui, t, &insights.highlights());
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(12.0);
+            figures_grid(ui, t, insights);
+        });
 }
 
 /// The line under the month chart, worded from the month and season the insights crate returns.
@@ -7645,18 +7702,9 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
-    highlights_strip(ui, t, &insights.highlights());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        ui.horizontal_wrapped(|ui| {
-            figure(ui, t, tl!("Photos"), &format_count(insights.stats.total as u64));
-            figure(ui, t, tl!("On disk"), &sortlens_core::format_bytes(insights.stats.bytes));
-            figure(ui, t, tl!("Rated"), &format!("{:.0}%", insights.rated_share() * 100.0));
-            figure(ui, t, tl!("Keyworded"), &format!("{:.0}%", insights.tagged_share() * 100.0));
-            figure(ui, t, tl!("Picks"), &format_count(insights.stats.picks as u64));
-            figure(ui, t, tl!("Rejects"), &format_count(insights.stats.rejects as u64));
-            figure(ui, t, tl!("Missing"), &format_count(insights.stats.missing as u64));
-        });
-        ui.add_space(14.0);
+        insights_summary(ui, t, &insights);
+        ui.add_space(16.0);
 
         // Three columns while they fit. The widths come from the room the canvas has rather than
         // from constants: a 1280-point window with both docks open has about 680 points of canvas,
@@ -7905,12 +7953,56 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
     }
 }
 
+/// The seven headline figures, in equal columns so the row reads as one instrument rather than
+/// seven labels at whatever width their text happened to take.
+fn figures_grid(ui: &mut Ui, t: &Tokens, insights: &sortlens_engine::Insights) {
+    let figures = [
+        (tl!("Photos"), format_count(insights.stats.total as u64)),
+        (tl!("On disk"), sortlens_core::format_bytes(insights.stats.bytes)),
+        (tl!("Rated"), format!("{:.0}%", insights.rated_share() * 100.0)),
+        (tl!("Keyworded"), format!("{:.0}%", insights.tagged_share() * 100.0)),
+        (tl!("Picks"), format_count(insights.stats.picks as u64)),
+        (tl!("Rejects"), format_count(insights.stats.rejects as u64)),
+        (tl!("Missing"), format_count(insights.stats.missing as u64)),
+    ];
+    let width = ui.available_width();
+    let gap = 10.0;
+    // Seven across while there is room for the longest caption and value; otherwise four and a
+    // second row. Two columns on a phone keep the labels from breaking mid-word.
+    let columns = if width >= 600.0 {
+        7
+    } else if width >= 360.0 {
+        4
+    } else {
+        2
+    };
+    let cell = ((width - gap * columns as f32) / columns as f32).max(64.0);
+    let rtl = craft_ui::direction::is_rtl(ui);
+    for (row, chunk) in figures.chunks(columns).enumerate() {
+        if row > 0 {
+            ui.add_space(10.0);
+        }
+        let draw = |ui: &mut Ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for (caption, value) in chunk {
+                figure(ui, t, caption, value, cell);
+            }
+        };
+        if rtl {
+            ui.with_layout(Layout::right_to_left(Align::Min), draw);
+        } else {
+            ui.horizontal_top(draw);
+        }
+    }
+}
+
 /// One headline number with a caption.
-fn figure(ui: &mut Ui, t: &Tokens, caption: &str, value: &str) {
-    ui.allocate_ui(vec2(112.0, 46.0), |ui| {
+fn figure(ui: &mut Ui, t: &Tokens, caption: &str, value: &str, width: f32) {
+    ui.allocate_ui(vec2(width, 50.0), |ui| {
         ui.vertical(|ui| {
-            ui.label(RichText::new(value).size(18.0).strong());
-            ui.label(RichText::new(caption).size(10.0).color(t.text_faint));
+            ui.label(RichText::new(value).size(20.0).strong().color(t.text));
+            ui.add_space(3.0);
+            ui.label(RichText::new(caption).size(10.5).color(t.text_muted));
         });
     });
 }
@@ -18670,13 +18762,13 @@ mod tests {
         assert_painted(
             &english,
             &[
-                "Busiest month",
+                "BUSIEST MONTH",
                 "February — 2 photo(s) · mostly Winter",
-                "Busiest day",
+                "BUSIEST DAY",
                 "2024-02-10 — 2 photo(s)",
-                "Most used camera",
+                "MOST USED CAMERA",
                 "X-T5 — 2 photo(s)",
-                "No capture date",
+                "NO CAPTURE DATE",
                 "1 photo(s), 25% of the library",
             ],
         );
@@ -18731,6 +18823,73 @@ mod tests {
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The summary card keeps every fact it paints inside itself. The old strip could not: the third
+    /// fact painted past the card edge into the inspector, which is exactly the run-on the card exists
+    /// to stop. The first two facts share the first row and the third wraps under them.
+    #[test]
+    fn the_insights_summary_keeps_its_facts_inside_the_card() {
+        let mut insights = sortlens_engine::Insights::empty();
+        insights.stats.total = 12;
+        insights.by_month[9] = 12;
+        insights.cameras = vec![sortlens_engine::InsightRow {
+            name: "NIKON CORPORATION NIKON Z50_2".to_string(),
+            count: 12,
+        }];
+        insights.undated = 1;
+        assert_eq!(insights.highlights().len(), 3, "month, camera and the undated share");
+
+        let t = Tokens::CHARCOAL;
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 800.0))),
+                ..egui::RawInput::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.set_width(680.0);
+                    insights_summary(ui, &t, &insights);
+                });
+            },
+        );
+        output.textures_delta.clear();
+
+        let shapes = all_shapes(&output);
+        let card = shapes
+            .iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect) if rect.fill == t.card => Some(rect.rect),
+                _ => None,
+            })
+            .expect("the summary is a card");
+        let texts: Vec<(String, Rect)> = shapes
+            .iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Text(text) => Some((text.galley.text().to_string(), Rect::from_min_size(text.pos, text.galley.size()))),
+                _ => None,
+            })
+            .collect();
+        for (text, rect) in &texts {
+            assert!(
+                card.contains_rect(*rect),
+                "{text:?} is painted outside the summary card: {rect:?} not inside {card:?}"
+            );
+        }
+
+        let at = |wanted: &str| {
+            texts
+                .iter()
+                .find_map(|(text, rect)| (text == wanted).then_some(*rect))
+                .unwrap_or_else(|| panic!("{wanted:?} is not painted"))
+        };
+        let month = at("BUSIEST MONTH");
+        let camera = at("MOST USED CAMERA");
+        let undated = at("NO CAPTURE DATE");
+        assert!((month.top() - camera.top()).abs() < 1.0, "the first two facts share a row");
+        assert!(undated.top() > month.bottom(), "the third fact wraps under the first row");
     }
 
     /// 1280 points with both docks open leaves about 680 points of canvas. The Insights columns were
