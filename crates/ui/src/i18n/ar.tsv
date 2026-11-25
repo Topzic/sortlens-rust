@@ -122,3 +122,10 @@
 	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	الملفات التي نُقلت بالفعل تبقى في سلة المهملات، والملفات المؤشَّرة فقط تبقى في مكانها. لا يُحذف شيء على القرص هنا، ولا يمكن التراجع عن هذا.
 	Empty bin	إفراغ السلة
 	Forgot {batches} batch(es) covering {files} file(s)	نُسي {batches} دفعة تغطي {files} ملفًا
+	Rename collection	إعادة تسمية المجموعة
+	Save	حفظ
+	Renamed to {name}	أُعيدت التسمية إلى {name}
+	About Sortlens	عن Sortlens
+	Version {version}	الإصدار {version}
+	Fast, local culling for photographers who shoot thousands of images.	فرز سريع ومحلي للمصوّرين الذين يلتقطون آلاف الصور.
+	{commands} commands, {ready} ready today.	{commands} أمرًا، منها {ready} جاهزة اليوم.

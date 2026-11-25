@@ -518,6 +518,13 @@ momentary, unlike the receipt — while the dialog itself repaints on a language
 audit reads both routes, `tl!` literals and `fmt` templates, so a template a translator has no row for
 is a failing test rather than a sentence that quietly stays English.
 
+The rename and About dialogs are routed end to end: titles and buttons through `tl!`, the rename
+toast and both About lines (`Version {version}`, `{commands} commands, {ready} ready today.`) through
+`i18n::fmt`, because a language puts a version number where its own grammar wants it. They are the two
+dialogs whose every word is the shell's own — no engine sentence inside — so a missing row there is
+English on an otherwise translated screen, which is what `the_rename_and_about_dialogs_speak_the_interface_language`
+paints in all three languages.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

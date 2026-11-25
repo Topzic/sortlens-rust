@@ -1412,7 +1412,14 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     modes, their changed-on-disk warning and their toasts through the catalogues, and
     `the_delete_confirmations_speak_the_interface_language` paints all three in English, Japanese
     and Arabic. The catalogue audit there reads `tl!` literals *and* `fmt` templates, so a template
-    with no row is a named debt rather than a sentence that silently stays English.
+    with no row is a named debt rather than a sentence that silently stays English. The rename and
+    About dialogs joined them the same day (eightieth entry): their titles and buttons, the rename
+    toast and both About lines are catalogued — the version number and the command counts as `fmt`
+    templates, so each language places them — and
+    `the_rename_and_about_dialogs_speak_the_interface_language` paints them in all three languages.
+    Still open on this row: Library health (its audit headline and detail are engine sentences),
+    Recent changes, Quit Sortlens? (its reasons are `Engine::unsaved` sentences), Cull summary,
+    Batch applied, Suggested keywords and Keyboard shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

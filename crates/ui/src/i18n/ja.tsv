@@ -122,3 +122,10 @@
 	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	移動済みのファイルはシステムのゴミ箱に残り、フラグだけのファイルはそのままです。ディスク上のファイルはここでは削除されず、この操作は元に戻せません。
 	Empty bin	箱を空にする
 	Forgot {batches} batch(es) covering {files} file(s)	{batches} バッチ（{files} ファイル）の復元記録を忘れました
+	Rename collection	コレクション名を変更
+	Save	保存
+	Renamed to {name}	{name} に名前を変更しました
+	About Sortlens	Sortlens について
+	Version {version}	バージョン {version}
+	Fast, local culling for photographers who shoot thousands of images.	何千枚もの写真を撮るフォトグラファーのための、高速でローカルな選別。
+	{commands} commands, {ready} ready today.	コマンド {commands} 件、うち {ready} 件が利用可能

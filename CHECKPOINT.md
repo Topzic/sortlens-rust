@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (eightieth) — the rename and About dialogs speak your language, and every word in them is one a translator can reach
+
+- **Why this came up.** The seventy-ninth entry's "Next" named *Rename collection* the smallest
+  unrouted dialog, with Library health behind it. It and About are the two dialogs whose every word
+  belongs to the shell — a version string and a registry count, no engine sentence anywhere — so
+  routing them is a slice that can be finished rather than half-done.
+- **What the shell says now.** `rename_dialog` paints `rename_title()` and `tl!("Save")"/`tl!("Cancel")`,
+  and its toast is `renamed_notice(name)` — `Renamed to {name}`, with the name as a placeholder so
+  `fmt` isolates it and a right-to-left collection name cannot reorder the sentence around itself.
+  `about_dialog` paints `tl!("About Sortlens")` and the one-sentence description through `tl!`, and
+  its two facts became templates: `Version {version}` and `{commands} commands, {ready} ready today.`
+  The counts go through `format_count`, so the digits are the reader's own. English is byte for byte
+  what it was, which is why no baseline moved.
+- **Seven keys, both catalogues.** ja and ar rows for the seven sources; "Sortlens" stays the
+  product's own name in both, because a product's name is not a word to translate.
+- **Tests.** `the_rename_and_about_dialogs_speak_the_interface_language` paints both dialogs in one
+  frame in English, Japanese and Arabic. It asserts English character for character ("Renamed to
+  Summer", "47 commands, 12 ready today."), the Japanese title and buttons ("コレクション名を変更",
+  "保存", "キャンセル"), the Japanese toast leaving no "Renamed" behind, both Japanese About lines
+  ("バージョン …", "コマンド 47 件、うち 12 件が利用可能"), the Arabic title and the command line's
+  Arabic-Indic digits (٤٧, ١٢), and that painting closes nothing: the rename target and About are both
+  still open afterwards. The catalogue audit was the gate that mattered — it reads the new `tl!`
+  keys and `fmt` templates out of `shell.rs` and demands a row in both languages.
+- **Named as not shipped.** Library health is next but not this slice: its audit headline and detail
+  are `Engine::audit` sentences, so routing the labels alone would leave English under a translated
+  title — the trap the export entry called out, and it needs the engine's own parts first. Behind it:
+  Recent changes, Quit Sortlens? (its reasons are `Engine::unsaved` sentences), Cull summary, Batch
+  applied, Suggested keywords and Keyboard shortcuts. After the dialogs: the four remaining
+  catalogues (zh-TW, ko, th, vi) and RTL screenshots, still waiting on a font build with an Arabic face.
+- **Files.** `crates/ui/src/shell.rs` (two dialogs, four helpers, one test),
+  `crates/ui/src/i18n/ja.tsv` and `ar.tsv` (7 rows each), `docs/ROADMAP.md` (Phase 4 item 2d),
+  `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean, `cargo xtask ci`
+  green, `snapshot`, `deny` and `screenshots` green. No release workflow dispatched: this slice
+  touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Library health, starting in the engine rather than the shell: give `Engine::audit` a
+  headline and detail that are pieces (`AuditPart`), word them through the catalogues, then route the
+  dialog's own labels. Then Quit Sortlens?, whose reasons out of `Engine::unsaved` need the same
+  treatment.
+
 ## 2026-11-26 (seventy-ninth) — the screens that delete files ask, warn and count in your language
 
 - **Why this came up.** The seventy-eighth entry's "Next" named the delete confirmation as the

@@ -8263,12 +8263,23 @@ fn empty_bin_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut E
     state.empty_bin_open = open;
 }
 
+/// Renaming a collection: the smallest dialog, and its words are the shell's own.
+fn rename_title() -> &'static str {
+    tl!("Rename collection")
+}
+
+/// A rename's toast. The name is the user's own text, so it travels as a placeholder: `fmt` isolates
+/// it, which is what keeps a right-to-left name from reordering the sentence around itself.
+fn renamed_notice(name: &str) -> String {
+    crate::i18n::fmt("Renamed to {name}", &[("name", name)])
+}
+
 fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
     let Some((id, mut name)) = state.rename_target.clone() else {
         return;
     };
     let mut open = true;
-    dialog_window("Rename collection")
+    dialog_window(rename_title())
         .collapsible(false)
         .resizable(false)
         .default_width(300.0)
@@ -8278,14 +8289,14 @@ fn rename_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
             let entered = ui.input(|input| input.key_pressed(Key::Enter));
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if (ui.button("Save").clicked() || entered) && !name.trim().is_empty() {
+                if (ui.button(tl!("Save")).clicked() || entered) && !name.trim().is_empty() {
                     match engine.rename_collection(id, &name) {
-                        Ok(()) => state.notice(format!("Renamed to {}", name.trim())),
+                        Ok(()) => state.notice(renamed_notice(name.trim())),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                     open = false;
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(tl!("Cancel")).clicked() {
                     open = false;
                 }
             });
@@ -9621,31 +9632,38 @@ fn dialog_window(title: impl Into<egui::WidgetText>) -> egui::Window<'static> {
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
 }
 
+/// The version line: the number is the build's own fact and stays a number, so a language can
+/// put it where its grammar wants it.
+fn about_version() -> String {
+    crate::i18n::fmt("Version {version}", &[("version", sortlens_core::VERSION)])
+}
+
+/// How much of the registry works today, in the reader's language and their own digits.
+fn about_commands(commands: usize, ready: usize) -> String {
+    crate::i18n::fmt(
+        "{commands} commands, {ready} ready today.",
+        &[("commands", &format_count(commands as u64)), ("ready", &format_count(ready as u64))],
+    )
+}
+
 fn about_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine) {
     let mut open = state.about_open;
-    dialog_window("About Sortlens")
+    dialog_window(tl!("About Sortlens"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(340.0)
         .show(ui.ctx(), |ui| {
+            // "Sortlens" is the product's own name: not a word to translate.
             ui.label(RichText::new("Sortlens").size(17.0).strong());
-            ui.label(
-                RichText::new(format!("Version {}", sortlens_core::VERSION))
-                    .size(12.0)
-                    .color(t.text_muted),
-            );
+            ui.label(RichText::new(about_version()).size(12.0).color(t.text_muted));
             ui.add_space(6.0);
-            ui.label("Fast, local culling for photographers who shoot thousands of images.");
+            ui.label(tl!("Fast, local culling for photographers who shoot thousands of images."));
             ui.add_space(6.0);
             ui.label(
-                RichText::new(format!(
-                    "{} commands, {} ready today.",
-                    engine.registry().all().len(),
-                    engine.registry().ready_count()
-                ))
-                .size(11.0)
-                .color(t.text_faint),
+                RichText::new(about_commands(engine.registry().all().len(), engine.registry().ready_count()))
+                    .size(11.0)
+                    .color(t.text_faint),
             );
         });
     state.about_open = open;
@@ -14563,6 +14581,96 @@ mod tests {
             "{}",
             forgotten_notice(2, 7)
         );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The rename and About dialogs speak the interface language (SL-L07). They are the two whose
+    /// every word belongs to the shell — no engine sentence, no exporter's spec — so nothing in them
+    /// can quietly stay English behind a translated label.
+    #[test]
+    fn the_rename_and_about_dialogs_speak_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-dialogs-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.rename_target = Some((sortlens_core::CollectionId(1), "Summer".to_owned()));
+        state.about_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        rename_dialog(ui, state, &tokens, engine);
+                        about_dialog(ui, state, &tokens, engine);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+        };
+
+        // English first: the words these dialogs always said, to the character.
+        paint(&ctx, &mut state, &mut engine);
+        assert_eq!(rename_title(), "Rename collection");
+        assert_eq!(tl!("Save"), "Save");
+        assert_eq!(tl!("Cancel"), "Cancel");
+        assert!(
+            renamed_notice("Summer").starts_with("Renamed to ") && renamed_notice("Summer").contains("Summer"),
+            "{}",
+            renamed_notice("Summer")
+        );
+        assert!(about_version().starts_with("Version ") && about_version().contains(sortlens_core::VERSION));
+        assert_eq!(about_commands(47, 12), "47 commands, 12 ready today.");
+        assert!(state.rename_target.is_some(), "painting the dialog does not close it");
+        assert!(state.about_open, "nor About");
+
+        // Japanese: the title, the buttons, the toast and both About lines.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        paint(&ctx, &mut state, &mut engine);
+        assert_eq!(rename_title(), "コレクション名を変更");
+        assert_eq!(tl!("Save"), "保存");
+        assert_eq!(tl!("Cancel"), "キャンセル");
+        assert!(
+            renamed_notice("Summer").contains("Summer") && renamed_notice("Summer").contains("に名前を変更しました"),
+            "{}",
+            renamed_notice("Summer")
+        );
+        assert!(!renamed_notice("Summer").contains("Renamed"), "the toast leaves no English behind");
+        assert_eq!(tl!("About Sortlens"), "Sortlens について");
+        assert!(
+            about_version().contains("バージョン") && !about_version().contains("Version"),
+            "{}",
+            about_version()
+        );
+        assert_eq!(about_commands(47, 12), "コマンド 47 件、うち 12 件が利用可能");
+        assert!(
+            !tl!("Fast, local culling for photographers who shoot thousands of images.").contains("culling"),
+            "the About sentence is the catalogue's"
+        );
+
+        // Arabic: the same words, the counts in Arabic-Indic digits, the product's own name left alone.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        paint(&ctx, &mut state, &mut engine);
+        assert_eq!(rename_title(), "إعادة تسمية المجموعة");
+        assert_eq!(tl!("Save"), "حفظ");
+        assert!(
+            renamed_notice("صيف").contains("صيف") && !renamed_notice("صيف").contains("Renamed"),
+            "{}",
+            renamed_notice("صيف")
+        );
+        assert!(about_version().contains("الإصدار"), "{}", about_version());
+        let commands = about_commands(47, 12);
+        assert!(
+            commands.contains('٤') && commands.contains('٧') && commands.contains("أمرًا"),
+            "{commands}"
+        );
+        assert!(!tl!("About Sortlens").contains("About"), "the About title is the catalogue's");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
