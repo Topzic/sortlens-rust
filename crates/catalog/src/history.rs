@@ -11,6 +11,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::op::Description;
 use crate::store::{LOG_NAME, open_records};
 use sortlens_core::{Error, Result};
 
@@ -23,7 +24,9 @@ pub struct Entry {
     pub at: i64,
     /// The op kind, as the log names it.
     pub kind: String,
-    /// A sentence describing the change.
+    /// The change as a piece, so a translated viewer words it itself.
+    pub description: Description,
+    /// The piece as the English sentence the report prints.
     pub summary: String,
     /// How many photos the change touched, when that is meaningful.
     pub photos: usize,
@@ -50,12 +53,16 @@ pub fn recent(dir: &Path, limit: usize) -> Result<Vec<Entry>> {
     let mut entries: Vec<Entry> = records
         .into_iter()
         .filter_map(|line| crate::store::decode_record(&line))
-        .map(|(seq, op, _inverse, at)| Entry {
-            seq,
-            at,
-            kind: op.name().to_string(),
-            summary: op.summary(),
-            photos: op.photo_count(),
+        .map(|(seq, op, _inverse, at)| {
+            let description = op.description();
+            Entry {
+                seq,
+                at,
+                kind: op.name().to_string(),
+                summary: description.english(),
+                description,
+                photos: op.photo_count(),
+            }
         })
         .collect();
     entries.reverse();
@@ -184,6 +191,10 @@ mod tests {
         assert_eq!(entries[0].kind, "tagged", "newest first");
         assert_eq!(entries[0].summary, "Keyworded 1 photo");
         assert_eq!(entries[1].summary, "Rated 2 photos");
+        // The entry carries the piece the sentence was joined from, so a translated viewer words
+        // the same change without the log having to change.
+        assert_eq!(entries[0].description, crate::op::Description::Keyworded { photos: 1 });
+        assert_eq!(entries[1].description, crate::op::Description::Rated { photos: 2 });
         assert!(entries.iter().any(|entry| entry.summary.contains("Indexed")));
         assert!(entries.iter().all(Entry::is_dated), "records carry a time");
         assert_eq!(entries[1].photos, 2);

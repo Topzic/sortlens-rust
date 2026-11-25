@@ -1443,9 +1443,15 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     exactly those pieces, pinned by `the_quit_guard_sentences_are_joined_from_their_pieces`; the
     title, both buttons, the hover and the three reasons are `tl!`/`fmt` keys with the staged count a
     placeholder, and `the_quit_guard_speaks_the_interface_language` paints the guard in all three
-    languages. Still open on this row: Recent changes (its rows are the log's own `Op::summary`
-    sentences, so it needs the pieces-before-labels treatment first), Batch applied, Suggested
-    keywords and Keyboard shortcuts.
+    languages. The change viewer joined them in the next tick (eighty-fifth entry): `Op::description`
+    returns a `Description` piece (counts, paths and names travel with it) and `Op::summary` is that
+    piece's `english()`, `history::Entry` carries it, every variant is a `fmt` template whose count is
+    the language's own digits through `format_count` in the suite's `{n} photo(s)` wording, the title, both
+    hints, the export button and its hover and the footer are `tl!` keys, and
+    `the_change_viewer_speaks_the_interface_language` paints the rows in all three languages; the op's
+    raw name left the row for the report and the wire, where it is a record field rather than a word a
+    reader has to parse. Still open on this row: Batch applied, Suggested keywords and Keyboard
+    shortcuts.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

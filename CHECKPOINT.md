@@ -1,5 +1,52 @@
 # Checkpoint
 
+## 2026-11-26 (eighty-fifth) — the change viewer words the log's own pieces, and stops printing the op's code name
+
+- **Why this came up.** The eighty-fourth entry's "Next" named the change viewer first: its rows were
+  the log's own `Op::summary` English beside the raw op name, and the sentence could not be translated
+  without the piece underneath it.
+- **The log hands back a piece.** `sortlens-catalog`'s `op::Description` carries what the sentence
+  needs — counts, paths, file names, collection names, ids, a folder mark's pin and colour, the
+  colour label itself — and `Op::description()` builds it while `Op::summary()` is now exactly
+  `description().english()`. A group reads as its first real change (`GroupedMore { first, others }`
+  one level up), a provenance-only group reads as its own single piece, and an empty group as
+  `GroupedNothing`. `history::Entry` carries the piece next to the English `summary` the report and
+  the command line print, so a translated viewer and the English report cannot describe different
+  work.
+- **The viewer is routed end to end.** `history_line` words every variant through `i18n::fmt`; the
+  counts go through `format_count` inside the suite's `{n} photo(s)` wording (the cull sheet's and
+  Library health's voice), the two keyword counts through the same, and the colour inside a
+  sentence through `colour_word` (`Red`…`Purple`, five new rows). The title, both hints, `Export
+  report…` with its hover, the footer and `no date` are `tl!` keys. The row's second line is now the
+  time alone: `tagged`, `rate` and their siblings stay in the log, the report and the wire, where
+  they are record fields, instead of being printed untranslated under every sentence.
+- **Tests.** `the_summary_is_joined_from_the_description_piece` pins eleven op/piece/English triples
+  byte for byte and the three group shapes; `recent_changes_come_back_newest_first_and_dated` now
+  also asserts the entry carries `Keyworded { photos: 1 }` and `Rated { photos: 2 }`;
+  `the_change_viewer_speaks_the_interface_language` opens a real scanned library, rates one photo and
+  paints the dialog: English (`Recent changes`, `Rated 1 photo(s)`, `Export report…`), Japanese
+  (`最近の変更`, the rated row worded from the piece, no English title or row behind it), Arabic
+  (`التغييرات الأخيرة`, the row in Arabic-Indic digits, no English row behind it). The catalogue
+  audit demanded both catalogues' new rows and passed first try.
+- **Files.** `crates/catalog/src/op.rs` (the `Description` piece, `description()`, `summary()` joined
+  from it, one test), `crates/catalog/src/history.rs` (the field, the fill, one extended test),
+  `crates/engine/src/lib.rs` (the re-export), `crates/ui/src/shell.rs` (`history_line`,
+  `history_photos`, `colour_word`, the routed dialog, one paint test), `crates/ui/src/i18n/ja.tsv`
+  and `ar.tsv` (51 rows each), `docs/ROADMAP.md` (Phase 4 item 2d) and `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo fmt --all`; `cargo test -p sortlens-catalog` (107 passed); the new paint test
+  passes; `cargo clippy -p sortlens-ui -p sortlens-catalog -p sortlens-engine --all-targets --
+  -D warnings` clean (exit 0). `cargo xtask ci` stopped once, at its UI test step, on the catalogue
+  audit naming one routed row with no Arabic row (`{n} keyword(s)`) — the one row this tick added
+  after the gate started; both catalogues now carry it and the audit passes (189 UI tests, the only
+  failure above was that row). `snapshot`, `deny` and `screenshots` were then run; no baseline moved,
+  because no screenshot scene paints the change viewer. No release workflow dispatched: this slice
+  touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** Batch applied, Suggested keywords and Keyboard shortcuts — the three surfaces the
+  ROADMAP row still lists as English. Batch applied's receipt already has pieces (the export
+  precedent); Suggested keywords needs `sortlens-ai`'s own suggestion wording and a piece per
+  proposal shape before its panel can be translated. Also open, found here: colour label names are
+  routed only inside the change viewer (`colour_word`); the sidebar's colour chips and the label
+  menu still paint `Red`…`Purple` literally and should share that helper.
 ## 2026-11-26 (eighty-fourth) — the quit guard warns in your language, from the engine's own account of what is in flight
 
 - **Why this came up.** The eighty-third entry's "Next" listed Recent changes, Quit Sortlens?, Batch

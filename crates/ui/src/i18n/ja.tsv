@@ -197,3 +197,53 @@
 	Keep working	作業を続ける
 	Quit anyway	終了する
 	Close the window now; unstaged work is dropped	今すぐウィンドウを閉じます。未適用の作業は破棄されます
+	Indexed {path}	{path} を索引に追加しました
+	Stopped indexing {path}	{path} の索引を停止しました
+	Added {file}	{file} を追加しました
+	Removed {file}	{file} を削除しました
+	Marked photo #{id} as missing	写真 #{id} を不在として記録しました
+	Found photo #{id} again	写真 #{id} が再び見つかりました
+	Rated {photos}	{photos}を評価しました
+	Flagged {photos}	{photos}にフラグを付けました
+	Labelled {photos}	{photos}に色ラベルを付けました
+	Set the capture date on {photos}	{photos}の撮影日時を設定しました
+	Keyworded {photos}	{photos}にキーワードを付けました
+	Recorded where keywords came from on {photos}	{photos}のキーワードの出所を記録しました
+	Stopped suggesting {keywords}	{keywords}の提案を止めました
+	Found {photos} somewhere else	{photos}を別の場所で見つけました
+	Queued {photos} for a metadata retry	{photos}をメタデータ再読み取りに追加しました
+	Linked {aliases} keyword alias(es)	キーワードの別名を {aliases} 件関連付けました
+	Repointed {from} to {to}	{from} を {to} に付け替えました
+	Created the collection {name}	コレクション「{name}」を作成しました
+	Deleted the collection {name}	コレクション「{name}」を削除しました
+	Renamed a collection to {name}	コレクションの名前を「{name}」に変更しました
+	Collection change: +{added} -{removed}	コレクションの変更: +{added} -{removed}
+	Set a collection's colour to {colour}	コレクションの色を{colour}に設定しました
+	Switched on the “{name}” keyword pack	キーワードパック「{name}」をオンにしました
+	Switched off the “{name}” keyword pack	キーワードパック「{name}」をオフにしました
+	Measured the sharpness of {photos}	{photos}のシャープさを測定しました
+	Pinned {folder} and set it to {colour}	{folder} をピン留めし、{colour}に設定しました
+	Pinned {folder}	{folder} をピン留めしました
+	Set {folder} to {colour}	{folder} を{colour}に設定しました
+	Cleared the mark on {folder}	{folder} のマークを解除しました
+	{first} (+{others} more change(s))	{first}（ほか {others} 件）
+	Dismissed nothing	提案は取り下げていません
+	Cleared a collection's colour	コレクションの色を解除しました
+	Starred a collection	コレクションにスターを付けました
+	Unstarred a collection	コレクションのスターを外しました
+	Changed a collection's sort	コレクションの並べ替えを変更しました
+	Changed a collection's search	コレクションの検索を変更しました
+	Grouped change	まとめた変更
+	Recent changes	最近の変更
+	No changes since the last snapshot.	前回のスナップショット以降の変更はありません。
+	Every change is a record in the log; older ones are folded into the snapshot.	すべての変更はログの記録です。古いものはスナップショットに畳み込まれます。
+	Export report…	レポートを書き出す…
+	Plain text, for a support request	サポート依頼用のプレーンテキスト
+	The report lists folder and file names; it never includes photo contents.	レポートにはフォルダー名とファイル名が載りますが、写真の中身は含まれません。
+	no date	日付なし
+	Red	赤
+	Yellow	黄
+	Green	緑
+	Blue	青
+	Purple	紫
+	{n} keyword(s)	{n} 件

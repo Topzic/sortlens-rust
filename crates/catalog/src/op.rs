@@ -199,69 +199,67 @@ impl Op {
         }
     }
 
-    /// One sentence describing the change, for the change list and the support report.
-    pub fn summary(&self) -> String {
+    /// The change as a piece a language can word.
+    ///
+    /// `summary` is this piece in English: the change viewer prints the piece in the interface
+    /// language, while the log, the support report and the command line keep the English sentence
+    /// — so a translated viewer and an English report can never describe different work.
+    pub fn description(&self) -> Description {
         match self {
-            Self::AddRoot { path } => format!("Indexed {path}"),
-            Self::RemoveRoot { path } => format!("Stopped indexing {path}"),
-            Self::AddPhoto { photo } => format!("Added {}", photo.rel),
-            Self::RemovePhoto { photo } => format!("Removed {}", photo.rel),
-            Self::Missing { id, missing: true } => format!("Marked photo #{} as missing", id.0),
-            Self::Missing { id, missing: false } => format!("Found photo #{} again", id.0),
-            Self::Rate { changes } => format!("Rated {}", photos(changes.len())),
-            Self::Flag { changes } => format!("Flagged {}", photos(changes.len())),
-            Self::Label { changes } => format!("Labelled {}", photos(changes.len())),
-            Self::Captured { changes } => {
-                format!("Set the capture date on {}", photos(changes.len()))
-            }
-            Self::Tagged { changes } => format!("Keyworded {}", photos(changes.len())),
-            Self::TagSourced { changes } => {
-                format!("Recorded where keywords came from on {}", photos(changes.len()))
-            }
+            Self::AddRoot { path } => Description::Indexed { path: path.clone() },
+            Self::RemoveRoot { path } => Description::StoppedIndexing { path: path.clone() },
+            Self::AddPhoto { photo } => Description::PhotoAdded { rel: photo.rel.clone() },
+            Self::RemovePhoto { photo } => Description::PhotoRemoved { rel: photo.rel.clone() },
+            Self::Missing { id, missing: true } => Description::MarkedMissing { id: id.0 },
+            Self::Missing { id, missing: false } => Description::FoundAgain { id: id.0 },
+            Self::Rate { changes } => Description::Rated { photos: changes.len() },
+            Self::Flag { changes } => Description::Flagged { photos: changes.len() },
+            Self::Label { changes } => Description::Labelled { photos: changes.len() },
+            Self::Captured { changes } => Description::CaptureDate { photos: changes.len() },
+            Self::Tagged { changes } => Description::Keyworded { photos: changes.len() },
+            Self::TagSourced { changes } => Description::KeywordSources { photos: changes.len() },
             Self::SuggestionDismissed { changes } => {
-                let count: usize = changes.iter().map(|(_, tags)| tags.len()).sum();
-                match count {
-                    0 => "Dismissed nothing".to_string(),
-                    1 => "Stopped suggesting 1 keyword".to_string(),
-                    count => format!("Stopped suggesting {count} keywords"),
-                }
-            }
-            Self::Relocate { changes } => format!("Found {} somewhere else", photos(changes.len())),
-            Self::Retry { changes } => format!("Queued {} for a metadata retry", photos(changes.len())),
-            Self::Aliased { changes } => {
-                format!("Linked {} keyword alias(es)", changes.len())
-            }
-            Self::RemapRoot { from, to } => format!("Repointed {from} to {to}"),
-            Self::AddCollection { collection } => format!("Created the collection {}", collection.name),
-            Self::RemoveCollection { collection } => format!("Deleted the collection {}", collection.name),
-            Self::RenameCollection { name, .. } => format!("Renamed a collection to {name}"),
-            Self::Collect { added, removed, .. } => {
-                format!("Collection change: +{} -{}", added.len(), removed.len())
-            }
-            Self::SetCollectionColour { colour, .. } => match colour {
-                Some(colour) => format!("Set a collection's colour to {colour:?}"),
-                None => "Cleared a collection's colour".to_string(),
-            },
-            Self::SetCollectionFavourite { favourite, .. } => {
-                if *favourite {
-                    "Starred a collection".to_string()
+                let keywords: usize = changes.iter().map(|(_, tags)| tags.len()).sum();
+                if keywords == 0 {
+                    Description::SuggestionsNone
                 } else {
-                    "Unstarred a collection".to_string()
+                    Description::SuggestionsStopped { keywords }
                 }
             }
-            Self::SetCollectionSort { .. } => "Changed a collection's sort".to_string(),
-            Self::SetCollectionSearch { .. } => "Changed a collection's search".to_string(),
-            Self::SetPack { name, on: true } => format!("Switched on the “{name}” keyword pack"),
-            Self::SetPack { name, on: false } => format!("Switched off the “{name}” keyword pack"),
-            Self::Scores { changes } => match changes.len() {
-                1 => "Measured the sharpness of 1 photo".to_string(),
-                count => format!("Measured the sharpness of {count} photos"),
+            Self::Relocate { changes } => Description::Relocated { photos: changes.len() },
+            Self::Retry { changes } => Description::RetryQueued { photos: changes.len() },
+            Self::Aliased { changes } => Description::Aliases { aliases: changes.len() },
+            Self::RemapRoot { from, to } => Description::Repointed {
+                from: from.clone(),
+                to: to.clone(),
             },
-            Self::SetFolderMark { key, mark } => match (mark.favourite, mark.colour) {
-                (true, Some(colour)) => format!("Pinned {key} and set it to {colour:?}"),
-                (true, None) => format!("Pinned {key}"),
-                (false, Some(colour)) => format!("Set {key} to {colour:?}"),
-                (false, None) => format!("Cleared the mark on {key}"),
+            Self::AddCollection { collection } => Description::CollectionCreated {
+                name: collection.name.clone(),
+            },
+            Self::RemoveCollection { collection } => Description::CollectionDeleted {
+                name: collection.name.clone(),
+            },
+            Self::RenameCollection { name, .. } => Description::CollectionRenamed { name: name.clone() },
+            Self::Collect { added, removed, .. } => Description::CollectionChanged {
+                added: added.len(),
+                removed: removed.len(),
+            },
+            Self::SetCollectionColour { colour, .. } => match colour {
+                Some(colour) => Description::CollectionColour { colour: Some(*colour) },
+                None => Description::CollectionColour { colour: None },
+            },
+            Self::SetCollectionFavourite { favourite, .. } => Description::CollectionFavourite { starred: *favourite },
+            Self::SetCollectionSort { .. } => Description::CollectionSorted,
+            Self::SetCollectionSearch { .. } => Description::CollectionSearched,
+            Self::SetPack { name, on } => Description::Pack {
+                name: name.clone(),
+                on: *on,
+            },
+            Self::Scores { changes } => Description::Sharpness { photos: changes.len() },
+            Self::SetFolderMark { key, mark } => Description::FolderMark {
+                key: key.clone(),
+                favourite: mark.favourite,
+                colour: mark.colour,
             },
             Self::Group { ops } => {
                 // Provenance is not a second change a person made: it is the receipt for the keyword they typed. Left
@@ -271,17 +269,188 @@ impl Op {
                 match real.first() {
                     Some(first) => {
                         if real.len() == 1 {
-                            first.summary()
+                            first.description()
                         } else {
-                            format!("{} (+{} more change(s))", first.summary(), real.len() - 1)
+                            Description::GroupedMore {
+                                first: Box::new(first.description()),
+                                others: real.len() - 1,
+                            }
                         }
                     }
                     None => match ops.first() {
-                        Some(first) => first.summary(),
-                        None => "Grouped change".to_string(),
+                        Some(first) => first.description(),
+                        None => Description::GroupedNothing,
                     },
                 }
             }
+        }
+    }
+
+    /// One sentence describing the change, for the change list and the support report.
+    pub fn summary(&self) -> String {
+        self.description().english()
+    }
+}
+
+/// What a change did, as a piece a language can word: the counts, paths and names travel with it,
+/// so the interface fills its own sentence rather than receiving an English one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Description {
+    Indexed {
+        path: String,
+    },
+    StoppedIndexing {
+        path: String,
+    },
+    PhotoAdded {
+        rel: String,
+    },
+    PhotoRemoved {
+        rel: String,
+    },
+    MarkedMissing {
+        id: u64,
+    },
+    FoundAgain {
+        id: u64,
+    },
+    Rated {
+        photos: usize,
+    },
+    Flagged {
+        photos: usize,
+    },
+    Labelled {
+        photos: usize,
+    },
+    CaptureDate {
+        photos: usize,
+    },
+    Keyworded {
+        photos: usize,
+    },
+    KeywordSources {
+        photos: usize,
+    },
+    SuggestionsNone,
+    SuggestionsStopped {
+        keywords: usize,
+    },
+    Relocated {
+        photos: usize,
+    },
+    RetryQueued {
+        photos: usize,
+    },
+    Aliases {
+        aliases: usize,
+    },
+    Repointed {
+        from: String,
+        to: String,
+    },
+    CollectionCreated {
+        name: String,
+    },
+    CollectionDeleted {
+        name: String,
+    },
+    CollectionRenamed {
+        name: String,
+    },
+    CollectionChanged {
+        added: usize,
+        removed: usize,
+    },
+    CollectionColour {
+        colour: Option<ColorLabel>,
+    },
+    CollectionFavourite {
+        starred: bool,
+    },
+    CollectionSorted,
+    CollectionSearched,
+    Pack {
+        name: String,
+        on: bool,
+    },
+    Sharpness {
+        photos: usize,
+    },
+    FolderMark {
+        key: String,
+        favourite: bool,
+        colour: Option<ColorLabel>,
+    },
+    GroupedMore {
+        first: Box<Description>,
+        others: usize,
+    },
+    GroupedNothing,
+}
+
+impl Description {
+    /// The piece as the English sentence the log, the report and the command line print.
+    pub fn english(&self) -> String {
+        match self {
+            Self::Indexed { path } => format!("Indexed {path}"),
+            Self::StoppedIndexing { path } => format!("Stopped indexing {path}"),
+            Self::PhotoAdded { rel } => format!("Added {rel}"),
+            Self::PhotoRemoved { rel } => format!("Removed {rel}"),
+            Self::MarkedMissing { id } => format!("Marked photo #{id} as missing"),
+            Self::FoundAgain { id } => format!("Found photo #{id} again"),
+            Self::Rated { photos: count } => format!("Rated {}", photos(*count)),
+            Self::Flagged { photos: count } => format!("Flagged {}", photos(*count)),
+            Self::Labelled { photos: count } => format!("Labelled {}", photos(*count)),
+            Self::CaptureDate { photos: count } => format!("Set the capture date on {}", photos(*count)),
+            Self::Keyworded { photos: count } => format!("Keyworded {}", photos(*count)),
+            Self::KeywordSources { photos: count } => {
+                format!("Recorded where keywords came from on {}", photos(*count))
+            }
+            Self::SuggestionsNone => "Dismissed nothing".to_string(),
+            Self::SuggestionsStopped { keywords: 1 } => "Stopped suggesting 1 keyword".to_string(),
+            Self::SuggestionsStopped { keywords: count } => format!("Stopped suggesting {count} keywords"),
+            Self::Relocated { photos: count } => format!("Found {} somewhere else", photos(*count)),
+            Self::RetryQueued { photos: count } => format!("Queued {} for a metadata retry", photos(*count)),
+            Self::Aliases { aliases } => format!("Linked {aliases} keyword alias(es)"),
+            Self::Repointed { from, to } => format!("Repointed {from} to {to}"),
+            Self::CollectionCreated { name } => format!("Created the collection {name}"),
+            Self::CollectionDeleted { name } => format!("Deleted the collection {name}"),
+            Self::CollectionRenamed { name } => format!("Renamed a collection to {name}"),
+            Self::CollectionChanged { added, removed } => format!("Collection change: +{added} -{removed}"),
+            Self::CollectionColour { colour: Some(colour) } => format!("Set a collection's colour to {colour:?}"),
+            Self::CollectionColour { colour: None } => "Cleared a collection's colour".to_string(),
+            Self::CollectionFavourite { starred: true } => "Starred a collection".to_string(),
+            Self::CollectionFavourite { starred: false } => "Unstarred a collection".to_string(),
+            Self::CollectionSorted => "Changed a collection's sort".to_string(),
+            Self::CollectionSearched => "Changed a collection's search".to_string(),
+            Self::Pack { name, on: true } => format!("Switched on the “{name}” keyword pack"),
+            Self::Pack { name, on: false } => format!("Switched off the “{name}” keyword pack"),
+            Self::Sharpness { photos: count } => format!("Measured the sharpness of {}", photos(*count)),
+            Self::FolderMark {
+                key,
+                favourite: true,
+                colour: Some(colour),
+            } => format!("Pinned {key} and set it to {colour:?}"),
+            Self::FolderMark {
+                key,
+                favourite: true,
+                colour: None,
+            } => format!("Pinned {key}"),
+            Self::FolderMark {
+                key,
+                favourite: false,
+                colour: Some(colour),
+            } => format!("Set {key} to {colour:?}"),
+            Self::FolderMark {
+                key,
+                favourite: false,
+                colour: None,
+            } => format!("Cleared the mark on {key}"),
+            Self::GroupedMore { first, others } => {
+                format!("{} (+{others} more change(s))", first.english())
+            }
+            Self::GroupedNothing => "Grouped change".to_string(),
         }
     }
 }
@@ -368,6 +537,135 @@ mod tests {
         };
         assert_eq!(only.summary(), "Recorded where keywords came from on 1 photo");
         assert_eq!(only.name(), "tagSourced");
+    }
+
+    /// The change viewer's sentence is a piece first, and its English is that piece joined: the
+    /// two cannot drift, and a language words the piece itself rather than an English string.
+    #[test]
+    fn the_summary_is_joined_from_the_description_piece() {
+        let photo = Photo::from_scan(PhotoId(3), "/p", "a/b.jpg", 10, Some(5), MediaKind::Image, 9);
+        let cases: Vec<(Op, Description, &str)> = vec![
+            (
+                Op::AddRoot { path: "/p".into() },
+                Description::Indexed { path: "/p".into() },
+                "Indexed /p",
+            ),
+            (
+                Op::AddPhoto {
+                    photo: Box::new(photo.clone()),
+                },
+                Description::PhotoAdded { rel: "a/b.jpg".into() },
+                "Added a/b.jpg",
+            ),
+            (
+                Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                },
+                Description::Rated { photos: 1 },
+                "Rated 1 photo",
+            ),
+            (
+                Op::Rate {
+                    changes: vec![(PhotoId(1), 4), (PhotoId(2), 2), (PhotoId(3), 5)],
+                },
+                Description::Rated { photos: 3 },
+                "Rated 3 photos",
+            ),
+            (
+                Op::Scores {
+                    changes: vec![(PhotoId(1), None), (PhotoId(2), None)],
+                },
+                Description::Sharpness { photos: 2 },
+                "Measured the sharpness of 2 photos",
+            ),
+            (
+                Op::SuggestionDismissed {
+                    changes: vec![(PhotoId(1), vec!["cat".into()])],
+                },
+                Description::SuggestionsStopped { keywords: 1 },
+                "Stopped suggesting 1 keyword",
+            ),
+            (
+                Op::SuggestionDismissed { changes: Vec::new() },
+                Description::SuggestionsNone,
+                "Dismissed nothing",
+            ),
+            (
+                Op::SetPack {
+                    name: "Kitchen".into(),
+                    on: true,
+                },
+                Description::Pack {
+                    name: "Kitchen".into(),
+                    on: true,
+                },
+                "Switched on the “Kitchen” keyword pack",
+            ),
+            (
+                Op::SetFolderMark {
+                    key: "Trips".into(),
+                    mark: crate::folder::FolderMark {
+                        favourite: true,
+                        colour: Some(ColorLabel::Green),
+                        ..crate::folder::FolderMark::default()
+                    },
+                },
+                Description::FolderMark {
+                    key: "Trips".into(),
+                    favourite: true,
+                    colour: Some(ColorLabel::Green),
+                },
+                "Pinned Trips and set it to Green",
+            ),
+            (
+                Op::Collect {
+                    id: CollectionId(1),
+                    added: vec![PhotoId(1)],
+                    removed: vec![PhotoId(2), PhotoId(3)],
+                },
+                Description::CollectionChanged { added: 1, removed: 2 },
+                "Collection change: +1 -2",
+            ),
+            (
+                Op::Aliased {
+                    changes: vec![("kitten".into(), Some("cat".into()))],
+                },
+                Description::Aliases { aliases: 1 },
+                "Linked 1 keyword alias(es)",
+            ),
+        ];
+        for (op, piece, english) in cases {
+            assert_eq!(op.description(), piece, "{}", op.name());
+            assert_eq!(op.summary(), english, "{}", op.name());
+            assert_eq!(piece.english(), english, "{}", op.name());
+        }
+        // A group of one real change is that change; two read as the first plus how many followed.
+        let one = Op::Group {
+            ops: vec![Op::Rate {
+                changes: vec![(PhotoId(1), 4)],
+            }],
+        };
+        assert_eq!(one.description(), Description::Rated { photos: 1 });
+        let two = Op::Group {
+            ops: vec![
+                Op::Rate {
+                    changes: vec![(PhotoId(1), 4)],
+                },
+                Op::Flag {
+                    changes: vec![(PhotoId(1), Flag::Pick)],
+                },
+            ],
+        };
+        assert_eq!(
+            two.description(),
+            Description::GroupedMore {
+                first: Box::new(Description::Rated { photos: 1 }),
+                others: 1
+            }
+        );
+        assert_eq!(two.summary(), "Rated 1 photo (+1 more change(s))");
+        assert_eq!(Op::Group { ops: Vec::new() }.description(), Description::GroupedNothing);
+        assert_eq!(Op::Group { ops: Vec::new() }.summary(), "Grouped change");
     }
 
     #[test]

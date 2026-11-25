@@ -8694,7 +8694,7 @@ fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &En
 /// What happened recently, read from the op log.
 fn history_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     let mut open = state.history_open;
-    dialog_window("Recent changes")
+    dialog_window(tl!("Recent changes"))
         .open(&mut open)
         .resizable(true)
         .collapsible(false)
@@ -8708,10 +8708,10 @@ fn history_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                 }
             };
             if entries.is_empty() {
-                hint(ui, t, "No changes since the last snapshot.");
+                hint(ui, t, tl!("No changes since the last snapshot."));
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new("Every change is a record in the log; older ones are folded into the snapshot.")
+                    RichText::new(tl!("Every change is a record in the log; older ones are folded into the snapshot."))
                         .size(10.5)
                         .color(t.text_faint),
                 );
@@ -8721,34 +8721,135 @@ fn history_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
                 for entry in &entries {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(format!("#{}", entry.seq)).size(10.0).color(t.text_faint));
-                        ui.label(RichText::new(&entry.summary).size(12.0).color(t.text));
+                        ui.label(RichText::new(history_line(&entry.description)).size(12.0).color(t.text));
                     });
                     let when = if entry.is_dated() {
                         age_label(entry.at)
                     } else {
-                        "no date".to_string()
+                        tl!("no date").to_string()
                     };
-                    ui.label(RichText::new(format!("{when} · {}", entry.kind)).size(10.0).color(t.text_faint));
+                    ui.label(RichText::new(when).size(10.0).color(t.text_faint));
                     ui.add_space(4.0);
                 }
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if ui
-                    .button(RichText::new("Export report…").size(11.5))
-                    .on_hover_text("Plain text, for a support request")
+                    .button(RichText::new(tl!("Export report…")).size(11.5))
+                    .on_hover_text(tl!("Plain text, for a support request"))
                     .clicked()
                 {
                     actions.push(Action::ExportHistory);
                 }
             });
             ui.label(
-                RichText::new("The report lists folder and file names; it never includes photo contents.")
+                RichText::new(tl!("The report lists folder and file names; it never includes photo contents."))
                     .size(10.5)
                     .color(t.text_faint),
             );
         });
     state.history_open = open;
+}
+
+/// One row of the change viewer, worded in the interface language from the log's own piece.
+fn history_line(change: &sortlens_engine::Description) -> String {
+    use sortlens_engine::Description as Change;
+    match change {
+        Change::Indexed { path } => crate::i18n::fmt("Indexed {path}", &[("path", path)]),
+        Change::StoppedIndexing { path } => crate::i18n::fmt("Stopped indexing {path}", &[("path", path)]),
+        Change::PhotoAdded { rel } => crate::i18n::fmt("Added {file}", &[("file", rel)]),
+        Change::PhotoRemoved { rel } => crate::i18n::fmt("Removed {file}", &[("file", rel)]),
+        Change::MarkedMissing { id } => crate::i18n::fmt("Marked photo #{id} as missing", &[("id", &format_count(*id))]),
+        Change::FoundAgain { id } => crate::i18n::fmt("Found photo #{id} again", &[("id", &format_count(*id))]),
+        Change::Rated { photos } => crate::i18n::fmt("Rated {photos}", &[("photos", &history_photos(*photos))]),
+        Change::Flagged { photos } => crate::i18n::fmt("Flagged {photos}", &[("photos", &history_photos(*photos))]),
+        Change::Labelled { photos } => crate::i18n::fmt("Labelled {photos}", &[("photos", &history_photos(*photos))]),
+        Change::CaptureDate { photos } => crate::i18n::fmt("Set the capture date on {photos}", &[("photos", &history_photos(*photos))]),
+        Change::Keyworded { photos } => crate::i18n::fmt("Keyworded {photos}", &[("photos", &history_photos(*photos))]),
+        Change::KeywordSources { photos } => crate::i18n::fmt(
+            "Recorded where keywords came from on {photos}",
+            &[("photos", &history_photos(*photos))],
+        ),
+        Change::SuggestionsNone => tl!("Dismissed nothing").to_string(),
+        Change::SuggestionsStopped { keywords } => crate::i18n::fmt(
+            "Stopped suggesting {keywords}",
+            &[(
+                "keywords",
+                &crate::i18n::fmt("{n} keyword(s)", &[("n", &format_count(*keywords as u64))]),
+            )],
+        ),
+        Change::Relocated { photos } => crate::i18n::fmt("Found {photos} somewhere else", &[("photos", &history_photos(*photos))]),
+        Change::RetryQueued { photos } => crate::i18n::fmt("Queued {photos} for a metadata retry", &[("photos", &history_photos(*photos))]),
+        Change::Aliases { aliases } => {
+            crate::i18n::fmt("Linked {aliases} keyword alias(es)", &[("aliases", &format_count(*aliases as u64))])
+        }
+        Change::Repointed { from, to } => crate::i18n::fmt("Repointed {from} to {to}", &[("from", from), ("to", to)]),
+        Change::CollectionCreated { name } => crate::i18n::fmt("Created the collection {name}", &[("name", name)]),
+        Change::CollectionDeleted { name } => crate::i18n::fmt("Deleted the collection {name}", &[("name", name)]),
+        Change::CollectionRenamed { name } => crate::i18n::fmt("Renamed a collection to {name}", &[("name", name)]),
+        Change::CollectionChanged { added, removed } => crate::i18n::fmt(
+            "Collection change: +{added} -{removed}",
+            &[("added", &format_count(*added as u64)), ("removed", &format_count(*removed as u64))],
+        ),
+        Change::CollectionColour { colour: Some(colour) } => {
+            crate::i18n::fmt("Set a collection's colour to {colour}", &[("colour", &colour_word(*colour))])
+        }
+        Change::CollectionColour { colour: None } => tl!("Cleared a collection's colour").to_string(),
+        Change::CollectionFavourite { starred: true } => tl!("Starred a collection").to_string(),
+        Change::CollectionFavourite { starred: false } => tl!("Unstarred a collection").to_string(),
+        Change::CollectionSorted => tl!("Changed a collection's sort").to_string(),
+        Change::CollectionSearched => tl!("Changed a collection's search").to_string(),
+        Change::Pack { name, on: true } => crate::i18n::fmt("Switched on the “{name}” keyword pack", &[("name", name)]),
+        Change::Pack { name, on: false } => crate::i18n::fmt("Switched off the “{name}” keyword pack", &[("name", name)]),
+        Change::Sharpness { photos } => crate::i18n::fmt("Measured the sharpness of {photos}", &[("photos", &history_photos(*photos))]),
+        Change::FolderMark {
+            key,
+            favourite: true,
+            colour: Some(colour),
+        } => crate::i18n::fmt(
+            "Pinned {folder} and set it to {colour}",
+            &[("folder", key), ("colour", &colour_word(*colour))],
+        ),
+        Change::FolderMark {
+            key,
+            favourite: true,
+            colour: None,
+        } => crate::i18n::fmt("Pinned {folder}", &[("folder", key)]),
+        Change::FolderMark {
+            key,
+            favourite: false,
+            colour: Some(colour),
+        } => crate::i18n::fmt("Set {folder} to {colour}", &[("folder", key), ("colour", &colour_word(*colour))]),
+        Change::FolderMark {
+            key,
+            favourite: false,
+            colour: None,
+        } => crate::i18n::fmt("Cleared the mark on {folder}", &[("folder", key)]),
+        Change::GroupedMore { first, others } => crate::i18n::fmt(
+            "{first} (+{others} more change(s))",
+            &[("first", &history_line(first)), ("others", &format_count(*others as u64))],
+        ),
+        Change::GroupedNothing => tl!("Grouped change").to_string(),
+    }
+}
+
+/// `1 photo(s)` / `3 photo(s)`, with the count in the interface language's digits — the same
+/// wording the cull sheet and Library health use, so a language is not forced through English's
+/// singular and plural.
+fn history_photos(count: usize) -> String {
+    crate::i18n::fmt("{n} photo(s)", &[("n", &format_count(count as u64))])
+}
+
+/// A colour label's name, worded in the interface language.
+fn colour_word(colour: ColorLabel) -> String {
+    match colour {
+        ColorLabel::Red => tl!("Red"),
+        ColorLabel::Yellow => tl!("Yellow"),
+        ColorLabel::Green => tl!("Green"),
+        ColorLabel::Blue => tl!("Blue"),
+        ColorLabel::Purple => tl!("Purple"),
+    }
+    .to_string()
 }
 
 fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
@@ -14936,6 +15037,92 @@ mod tests {
         let foot = cull_foot(summary.changed(), summary.deferred);
         assert!(foot.contains('٢') && foot.contains('٠') && !foot.contains("photo(s)"), "{foot}");
         assert!(label_at(&arabic, "تجاهل").is_some(), "and the Discard button");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The change viewer speaks the interface language, from the log's own pieces (SL-L07).
+    ///
+    /// Its rows used to be `Op::summary`'s English sentence beside the raw op name; now the entry
+    /// carries a `Description`, so the viewer words the same change itself, in its own digits.
+    #[test]
+    fn the_change_viewer_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-history-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-history-i18n");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30, 60 * index as u8, 140], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.rate(&ids[..1], 5).expect("rate");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.history_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        history_dialog(ui, state, &tokens, engine, &mut Vec::new());
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+
+        // English: the sentence the log's own piece joins.
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&english, "Recent changes").is_some(), "the title paints");
+        assert!(label_at(&english, "Rated 1 photo(s)").is_some(), "and the rated row");
+        assert!(label_at(&english, "Export report…").is_some(), "and the export button");
+        assert_eq!(history_line(&sortlens_engine::Description::Rated { photos: 1 }), "Rated 1 photo(s)");
+        assert!(state.history_open, "painting the viewer does not close it");
+
+        // Japanese: every word is the catalogue's, and no English row is left behind.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&japanese, "最近の変更").is_some(), "the title is the catalogue's");
+        assert!(
+            history_line(&sortlens_engine::Description::Rated { photos: 1 }).contains("評価"),
+            "the row is the catalogue's"
+        );
+        assert!(label_at(&japanese, "最近の変更").is_some(), "still the title");
+        assert!(label_at(&japanese, "Rated 1 photo(s)").is_none(), "no English row behind it");
+        assert!(label_at(&japanese, "Recent changes").is_none(), "no English title behind it");
+
+        // Arabic: the same row, in the reader's own digits.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let _ = paint(&ctx, &mut state, &mut engine);
+        let arabic = paint(&ctx, &mut state, &mut engine);
+        assert!(label_at(&arabic, "التغييرات الأخيرة").is_some(), "the title is the catalogue's");
+        let row = history_line(&sortlens_engine::Description::Rated { photos: 1 });
+        assert!(row.contains('١') && !row.contains("photo"), "{row}");
+        assert!(label_at(&arabic, "Rated 1 photo(s)").is_none(), "no English row behind it");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

@@ -197,3 +197,53 @@
 	Keep working	متابعة العمل
 	Quit anyway	الإنهاء على أي حال
 	Close the window now; unstaged work is dropped	إغلاق النافذة الآن؛ سيُفقد العمل غير المطبَّق
+	Indexed {path}	تمت فهرسة {path}
+	Stopped indexing {path}	توقفت فهرسة {path}
+	Added {file}	أُضيفت {file}
+	Removed {file}	أُزيلت {file}
+	Marked photo #{id} as missing	تم تعليم الصورة #{id} كمفقودة
+	Found photo #{id} again	عُثر على الصورة #{id} مجددًا
+	Rated {photos}	تقييم {photos}
+	Flagged {photos}	تعليم {photos}
+	Labelled {photos}	وسم {photos} بملصق لوني
+	Set the capture date on {photos}	ضبط تاريخ الالتقاط على {photos}
+	Keyworded {photos}	إضافة كلمات مفتاحية إلى {photos}
+	Recorded where keywords came from on {photos}	تسجيل مصدر الكلمات المفتاحية على {photos}
+	Stopped suggesting {keywords}	إيقاف اقتراح {keywords}
+	Found {photos} somewhere else	عُثر على {photos} في مكان آخر
+	Queued {photos} for a metadata retry	إدراج {photos} لإعادة قراءة البيانات الوصفية
+	Linked {aliases} keyword alias(es)	ربط {aliases} من أسماء الكلمات المفتاحية البديلة
+	Repointed {from} to {to}	إعادة توجيه {from} إلى {to}
+	Created the collection {name}	إنشاء المجموعة {name}
+	Deleted the collection {name}	حذف المجموعة {name}
+	Renamed a collection to {name}	إعادة تسمية مجموعة إلى {name}
+	Collection change: +{added} -{removed}	تغيير في المجموعة: +{added} -{removed}
+	Set a collection's colour to {colour}	ضبط لون مجموعة على {colour}
+	Switched on the “{name}” keyword pack	تشغيل حزمة الكلمات «{name}»
+	Switched off the “{name}” keyword pack	إيقاف حزمة الكلمات «{name}»
+	Measured the sharpness of {photos}	قياس حِدّة {photos}
+	Pinned {folder} and set it to {colour}	تثبيت {folder} وضبطه على {colour}
+	Pinned {folder}	تثبيت {folder}
+	Set {folder} to {colour}	ضبط {folder} على {colour}
+	Cleared the mark on {folder}	مسح علامة {folder}
+	{first} (+{others} more change(s))	{first} (+{others} تغيير آخر)
+	Dismissed nothing	لم يُرفض أي اقتراح
+	Cleared a collection's colour	مسح لون مجموعة
+	Starred a collection	تمييز مجموعة بنجمة
+	Unstarred a collection	إزالة النجمة عن مجموعة
+	Changed a collection's sort	تغيير ترتيب مجموعة
+	Changed a collection's search	تغيير بحث مجموعة
+	Grouped change	تغييرات مجتمعة
+	Recent changes	التغييرات الأخيرة
+	No changes since the last snapshot.	لا تغييرات منذ آخر لقطة.
+	Every change is a record in the log; older ones are folded into the snapshot.	كل تغيير سجل في السجل، والأقدم تُطوى في اللقطة.
+	Export report…	تصدير التقرير…
+	Plain text, for a support request	نص عادي لطلب الدعم
+	The report lists folder and file names; it never includes photo contents.	يسرد التقرير أسماء المجلدات والملفات، ولا يتضمن محتويات الصور أبدًا.
+	no date	بلا تاريخ
+	Red	أحمر
+	Yellow	أصفر
+	Green	أخضر
+	Blue	أزرق
+	Purple	بنفسجي
+	{n} keyword(s)	{n} كلمة مفتاحية

@@ -553,6 +553,16 @@ cannot warn about different work than the report describes. The shell words each
 `tl!`/`i18n::fmt` and the staged count through `format_count`; the title, both buttons and the
 hover are catalogued, and `the_quit_guard_speaks_the_interface_language` paints the dialog in all
 three languages.
+
+The change viewer is routed from the log's own pieces: `Op::description` returns a
+`sortlens_catalog::op::Description` (the counts, paths and names travel with it) and `Op::summary`
+— the English the report and the command line print — is that piece joined by `Description::english`,
+so a translated viewer and the English report cannot describe different work. `history::Entry`
+carries the piece, and the shell words each variant through `i18n::fmt`, with a photo count filled
+by `format_count` inside the suite's `{n} photo(s)` wording, so a language places the count and
+Arabic writes its own digits. The row's second line is the time alone: the op's own name
+(`tagged`, `rate`) stays in the log, the report and the wire rather than being printed untranslated,
+and `the_change_viewer_speaks_the_interface_language` paints the dialog in all three languages.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a
