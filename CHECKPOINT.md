@@ -1,5 +1,57 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventeenth) — the RTL sidebar's Keywords row gives its heading and its toggle their own ends
+
+- **Why this came up.** The hundred-and-sixteenth entry's Next was the RTL frame's two visible defects, and
+  `CI` on `main` was green on `442011a` (run `45645099645`), so this is a roadmap slice rather than a repair.
+- **The row.** `keyword_section_header` (`crates/ui/src/shell.rs`) now owns the Keywords line. Left to right it
+  makes the calls the row always made — `nav_section` inside `ui.horizontal`, the button in a `right_to_left`
+  trailing layout — in the same order, so no left-to-right frame moves by a pixel. Right to left that shape
+  cannot be mirrored as it stands: `nav_section` puts the heading at the reading start by wrapping it in a
+  `top_down(Align::Max)` child, that child takes the whole row, and the trailing layout then paints the toggle
+  from the reading end inside the space the heading already owns — which is why the two words collided. The
+  mirrored branch lays the row with `direction::horizontal` (right to left) and gives the toggle the space
+  after the heading in a `direction::trailing` child (left to right), so each end owns its own room: heading
+  at the right, toggle at the left. The heading is the same `tl!("Keywords")` literal, painted with the same
+  size and colour, and the row's top and bottom spacing are the ones `nav_section` adds.
+- **The words.** The toggle painted `state.tag_order.label()` — `most used` or `A–Z`, English in every
+  language. The shell now matches the order onto the two catalogue keys `most used` and `A–Z`, so the audit in
+  `i18n.rs` reads them and all six catalogues answer: `الأكثر استخدامًا`/`أ–ي`, `よく使う順`/`あ–ん`,
+  `사용 빈도순`/`가–하`, `ใช้บ่อยที่สุด`/`ก–ฮ`, `dùng nhiều nhất`/`A–Z theo tên`, `最常用`/`依字母`.
+  `TagOrder::label()` stays in `sortlens-catalog` as the English key the enum names — the shell simply no
+  longer paints it, the way the cull screen words itself from the engine's pieces rather than its sentences.
+- **The second defect was not one.** The entry claimed every section count was clipped at the panel's left
+  edge. Measured on the committed frame, the count's ink runs x 1079..1088 while the sidebar's background
+  starts at 1072, so the numbers are cramped against the edge, not cut by it — `nav_row`'s right-aligned anchor
+  at `end_x - 6` already mirrors correctly. Nothing in `nav_row` changed, and the new test pins the counts
+  wholly inside their clip so a later mirroring that does move them out fails there.
+- **The test proves the collision.** `the_rtl_sidebar_keeps_its_heading_and_counts_inside_the_panel` paints the
+  1280×800 shell headless through `Context::run_ui` in Arabic and reads the text shapes' own rects: the heading
+  must lie wholly at the reading start of the toggle, and every Arabic-Indic count in the sidebar must be
+  wholly inside the clip its panel paints with. Put the old shape back (`if false && is_rtl`) and it fails
+  naming both rects — heading `[1183,330]-[1262,341]` against toggle `[1202,334]-[1272,345]`, a 60-point
+  overlap — so the assertion is about the defect, not about a shape that happens to look right.
+- **Verified.** `cargo xtask ci` green (fmt, clippy on every target, the workspace suite, layers, roots,
+  assets, fonts, version, attribution, a11y, docs, templates, workflows); `cargo xtask screenshots` painted
+  29 scenes green and rewrote exactly the two frames that changed, `rtl-library-{charcoal,paper}.png`
+  (`618581→661443` and `620935→664151` bytes), both read at 3× on the Keywords band: the heading sits at the
+  right, the toggle at the left with its Arabic word, no overlap, and the keyword rows below did not move;
+  `cargo xtask snapshot` (5 pass) and `cargo xtask deny` (advisories, bans, licenses, sources) green.
+- **Files.** `crates/ui/src/shell.rs` (the header helper, its call site, the test), the six
+  `crates/ui/src/i18n/*.tsv` catalogues, `crates/ui/tests/snapshots/rtl-library-{charcoal,paper}.png`,
+  `docs/ROADMAP.md` (the SL-L07 row) and this file.
+- **Not verified by hand**: nobody has pressed the Arabic toggle with a mouse — the click path is the same
+  `clicked()` branch it was, and the only change on it is where the widget is laid out and which word it
+  paints. The two `lavapipe` baselines are not repainted here: this machine has no Mesa adapter.
+- **Next.** Read this commit's `CI` run first — `gh run list --workflow CI --limit 1 --json
+  databaseId,conclusion,headSha`. Its `screenshots` job is expected red on the two RTL frames: download the
+  artifact (`gh run download <id> -n screenshot-set -D .ci-shots`) and adopt it with
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, then read the two frames. After
+  that, the SL-L07 row's open canvas chrome, smallest first: route the filter strip's `{n} shown` summary and
+  the canvas header's count (`12 photos`) through the catalogues, then its sort value (`Added order`), then
+  the top bar's `Library` and `New collection`. Every one needs a frame, so extend
+  `the_arabic_interface_paints_right_to_left_in_both_themes`'s assertions or add a headless `run_ui` test.
+  No release workflow is in flight.
 ## 2026-11-26 (hundred-and-sixteenth) — the trunk goes green on the Arabic shell's own paint, and the RTL frame names the panel's next two defects
 
 - **Why this came up.** `CI` on `main` was red on `3bd8ecc` (run `45643003091`) with exactly one failing

@@ -1014,6 +1014,16 @@ and none of M9 is closed until the remaining rows are ticked.
   Open: the canvas chrome the RTL frames still paint in English — the top bar's words, the canvas
   header's count and sort value, the filter strip's chips and its `{n} shown` summary, and
   `New collection` — which the row's earlier entries call the unrouted surfaces.
+  The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
+  `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
+  mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
+  row now gives each end its own room, and the toggle's two words are catalogue rows in all six
+  languages — so an Arabic sidebar reads `الأكثر استخدامًا` where it read `most used`, and
+  `TagOrder::label()` stays the English key the catalog crate's callers name rather than what the
+  shell paints. The entry's other RTL claim, that counts were cut at the panel's left edge, did not
+  reproduce: the count's ink runs 1079..1088 in `rtl-library-charcoal.png` while the sidebar's
+  background starts at 1072, so the numbers are cramped, not clipped, and `nav_row` is untouched —
+  the new frame test pins them inside the panel anyway.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -3122,18 +3122,16 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
 
                     folders_section(ui, t, state, engine, actions);
 
-                    ui.horizontal(|ui| {
-                        nav_section(ui, t, tl!("Keywords"));
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui
-                                .add(Button::new(RichText::new(state.tag_order.label()).size(9.5)).frame(false))
-                                .on_hover_text("Switch between most used and A–Z")
-                                .clicked()
-                            {
-                                state.tag_order = state.tag_order.flipped();
-                            }
-                        });
-                    });
+                    // The toggle's word is a catalogue key the way every other painted word is
+                    // (SL-L07): the two orders are English literals here so the audit in
+                    // `i18n.rs` reads them, and a language that has the row says its own word.
+                    let order_word = match state.tag_order {
+                        TagOrder::Count => tl!("most used"),
+                        TagOrder::Name => tl!("A–Z"),
+                    };
+                    if keyword_section_header(ui, t, order_word) {
+                        state.tag_order = state.tag_order.flipped();
+                    }
                     let vocabulary = engine.tag_vocabulary_in(state.tag_order);
                     if vocabulary.is_empty() {
                         hint(ui, t, "Select a photo, press K and type a keyword.");
@@ -10579,6 +10577,43 @@ fn nav_section(ui: &mut Ui, t: &Tokens, title: &str) {
     ui.add_space(2.0);
 }
 
+/// The Keywords heading and its order toggle on one line, each at one end of the row.
+///
+/// Laid out left to right this is the row the sidebar has always painted: `nav_section` inside a
+/// `right_to_left` trailing row. That shape cannot simply be mirrored — right to left `nav_section`
+/// already puts the heading at the reading start, and the trailing layout then keeps painting from
+/// the reading end, so the toggle lands on top of the heading (the hundred-and-sixteenth entry's
+/// first RTL defect). The mirrored branch gives each end its own room: the heading first at the
+/// reading start, the toggle in what is left at the reading end. Left to right the calls are the
+/// ones that were there, in the same order, so no committed baseline moves.
+fn keyword_section_header(ui: &mut Ui, t: &Tokens, order: &str) -> bool {
+    let mut clicked = false;
+    if craft_ui::direction::is_rtl(ui) {
+        ui.add_space(10.0);
+        craft_ui::direction::horizontal(ui, |ui| {
+            ui.label(RichText::new(tl!("Keywords").to_uppercase()).size(9.5).color(t.text_faint));
+            ui.with_layout(craft_ui::direction::trailing(ui), |ui| {
+                clicked = ui
+                    .add(Button::new(RichText::new(order).size(9.5)).frame(false))
+                    .on_hover_text("Switch between most used and A–Z")
+                    .clicked();
+            });
+        });
+        ui.add_space(2.0);
+        return clicked;
+    }
+    ui.horizontal(|ui| {
+        nav_section(ui, t, tl!("Keywords"));
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            clicked = ui
+                .add(Button::new(RichText::new(order).size(9.5)).frame(false))
+                .on_hover_text("Switch between most used and A–Z")
+                .clicked();
+        });
+    });
+    clicked
+}
+
 fn nav_row(ui: &mut Ui, t: &Tokens, icon: crate::icons::Icon, label: &str, count: &str, selected: bool) -> egui::Response {
     let height = NAV_ROW_H;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
@@ -11081,6 +11116,91 @@ mod tests {
         let output = frame(&mut state, egui::RawInput::default());
         let sources = text_rect(&output, "SOURCES").expect("English again");
         assert!(sources.right() < 640.0, "the sidebar is back at the left edge, got {sources:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The right-to-left sidebar's heading row (the hundred-and-sixteenth entry's first RTL
+    /// defect): the Keywords heading and its order toggle were painted on top of each other,
+    /// because `nav_section`'s mirrored label took the whole row and the trailing layout then
+    /// painted the toggle from the reading end inside it. The heading now lies wholly at the
+    /// reading start of its toggle, which is what the first two assertions read.
+    ///
+    /// The entry's second defect — counts cut at the panel's left edge — did not reproduce: in
+    /// `rtl-library-charcoal.png` the count's ink runs 1079..1088 while the sidebar's background
+    /// starts at 1072, so the numbers were cramped, not clipped, and nothing changed there. The
+    /// counts are still asserted wholly inside their clip below, so a future mirroring that moves
+    /// them out of the panel fails here rather than in a baseline nobody reads.
+    #[test]
+    fn the_rtl_sidebar_keeps_its_heading_and_counts_inside_the_panel() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-rtl-sidebar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine_cell = std::cell::RefCell::new(Engine::new());
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 800.0))),
+                ..egui::RawInput::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, &mut state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            },
+        );
+        output.textures_delta.clear();
+
+        // A painted rect is what the shape says it painted; the clip is the panel that will cut it.
+        let painted: Vec<(String, Rect, Rect)> = output
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) => Some((
+                    text.galley.text().to_owned(),
+                    text.galley.rect.translate(text.pos.to_vec2()),
+                    clipped.clip_rect,
+                )),
+                _ => None,
+            })
+            .collect();
+        let find = |needle: &str| painted.iter().find(|(text, ..)| text.as_str() == needle).map(|(_, rect, _)| *rect);
+
+        let heading = find(&tl!("Keywords").to_uppercase()).expect("the Keywords heading is painted");
+        let toggle = find(tl!("most used")).expect("the order toggle is painted in the interface language");
+        assert!(
+            heading.intersect(toggle).width() <= 0.5,
+            "the heading and its toggle must not overlap, got {heading:?} and {toggle:?}"
+        );
+        assert!(
+            heading.left() >= toggle.right() - 0.5,
+            "right to left the heading is at the reading start and the toggle at the reading end, \
+             got {heading:?} and {toggle:?}"
+        );
+
+        // The sidebar is the panel at the right edge; its counts are the numbers in it. Each one
+        // must be wholly inside the clip the panel paints with (the guard described above).
+        let counts: Vec<(Rect, Rect)> = painted
+            .iter()
+            .filter(|(text, rect, _)| {
+                rect.left() > 900.0
+                    && !text.is_empty()
+                    && text.chars().all(|ch| ch.is_ascii_digit() || ('\u{660}'..='\u{669}').contains(&ch))
+            })
+            .map(|(_, rect, clip)| (*rect, *clip))
+            .collect();
+        assert!(!counts.is_empty(), "the sidebar paints each row's count");
+        for (rect, clip) in counts {
+            let visible = clip.intersect(rect);
+            assert!(
+                (visible.width() - rect.width()).abs() <= 0.5 && (visible.height() - rect.height()).abs() <= 0.5,
+                "a count at {rect:?} is cut by its clip {clip:?}: it must sit wholly inside the panel"
+            );
+        }
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
