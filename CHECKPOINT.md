@@ -1,6 +1,90 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-fourth) — the two Places baselines were the old footer, and the ninety-second entry was missing its body
+
+- **Why this came up.** `CI` on `main` was red at `b43ddfc` on the `screenshots` job only; `ci` (ubuntu, macos), `deny`,
+  `snapshot` and both `mobile` legs were green, and Windows' leg was still running when this tick read it. The
+  ninety-third entry's Next named the fault exactly: the MBTiles commit regenerated the reference set but not the
+  `lavapipe` set, so `places-charcoal` and `places-paper` were still the pre-MBTiles footer.
+- **The frames came from the run that painted them, not from a local render.** CI's `screenshot-set` artifact for run
+  **45584865662** carries `lavapipe/places-charcoal.new.png` and `places-paper.new.png`, painted by the same Mesa
+  adapter the comparison uses. Both were opened: the only change is the footer's last block, which now ends
+  "Put {z}/{x}/{y} png tiles and an attribution.txt in tests/screenshots/Library/tiles — or a tiles.mbtiles archive
+  with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded." Every other
+  pixel — the coastline, the three map dots, the counts, the bottom bar — is identical to the committed frame, so
+  these are the MBTiles prose arriving in the baseline rather than a rendering drift being papered over.
+- **Why not `cargo xtask screenshots` locally.** A run on this machine compares against `tests/snapshots/<name>.png`
+  (the default set), not `lavapipe/`, because the set is selected by the adapter that painted it. The local gate
+  cannot see this fault; the CI job is the only verifier for a `lavapipe` frame, which is why the change is two
+  committed PNGs and a checkpoint line.
+- **The ninety-second entry lost its body in `b43ddfc`.** That commit's edit replaced the MBTiles heading plus its
+  whole body with the ninety-third heading, leaving an orphan heading above the new entry. The body is restored
+  byte for byte from `6a810cd:CHECKPOINT.md` (verified identical by comparing the first 41 lines against that blob);
+  the only surviving trace had been the ninety-third entry's own reference to what it said.
+- **Files.** `crates/ui/tests/snapshots/lavapipe/places-charcoal.png`,
+  `crates/ui/tests/snapshots/lavapipe/places-paper.png` (the two `.new.png` frames), `CHECKPOINT.md` (restored
+  ninety-second body, this entry). No source, test or manifest changed.
+- **Verified.** Both frames inspected at full size in both themes; the run they come from is green on `ci`, `deny`,
+  `snapshot` and `mobile` and red only on `screenshots`. No local `cargo xtask ci` was spent: the diff is two PNGs
+  and prose, so no Rust gate can move, and the previous commit's run already proves the tree compiles everywhere.
+- **Next.** The pushed commit's `screenshots` job is the thing to read (`gh run list --workflow CI --limit 1`,
+  then one `gh run view <id> --json status,conclusion,jobs`) to confirm it flips green with `mobile` still green.
+  Then the loop is back on the plan: the `craft-ipc` row's reconciliation in `docs/ROADMAP.md` (it still says
+  "there is no second process to talk to", which `sortlens-server` made false), then Phase 5's
+  `docs/AUTONOMOUS_AGENT.md` playbook.
+
+In-flight: no release dispatch (PNG baselines and docs only — no build or release surface). The CI run for this
+commit is the first thing the next tick checks.
+
 ## 2026-11-26 (ninety-second) — an MBTiles basemap opens read-only, and its credit is not optional
+
+- **Why this came up.** The ninety-first entry's Next said the i18n row had no buildable surface left and to take the
+  next unstarted roadmap row instead. The unchecked rows were benchmarks part 2 (hardware), optional MBTiles (needs a
+  SQLite reader) and mobile 3b (external toolchains). MBTiles is the one that needed code, not a machine or a
+  translation pass, so this tick paid its stated price: a read-only SQLite reader, and nothing else.
+- **The reader is `rusqlite` with `bundled`, MIT, one direct dependency added to `sortlens-geo`.** The roadmap deferred
+  MBTiles because a SQLite reader felt large for one format; a hand-written file parser or a shell-out to `sqlite3`
+  would each be worse than a maintained crate that compiles SQLite into the binary and assumes no system library.
+  `docs/ATTRIBUTION.md` names it and `deny.toml`'s existing MIT entry already allows it.
+- **`sortlens_geo::mbtiles::Mbtiles`** opens the archive `SQLITE_OPEN_READ_ONLY`, proves the header with
+  `SELECT count(*) FROM sqlite_master` before anything else, and reads the credit from `metadata.attribution` or, when
+  the archive has none, an `attribution.txt` beside it. The header proof matters: SQLite opens lazily, so without it a
+  text file renamed to `.mbtiles` failed at the attribution query and was reported as a missing credit instead of as
+  the wrong file.
+- **`xyz_to_tms` is the whole correctness of the row.** MBTiles counts `tile_row` from the south; every other reader in
+  this crate counts from the north. `2^z - 1 - y` is applied in one function and pinned by a test that stores row 13
+  at zoom 4 and reads it back through the view's own y = 2; a row past the world is refused rather than wrapping.
+- **`TileSet` is the basemap as the view sees it**: `Folder(Tileset)` or `Archive(Mbtiles)`, with the folder winning
+  when both are present. It answers in bytes, so `places::TileCache` now keys on `(zoom, x, y)` and fetches through
+  `TileSet::tile`, clearing when the source path changes — one library's tiles cannot be painted over another's.
+  The cell needs `Hash`, which `TileCell` now derives.
+- **Engine**: `tileset()` opens the catalog folder when `tiles/` or `tiles.mbtiles` exists, and returns `None` only
+  when neither does; `mbtiles_path()` says where the archive would go. `tiles_dir()` still names the folder for the
+  footer's instructions, which now mention both shapes.
+- **Tests.** Four geo tests: the TMS flip and zoom range, a missing credit naming both the `metadata` row and the file
+  beside it (then a blank file refused), a non-database and an empty archive each refused with their reason, and the
+  row conversion's edges. One engine test builds a real archive with `rusqlite`, reads it through `engine.tileset()`,
+  then proves a `tiles/` folder beside it wins and an archive with no credit is refused. The Places cache test now
+  builds a `tiles/` and asserts one decode per cell, a remembered corrupt tile and a remembered hole; the shell's
+  `places_reports_the_basemap_or_why_there_is_none` still paints every visible cell through the new byte path.
+- **Files**: `crates/geo/src/mbtiles.rs` (new), `crates/geo/src/tiles.rs`, `crates/geo/src/lib.rs`,
+  `crates/engine/src/lib.rs`, `crates/ui/src/places.rs`, `crates/ui/src/shell.rs`, `Cargo.toml`,
+  `crates/geo/Cargo.toml`, `crates/engine/Cargo.toml`, `Cargo.lock`, `docs/ROADMAP.md` (SL-E06 row and the part 3a
+  decision prose), `docs/UX.md` §5.9, `docs/ARCHITECTURE.md` §13, `docs/RELEASE.md`, `docs/ATTRIBUTION.md`, this entry.
+- **Verified locally**: `cargo test -p sortlens-geo` (31), `cargo test -p sortlens-engine basemap` (1) and
+  `cargo test -p sortlens-ui tile` (3) pass, and `cargo clippy -p sortlens-geo --all-targets -- -D warnings` is
+  clean. `cargo xtask ci` stopped once, at clippy, on a nested `if` in `archive_zooms`; the fix and the `rusqlite`
+  0.41 bump (0.30.1's bundled SQLite is CVE-2026-119375) came after it, so `snapshot`, `deny` and `screenshots` were
+  re-run on the fixed tree and all pass (27 scenes). The full ci was not re-run in this tick.
+- **Next**: the i18n row's remaining work is still a translation pass for zh-TW/ko/th/vi and an Arabic-capable font
+  build for RTL screenshots, neither of which a tick can honestly invent; benchmarks part 2 needs hardware and mobile
+  3b needs the Android NDK and Xcode. If none is available next tick, the honest slice is Phase 5 maintenance:
+  read CI for this commit first and fix whatever it names, then the `craft-ipc` row's reconciliation (it says
+  "there is no second process to talk to", which stopped being true when `sortlens-server` shipped).
+
+In-flight: release run **45582509665** was dispatched for `86f8766` (this slice touches `Cargo.toml`, a packaging
+surface). Its result and the push's CI run are the first things the next tick checks.
+
 ## 2026-11-26 (ninety-third) — a hole in the basemap is not a corrupted tile, and that is why the trunk was red
 
 - **Why this came up.** `CI` on `main` was red at `6a810cd` on all three `ci` legs and on `screenshots`. The three
