@@ -108,6 +108,11 @@ applied by `cargo xtask mobile`).
 The bar doubles as the macOS title bar (`craft-window`): the empty area drags the window, and
 double-click follows the system preference. Controls win over the drag.
 
+When the app owns the frame, the bar also *is* the title bar, so it draws the window's three buttons at
+the far end: minimize, maximize — which becomes the restore glyph while the window is maximized — and
+close, which asks the window to close rather than quitting, so the unsaved-changes guard still runs.
+Under a system title bar the shell draws none of them: the OS already did.
+
 Every control is a glyph with a name, tooltip and accessible label; no control in this bar is a word
 that a picture can carry. The value chips that used to sit here (theme, density, layout, motion) are
 gone: density and layout moved to the canvas header beside the sort, and theme and motion are in

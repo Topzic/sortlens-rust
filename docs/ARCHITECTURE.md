@@ -432,6 +432,11 @@ delete when the preflight plan and the executed count disagrees.
   losing the dock position.
 - Status: bottom-centre toast HUD for confirmations; activity bell opens the job list with
   progress bars, cancel, and error detail.
+- The bar is the title bar when the frame is the app's (`craft-window`'s `Frame::Integrated`), so it draws
+  the window's minimize, maximize/restore and close glyphs at its far end; under a system title bar the OS
+  draws them and the shell draws none. The bar asks rather than commands: `Action::MinimizeWindow`,
+  `ToggleZoom` and `CloseWindow` go to the host, which sends the viewport commands. Close is the system close
+  request, not `Quit`, so the unsaved-changes guard runs first.
 - Empty states are first-class: every view has a title, one sentence, and 1–2 primary buttons
   that run real commands.
 - Destructive dialogs are in-app (themeable, testable, screenshot-able), not native message

@@ -1271,6 +1271,18 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   regenerated: every 1440×900 scene changes only the count's own rect, `filters-*`/`no-matches-*` only its position in
   the two-row strip, and `short-sidebar-*` now wraps `Clear` onto a second row (one strip row taller), read in both
   themes
+- [x] 3B.6 (i) A frame the app draws has the window's three buttons — **shipped 2026-11-24**: under an
+  integrated frame the top bar *is* the title bar, so it draws minimize, maximize/restore and close at the
+  bar's right edge (right-to-left layout, so nothing the shell adds can push them off); under a system title
+  bar it draws none, because two sets of buttons are two answers to one question. Each is a glyph with an
+  AccessKit label, hover tints close with the reject colour and takes the background's ink for the glyph,
+  and the maximize glyph becomes the two-frame restore glyph while the window is maximized (read from
+  `viewport().maximized`). The bar only asks: `Action::MinimizeWindow`/`ToggleZoom`/`CloseWindow` go to the
+  host, which sends the viewport commands; close sends the system close request rather than `Quit`, so the
+  unsaved-changes guard still runs before the window goes. Held by
+  `the_window_buttons_appear_with_the_app_s_own_frame_and_ask_the_host` (no cross where the OS draws them,
+  painted close with the app's frame, the three labels in order, and a press on close asking the window —
+  and not asking for a quit).
 
 ### Phase 4 — Platform, keymap and remote polish (M9–M10)
 

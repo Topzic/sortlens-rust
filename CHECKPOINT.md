@@ -1,5 +1,50 @@
 # Checkpoint
 
+## 2026-11-25 (seventy-first) — a frame the app draws has the window's three buttons (Phase 3, 3B.6 (i))
+
+- **Why this came up.** The shell has been able to run under its own frame since `craft-window`'s
+  `Frame::Integrated` shipped (macOS draws the bar as the title bar, with `title_inset` clearing the traffic
+  lights), but the bar never drew the window's own buttons. Under an integrated frame on Windows and Linux that
+  left a window with no minimize, no maximize and no close on the bar — the frame was the app's and the
+  buttons were nobody's.
+- **The frame decides; the shell draws.** `UiState::captions` is set once by the host from the frame policy
+  (`matches!(decision.frame, Frame::Integrated(_))`) and never guessed by the bar. When it is true the bar
+  paints minimize, maximize/restore and close at its far end: the row is laid out right-to-left, so the
+  buttons are its last children and nothing the shell adds afterwards can push them off. When it is false the
+  bar paints nothing, because the system title bar already drew them.
+- **Each button is a glyph with a name.** A rule, a frame (or the two-frame restore glyph — read from
+  `viewport().maximized` each frame, so a system maximize moves it), and a cross. `caption_button` allocates
+  `CAPTION_W` square, tints hover with `t.hover` — close with `t.reject`, its glyph taking `t.bg` so the
+  cross stays legible on the red — and labels each through `a11y::label_widget` and `on_hover_text`.
+- **The bar asks, the host commands.** `Action::MinimizeWindow`, `ToggleZoom` and `CloseWindow` are what the
+  bar raises; `apps/sortlens` sends `ViewportCommand::Minimized(true)`, `Maximized(!maximized)` and `Close`.
+  Close is deliberately not `Quit`: `Quit` means the unsaved-changes guard was already answered, and this
+  button has not asked — so the window's own close handling runs the guard, exactly as the system button does.
+- **Files.** `crates/ui/src/shell.rs` (`Action`'s three arms, `UiState::captions`, `Caption`,
+  `caption_buttons`, `caption_button`, `caption_glyph`, the bar's right-to-left block, the test);
+  `apps/sortlens/src/main.rs` (`captions` from the frame decision, passed into `App::new`, the three viewport
+  commands); `docs/ROADMAP.md` (3B.6 (i)); `docs/UX.md` §3; `docs/ARCHITECTURE.md` §8.1.
+- **Tests that fail when the behaviour is absent.** One headless `Context::run_ui` test at 1280×800:
+  `the_window_buttons_appear_with_the_app_s_own_frame_and_ask_the_host` walks the painted shapes for diagonal
+  strokes at the bar's right edge (none where the OS draws them, the close cross's two strokes with the app's
+  frame), reads each button's AccessKit label and asserts the order `Minimize`, `Maximize`, `Close`, then
+  presses close's centre and asserts `Action::CloseWindow` was raised and `Action::Quit` was not.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; `cargo test -p sortlens-ui
+  --lib the_window_buttons` passes. `cargo xtask ci`, `snapshot`, `deny` and `screenshots` were run this tick
+  for the commit; the caption glyphs paint only when `captions` is true and no committed scene sets it, so no
+  baseline moves.
+- **Still red on `main`, and these are the next two slices.** The `CI` workflow run `45536458391` (sha
+  `85da2b4`) failed two jobs, both for reasons that predate this entry: `screenshots` (13 of 23 scenes differ
+  on Mesa's software Vulkan — six commits of red the loop never looked at, because it only watched `release`)
+  and `mobile (ubuntu-latest, android)` (`cc-rs` cannot find `aarch64-linux-android-clang`; the NDK is
+  installed but no `CC_aarch64_linux_android`/`AR_aarch64_linux_android` points at it). The caption slice does
+  not touch either.
+- **Next.** Take the red trunk first, as the loop's rules say. `screenshots`: the baselines are painted on
+  this machine's GPU and compared on a runner with none, so no tolerance can honestly bridge them — the fix is
+  a per-rasteriser baseline set (a distinct directory for the lavapipe render) plus the CI job uploading the
+  `.new` images it paints so the next tick commits them. Then `mobile`'s android leg: give `cargo xtask
+  mobile` the NDK's `CC`/`AR` for the target, the same way the iOS leg inherits Xcode's clang.
+
 ## 2026-11-24 (seventieth) — the phone's font set is trimmed to the languages it ships (Phase 4 item 3b)
 
 - **Why this came up.** The sixty-ninth entry left the roadmap's 3b row with three open items — a device
