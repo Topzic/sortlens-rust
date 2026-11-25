@@ -4800,8 +4800,11 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   the goldens regenerated and **read**, which is how the `--source ai` step was found to be named "a
   source nothing has" while the fixture did have an AI tag (it now asks for `unrecorded`), and how the
   relative `move` destination was found to be refused rather than moved. `cargo xtask ci`, `snapshot`
-  and `deny` green; no screenshot change, since nothing painted changed.
-- **Next.** `docs/ROADMAP.md`'s last buildable honest row: **SL-L08, localised numbers and dates** —
+  and `deny` green (the CI exit code read from a log file, not from a pipeline's); no screenshot change,
+  since nothing painted changed. Because the slice touches `apps/**`, the release workflow was dispatched
+  once on this commit — run `45536428707` — and is checked next tick, not watched.
+- **Next.** Check run `45536428707` with one `gh run view`. Then `docs/ROADMAP.md`'s last buildable honest
+  row: **SL-L08, localised numbers and dates** —
   counts, file sizes and dates are formatted with English rules whatever the picker says. The four other
   catalogues and the RTL screenshots still wait for a translation pass and an Arabic font build.
 
