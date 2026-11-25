@@ -35,16 +35,19 @@
   `crates/engine/src/lib.rs`, `crates/ui/src/places.rs`, `crates/ui/src/shell.rs`, `Cargo.toml`,
   `crates/geo/Cargo.toml`, `crates/engine/Cargo.toml`, `Cargo.lock`, `docs/ROADMAP.md` (SL-E06 row and the part 3a
   decision prose), `docs/UX.md` §5.9, `docs/ARCHITECTURE.md` §13, `docs/RELEASE.md`, `docs/ATTRIBUTION.md`, this entry.
-- **Verified locally**: `cargo test -p sortlens-geo mbtiles` (4), `cargo test -p sortlens-engine basemap` (1) and
-  `cargo test -p sortlens-ui tile` (3) pass; the full gates ran in this tick — see the note below.
+- **Verified locally**: `cargo test -p sortlens-geo` (31), `cargo test -p sortlens-engine basemap` (1) and
+  `cargo test -p sortlens-ui tile` (3) pass, and `cargo clippy -p sortlens-geo --all-targets -- -D warnings` is
+  clean. `cargo xtask ci` stopped once, at clippy, on a nested `if` in `archive_zooms`; the fix and the `rusqlite`
+  0.41 bump (0.30.1's bundled SQLite is CVE-2026-119375) came after it, so `snapshot`, `deny` and `screenshots` were
+  re-run on the fixed tree and all pass (27 scenes). The full ci was not re-run in this tick.
 - **Next**: the i18n row's remaining work is still a translation pass for zh-TW/ko/th/vi and an Arabic-capable font
   build for RTL screenshots, neither of which a tick can honestly invent; benchmarks part 2 needs hardware and mobile
   3b needs the Android NDK and Xcode. If none is available next tick, the honest slice is Phase 5 maintenance:
   read CI for this commit first and fix whatever it names, then the `craft-ipc` row's reconciliation (it says
   "there is no second process to talk to", which stopped being true when `sortlens-server` shipped).
 
-In-flight: a release workflow dispatch is recorded below once the push lands — this slice touches `Cargo.toml`, so it
-is a packaging surface. The push's CI run is the first thing the next tick checks.
+In-flight: release run **45582509665** was dispatched for `86f8766` (this slice touches `Cargo.toml`, a packaging
+surface). Its result and the push's CI run are the first things the next tick checks.
 
 ## 2026-11-26 (ninety-first) — the shortcut editor speaks the interface language, because the crate's own string list became the audit
 
