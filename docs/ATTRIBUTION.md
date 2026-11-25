@@ -62,6 +62,7 @@ These are the crates a manifest actually asks for and the build links.
 | `tract-onnx` | MIT OR Apache-2.0 | Pure-Rust ONNX inference for the pinned models; `sortlens-ai` only, desktop only, offline |
 | `flate2` | MIT OR Apache-2.0 | Decompressing the shipped CLIP BPE vocabulary in `crates/ai/src/tokenize.rs`; desktop only, offline |
 | `prost` | MIT OR Apache-2.0 | ONNX protobuf assembly for the synthetic models the inference tests run; `sortlens-testkit` and test code only |
+| `rusqlite` | MIT | Read-only access to an optional MBTiles basemap (`bundled` SQLite, so no system library is assumed); `sortlens-geo` only, never written to |
 
 `craft-tiff`, `craft-jpeg`, `craft-image-codecs` and `craft-raw` sit below the UI layer on purpose: they
 decode pixels and know nothing about a window, so the CLI and the phone app can use them too.

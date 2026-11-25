@@ -8,6 +8,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use sortlens_geo::TileCell;
+use sortlens_geo::tiles::TileSet;
+
 /// The zoom a map opens at: a country and its neighbours, which is the scale a photo library's spread is legible at.
 pub const DEFAULT_ZOOM: u8 = 5;
 
@@ -225,11 +228,14 @@ pub fn clamp_zoom(wanted: u8, range: (u8, u8)) -> u8 {
 
 /// Decoded tiles, kept between frames.
 ///
-/// A tile that failed to decode is remembered as a failure: a corrupt file in the tiles folder must not be re-decoded
-/// on every repaint, which is how a single bad tile becomes a stutter.
+/// A tile that failed to decode is remembered as a failure: a corrupt file in the tiles folder, or a hole in an
+/// archive, must not be re-read on every repaint, which is how a single bad tile becomes a stutter.
 #[derive(Default)]
 pub struct TileCache {
-    entries: HashMap<PathBuf, Option<egui::TextureHandle>>,
+    /// The basemap the entries came from. A different folder or archive clears the cache rather than painting one
+    /// library's tiles over another's, which is a wrong map with no error message.
+    source: Option<PathBuf>,
+    entries: HashMap<TileCell, Option<egui::TextureHandle>>,
     /// Counted so the cache limit has something to measure rather than a guess.
     decodes: usize,
     failures: usize,
@@ -259,27 +265,32 @@ impl TileCache {
         Self::default()
     }
 
-    /// The texture for one tile, decoding it on first sight.
+    /// The texture for one cell of a basemap, decoding it on first sight.
     ///
-    /// `None` covers both "not there" and "not an image"; the view paints background either way, because a hole in a
-    /// tile set is not an error to report, it is a hole.
-    pub fn texture(&mut self, ctx: &egui::Context, path: &Path) -> Option<&egui::TextureHandle> {
-        if !self.entries.contains_key(path) {
+    /// The bytes come from [`TileSet::tile`], so a folder and an archive are the same path here. `None` covers both
+    /// "not there" and "not an image"; the view paints background either way, because a hole in a tile set is not an
+    /// error to report, it is a hole.
+    pub fn texture(&mut self, ctx: &egui::Context, set: &TileSet, cell: TileCell) -> Option<&egui::TextureHandle> {
+        if self.source.as_deref() != Some(set.path()) {
+            self.entries.clear();
+            self.source = Some(set.path().to_path_buf());
+        }
+        if !self.entries.contains_key(&cell) {
             if self.entries.len() >= CACHE_LIMIT {
                 self.evict();
             }
-            let loaded = self.load(ctx, path);
+            let loaded = set.tile(cell.zoom, cell.x, cell.y).and_then(|bytes| self.load(ctx, cell, &bytes));
             if loaded.is_none() {
                 self.failures += 1;
             }
-            self.entries.insert(path.to_path_buf(), loaded);
+            self.entries.insert(cell, loaded);
         }
-        self.entries.get(path).and_then(Option::as_ref)
+        self.entries.get(&cell).and_then(Option::as_ref)
     }
 
     /// Whether a tile is already decoded, without loading it. Used by tests and by the view's own bookkeeping.
-    pub fn contains(&self, path: &Path) -> bool {
-        self.entries.contains_key(path)
+    pub fn contains(&self, cell: TileCell) -> bool {
+        self.entries.contains_key(&cell)
     }
 
     /// How many tiles are held.
@@ -302,28 +313,29 @@ impl TileCache {
         self.failures
     }
 
-    fn load(&mut self, ctx: &egui::Context, path: &Path) -> Option<egui::TextureHandle> {
+    fn load(&mut self, ctx: &egui::Context, cell: TileCell, bytes: &[u8]) -> Option<egui::TextureHandle> {
         self.decodes += 1;
-        let size = std::fs::metadata(path).ok()?.len();
-        if size == 0 || size > MAX_TILE_BYTES {
+        if bytes.is_empty() || bytes.len() > MAX_TILE_BYTES as usize {
             return None;
         }
-        let bytes = std::fs::read(path).ok()?;
-        let tile = sortlens_thumbs::decode_image(&bytes, 256).ok()?;
+        let tile = sortlens_thumbs::decode_image(bytes, 256).ok()?;
         let image = egui::ColorImage::from_rgba_unmultiplied([tile.width as usize, tile.height as usize], &tile.rgba);
-        Some(ctx.load_texture(format!("tile:{}", path.display()), image, egui::TextureOptions::LINEAR))
+        Some(ctx.load_texture(
+            format!("tile:{}:{}:{}", cell.zoom, cell.x, cell.y),
+            image,
+            egui::TextureOptions::LINEAR,
+        ))
     }
 
     /// Drop half the cache. Textures are cheap to decode again and expensive to keep forever; halving avoids the
     /// thrash of evicting one entry per insertion once the limit is reached.
     fn evict(&mut self) {
-        let doomed: Vec<PathBuf> = self.entries.keys().take(CACHE_LIMIT / 2).cloned().collect();
-        for path in doomed {
-            self.entries.remove(&path);
+        let doomed: Vec<TileCell> = self.entries.keys().take(CACHE_LIMIT / 2).copied().collect();
+        for cell in doomed {
+            self.entries.remove(&cell);
         }
     }
 }
-
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
@@ -496,30 +508,35 @@ mod tests {
     /// A cache decodes a tile once, remembers a bad tile, and does not grow without end.
     #[test]
     fn a_tile_is_decoded_once_and_a_bad_one_is_remembered_as_bad() {
-        let dir = std::env::temp_dir().join(format!("sortlens-tilecache-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("dir");
-        let good = dir.join("good.png");
-        std::fs::write(&good, sortlens_icon::png()).expect("write");
-        let bad = dir.join("bad.png");
+        let root = std::env::temp_dir().join(format!("sortlens-tilecache-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let folder = root.join("tiles");
+        let good = folder.join("3").join("1");
+        std::fs::create_dir_all(&good).expect("dir");
+        std::fs::write(folder.join("attribution.txt"), "© Example Maps").expect("credit");
+        std::fs::write(good.join("2.png"), sortlens_icon::png()).expect("write");
+        let bad = folder.join("3").join("1").join("3.png");
         std::fs::write(&bad, b"not a png").expect("write");
-        let absent = dir.join("absent.png");
+        let set = TileSet::open(&root).expect("a folder with a credit");
+        let png = TileCell { zoom: 3, x: 1, y: 2 };
+        let corrupt = TileCell { zoom: 3, x: 1, y: 3 };
+        let absent = TileCell { zoom: 3, x: 1, y: 4 };
 
         let ctx = egui::Context::default();
         let mut cache = TileCache::new();
         // Uploading needs a frame in progress, so the loads happen inside one.
         let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
-            assert!(cache.texture(ctx, &good).is_some(), "a real png decodes");
-            assert!(cache.texture(ctx, &good).is_some());
+            assert!(cache.texture(ctx, &set, png).is_some(), "a real png decodes");
+            assert!(cache.texture(ctx, &set, png).is_some());
             assert_eq!(cache.decodes(), 1, "the second look is a cache hit");
-            assert!(cache.texture(ctx, &bad).is_none());
-            assert!(cache.texture(ctx, &bad).is_none());
+            assert!(cache.texture(ctx, &set, corrupt).is_none());
+            assert!(cache.texture(ctx, &set, corrupt).is_none());
             assert_eq!(cache.decodes(), 2, "a failed tile is not re-decoded");
             assert_eq!(cache.failures(), 1);
-            assert!(cache.texture(ctx, &absent).is_none());
+            assert!(cache.texture(ctx, &set, absent).is_none());
             assert_eq!(cache.len(), 3, "failures are remembered as failures");
         });
         output.textures_delta.clear();
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

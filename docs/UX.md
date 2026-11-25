@@ -431,15 +431,17 @@ theme's `map_coast` colour. Its credit — "Coastline: Natural Earth 1:110m (pub
 every frame the outline is drawn, exactly as a tile folder's credit is. It is a *schematic*: 1:110m is a world map for
 a wall, so at street zoom the shore is a staircase and there is a footer line saying so.
 
-A **`{z}/{x}/{y}.png` tile folder the person supplies**, in `tiles/` beside the catalog with an `attribution.txt`
-beside it, replaces that outline with a real basemap and wins over it. **The credit is printed over the map every
-frame it is drawn**, bottom-left, and a folder without one is refused outright — an unlabelled map implies the
-application made it. Nothing is downloaded. A tile that is missing or will not decode is painted as background: a hole
-in a tile set is a hole, not a notice.
+A **basemap the person supplies** replaces that outline and wins over it, in whichever of two shapes they have: a
+**`{z}/{x}/{y}.png` tile folder** in `tiles/` beside the catalog with an `attribution.txt` beside it, or a
+**`tiles.mbtiles` archive** (the SQLite format tile downloaders and QGIS write) whose `metadata` carries an
+`attribution` row — or, failing that, an `attribution.txt` beside it. The folder wins when both are present. **The
+credit is printed over the map every frame it is drawn**, bottom-left, and a basemap without one is refused outright —
+an unlabelled map implies the application made it. Nothing is downloaded, and the archive is opened read-only. A tile
+that is missing or will not decode is painted as background: a hole in a tile set is a hole, not a notice.
 
 The footer states what is on the map — "4,182 photo(s) with a location · 96 dot(s) · click a dot to select it" — and
-the state of the basemap: the shipped coastline (with where to put a tile folder to replace it), refused (with the
-reason), or the person's own tiles.
+the state of the basemap: the shipped coastline (with where to put a tile folder or archive to replace it), refused
+(with the reason), or the person's own tiles.
 
 **Names come from the person's own gazetteer.** A `places.txt` beside the catalog, tab-separated
 `name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a dot within
@@ -448,8 +450,8 @@ Brighton (50.82N 0.14W)". A dot with no place near enough says its coordinates �
 true answer and an invented place name is not. The file is re-read when it changes and nothing is
 downloaded; the footer says whether names are in use or why they are not.
 
-**Not here yet:** a real (non-schematic) vector basemap beyond the 1:110m outline — that is what a tile folder is
-for; thumbnail fans inside a dot; a geo-bounds filter on the Library (`library.filter {geoBounds}` does not exist;
+**Not here yet:** a real (non-schematic) vector basemap beyond the 1:110m outline — that is what a tile folder or
+MBTiles archive is for; thumbnail fans inside a dot; a geo-bounds filter on the Library (`library.filter {geoBounds}` does not exist;
 selecting is what a dot does); and label decluttering — a dense gazetteer will overlap its labels, and curating the
 file is the answer until there is a pass that hides colliding ones.
 

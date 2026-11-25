@@ -72,6 +72,9 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 # The pinned 0.23.10 is the exact tract build every model pin was verified to load and run under
 # before its digest was recorded; a different minor may refuse the same files.
 tract-onnx = "=0.23.10"
+# Optional MBTiles basemaps (SL-E06): one read-only SQLite file, with SQLite compiled in so no
+# system library is assumed on any target.
+rusqlite = { version = "0.41", features = ["bundled"] }
 # Test fixtures only: ONNX protobuf assembly for the synthetic models the inference tests run.
 prost = "0.14"
 # The CLIP tokenizer (desktop, with the inference runtime) decompresses the shipped vocabulary.

@@ -659,10 +659,12 @@ remap a moved drive; run the wizard on a clean machine.
 - [x] Places **part 3a**: the basemap decision, made and implemented — **a folder of tiles the person supplies**
   - **The decision**: `{z}/{x}/{y}.png` in a `tiles/` folder beside the catalog, with an `attribution.txt` beside it.
     Chosen over a bundled *real* basemap — satellite or street tiles need map data the project cannot ship free of
-    charge or licensing — and over MBTiles (which would need a SQLite reader in the dependency tree for one format).
-    The layout is what falls out of unzipping any tile archive, so the tiles somebody can legally use are the tiles
-    that work. The one world outline this project *can* ship is the public-domain Natural Earth 1:110m coastline,
-    which arrived later as the starter basemap: 3B.6 (c). A tile folder is still what replaces it.
+    charge or licensing. MBTiles was deferred here for one reason: it needs a SQLite reader in the dependency tree
+    for one format, and a folder covers the same ground without one. That reading shipped later (see the unchecked
+    row below). The layout is what falls out of unzipping any tile archive, so the tiles somebody can legally use are
+    the tiles that work. The one world outline this project *can* ship is the public-domain Natural Earth 1:110m
+    coastline, which arrived later as the starter basemap: 3B.6 (c). A tile folder still replaces it, and a
+    `tiles.mbtiles` archive does too when there is no folder.
   - **The folder is part of the library, not a global setting**: two libraries can have different basemaps, and moving
     a library brings its map with it.
   - **`sortlens_geo::tiles::Tileset::open` refuses a folder without a credit**, with a message naming the file to
@@ -759,7 +761,7 @@ remap a moved drive; run the wizard on a clean machine.
     libraries. **Not verified by hand**: how a dense gazetteer looks — overlapping labels are the file's density
     problem and there is no declutter pass yet — and how a real GeoNames export performs on load.
 - [x] Offline basemap + attribution (B) — SL-E06, part 3a above: a tile folder with a mandatory credit line
-- [ ] Optional MBTiles reading (B) — SL-E06: needs a SQLite reader in the tree; a tile folder covers the same ground without one
+- [x] Optional MBTiles reading (B) — SL-E06 — **shipped 2026-11-26**: `tiles.mbtiles` beside the catalog is read through a read-only SQLite connection (`rusqlite`, bundled, MIT), with `tile_row` converted from TMS to the XYZ row every other reader here uses. The credit comes from `metadata.attribution`, or an `attribution.txt` beside the archive; an archive with neither is refused with the same message rule as a folder. A `tiles/` folder still wins when both exist, and the archive is opened per lookup so nothing is held open between frames.
 - [x] Insights: totals, rating/label/kind distribution, cameras, lenses, keywords, timeline — SL-E08
 - [x] Insights: worker with progress, highlights, months and seasonality (B) — SL-E09..E11
 - [x] Memories: `sortlens-memories` (on this day, this week in past years, never looked at), For You view, `memories.list`, CLI `memories --today` (D,B) — SL-E12
@@ -1205,7 +1207,8 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   counts what it cannot use, and clamps only the six Antarctic points below Mercator's limit — a photograph beyond
   it is still refused, because a coastline is a drawing of land while a coordinate is a claim about a photograph.
   `screen_lines` projects once at zoom 0 and returns only the runs of consecutive segments that touch the viewport. A
-  `tiles/` folder still wins and replaces the outline rather than being drawn over it. `coastline::bounds_centre` and
+  `tiles/` folder still wins, as does a `tiles.mbtiles` archive when no folder exists, and either replaces the outline
+  rather than being drawn over it. `coastline::bounds_centre` and
   `coastline::fit_zoom` replace the fixed opening zoom: Places centres on the **middle of the photographs' spread**
   (the mean of Brighton and Lima is 1,400 km north of it, which pushed the northern dot towards the edge of its own
   fit) and opens at the deepest zoom that still shows every located photograph, which is the reported "opens at zoom
@@ -1213,8 +1216,8 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   refusals and every projected point inside the world square; a walk across the antimeridian is two shores rather
   than a world-wide stripe; refusals are counted; only on-screen segments are returned; the fit shows Brighton and
   Sydney where zoom 5 showed neither; a chosen zoom is never overwritten; and the view paints two dots inside the
-  map with the outline beneath them, and paints neither for the person's own tile folder nor for a library with no
-  location. `places-charcoal`/`-paper` regenerated and read
+  map with the outline beneath them, and paints neither for the person's own tile folder or archive nor for a library
+  with no location. `places-charcoal`/`-paper` regenerated and read
 - [x] 3B.6 (d) The sidebar's sections scroll above the pinned foot — **shipped 2026-11-23 (part 5)**: at 620 px of
   height six scopes, two subfolders and twelve keyword rows are taller than the panel, and the rows used to keep
   laying themselves out past the hairline and paint over the four utility rows. Everything below the `Library`

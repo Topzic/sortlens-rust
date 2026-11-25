@@ -6930,9 +6930,10 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
 
 /// Where the photographs were taken: a coastline under the dots, and the credit on top of it.
 ///
-/// The basemap has two sources, in order. A **tile folder the person supplies** (see `sortlens_geo::tiles`) is a real
-/// map and wins: it is drawn with its own credit line printed over it every frame, and `Tileset` cannot exist without
-/// one. Otherwise the **shipped coastline** — the public-domain Natural Earth 1:110m outline, embedded in
+/// The basemap has three sources, in order. A **tile folder the person supplies** (see `sortlens_geo::tiles`) is a real
+/// map and wins, and an **MBTiles archive** beside the catalog is read when there is no folder; either way the map is
+/// drawn with its own credit line printed over it every frame, and neither source can exist without one. Otherwise the
+/// **shipped coastline** — the public-domain Natural Earth 1:110m outline, embedded in
 /// `sortlens_geo::coastline` — is stroked under the dots, so a first-run library is geography rather than a field of
 /// dots on a blank rectangle. A tile that is missing from a set is painted as background: a hole in a basemap is a
 /// hole, not an error to shout about.
@@ -7024,9 +7025,7 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine) {
             );
             // A tile that is missing or will not decode is a hole, painted as background rather than as a broken
             // image: a partial tile set is a normal thing, and a toast for every gap would bury the map in noise.
-            let texture = set
-                .tile_path(cell.zoom, cell.x, cell.y)
-                .and_then(|path| state.places_tiles.texture(ui.ctx(), &path).map(egui::TextureHandle::id));
+            let texture = state.places_tiles.texture(ui.ctx(), set, cell).map(egui::TextureHandle::id);
             if let Some(id) = texture {
                 painter.image(
                     id,
@@ -7194,21 +7193,22 @@ fn basemap_status(
     ui: &mut Ui,
     t: &Tokens,
     engine: &Engine,
-    tileset: &Option<Result<sortlens_geo::tiles::Tileset, sortlens_geo::tiles::TileError>>,
+    tileset: &Option<Result<sortlens_geo::tiles::TileSet, sortlens_geo::tiles::TileError>>,
 ) {
     match tileset {
         None => {
             ui.add_space(4.0);
             ui.label(
-                RichText::new("Schematic coastline · install a tile folder for a real basemap")
+                RichText::new("Schematic coastline · install a tile folder or an MBTiles archive for a real basemap")
                     .size(10.5)
                     .color(t.text_muted),
             );
             if let Some(dir) = engine.tiles_dir() {
                 ui.label(
                     RichText::new(format!(
-                        "Put {{z}}/{{x}}/{{y}}.png tiles and an attribution.txt in {} to replace the 1:110m \
-                         outline — nothing is downloaded.",
+                        "Put {{z}}/{{x}}/{{y}}.png tiles and an attribution.txt in {} — or a tiles.mbtiles archive \
+                         with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is \
+                         downloaded.",
                         dir.display()
                     ))
                     .size(9.5)

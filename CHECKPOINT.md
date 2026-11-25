@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (ninety-second) — an MBTiles basemap opens read-only, and its credit is not optional
+
+- **Why this came up.** The ninety-first entry's Next said the i18n row had no buildable surface left and to take the
+  next unstarted roadmap row instead. The unchecked rows were benchmarks part 2 (hardware), optional MBTiles (needs a
+  SQLite reader) and mobile 3b (external toolchains). MBTiles is the one that needed code, not a machine or a
+  translation pass, so this tick paid its stated price: a read-only SQLite reader, and nothing else.
+- **The reader is `rusqlite` with `bundled`, MIT, one direct dependency added to `sortlens-geo`.** The roadmap deferred
+  MBTiles because a SQLite reader felt large for one format; a hand-written file parser or a shell-out to `sqlite3`
+  would each be worse than a maintained crate that compiles SQLite into the binary and assumes no system library.
+  `docs/ATTRIBUTION.md` names it and `deny.toml`'s existing MIT entry already allows it.
+- **`sortlens_geo::mbtiles::Mbtiles`** opens the archive `SQLITE_OPEN_READ_ONLY`, proves the header with
+  `SELECT count(*) FROM sqlite_master` before anything else, and reads the credit from `metadata.attribution` or, when
+  the archive has none, an `attribution.txt` beside it. The header proof matters: SQLite opens lazily, so without it a
+  text file renamed to `.mbtiles` failed at the attribution query and was reported as a missing credit instead of as
+  the wrong file.
+- **`xyz_to_tms` is the whole correctness of the row.** MBTiles counts `tile_row` from the south; every other reader in
+  this crate counts from the north. `2^z - 1 - y` is applied in one function and pinned by a test that stores row 13
+  at zoom 4 and reads it back through the view's own y = 2; a row past the world is refused rather than wrapping.
+- **`TileSet` is the basemap as the view sees it**: `Folder(Tileset)` or `Archive(Mbtiles)`, with the folder winning
+  when both are present. It answers in bytes, so `places::TileCache` now keys on `(zoom, x, y)` and fetches through
+  `TileSet::tile`, clearing when the source path changes — one library's tiles cannot be painted over another's.
+  The cell needs `Hash`, which `TileCell` now derives.
+- **Engine**: `tileset()` opens the catalog folder when `tiles/` or `tiles.mbtiles` exists, and returns `None` only
+  when neither does; `mbtiles_path()` says where the archive would go. `tiles_dir()` still names the folder for the
+  footer's instructions, which now mention both shapes.
+- **Tests.** Four geo tests: the TMS flip and zoom range, a missing credit naming both the `metadata` row and the file
+  beside it (then a blank file refused), a non-database and an empty archive each refused with their reason, and the
+  row conversion's edges. One engine test builds a real archive with `rusqlite`, reads it through `engine.tileset()`,
+  then proves a `tiles/` folder beside it wins and an archive with no credit is refused. The Places cache test now
+  builds a `tiles/` and asserts one decode per cell, a remembered corrupt tile and a remembered hole; the shell's
+  `places_reports_the_basemap_or_why_there_is_none` still paints every visible cell through the new byte path.
+- **Files**: `crates/geo/src/mbtiles.rs` (new), `crates/geo/src/tiles.rs`, `crates/geo/src/lib.rs`,
+  `crates/engine/src/lib.rs`, `crates/ui/src/places.rs`, `crates/ui/src/shell.rs`, `Cargo.toml`,
+  `crates/geo/Cargo.toml`, `crates/engine/Cargo.toml`, `Cargo.lock`, `docs/ROADMAP.md` (SL-E06 row and the part 3a
+  decision prose), `docs/UX.md` §5.9, `docs/ARCHITECTURE.md` §13, `docs/RELEASE.md`, `docs/ATTRIBUTION.md`, this entry.
+- **Verified locally**: `cargo test -p sortlens-geo mbtiles` (4), `cargo test -p sortlens-engine basemap` (1) and
+  `cargo test -p sortlens-ui tile` (3) pass; the full gates ran in this tick — see the note below.
+- **Next**: the i18n row's remaining work is still a translation pass for zh-TW/ko/th/vi and an Arabic-capable font
+  build for RTL screenshots, neither of which a tick can honestly invent; benchmarks part 2 needs hardware and mobile
+  3b needs the Android NDK and Xcode. If none is available next tick, the honest slice is Phase 5 maintenance:
+  read CI for this commit first and fix whatever it names, then the `craft-ipc` row's reconciliation (it says
+  "there is no second process to talk to", which stopped being true when `sortlens-server` shipped).
+
+In-flight: a release workflow dispatch is recorded below once the push lands — this slice touches `Cargo.toml`, so it
+is a packaging surface. The push's CI run is the first thing the next tick checks.
+
 ## 2026-11-26 (ninety-first) — the shortcut editor speaks the interface language, because the crate's own string list became the audit
 
 - **Why this came up.** The ninetieth entry's "Next" said `craft-keymap`'s editor chrome "lives in

@@ -38,6 +38,8 @@ craft-update = { git = "https://github.com/storytold/craft-libs", rev = "23acc70
 [dev-dependencies]
 sortlens-testkit = { workspace = true }
 craft-jpeg = { workspace = true }
+# The MBTiles discovery test builds a real archive rather than mocking one.
+rusqlite = { workspace = true }
 
 [lints]
 workspace = true

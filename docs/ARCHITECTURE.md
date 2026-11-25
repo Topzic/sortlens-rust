@@ -924,7 +924,8 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
 - Phones: an APK/AAB from `cargo-apk` and an iOS app linking the `sortlens-mobile` staticlib; no network at runtime.
 - Geography: `assets/coastline.txt` — the Natural Earth 1:110m coastline (public domain), embedded in
   `sortlens-geo` with `include_str!` and stroked under the Places dots with its credit on screen. A `tiles/`
-  folder the person supplies replaces it; nothing is fetched at run time.
+  folder or a `tiles.mbtiles` archive (read-only SQLite, credit in `metadata` or beside it) the person supplies
+  replaces it; nothing is fetched at run time.
 - Icons: our own SVG set (40 monochrome glyphs in `assets/icons/`, prepared by
   `craft_ui::icons::SvgIconSet` and rasterised by `egui_extras`' SVG loader — the one image loader this
   app links), one brand icon in `assets/` whose geometry in `sortlens-icon` is rendered three ways — the

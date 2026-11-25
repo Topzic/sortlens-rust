@@ -20,8 +20,9 @@
 //!   notices long before the code does.
 //! - **The basemap is a coastline that ships, with a tile folder on top.** `coastline::Coastline` embeds the public-domain
 //!   Natural Earth 1:110m outline, so Places has geography with no setup, no download and no licence to negotiate. It is
-//!   a schematic starter, and `tiles::Tileset` — a `{z}/{x}/{y}.png` folder with an `attribution.txt` beside it — is
-//!   what replaces it with a real basemap when the person has one. Nothing is fetched at runtime either way.
+//!   a schematic starter, and `tiles::TileSet` — a `{z}/{x}/{y}.png` folder with an `attribution.txt` beside it, or a
+//!   `tiles.mbtiles` archive with the same credit in its metadata — is what replaces it with a real basemap when the
+//!   person has one. Nothing is fetched at runtime either way.
 //! - **The gazetteer is a file, never a network call.** This crate parses a tab-separated file the user puts in the
 //!   library; it holds no place data of its own and downloads nothing, so the app stays local, and the data's licence
 //!   stays where its attribution can be read.
@@ -179,7 +180,7 @@ pub struct ScreenRect {
 }
 
 /// One tile of the basemap and where it belongs on screen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TileCell {
     /// The zoom level, so a placement can be checked against the set it came from.
     pub zoom: u8,
@@ -549,6 +550,7 @@ impl Gazetteer {
 }
 
 pub mod coastline;
+pub mod mbtiles;
 pub mod tiles;
 
 #[cfg(test)]

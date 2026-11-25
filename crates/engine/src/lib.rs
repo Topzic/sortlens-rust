@@ -2445,20 +2445,28 @@ impl Engine {
 
     /// The basemap, if the library has one.
     ///
-    /// The tile folder is `tiles/` beside the catalog, so a basemap is part of the library rather than a global setting:
-    /// two libraries can have different basemaps, and moving a library brings its map with it. `None` means there is no
-    /// folder; an `Err` means there is one and it cannot be used, and the message says why.
-    pub fn tileset(&self) -> Option<Result<sortlens_geo::tiles::Tileset, sortlens_geo::tiles::TileError>> {
-        let dir = self.dir.as_ref()?.join("tiles");
-        if !dir.exists() {
+    /// A `tiles/` folder beside the catalog wins, and a `tiles.mbtiles` archive is read when there is no folder. Both
+    /// are part of the library rather than a global setting: two libraries can have different basemaps, and moving a
+    /// library brings its map with it. `None` means there is neither; an `Err` means there is one and it cannot be used,
+    /// and the message says why.
+    pub fn tileset(&self) -> Option<Result<sortlens_geo::tiles::TileSet, sortlens_geo::tiles::TileError>> {
+        let dir = self.dir.as_ref()?;
+        let folder = dir.join(sortlens_geo::tiles::TILE_DIR);
+        let archive = dir.join(sortlens_geo::mbtiles::MBTILES_FILE);
+        if !folder.is_dir() && !archive.is_file() {
             return None;
         }
-        Some(sortlens_geo::tiles::Tileset::open(&dir))
+        Some(sortlens_geo::tiles::TileSet::open(dir))
     }
 
     /// Where the tile folder would go, whether or not there is one.
     pub fn tiles_dir(&self) -> Option<PathBuf> {
-        self.dir.as_ref().map(|dir| dir.join("tiles"))
+        self.dir.as_ref().map(|dir| dir.join(sortlens_geo::tiles::TILE_DIR))
+    }
+
+    /// Where the MBTiles archive would go, whether or not there is one.
+    pub fn mbtiles_path(&self) -> Option<PathBuf> {
+        self.dir.as_ref().map(|dir| dir.join(sortlens_geo::mbtiles::MBTILES_FILE))
     }
 
     /// Every photo that has a location, with the coordinate.
@@ -5037,6 +5045,75 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("scan did not finish");
+    }
+
+    /// The basemap is whichever shape the library has: a folder wins, an archive is read when there is no folder,
+    /// and an archive without a credit is refused rather than silently replaced by the outline.
+    #[test]
+    fn a_library_reads_its_basemap_from_a_folder_or_an_mbtiles_archive() {
+        let (temp, engine) = library("basemap-shapes");
+        let archive = engine.mbtiles_path().expect("a catalog directory");
+        let connection = rusqlite::Connection::open(&archive).expect("database");
+        connection
+            .execute_batch(
+                "CREATE TABLE metadata (name TEXT, value TEXT); \
+                 CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);",
+            )
+            .expect("schema");
+        connection
+            .execute("INSERT INTO metadata (name, value) VALUES ('attribution', '© Example Maps')", [])
+            .expect("metadata");
+        connection
+            .execute(
+                "INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (4, 2, 13, ?1)",
+                [b"png bytes".as_slice()],
+            )
+            .expect("tile");
+        drop(connection);
+
+        let set = match engine.tileset() {
+            Some(Ok(set)) => set,
+            other => panic!("expected the archive, got {other:?}"),
+        };
+        assert_eq!(set.kind(), "MBTiles archive");
+        assert_eq!(set.attribution(), "© Example Maps");
+        assert_eq!(set.zoom_range(), (4, 4));
+        // Stored as TMS row 13, which is XYZ y = 2 at zoom 4.
+        assert_eq!(set.tile(4, 2, 2), Some(b"png bytes".to_vec()));
+
+        // A folder beside the archive wins: it is the shape the documentation asks a person to make.
+        let tiles = engine.tiles_dir().expect("a catalog directory");
+        std::fs::create_dir_all(tiles.join("4").join("2")).expect("tiles");
+        std::fs::write(tiles.join("4").join("2").join("2.png"), b"from the folder").expect("tile");
+        std::fs::write(tiles.join("attribution.txt"), "© The Folder").expect("credit");
+        let set = match engine.tileset() {
+            Some(Ok(set)) => set,
+            other => panic!("expected the folder, got {other:?}"),
+        };
+        assert_eq!(set.kind(), "tile folder");
+        assert_eq!(set.attribution(), "© The Folder");
+        drop(temp);
+
+        // An archive with no credit at all is refused, not ignored.
+        let temp = Temp::new("basemap-no-credit");
+        let engine = Engine::open(&temp.0).expect("open");
+        let archive = engine.mbtiles_path().expect("a catalog directory");
+        let connection = rusqlite::Connection::open(&archive).expect("database");
+        connection
+            .execute_batch("CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB);")
+            .expect("schema");
+        connection
+            .execute(
+                "INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) VALUES (1, 0, 0, x'00')",
+                [],
+            )
+            .expect("tile");
+        drop(connection);
+        let error = match engine.tileset() {
+            Some(Err(error)) => error,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        assert!(error.message().contains("attribution"), "{}", error.message());
     }
 
     /// The phone's trash folder is skipped by the scan, so a rejected photograph never
