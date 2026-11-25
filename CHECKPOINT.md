@@ -1,5 +1,50 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixteenth) — the trunk goes green on the Arabic shell's own paint, and the RTL frame names the panel's next two defects
+
+- **Why this came up.** `CI` on `main` was red on `3bd8ecc` (run `45643003091`) with exactly one failing
+  job, `screenshots`: the hundred-and-fifteenth entry committed a changed reference set, so this is the
+  adoption that entry's Next named, and a red trunk is the tick's slice rather than a new roadmap row. The
+  other seven jobs — `ci` on Windows, Ubuntu and macOS, `deny`, `snapshot` and both `mobile` legs — were
+  green.
+- **One artifact, one command.** `gh run download 45643003091 -n screenshot-set` wrote exactly six frames
+  and nothing else — `lavapipe/rtl-library-{charcoal,paper}.new.png` (the two new scenes, reported missing)
+  and `lavapipe/settings-{short,sync}-{charcoal,paper}.new.png` (the four the vendored Arabic face
+  repainted) — so no scene that matched was handed over and none was left behind.
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt <dir>` copied them into
+  `crates/ui/tests/snapshots/lavapipe/`, and every adopted file hashes byte-identical to the artifact's
+  frame (`c1322770…`, `4c415dad…`, `87c70dca…`, `15175684…`, `da952137…`, `71a3177d…`), so each
+  committed baseline is the paint the comparing run reported and not a second paint from this machine.
+- **Read, all six.** The two `rtl-library` scenes paint the Arabic shell right-to-left at 1440×900: sources
+  sidebar at the right edge with `المصادر` and the scope rows right-aligned, inspector and its tool rail
+  mirrored to the left, the bottom bar and utility row Arabic. The four Settings scenes paint the Language
+  row with `العربية` in real glyphs while the untranslated scripts stay boxes (`CRAFT_FONTS_DIR` unset,
+  exactly the harness's documented limit). The diff is the face: four PNGs `91776→90770`, `96760→95522`,
+  `235207→236874`, `248269→249822` bytes.
+- **Two defects the RTL frame puts on record**, read at 3× on the reference frame and present in this set
+  the same way: (a) the Keywords heading and its sort button collide and the button's word is the
+  untranslated `most used` — `shell.rs:3125-3136` paints `nav_section(tl!("Keywords"))` and a
+  right-to-left `Layout` in one `ui.horizontal`, and the label comes from
+  `crates/catalog/src/query.rs:283` `TagOrder::label()`, so mirroring the row and routing the toggle
+  through the catalogue are one slice; (b) every section count (`١٢`, `٢٧`, `٢٥`) is clipped at the
+  panel's left edge, because `nav_row` (`shell.rs:10609`) anchors the count at `end_x -` 6 points and
+  aligns it `RIGHT_CENTER`: in RTL the anchor is the row's left edge and right-aligned text extends past
+  it. Neither is a baseline mismatch; both are painting defects the new frame now proves.
+- **Verified.** `cargo xtask ci` green (fmt, clippy, the workspace suite, layers, roots, assets, fonts,
+  version, attribution, a11y, docs, templates, workflows), `cargo xtask snapshot` (5 pass) and
+  `cargo xtask deny` (advisories, bans, licenses, sources) green. No `cargo xtask screenshots` run: no
+  code changed and the default set this machine compares against is untouched — the lavapipe set only
+  compares under Mesa, which is CI's job, so the next `CI` run on this commit is the proof. No release
+  workflow was dispatched: six baselines and this file touch no workflow, `apps/**`, a `Cargo.toml` or
+  release code.
+- **Files.** The two new and four repainted `crates/ui/tests/snapshots/lavapipe/*.png`; this file.
+- **Not verified by hand**: nothing past the frames — no person has driven the RTL shell with a mouse.
+- **Next.** The RTL row's two visible defects, in that order: mirror the Keywords heading/sort row and route
+  `TagOrder::label()` through the catalogue (ar, ja, ko, th, vi, zh-TW rows — the audit in `i18n.rs` will
+  demand them), then the RTL count anchor in `nav_row`. Both need a frame, so add or extend a headless
+  `run_ui` test that asserts the two rects no longer intersect, and repaint the `rtl-library-*` scenes.
+  Read this commit's `CI` run first — `gh run list --workflow CI --limit 1 --json databaseId,conclusion,headSha`
+  — and adopt its `screenshots` frames if they differ. No release run is in flight.
 ## 2026-11-26 (hundred-and-fifteenth) — the Arabic shell is painted right-to-left, and the harness stops borrowing the machine's fonts
 
 - **Why this came up.** The hundred-and-fourteenth entry's Next was exactly this. `crates/ui/tests/screenshots.rs`
