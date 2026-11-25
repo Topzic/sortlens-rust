@@ -1,5 +1,49 @@
 # Checkpoint
 
+## 2026-11-26 (seventy-ninth) — the screens that delete files ask, warn and count in your language
+
+- **Why this came up.** The seventy-eighth entry's "Next" named the delete confirmation as the
+  worst unrouted surface: its count and its changed-on-disk warning were English on the screen that
+  destroys files, beside mode radios that were already catalogued.
+- **Three confirmations are routed now.** The similar view's delete, the cull batch's Apply and the
+  rejects-bin emptying word their counts as `fmt` templates — `{n} photo(s)`, `{rejects} rejects ·
+  {picks} picks`, `{batches} batch(es), {files} file(s) will lose their restore record.` — so a
+  language is not forced through English's "(s)". The warning about files changed on disk is one
+  key (`changed_on_disk_warning`) shared by both delete dialogs, so the two screens cannot drift
+  apart. A toast is worded when it is raised (`delete_notice`, `apply_notice`,
+  `forgotten_notice`): a toast is momentary, unlike the export receipt that is kept as pieces
+  because it stays on screen across a language switch. The cull foot's staged sentence became one
+  template with `{n}` and `{mode}`, so the mode word lands where a translation's grammar wants it
+  instead of being glued onto an English sentence. English is byte for byte what it was, which is
+  why the screenshot baselines did not move.
+- **The catalogue audit grew teeth.** It read only `tl!` literals; it now reads the
+  `crate::i18n::fmt(` templates too, deduplicated, so a template with no row fails the test
+  instead of quietly painting English. Writing that exposed a trap: a routed key written with a
+  backslash line continuation is read to its closing quote, continuation and indentation included,
+  so the empty-bin sentence was rewritten as one literal — a key no translator could type is a key
+  no catalogue can hold.
+- **Tests.** `the_delete_confirmations_speak_the_interface_language` paints all three dialogs in one
+  frame in English, Japanese and Arabic: it asserts the English words character for character, the
+  Japanese count ("写真 3 枚"), the translated warning and mode ("ゴミ箱へ移動"), the Japanese
+  toast and staged line leaving no English word behind, and Arabic counts in Arabic-Indic digits
+  ("حُذفت ٢ صورة", "نُسي ٢ دفعة تغطي ٧ ملفًا") with no "Deleted" left. It also asserts that
+  opening the dialogs deletes nothing. The audit test covers all eighteen new keys — it failed
+  first on the Japanese `Forgot …` row (written "の記録" where the test reads "復元記録"), and the
+  row was the thing fixed.
+- **Files.** `crates/ui/src/shell.rs` (the five wording helpers, three dialogs, the cull foot, one
+  test), `crates/ui/src/i18n.rs` (the audit reads `fmt` templates), `crates/ui/src/i18n/ja.tsv` and
+  `ar.tsv` (18 rows each), `docs/ROADMAP.md` (M9 and Phase 4 item 2d), `docs/FEATURES.md`,
+  `docs/ARCHITECTURE.md` (8.4).
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean, `cargo xtask ci`
+  green, `cargo xtask snapshot` and `deny` green, and `cargo xtask screenshots` green — the English
+  dialogs are the same pixels, so every baseline matched. No release workflow dispatched: this
+  slice touches no workflow, `xtask`, `Cargo.toml` or release code.
+- **Next.** The remaining dialogs are the next unrouted surface, and *Rename collection* is the
+  smallest of them; then Library health, Recent changes, Quit Sortlens?, Cull summary, Batch
+  applied, Suggested keywords, Keyboard shortcuts and About. After the dialogs: the four remaining
+  catalogues (zh-TW, ko, th, vi) and RTL screenshots, which still wait on a font build with an
+  Arabic face.
+
 ## 2026-11-26 (seventy-eighth) — the export dialog tells you what it will write in your language, because a spec is now its own pieces
 
 - **Why this came up.** The i18n row's open list named "the unrouted surfaces", and the export dialog

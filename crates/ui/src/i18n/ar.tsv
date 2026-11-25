@@ -104,3 +104,21 @@
 	An export is already running, or nothing is selected	تصدير قيد التشغيل، أو لا شيء محدد
 	Cancel	إلغاء
 	Your photos stay where they are; this writes copies into the folder you pick.	تبقى صورك في مكانها؛ يكتب هذا نسخًا في المجلد الذي تختاره.
+	Delete selected photos	حذف الصور المحددة
+	{n} photo(s)	{n} صورة
+	What happens to them	ما سيحدث لها
+	Files that changed on disk since they were indexed stop the whole batch.	الملفات التي تغيّرت على القرص بعد فهرستها توقف الدفعة كلها.
+	Delete	حذف
+	Deleted {n} photo(s)	حُذفت {n} صورة
+	, {n} failed	، وفشلت {n}
+	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	{n} صورة معلّقة. عند التطبيق تكون النتيجة: {mode} — ويمكنك التراجع عنها كخطوة واحدة.
+	Apply cull batch	تطبيق دفعة الفرز
+	{rejects} rejects · {picks} picks	{rejects} مرفوضة · {picks} مختارة
+	What happens to the rejects	ما سيحدث بالمرفوضة
+	Apply	تطبيق
+	Applied {n} photo(s)	طُبّقت على {n} صورة
+	Empty the rejects bin?	إفراغ سلة المرفوضة؟
+	{batches} batch(es), {files} file(s) will lose their restore record.	{batches} دفعة، و{files} ملفًا ستفقد سجل الاستعادة.
+	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	الملفات التي نُقلت بالفعل تبقى في سلة المهملات، والملفات المؤشَّرة فقط تبقى في مكانها. لا يُحذف شيء على القرص هنا، ولا يمكن التراجع عن هذا.
+	Empty bin	إفراغ السلة
+	Forgot {batches} batch(es) covering {files} file(s)	نُسي {batches} دفعة تغطي {files} ملفًا

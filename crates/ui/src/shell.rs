@@ -6534,11 +6534,15 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
             crate::a11y::live_line(ui, &spoken, colour);
 
             if summary.changed() > 0 {
+                // The count and the mode word travel through the catalogues (SL-L07): one template,
+                // so a language can put the mode where its grammar wants it.
                 ui.label(
-                    RichText::new(format!(
-                        "{} photos staged. {} Apply to record the decisions — you can undo it as one step.",
-                        summary.changed(),
-                        state.delete_mode.label().to_lowercase()
+                    RichText::new(crate::i18n::fmt(
+                        "{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.",
+                        &[
+                            ("n", &format_count(summary.changed() as u64)),
+                            ("mode", &state.delete_mode.label().to_lowercase()),
+                        ],
                     ))
                     .size(10.5)
                     .color(t.text_faint),
@@ -7909,6 +7913,45 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
 ///
 /// The dialog says the two things a user needs to trust it: which files, and that the originals are
 /// not touched. Progress comes from the engine's worker, so closing and reopening does not lose it.
+/// A destructive confirmation's count, in the reader's language: one template, because English's
+/// "(s)" is not every language's plural and the digits are the reader's own (SL-L07).
+fn delete_count(photos: usize) -> String {
+    crate::i18n::fmt("{n} photo(s)", &[("n", &format_count(photos as u64))])
+}
+
+/// The sentence every delete confirmation carries: a file that changed on disk stops the batch
+/// before it deletes one of them.
+fn changed_on_disk_warning() -> &'static str {
+    tl!("Files that changed on disk since they were indexed stop the whole batch.")
+}
+
+/// A delete's toast: what it did, and how many files it could not touch. Worded when it is raised —
+/// a toast is momentary, unlike the export receipt that stays on screen across a language switch.
+fn delete_notice(applied: usize, failed: usize) -> String {
+    let mut line = crate::i18n::fmt("Deleted {n} photo(s)", &[("n", &format_count(applied as u64))]);
+    if failed > 0 {
+        line.push_str(&crate::i18n::fmt(", {n} failed", &[("n", &format_count(failed as u64))]));
+    }
+    line
+}
+
+/// A cull batch's toast, worded like `delete_notice`.
+fn apply_notice(applied: usize, failed: usize) -> String {
+    let mut line = crate::i18n::fmt("Applied {n} photo(s)", &[("n", &format_count(applied as u64))]);
+    if failed > 0 {
+        line.push_str(&crate::i18n::fmt(", {n} failed", &[("n", &format_count(failed as u64))]));
+    }
+    line
+}
+
+/// Emptying the bin forgets restore records; this is the count of what will be forgotten.
+fn forgotten_notice(batches: usize, files: usize) -> String {
+    crate::i18n::fmt(
+        "Forgot {batches} batch(es) covering {files} file(s)",
+        &[("batches", &format_count(batches as u64)), ("files", &format_count(files as u64))],
+    )
+}
+
 /// Confirm deleting a set chosen in the similarity view.
 ///
 /// The same three modes a cull batch offers, and the same executor: this dialog exists so that deleting a run of
@@ -7920,50 +7963,38 @@ fn similar_delete_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &
     let ids = state.selection.ids();
     let mut open = true;
     let mut close = false;
-    dialog_window("Delete selected photos")
+    dialog_window(tl!("Delete selected photos"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(380.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(format!("{} photo(s)", ids.len())).size(13.0).strong());
+            ui.label(RichText::new(delete_count(ids.len())).size(13.0).strong());
             ui.add_space(6.0);
-            ui.label(RichText::new("What happens to them").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("What happens to them")).size(11.0).color(t.text_muted));
             for mode in DeleteMode::ALL {
                 if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
                     state.delete_mode = mode;
                 }
             }
             ui.add_space(6.0);
-            ui.label(
-                RichText::new("Files that changed on disk since they were indexed stop the whole batch.")
-                    .size(10.5)
-                    .color(t.text_faint),
-            );
+            ui.label(RichText::new(changed_on_disk_warning()).size(10.5).color(t.text_faint));
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(!ids.is_empty(), Button::new(RichText::new("Delete").size(12.0)))
+                    .add_enabled(!ids.is_empty(), Button::new(RichText::new(tl!("Delete")).size(12.0)))
                     .clicked()
                 {
                     match engine.delete_photos(&ids, state.delete_mode.mode()) {
                         Ok(report) => {
-                            state.notice(format!(
-                                "Deleted {} photo(s){}",
-                                report.applied.len(),
-                                if report.has_failures() {
-                                    format!(", {} failed", report.failed.len())
-                                } else {
-                                    String::new()
-                                }
-                            ));
+                            state.notice(delete_notice(report.applied.len(), report.failed.len()));
                             state.selection.clear();
                         }
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                     close = true;
                 }
-                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Cancel")).size(12.0)).clicked() {
                     close = true;
                 }
             });
@@ -8187,33 +8218,44 @@ fn empty_bin_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut E
     let batch_count = engine.deleted_batches().len();
     let files: usize = engine.deleted_batches().iter().map(|batch| batch.items.len()).sum();
     let mut open = state.empty_bin_open;
-    dialog_window("Empty the rejects bin?")
+    dialog_window(tl!("Empty the rejects bin?"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(360.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(format!("{batch_count} batch(es), {files} file(s) will lose their restore record.")).size(12.0));
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "{batches} batch(es), {files} file(s) will lose their restore record.",
+                    &[
+                        ("batches", &format_count(batch_count as u64)),
+                        ("files", &format_count(files as u64)),
+                    ],
+                ))
+                .size(12.0),
+            );
             ui.add_space(4.0);
             ui.label(
-                RichText::new(
-                    "Files already moved stay in the system Trash; files that were only flagged stay \
-                     where they are. Nothing on disk is deleted here, and this cannot be undone.",
-                )
+                // One literal rather than a continued one: the catalogue audit reads a key by its
+                // opening and closing quote, and a key split across lines would demand a row no
+                // translator could write.
+                RichText::new(tl!(
+                    "Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone."
+                ))
                 .size(10.5)
                 .color(t.text_muted),
             );
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(batch_count > 0, Button::new(RichText::new("Empty bin").size(12.0)))
+                    .add_enabled(batch_count > 0, Button::new(RichText::new(tl!("Empty bin")).size(12.0)))
                     .clicked()
                 {
                     let (batches, files) = engine.forget_all_batches();
-                    state.notice(format!("Forgot {batches} batch(es) covering {files} file(s)"));
+                    state.notice(forgotten_notice(batches, files));
                     state.empty_bin_open = false;
                 }
-                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Cancel")).size(12.0)).clicked() {
                     state.empty_bin_open = false;
                 }
             });
@@ -8575,47 +8617,42 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
         None => (0, 0),
     };
     let mut open = state.apply_open;
-    dialog_window("Apply cull batch")
+    dialog_window(tl!("Apply cull batch"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(380.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(format!("{rejects} rejects · {picks} picks")).size(13.0).strong());
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "{rejects} rejects · {picks} picks",
+                    &[("rejects", &format_count(rejects as u64)), ("picks", &format_count(picks as u64))],
+                ))
+                .size(13.0)
+                .strong(),
+            );
             ui.add_space(6.0);
-            ui.label(RichText::new("What happens to the rejects").size(11.0).color(t.text_muted));
+            ui.label(RichText::new(tl!("What happens to the rejects")).size(11.0).color(t.text_muted));
             for mode in DeleteMode::ALL {
                 if ui.radio(state.delete_mode == mode, mode.label()).clicked() {
                     state.delete_mode = mode;
                 }
             }
             ui.add_space(6.0);
-            ui.label(
-                RichText::new("Files that changed on disk since they were indexed stop the whole batch.")
-                    .size(10.5)
-                    .color(t.text_faint),
-            );
+            ui.label(RichText::new(changed_on_disk_warning()).size(10.5).color(t.text_faint));
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(rejects + picks > 0, Button::new(RichText::new("Apply").size(12.0)))
+                    .add_enabled(rejects + picks > 0, Button::new(RichText::new(tl!("Apply")).size(12.0)))
                     .clicked()
                 {
                     match engine.cull_apply(state.delete_mode.mode()) {
-                        Ok(report) => state.notice(format!(
-                            "Applied {} photo(s){}",
-                            report.applied.len(),
-                            if report.has_failures() {
-                                format!(", {} failed", report.failed.len())
-                            } else {
-                                String::new()
-                            }
-                        )),
+                        Ok(report) => state.notice(apply_notice(report.applied.len(), report.failed.len())),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
                     state.apply_open = false;
                 }
-                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Cancel")).size(12.0)).clicked() {
                     state.apply_open = false;
                 }
             });
@@ -14428,6 +14465,104 @@ mod tests {
         let english_receipt = export_receipt_line(&state.export_receipt.clone().expect("the receipt is set"));
         assert!(english_receipt.starts_with("3 written"), "{english_receipt}");
         assert!(english_receipt.contains("0 skipped"), "{english_receipt}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The delete confirmations speak the interface language (SL-L07). These are the screens that
+    /// destroy files, so the count, the modes and the warning about files changed on disk are read in
+    /// the language the person chose, and the toast that follows says what happened in it too.
+    #[test]
+    fn the_delete_confirmations_speak_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-delete-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.select_many(&[PhotoId(1), PhotoId(2), PhotoId(3)]);
+        state.similar_delete_open = true;
+        state.apply_open = true;
+        state.empty_bin_open = true;
+        // The three confirmations are painted in one frame: a translation that cannot be painted is not
+        // shipped, and the sentences are read from the same helpers the screens paint.
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        similar_delete_dialog(ui, state, &tokens, engine);
+                        apply_dialog(ui, state, &tokens, engine);
+                        empty_bin_dialog(ui, state, &tokens, engine);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+        };
+
+        // English first: the words these dialogs always said, to the character.
+        paint(&ctx, &mut state, &mut engine);
+        assert_eq!(delete_count(3), "3 photo(s)");
+        assert_eq!(
+            changed_on_disk_warning(),
+            "Files that changed on disk since they were indexed stop the whole batch."
+        );
+        assert_eq!(delete_notice(2, 0), "Deleted 2 photo(s)");
+        assert_eq!(delete_notice(2, 1), "Deleted 2 photo(s), 1 failed");
+        assert_eq!(apply_notice(5, 0), "Applied 5 photo(s)");
+        assert_eq!(forgotten_notice(2, 7), "Forgot 2 batch(es) covering 7 file(s)");
+        assert!(state.similar_delete_open, "painting the dialog does not close it");
+        assert!(state.apply_open, "nor the cull batch's");
+        assert!(state.empty_bin_open, "nor the bin's");
+        assert_eq!(engine.deleted_batches().len(), 0, "nothing is deleted by being shown");
+
+        // Japanese: the count's noun, the mode, the warning, the toast and the staged line.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        paint(&ctx, &mut state, &mut engine);
+        assert_eq!(delete_count(3), "写真 3 枚");
+        assert!(
+            changed_on_disk_warning().contains("索引後") && !changed_on_disk_warning().contains("Files that changed"),
+            "the warning is the catalogue's, not English: {}",
+            changed_on_disk_warning()
+        );
+        assert_eq!(DeleteMode::Trash.label(), "ゴミ箱へ移動", "the mode words are the catalogue's");
+        assert_eq!(delete_notice(2, 1), "2 枚の写真を削除しました、1 件失敗");
+        assert_eq!(apply_notice(5, 0), "5 枚の写真に適用しました");
+        assert!(
+            forgotten_notice(2, 7).contains("バッチ") && forgotten_notice(2, 7).contains("復元記録"),
+            "{}",
+            forgotten_notice(2, 7)
+        );
+        let staged = crate::i18n::fmt(
+            "{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.",
+            &[("n", &format_count(2)), ("mode", &DeleteMode::Trash.label().to_lowercase())],
+        );
+        assert!(staged.contains("保留中") && staged.contains("ゴミ箱へ移動"), "{staged}");
+        assert!(!staged.contains("staged"), "the staged line leaves no English behind: {staged}");
+
+        // Arabic: the same pieces in the reader's digits, and not one English word left on a screen
+        // that destroys files.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        paint(&ctx, &mut state, &mut engine);
+        assert!(
+            delete_count(3).contains('٣') && delete_count(3).contains("صورة"),
+            "{}",
+            delete_count(3)
+        );
+        assert!(
+            delete_notice(2, 0).contains('٢') && !delete_notice(2, 0).contains("Deleted"),
+            "{}",
+            delete_notice(2, 0)
+        );
+        assert!(
+            forgotten_notice(2, 7).contains("دفعة") && forgotten_notice(2, 7).contains('٧'),
+            "{}",
+            forgotten_notice(2, 7)
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

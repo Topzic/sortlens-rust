@@ -112,19 +112,25 @@ mod tests {
     #[test]
     fn catalogs_load_and_routed_keys_have_rows() {
         assert!(I18N.check_all().is_empty(), "{:#?}", I18N.check_all());
-        // The English source text `tl!` is called with, read straight out of the module that
-        // routes them — the same audit craft font-manager runs on its own panel.
+        // The English source text the routes are called with, read straight out of the module that
+        // routes them — the same audit craft font-manager runs on its own panel. Both routes are
+        // read: a literal (`tl!`) and a sentence with placeholders (`fmt`), because a template whose
+        // row is missing shows English just as quietly as a missing label does.
         let sources = [include_str!("shell.rs"), include_str!("theme.rs")];
         let mut keys: Vec<String> = Vec::new();
         for source in sources {
-            for part in source.split("tl!(").skip(1) {
-                if let Some(key) = part.trim_start().strip_prefix('"').and_then(|p| p.find('"').map(|end| &p[..end])) {
-                    keys.push(key.to_owned());
+            for marker in ["tl!(", "crate::i18n::fmt("] {
+                for part in source.split(marker).skip(1) {
+                    if let Some(key) = part.trim_start().strip_prefix('"').and_then(|p| p.find('"').map(|end| &p[..end])) {
+                        keys.push(key.to_owned());
+                    }
                 }
             }
         }
+        keys.sort();
+        keys.dedup();
         assert!(
-            keys.len() > 20,
+            keys.len() > 40,
             "only {} routed keys found; the audit is not reading the sources",
             keys.len()
         );

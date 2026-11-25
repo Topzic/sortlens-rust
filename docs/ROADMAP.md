@@ -892,10 +892,15 @@ and none of M9 is closed until the remaining rows are ticked.
   that hides everything read in the chosen language; the export dialog and its receipt followed
   later that day (seventy-eighth entry) by describing a spec from `sortlens-export`'s own
   `Spec::parts`/`Report::parts` instead of its English sentence, so a Japanese dialog writes
-  "品質 82" about the same spec an English receipt reports on. The remaining dialogs are English by
-  omission, not by decision.
-  Open: the other four languages, the remaining dialogs and engine-composed sentences, and RTL
-  screenshots, which need a font build with an Arabic face
+  "品質 82" about the same spec an English receipt reports on. The three screens that destroy files
+  followed (seventy-ninth entry): the similar-view delete, the cull batch's Apply and the
+  rejects-bin emptying word their counts, their modes, their changed-on-disk warning and their
+  toasts through the catalogues, and the catalogue audit now reads `fmt` templates as well as `tl!`
+  literals, so a template with no row fails the test instead of showing English. The remaining
+  dialogs are English by omission, not by decision.
+  Open: the other four languages, the remaining dialogs (rename, health, moves, changes, quit,
+  summary, suggestions, shortcuts, about) and engine-composed sentences, and RTL screenshots,
+  which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
@@ -1402,7 +1407,12 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     `Spec::parts` and `Report::parts`, the pieces its English `summary`/`headline` are joined
     from, so a translated dialog cannot describe numbers the export will not write, and
     `the_export_dialog_and_its_receipt_speak_the_interface_language` paints the dialog in all three
-    languages.
+    languages. The delete confirmations joined them the same day (seventy-ninth entry): the
+    similar-view delete, the cull batch's Apply and the rejects-bin emptying word their counts,
+    modes, their changed-on-disk warning and their toasts through the catalogues, and
+    `the_delete_confirmations_speak_the_interface_language` paints all three in English, Japanese
+    and Arabic. The catalogue audit there reads `tl!` literals *and* `fmt` templates, so a template
+    with no row is a named debt rather than a sentence that silently stays English.
   (B,E)
 - [x] 3. `sortlens-server` (loopback/LAN bind, pairing code → scoped device token, command-registry allow-list,
   resumable uploads) and the device protocol (SL-J01..J09, SL-J05), proved by a two-process loopback

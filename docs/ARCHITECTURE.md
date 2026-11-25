@@ -510,6 +510,14 @@ The export dialog and its receipt are routed the same way, but their numbers com
 translated dialog therefore cannot describe a spec the export will not write, and the receipt is kept
 as those pieces until it is dismissed rather than as a sentence frozen in the language it was set in.
 
+The three confirmations that destroy files are routed too: the similar view's delete, the cull
+batch's Apply and the rejects-bin emptying word their counts through `i18n::fmt` templates (so the
+noun is not forced through English's plural), their modes through `tl!`, and the warning about files
+changed on disk with the same keys everywhere it appears. A toast is worded when it is raised — it is
+momentary, unlike the receipt — while the dialog itself repaints on a language switch. The catalogue
+audit reads both routes, `tl!` literals and `fmt` templates, so a template a translator has no row for
+is a failing test rather than a sentence that quietly stays English.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

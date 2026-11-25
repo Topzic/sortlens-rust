@@ -104,3 +104,21 @@
 	An export is already running, or nothing is selected	書き出し中か、何も選択されていません
 	Cancel	キャンセル
 	Your photos stay where they are; this writes copies into the folder you pick.	写真はそのままの場所に残ります。選んだフォルダーにコピーを書き出します。
+	Delete selected photos	選択した写真を削除
+	{n} photo(s)	写真 {n} 枚
+	What happens to them	写真の扱い
+	Files that changed on disk since they were indexed stop the whole batch.	索引後にディスク上で変更されたファイルがあると、バッチ全体が中止されます。
+	Delete	削除
+	Deleted {n} photo(s)	{n} 枚の写真を削除しました
+	, {n} failed	、{n} 件失敗
+	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	{n} 枚を保留中。「適用」で{mode}として決定を記録します。元に戻すのは 1 回で済みます。
+	Apply cull batch	選別バッチを適用
+	{rejects} rejects · {picks} picks	却下 {rejects} · ピック {picks}
+	What happens to the rejects	却下された写真の扱い
+	Apply	適用
+	Applied {n} photo(s)	{n} 枚の写真に適用しました
+	Empty the rejects bin?	却下箱を空にしますか？
+	{batches} batch(es), {files} file(s) will lose their restore record.	{batches} バッチ、{files} ファイルの復元記録が失われます。
+	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	移動済みのファイルはシステムのゴミ箱に残り、フラグだけのファイルはそのままです。ディスク上のファイルはここでは削除されず、この操作は元に戻せません。
+	Empty bin	箱を空にする
+	Forgot {batches} batch(es) covering {files} file(s)	{batches} バッチ（{files} ファイル）の復元記録を忘れました
