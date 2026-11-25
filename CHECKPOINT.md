@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-eighth) — the Korean catalogue ships, and the language row gains 한국어
+
+- **Why this came up.** The hundred-and-seventh entry's Next named `ko.tsv` first: the same 754 keys and
+  11 `@plural` counts as `zh-TW.tsv`, in the audit's order, so every routed key already had an English
+  source and three catalogues to answer it.
+- **One catalogue, the same keys in the same order.** `crates/ui/src/i18n/ko.tsv` was built by zipping
+  `zh-TW.tsv`'s keys with Korean translations — 754 key rows, 11 `@plural` rows and the `@id` row, whose
+  name is `한국어`. The header is Korean's own and promises the same thing: a missing row is English,
+  never an error. `I18n::check_all()` parses all 769 lines with no bad row.
+- **Everything the picker needs.** `CATALOGS` gains the catalogue, `LANGUAGES` becomes
+  `en, ar, ja, ko, zh-TW`, `format::STYLES` gains Korea's numbers and dates (comma grouping, `.` decimal,
+  year-first `2026.10.03 04:00`), and `font_manifest::SHIPPED_LANGUAGE_SCRIPTS` gains `("ko", "Hang")`
+  with `Hang` added to `PHONE_SCRIPTS` and `fonts::TRANSLATED_SCRIPTS`. A phone build now asks for the
+  Hangul face a Korean interface needs, and `the_shipped_language_table_names_exactly_the_picker_s_languages`
+  holds the table and the picker together.
+- **Tests that fail when the behaviour is absent.** Both catalogue audits now loop `ko` (a routed key with
+  no row, or the shortcut editor's 175 strings and 11 counts, fails); the picker test expects `한국어`
+  between `日本語` and `繁體中文` and asserts Korean resolves left-to-right; the formatting tests pin
+  `12,408` and `2026.10.03 04:00`; and the headless
+  `the_language_switch_moves_the_sidebar_to_the_reading_start` gained a Korean leg that paints `소스` and
+  `모든 사진`, finds no English behind them, and asserts the panels stay at the left edge. 34
+  language-filtered tests, both audits and the format/font tests pass.
+- **Screenshots.** `cargo xtask screenshots --update` regenerated exactly the four Settings baselines
+  (`settings-short-{charcoal,paper}`, `settings-sync-{charcoal,paper}`); both frames were read: the
+  Language row now carries English plus four names and does not overflow. This machine has no CJK or
+  Hangul face embedded, so the four non-English names paint as boxes in the committed reference set —
+  the same honest state `ar`/`ja`/`zh-TW` have always had here; CI's lavapipe set embeds craft-fonts and
+  paints them.
+- **Docs reconciled in the same commit.** ROADMAP's SL-L07 row gained the Korean paragraph and now names
+  only `th`/`vi` as open; its M9 state line and Phase 4 history dropped `zh-TW`/`ko`; UX.md §11 gained the
+  Korean paragraph and the same two-language remainder.
+- **Verified.** `cargo fmt --all -- --check`, `cargo clippy -p sortlens-ui --all-targets -- -D warnings`,
+  `cargo xtask snapshot` and `cargo xtask deny` green; `cargo xtask ci` stopped at its first step on
+  formatting, which was fixed with `cargo fmt --all`; its rerun then ran 212 workspace tests and found
+  one wrong expectation — this tick had listed `Hang` after `Hani` in the manifest test, and the
+  coverage list follows `SHIPPED_LANGUAGE_SCRIPTS` order (`Hang` before `Hani`). Fixed; the eight
+  font-manifest tests pass, and every remaining `ci` step (layers, roots, assets, fonts, version,
+  attribution, a11y, docs, templates, workflows) was then run and is green. No release
+  workflow was dispatched: the slice touches `crates/ui/**` and docs only, not a workflow, `apps/**`, a
+  `Cargo.toml` or release code.
+- **Next.** Read the CI run for this commit first; `screenshots` is expected red on the four Settings
+  scenes, whose lavapipe baselines still carry four language names. Adopt its `screenshot-set` artifact
+  with `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt <dir>` rather than fetching frames
+  twice. Then `th.tsv` (script `Thai`; add it to `PHONE_SCRIPTS`/`SHIPPED_LANGUAGE_SCRIPTS` and the
+  `format` table), then `vi`.
+
 ## 2026-11-26 (hundred-and-seventh) — a red screenshots run is fixed from its own paint, in one command
 
 - **Why this came up.** The trunk was red on `ef1627b` (`45619063394`) with four lavapipe baselines

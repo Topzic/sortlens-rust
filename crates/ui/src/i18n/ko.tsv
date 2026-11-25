@@ -1,0 +1,769 @@
+# Korean (ko) catalogue for Sortlens' interface — Phase 4 item 2d scaffolding (SL-L07).
+# Format: context<TAB>source<TAB>translation; the shared column of the embedded table is empty,
+# so these are all Sortlens' own rows. A missing row is the English text, never an error.
+@id	language.name	한국어
+	All Photos	모든 사진
+	Recently Added	최근 추가됨
+	Picks	선택
+	Rated	별점 있음
+	Missing	누락
+	Rejects	제외
+	Sources	소스
+	Folders	폴더
+	Subfolders	하위 폴더
+	Keywords	키워드
+	Collections	컬렉션
+	Library	라이브러리
+	Detail	세부 정보
+	Places	장소
+	Details	세부 정보
+	Tags	태그
+	Suggestions	제안
+	Activity	활동
+	Move to the Trash	휴지통으로 이동
+	Tag only, move nothing	태그만 하고 아무것도 이동하지 않음
+	Settings	설정
+	Appearance	모양
+	Backup	백업
+	Shortcuts	단축키
+	Keyword packs	키워드 팩
+	Language	언어
+	Back up library…	라이브러리 백업…
+	Restore into a folder…	폴더로 복원…
+	Edit shortcuts…	단축키 편집…
+	Write XMP sidecars beside photos	사진 옆에 XMP 사이드카 쓰기
+	AI models (local)	AI 모델(로컬)
+	Updates	업데이트
+	More settings arrive with the features they configure.	더 많은 설정은 해당 기능과 함께 제공됩니다.
+	Check Library	라이브러리 확인
+	Recently Deleted	최근 삭제됨
+	Recent Changes	최근 변경 사항
+	Keyboard Shortcuts	키보드 단축키
+	Applying a cull batch	선별 묶음 적용 중
+	Sync & devices	동기화 및 기기
+	Stop serving	제공 중지
+	Start serving	제공 시작
+	Revoke	취소
+	Send to desktop	데스크톱으로 보내기
+	Forget this desktop	이 데스크톱 잊기
+	Desktop address	데스크톱 주소
+	Port	포트
+	Pairing code	페어링 코드
+	Pair	페어링
+	Test connection	연결 테스트
+	Stop sending	전송 중지
+	Send the selection	선택 항목 보내기
+	Remove from this phone once the desktop holds them	데스크톱에 보관된 후 이 휴대폰에서 제거
+	Sending…	전송 중…
+	Welcome to Sortlens	Sortlens에 오신 것을 환영합니다
+	Point it at a folder of photos and it builds a catalog beside your files.	사진 폴더를 지정하면 파일 옆에 카탈로그를 만듭니다.
+	Your files stay put	파일은 그대로 있습니다
+	No upload, no rename, no moving. Sortlens only reads.	업로드, 이름 변경, 이동이 없습니다. Sortlens는 읽기만 합니다.
+	Everything is undoable	모든 작업은 되돌릴 수 있습니다
+	Ratings, flags and keywords live in one log you can step back.	별점, 플래그, 키워드는 되돌릴 수 있는 하나의 기록에 저장됩니다.
+	Rejects wait for you	제외 항목은 확인을 기다립니다
+	Culling stages decisions; nothing is trashed until you apply.	선별은 결정을 보류할 뿐, 적용 전에는 아무것도 휴지통으로 가지 않습니다.
+	Add Folder…	폴더 추가…
+	Not now	나중에
+	JPEG, HEIC, TIFF, PNG, WebP, GIF, camera raw and video — poster frame, length and rate	JPEG, HEIC, TIFF, PNG, WebP, GIF, 카메라 RAW, 동영상 — 포스터 프레임, 길이, 프레임 레이트
+	Indexing…	색인 중…
+	{files} files in {folders} folders so far. Reading sizes and content keys; nothing is moved.	지금까지 {folders}개 폴더의 파일 {files}개. 크기와 콘텐츠 키를 읽는 중이며 아무것도 이동하지 않습니다.
+	scanning	검사 중
+	Found so far	지금까지 찾음
+	Nothing yet	아직 없음
+	Nothing matches these filters	이 필터와 일치하는 항목 없음
+	{n} photograph in this library, and the current filters exclude every one of them.	이 라이브러리에 사진 {n}장이 있지만 현재 필터가 모두 제외합니다.
+	{n} photographs in this library, and the current filters exclude every one of them.	이 라이브러리에 사진 {n}장이 있지만 현재 필터가 모두 제외합니다.
+	Clear filters	필터 지우기
+	Clears the search text and every filter, and forgets the folder scope	검색어와 모든 필터를 지우고 폴더 범위도 해제합니다
+	Export finished	내보내기 완료
+	The originals are where they were; an export only writes copies.	원본은 그대로 있으며 내보내기는 사본만 씁니다.
+	Export	내보내기
+	{n} photo(s) · {spec}	사진 {n}장 · {spec}
+	Format	형식
+	Original	원본
+	A copy: same bytes, same name, no resize and no re-encode.	사본: 같은 바이트, 같은 이름, 크기 조정과 재인코딩 없음.
+	Longest edge	긴 변
+	px · 0 keeps the original size	px · 0은 원본 크기 유지
+	Quality	품질
+	Keep EXIF and IPTC	EXIF 및 IPTC 유지
+	Carries the camera's metadata into the new file	카메라 메타데이터를 새 파일로 가져갑니다
+	PNG is lossless: no quality to pick, and alpha is kept.	PNG는 무손실이라 품질을 고를 필요가 없고 알파도 유지됩니다.
+	If the name is taken	이름이 사용 중이면
+	Skip	건너뛰기
+	Keep both	둘 다 유지
+	Replace	바꾸기
+	quality {n}	품질 {n}
+	{n} px longest edge	긴 변 {n}px
+	without metadata	메타데이터 없이
+	lossless	무손실
+	{n} written	{n}개 씀
+	{n} skipped	{n}개 건너뜀
+	{n} failed	{n}개 실패
+	{done} of {total}	{total}개 중 {done}개
+	Stop	중지
+	Choose folder…	폴더 선택…
+	An export is already running, or nothing is selected	이미 내보내기가 실행 중이거나 선택된 항목이 없습니다
+	Cancel	취소
+	Your photos stay where they are; this writes copies into the folder you pick.	사진은 그대로 있고 선택한 폴더에 사본을 씁니다.
+	Delete selected photos	선택한 사진 삭제
+	{n} photo(s)	사진 {n}장
+	What happens to them	어떻게 처리할지
+	Files that changed on disk since they were indexed stop the whole batch.	색인 이후 디스크에서 변경된 파일이 있으면 전체 작업이 중단됩니다.
+	Delete	삭제
+	Deleted {n} photo(s)	사진 {n}장 삭제됨
+	, {n} failed	, {n}개 실패
+	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	사진 {n}장이 보류되었습니다. {mode} 결정을 기록하려면 적용하세요 — 한 단계로 되돌릴 수 있습니다.
+	Apply cull batch	선별 묶음 적용
+	{rejects} rejects · {picks} picks	제외 {rejects} · 선택 {picks}
+	What happens to the rejects	제외 항목을 어떻게 처리할지
+	Apply	적용
+	Applied {n} photo(s)	사진 {n}장 적용됨
+	Empty the rejects bin?	제외 보관함을 비울까요?
+	{batches} batch(es), {files} file(s) will lose their restore record.	묶음 {batches}개, 파일 {files}개의 복원 기록이 사라집니다.
+	Files already moved stay in the system Trash; files that were only flagged stay where they are. Nothing on disk is deleted here, and this cannot be undone.	이미 이동한 파일은 시스템 휴지통에 남고, 플래그만 된 파일은 그대로 있습니다. 디스크에서 삭제되는 것은 없으며 이 작업은 되돌릴 수 없습니다.
+	Empty bin	보관함 비우기
+	Forgot {batches} batch(es) covering {files} file(s)	묶음 {batches}개, 파일 {files}개의 기록을 지움
+	Rename collection	컬렉션 이름 바꾸기
+	Save	저장
+	Renamed to {name}	{name}(으)로 이름 바꿈
+	About Sortlens	Sortlens 정보
+	Version {version}	버전 {version}
+	Fast, local culling for photographers who shoot thousands of images.	수천 장을 촬영하는 사진가를 위한 빠른 로컬 선별 도구.
+	{commands} commands, {ready} ready today.	명령 {commands}개, 오늘 사용 가능 {ready}개.
+	Library health	라이브러리 상태
+	Catalog files	카탈로그 파일
+	Clean · {photos} photos · seq {seq}	정상 · 사진 {photos}장 · seq {seq}
+	Recoverable · {photos} photos, {records} record(s) replayed	복구 가능 · 사진 {photos}장, 레코드 {records}개 재생됨
+	Needs attention	주의 필요
+	snapshot at seq {seq}	seq {seq}의 스냅샷
+	{n} record(s) replayed	레코드 {n}개 재생됨
+	{n} already covered	{n}개 이미 포함됨
+	{bytes} log bytes	로그 {bytes}
+	none	없음
+	Check integrity	무결성 확인
+	The check replays a copy of the log, so the library itself is never touched.	검사는 로그 사본을 재생하므로 라이브러리 자체는 건드리지 않습니다.
+	Compact	압축
+	Write a fresh snapshot and empty the log; also repairs a torn log tail	새 스냅샷을 쓰고 로그를 비웁니다. 끊긴 로그 끝도 복구합니다
+	Catalog was already compact	카탈로그가 이미 압축되어 있습니다
+	Compacted · {bytes} reclaimed	압축됨 · {bytes} 확보
+	{present} of {checked} files present · {missing} missing	확인한 파일 {checked}개 중 {present}개 있음 · {missing}개 누락
+	Not checked yet.	아직 확인하지 않았습니다.
+	Check library	라이브러리 확인
+	Checked {checked} files · {missing} missing · {changed} changed	파일 {checked}개 확인 · {missing}개 누락 · {changed}개 변경
+	Stats every file and updates the missing badges in one undoable step.	모든 파일을 검사하고 누락 배지를 한 단계로 되돌릴 수 있게 갱신합니다.
+	{n} file(s) changed on disk since they were indexed	색인 이후 디스크에서 파일 {n}개가 변경됨
+	Refresh changed	변경 항목 새로 고침
+	Re-read metadata and identity for exactly those files	해당 파일들의 메타데이터와 식별 정보를 다시 읽습니다
+	Nothing could be refreshed	새로 고칠 항목이 없습니다
+	Refreshed {n} photo(s)	사진 {n}장 새로 고침됨
+	Find moved photos	이동한 사진 찾기
+	No moved photos found under their roots	해당 루트에서 이동한 사진을 찾지 못했습니다
+	Relocated {n} photo(s)	사진 {n}장 위치 재지정됨
+	Matches missing photos by content key under the same root.	같은 루트에서 콘텐츠 키로 누락된 사진을 대조합니다.
+	Point at…	위치 지정…
+	This folder moved or its volume was renamed	이 폴더가 이동했거나 해당 볼륨 이름이 바뀌었습니다
+	{n} photo(s) under {root}	{root} 아래 사진 {n}장
+	Repointing checks a sample of photos in the new folder first.	위치를 다시 지정하기 전에 새 폴더의 사진 일부를 먼저 확인합니다.
+	No photos are waiting on a metadata retry	메타데이터 재시도를 기다리는 사진이 없습니다
+	{n} photo(s) could not be read when indexed	색인할 때 사진 {n}장을 읽지 못했습니다
+	Retry metadata	메타데이터 재시도
+	Try reading EXIF again for the photos that failed	실패한 사진의 EXIF를 다시 읽어 보기
+	Nothing recovered; {remaining} still unreadable	복구된 항목 없음; {remaining}개는 여전히 읽을 수 없습니다
+	Read metadata for {n} photo(s)	사진 {n}장의 메타데이터를 읽음
+	Read {updated}; {remaining} still unreadable	{updated}개를 읽음; {remaining}개는 여전히 읽을 수 없습니다
+	Re-read all without EXIF	EXIF 없는 사진 모두 다시 읽기
+	{n} photo(s) have no camera and no date; try again with the current readers	사진 {n}장에 카메라 정보와 날짜가 없습니다; 현재 리더로 다시 시도하세요
+	Remove missing from library	라이브러리에서 누락 항목 제거
+	Nothing is marked missing	누락으로 표시된 항목이 없습니다
+	Removed {n} missing photo(s) — undo restores them	누락 사진 {n}장 제거됨 — 실행 취소하면 복원됩니다
+	Removes catalog entries only; the files are already gone.	카탈로그 항목만 제거합니다. 파일은 이미 없습니다.
+	Cull summary	선별 요약
+	Nothing to cull	선별할 항목 없음
+	Judged all {total} photos	사진 {total}장을 모두 판정했습니다
+	{judged} of {total} judged	{total}장 중 {judged}장 판정함
+	Deferred	보류됨
+	Not judged	판정 안 함
+	{changed} photo(s) will change on Apply; {deferred} deferral(s) are never written.	적용하면 사진 {changed}장이 변경됩니다; 보류 {deferred}건은 기록되지 않습니다.
+	Apply…	적용…
+	Keep culling	계속 선별
+	Jump to next	다음으로 이동
+	Skip to the first photo without a decision	결정이 없는 첫 사진으로 이동
+	Discard	버리기
+	Drop every staged decision and restore the flags	보류된 결정을 모두 버리고 플래그를 복원합니다
+	Cull discarded	선별 결과 버림
+	Quit Sortlens?	Sortlens를 종료할까요?
+	An index scan is running; the files found so far are not saved yet.	색인 검사가 실행 중이며, 지금까지 찾은 파일은 아직 저장되지 않았습니다.
+	{staged} staged cull decision(s) have not been applied. The session is kept for next time.	보류된 선별 결정 {staged}건이 적용되지 않았습니다. 세션은 다음을 위해 보관됩니다.
+	A similarity pass is running; hashes finished so far are kept.	유사도 작업이 실행 중이며, 지금까지 완료된 해시는 유지됩니다.
+	Keep working	계속 작업
+	Quit anyway	그래도 종료
+	Close the window now; unstaged work is dropped	지금 창을 닫습니다. 보류되지 않은 작업은 사라집니다
+	Indexed {path}	{path} 색인됨
+	Stopped indexing {path}	{path} 색인 중지됨
+	Added {file}	{file} 추가됨
+	Removed {file}	{file} 제거됨
+	Marked photo #{id} as missing	사진 #{id}을(를) 누락으로 표시함
+	Found photo #{id} again	사진 #{id}을(를) 다시 찾음
+	Rated {photos}	{photos} 별점 지정됨
+	Flagged {photos}	{photos} 플래그 지정됨
+	Labelled {photos}	{photos} 라벨 지정됨
+	Set the capture date on {photos}	{photos}의 촬영 날짜 설정됨
+	Keyworded {photos}	{photos}에 키워드 추가됨
+	Recorded where keywords came from on {photos}	{photos}의 키워드 출처를 기록함
+	Stopped suggesting {keywords}	{keywords} 제안 중지됨
+	Found {photos} somewhere else	{photos}을(를) 다른 위치에서 찾음
+	Queued {photos} for a metadata retry	{photos}을(를) 메타데이터 재시도 대기열에 넣음
+	Linked {aliases} keyword alias(es)	키워드 별칭 {aliases}개 연결됨
+	Repointed {from} to {to}	{from}을(를) {to}(으)로 재지정함
+	Created the collection {name}	컬렉션 {name} 만듦
+	Deleted the collection {name}	컬렉션 {name} 삭제함
+	Renamed a collection to {name}	컬렉션 이름을 {name}(으)로 바꿈
+	Collection change: +{added} -{removed}	컬렉션 변경: +{added} -{removed}
+	Set a collection's colour to {colour}	컬렉션 색을 {colour}(으)로 설정함
+	Switched on the “{name}” keyword pack	“{name}” 키워드 팩을 켬
+	Switched off the “{name}” keyword pack	“{name}” 키워드 팩을 끔
+	Measured the sharpness of {photos}	{photos}의 선명도를 측정함
+	Pinned {folder} and set it to {colour}	{folder}을(를) 고정하고 {colour}(으)로 설정함
+	Pinned {folder}	{folder} 고정함
+	Set {folder} to {colour}	{folder}을(를) {colour}(으)로 설정함
+	Cleared the mark on {folder}	{folder}의 표시를 지움
+	{first} (+{others} more change(s))	{first} (변경 {others}건 더)
+	Dismissed nothing	무시한 항목 없음
+	Cleared a collection's colour	컬렉션 색을 지움
+	Starred a collection	컬렉션에 별표함
+	Unstarred a collection	컬렉션 별표를 해제함
+	Changed a collection's sort	컬렉션 정렬을 변경함
+	Changed a collection's search	컬렉션 검색을 변경함
+	Grouped change	묶인 변경
+	Recent changes	최근 변경 사항
+	No changes since the last snapshot.	마지막 스냅샷 이후 변경이 없습니다.
+	Every change is a record in the log; older ones are folded into the snapshot.	모든 변경은 로그의 레코드이며, 오래된 것은 스냅샷에 접혀 들어갑니다.
+	Export report…	보고서 내보내기…
+	Plain text, for a support request	지원 요청용 일반 텍스트
+	The report lists folder and file names; it never includes photo contents.	보고서에는 폴더와 파일 이름이 나열되며 사진 내용은 포함되지 않습니다.
+	no date	날짜 없음
+	Red	빨강
+	Yellow	노랑
+	Green	초록
+	Blue	파랑
+	Purple	보라
+	{n} keyword(s)	키워드 {n}개
+	Batch applied	묶음 적용됨
+	{n} photo handled	사진 {n}장 처리됨
+	{n} photos handled	사진 {n}장 처리됨
+	Moved to the system Trash	시스템 휴지통으로 이동함
+	Left on disk and flagged as rejected	디스크에 두고 제외로 플래그함
+	Moved to {folder}	{folder}(으)로 이동함
+	{n} pick(s) written	선택 {n}개 기록됨
+	Batch {batch} · {n} file(s) kept on disk	묶음 {batch} · 파일 {n}개 디스크에 유지
+	{n} file(s) could not be handled	파일 {n}개를 처리하지 못했습니다
+	Put them back	되돌리기
+	Done	완료
+	Restored the batch	묶음 복원됨
+	Colour	색
+	None	없음
+	Pinned and {colour}	고정됨 · {colour}
+	Pinned to the top	맨 위에 고정됨
+	Folder is {colour}	폴더가 {colour}
+	Folder mark cleared	폴더 표시 지워짐
+	Collection is {colour}	컬렉션이 {colour}
+	{n} collections are {colour}	컬렉션 {n}개가 {colour}
+	Collection colour cleared	컬렉션 색 지워짐
+	Colour cleared on {n} collections	컬렉션 {n}개의 색 지워짐
+	{colour} label	{colour} 라벨
+	{colour} label on {n} photos	사진 {n}장의 {colour} 라벨
+	Colour filter: {colour}	색 필터: {colour}
+	Colour filter: any colour	색 필터: 모든 색
+	Only photos with this colour label — an empty ring means every colour	이 색 라벨이 있는 사진만 — 빈 고리는 모든 색을 뜻합니다
+	No colour label.	색 라벨 없음.
+	Cleared the label	라벨 지움
+	Cleared the label on {n} photos	사진 {n}장의 라벨 지움
+	Show every shortcut	모든 단축키 표시
+	Close the dialog, overlay or detail view	대화 상자, 오버레이 또는 세부 보기 닫기
+	Add a folder to the library	라이브러리에 폴더 추가
+	Rescan the library for changes	변경 사항을 확인하려고 라이브러리 다시 검사
+	New collection	새 컬렉션
+	Open the command palette, or close it	명령 팔레트 열기 또는 닫기
+	Open settings	설정 열기
+	Quit, asking about unsaved work	종료(저장되지 않은 작업 확인)
+	Undo the last change	마지막 변경 실행 취소
+	Redo the last undone change	마지막으로 취소한 변경 다시 실행
+	Flag as picked	선택으로 플래그
+	Flag as rejected	제외로 플래그
+	Clear the flag	플래그 지우기
+	Set the star rating, 0 clearing it	별점 설정, 0은 지움
+	Colour label: red, yellow, green, blue; again to clear	색 라벨: 빨강, 노랑, 초록, 파랑; 다시 누르면 지움
+	Jump to the keyword field	키워드 입력란으로 이동
+	Apply the keyword you last added to the selection	마지막으로 추가한 키워드를 선택 항목에 적용
+	Select one photo; ⌘-click adds or removes, Shift-click takes the run	사진 하나 선택; ⌘ 클릭으로 추가/제거, Shift 클릭으로 연속 선택
+	Select every photo in view	보이는 모든 사진 선택
+	Marquee-select from the grid background	그리드 배경에서 영역 선택
+	Grid layout: justified rows or a square lattice	그리드 배치: 양끝 정렬 행 또는 정사각 격자
+	Open the detail view	세부 보기 열기
+	Start a cull session from the filters	현재 필터로 선별 세션 시작
+	Open insights	인사이트 열기
+	Open the map	지도 열기
+	Open the similar-photo search	유사 사진 검색 열기
+	Next photo in the sorted order	정렬 순서의 다음 사진
+	Previous photo in the sorted order	정렬 순서의 이전 사진
+	Zoom to fit or 1:1	화면 맞춤 또는 1:1로 확대
+	Compare with the next photo	다음 사진과 비교
+	Close the detail view	세부 보기 닫기
+	Keep this photo	이 사진 유지
+	Reject this photo	이 사진 제외
+	Leave it undecided and move on	미결로 두고 넘어가기
+	Mark undecided again	다시 미결로 표시
+	Step back one photo	사진 한 장 뒤로
+	Apply the keyword you last added to this photo	마지막으로 추가한 키워드를 이 사진에 적용
+	Apply the staged rejections	보류된 제외 적용
+	Zoom to fit or 2×	화면 맞춤 또는 2배 확대
+	Pan while zoomed	확대 상태에서 이동
+	Close the compare	비교 닫기
+	Swap the two sides	두 쪽 바꾸기
+	Step the pair together	두 사진 함께 이동
+	Detail view	세부 보기
+	Cull session	선별 세션
+	Compare	비교
+	Anywhere	어디서나
+	Nothing focused, no dialog open.	포커스된 항목도, 열린 대화 상자도 없습니다.
+	D from the grid; Esc closes it.	그리드에서 D; Esc로 닫습니다.
+	C starts a session from the current filters.	C를 누르면 현재 필터로 세션이 시작됩니다.
+	C in the detail view; S swaps sides.	세부 보기에서 C; S로 양쪽을 바꿉니다.
+	Also works with a dialog open.	대화 상자가 열려 있어도 작동합니다.
+	Keyboard shortcuts	키보드 단축키
+	Search keys or actions	키 또는 동작 검색
+	{n} bindings	바인딩 {n}개
+	{bound} of {total} bound	{total}개 중 {bound}개 바인딩됨
+	Nothing is bound to that.	거기에 바인딩된 항목이 없습니다.
+	Scan	검사
+	Previews	미리보기
+	Sidecars	사이드카
+	Similar	유사
+	Insights	인사이트
+	Sharpness	선명도
+	Model	모델
+	Update	업데이트
+	running	실행 중
+	done	완료
+	cancelled	취소됨
+	failed	실패
+	{files} files · {dirs} folders	파일 {files}개 · 폴더 {dirs}개
+	{files} files · {dirs} folders · {unreadable} unreadable	파일 {files}개 · 폴더 {dirs}개 · 읽을 수 없음 {unreadable}개
+	cancelled before committing	확정 전에 취소됨
+	Nothing has run yet. Scans and exports appear here.	아직 실행된 작업이 없습니다. 검사와 내보내기가 여기에 표시됩니다.
+	Indexed	색인됨
+	On disk	디스크에 있음
+	Select a photo to see what its own file and the keyword packs propose.	사진을 선택하면 해당 파일과 키워드 팩이 무엇을 제안하는지 볼 수 있습니다.
+	Nothing to propose for this selection.	이 선택 항목에 제안할 내용이 없습니다.
+	Proposals come from each file's own EXIF and from the keyword packs that are switched on.	제안은 각 파일의 EXIF와 켜져 있는 키워드 팩에서 나옵니다.
+	{proposals} for {photos}	{photos}에 대한 {proposals}
+	{n} proposal	제안 {n}개
+	{n} proposals	제안 {n}개
+	{n} photo	사진 {n}장
+	{n} photos	사진 {n}장
+	Accept all	모두 적용
+	Add every proposal in this family as a keyword, as one undo	이 계열의 모든 제안을 키워드로 추가하며 한 번에 되돌릴 수 있습니다
+	Those keywords are already on every selected photo	해당 키워드는 이미 선택한 모든 사진에 있습니다
+	Added {n} keyword(s) — one undo takes them back	키워드 {n}개 추가됨 — 실행 취소 한 번으로 되돌립니다
+	 · on {photos} of the {selected} selected photos	 · 선택한 {selected}장 중 {photos}장에
+	Don't propose “{tag}” again for these photos — one undo brings it back	이 사진들에 “{tag}”을(를) 다시 제안하지 않습니다 — 실행 취소 한 번으로 되돌립니다
+	“{tag}” was already dismissed	“{tag}”은(는) 이미 무시되었습니다
+	Won't propose “{tag}” again — one undo brings it back	“{tag}”을(를) 다시 제안하지 않습니다 — 실행 취소 한 번으로 되돌립니다
+	“{tag}” is already on every selected photo	“{tag}”은(는) 이미 선택한 모든 사진에 있습니다
+	Added “{tag}” — one undo takes it back	“{tag}” 추가됨 — 실행 취소 한 번으로 되돌립니다
+	{tag} · {percent} from {source}	{tag} · {source}에서 {percent}
+	Suggested	제안됨
+	Suggested keywords	제안된 키워드
+	Clear	지우기
+	Uses what each file says about itself and any keyword packs you switched on.	각 파일이 스스로 밝히는 정보와 켜 둔 키워드 팩을 사용합니다.
+	No proposals yet.	아직 제안이 없습니다.
+	{n} photo(s) with something to suggest	제안할 내용이 있는 사진 {n}장
+	Objects	사물
+	Scene	장면
+	EXIF	EXIF
+	detector	감지기
+	camera	카메라
+	pack	팩
+	caption	캡션
+	Nothing is written while this runs.	실행 중에는 아무것도 기록되지 않습니다.
+	Suggest for the whole library	라이브러리 전체에 제안
+	{percent} from {source} — clicking adds it	{source}에서 {percent} — 클릭하면 추가됩니다
+	Custom	사용자 설정
+	OK	확인
+	Close	닫기
+	Undo	실행 취소
+	Redo	다시 실행
+	Reset All…	모두 재설정…
+	Restore every default shortcut in this set?	이 세트의 모든 기본 단축키를 복원할까요?
+	Reset All	모두 재설정
+	Show:	표시:
+	Filter:	필터:
+	Search:	검색:
+	Search by key	키로 검색
+	All Commands	모든 명령
+	{menu} Menu	{menu} 메뉴
+	Tools	도구
+	{panel} Panel	{panel} 패널
+	Other	기타
+	Fixed Keys	고정 키
+	All	모두
+	With Shortcut	단축키 있음
+	Changed	변경됨
+	Conflicts	충돌
+	No matching commands	일치하는 명령 없음
+	(cycles)	(순환)
+	{label} (cycles)	{label} (순환)
+	{label} (Changed)	{label} (변경됨)
+	Command	명령
+	Commands	명령
+	Detail pane size	세부 창 크기
+	Select a command to see and change its shortcuts	명령을 선택해 단축키를 보고 변경하세요
+	Shortcut	단축키
+	Default	기본값
+	{chord} (Default)	{chord} (기본)
+	{chord} ({scope})	{chord} ({scope} 범위)
+	{label} ({scope})	{label} ({scope} 범위)
+	Application	애플리케이션
+	Current shortcuts:	현재 단축키:
+	New shortcut:	새 단축키:
+	New shortcut: {chord}	새 단축키: {chord}
+	press keys	키를 누르세요
+	{chord} (press again for a double press)	{chord} (두 번 누르려면 다시 누르세요)
+	Type…	입력…
+	Context:	컨텍스트:
+	Assign	지정
+	Use Default	기본값 사용
+	Default: {chord}	기본: {chord}
+	Currently assigned to:	현재 지정 대상:
+	Not assigned	지정되지 않음
+	{label} ({scope}, both work)	{label} ({scope} 모두 작동)
+	Add a shortcut to {label}	{label}에 단축키 추가
+	Remove {chord} from {label}	{label}에서 {chord} 제거
+	Restore the default for {label}	{label}의 기본값 복원
+	{label}: {chord}	{label}: {chord}
+	{label}: press keys	{label}: 키를 누르세요
+	Now used by {label}	이제 {label}에서 사용
+	{label}: {chord} (Now used by {holder})	{label}: {chord} (이제 {holder}에서 사용)
+	the shortcut has no key	단축키에 키가 없습니다
+	unknown modifier {key}	알 수 없는 수정자 {key}
+	modifier {key} given twice	수정자 {key}이(가) 두 번 지정됨
+	key sequences are not supported	키 시퀀스는 지원되지 않습니다
+	the scope name is not valid	컨텍스트 이름이 유효하지 않습니다
+	Keyboard	키보드
+	Keyboard: US	키보드: US
+	Keyboard: US (macOS)	키보드: US(macOS)
+	Control	Control
+	Option	Option
+	Shift	Shift
+	Ctrl	Ctrl
+	Alt	Alt
+	Caps Lock	Caps Lock
+	Win	Win
+	Super	Super
+	Panel or context	패널 또는 컨텍스트
+	Both	둘 다
+	Modifier on	수정자 사용
+	{chord}: {label}	{chord}: {label}
+	Click a key to see its shortcuts	키를 클릭하면 단축키를 볼 수 있습니다
+	Key: {key}	키: {key}
+	Assign to Selected	선택 항목에 지정
+	Assign {chord} to {label}	{chord}을(를) {label}에 지정
+	Select a command first	먼저 명령을 선택하세요
+	Nothing uses this key	이 키를 사용하는 항목 없음
+	⚠ {chord} is used by {label}	⚠ {chord}은(는) {label}에서 사용 중입니다
+	{chord} was removed from {label}	{label}에서 {chord} 제거됨
+	Also used by {label}	{label}에서도 사용
+	{chord} is reserved by the system	{chord}은(는) 시스템 예약 키입니다
+	A command can have at most {n} shortcuts	명령에는 단축키를 최대 {n}개까지 지정할 수 있습니다
+	The scope {scope} is unknown	컨텍스트 {scope}을(를) 알 수 없습니다
+	Too many shortcuts are assigned	지정된 단축키가 너무 많습니다
+	This command is unknown	알 수 없는 명령입니다
+	Take It	가져오기
+	Take It and Go to Conflict	가져오고 충돌로 이동
+	Keep Both	둘 다 유지
+	Go to Conflict	충돌로 이동
+	Cancel the new shortcut	새 단축키 취소
+	Dismiss	무시
+	{key}: no command has this name	{key}: 이 이름의 명령이 없습니다
+	{key}: “{text}” is not a shortcut ({error})	{key}: “{text}”은(는) 단축키가 아닙니다 ({error})
+	{key}: {text} is reserved by the system	{key}: {text}은(는) 시스템 예약입니다
+	{key}: the scope in “{text}” is unknown	{key}: “{text}”의 컨텍스트를 알 수 없습니다
+	{key}: listed more than once	{key}: 두 번 이상 나열됨
+	{key}: part of the entry was dropped	{key}: 항목의 일부가 버려졌습니다
+	Set:	세트:
+	(modified)	(수정됨)
+	New Set…	새 세트…
+	Rename…	이름 바꾸기…
+	Revert Set	세트 되돌리기
+	Import…	가져오기…
+	Export…	내보내기…
+	Summarize…	요약…
+	{title}: {set}	{title}: {set}
+	Create	만들기
+	Rename	이름 바꾸기
+	More	더 보기
+	Name:	이름:
+	Based on:	기준:
+	Current shortcuts	현재 단축키
+	Save changes to “{set}”?	“{set}”의 변경 사항을 저장할까요?
+	Don't Save	저장 안 함
+	Delete the set “{set}”?	세트 “{set}”을(를) 삭제할까요?
+	Keyboard Shortcuts (JSON)	키보드 단축키(JSON)
+	The name is empty, too long or has control characters	이름이 비었거나 너무 길거나 제어 문자가 있습니다
+	A set with this name exists	같은 이름의 세트가 이미 있습니다
+	The set was not found	세트를 찾지 못했습니다
+	Built-in sets cannot be changed	내장 세트는 변경할 수 없습니다
+	There are too many sets	세트가 너무 많습니다
+	This is not a shortcut set file	단축키 세트 파일이 아닙니다
+	This is not a craft-keymap file	craft-keymap 파일이 아닙니다
+	This file is from a newer version (format {n})	이 파일은 더 새로운 버전(형식 {n})입니다
+	The file is too large	파일이 너무 큽니다
+	Import “{set}”	“{set}” 가져오기
+	Set name:	세트 이름:
+	Import	가져오기
+	Cancel Import	가져오기 취소
+	line {n}	{n}번째 줄
+	Will change	변경 예정
+	Not matched	일치하지 않음
+	Unreadable	읽을 수 없음
+	Approximated	근사값
+	{title} ({n})	{title} ({n})
+	Suggestions ({n})	제안 ({n})
+	numeric keypad key read as main key	숫자 키패드 키를 기본 키로 읽음
+	Matched without change	변경 없이 일치
+	Command for {item}	{item}의 명령
+	Choose a command…	명령 선택…
+	no command has this name	이 이름의 명령이 없습니다
+	more than one command fits	둘 이상의 명령이 해당됩니다
+	in a context that is not imported	가져오지 않은 컨텍스트에 있음
+	only a command of the other kind fits (tool or menu command)	다른 종류의 명령만 해당됩니다(도구 또는 메뉴 명령)
+	empty shortcut	빈 단축키
+	the shortcut is too long	단축키가 너무 깁니다
+	unknown key {key}	알 수 없는 키 {key}
+	unsupported modifier {key}	지원되지 않는 수정자 {key}
+	{label} keeps its shortcuts (matched by a panel menu name)	{label}은(는) 단축키를 유지합니다(패널 메뉴 이름으로 일치)
+	Import as New Set	새 세트로 가져오기
+	Imported	가져옴
+	Imported as “{set}”	“{set}”(으)로 가져옴
+	Skipped	건너뜀
+	Taken from other commands	다른 명령에서 가져옴
+	Not changed	변경되지 않음
+	taken by {label}	{label}이(가) 가져감
+	taken by a later entry	뒤의 항목이 가져감
+	reserved by the system	시스템 예약
+	the scope is unknown	컨텍스트를 알 수 없습니다
+	the set's shortcuts could not be added	세트의 단축키를 추가하지 못했습니다
+	the shortcuts could not be removed	단축키를 제거하지 못했습니다
+	Copy Report	보고서 복사
+	Double-press bindings are not read here; record a single chord	여기서는 두 번 누르기 바인딩을 읽지 않습니다. 단일 키 조합을 기록하세요
+	craft-keymap set	craft-keymap 세트
+	Shortcuts saved	단축키 저장됨
+	Imported shortcut set “{name}”	단축키 세트 “{name}” 가져옴
+	Could not import the set: {error}	세트를 가져오지 못했습니다: {error}
+@plural	{n} shortcut is assigned more than once|{n} shortcuts are assigned more than once	단축키 {n}개가 두 번 이상 지정되었습니다
+@plural	{n} saved shortcut could not be used|{n} saved shortcuts could not be used	저장된 단축키 {n}개를 사용할 수 없습니다
+@plural	{n} command will change|{n} commands will change	명령 {n}개가 변경됩니다
+@plural	{n} item without a shortcut|{n} items without a shortcut	단축키가 없는 항목 {n}개
+@plural	{n} item not matched|{n} items not matched	일치하지 않은 항목 {n}개
+@plural	{n} item could not be read|{n} items could not be read	읽을 수 없는 항목 {n}개
+@plural	{n} key read approximately|{n} keys read approximately	대략적으로 읽은 키 {n}개
+@plural	{n} entry cut at a limit|{n} entries cut at a limit	한도에서 잘린 항목 {n}개
+@plural	{n} command changed|{n} commands changed	명령 {n}개 변경됨
+@plural	{n} shortcut also works in another scope|{n} shortcuts also work in another scope	단축키 {n}개가 다른 컨텍스트에서도 작동합니다
+@plural	{n} entry was ignored: too many commands|{n} entries were ignored: too many commands	항목 {n}개를 무시했습니다: 명령이 너무 많습니다
+	Cull	선별
+	No photos match the current filters.	현재 필터와 일치하는 사진이 없습니다.
+	{n} photos in view. Nothing moves until you apply.	보기에 사진 {n}장이 있습니다. 적용하기 전에는 아무것도 이동하지 않습니다.
+	Start culling {n} photos	사진 {n}장 선별 시작
+	Culling {n} photos	사진 {n}장 선별 중
+	P pick · X reject · Space defer · U clear · ◀ back · T last keyword · drag up/down	P 선택 · X 제외 · Space 보류 · U 지우기 · ◀ 뒤로 · T 마지막 키워드 · 위/아래로 끌기
+	{position} of {total}	{total}장 중 {position}
+	Summary	요약
+	End session	세션 종료
+	Discard staged decisions; nothing has been written yet	보류된 결정 버리기; 아직 기록된 것은 없습니다
+	{picked} picked · {rejected} rejected · {deferred} deferred	선택 {picked} · 제외 {rejected} · 보류 {deferred}
+	Up next	다음 예정
+	Session complete	세션 완료
+	Pick	선택
+	Reject	제외
+	Defer	보류
+	Apply rejects…	제외 적용…
+	Reject a photo first; picks and defers need no apply	먼저 사진을 제외하세요. 선택과 보류는 적용할 필요가 없습니다
+	Move picks…	선택 항목 이동…
+	Pick a photo first	먼저 사진을 선택하세요
+	Move the picks into a folder; keeps every rating and keyword	선택 항목을 폴더로 이동합니다. 모든 별점과 키워드를 유지합니다
+	Export picks…	선택 항목 내보내기…
+	Write the picks into a folder; the originals are not touched	선택 항목을 폴더에 씁니다. 원본은 건드리지 않습니다
+	Back	뒤로
+	Remove keyword from this photo	이 사진에서 키워드 제거
+	Add keyword to this photo	이 사진에 키워드 추가
+	Add	추가
+	That keyword is already on this photo	그 키워드는 이미 이 사진에 있습니다
+	Tagged “{tag}”	“{tag}” 태그 지정됨
+	Find similar photos	유사 사진 찾기
+	Hashing…	해시 계산 중…
+	Groups up to date	그룹이 최신 상태입니다
+	Hashing {n} previews	미리보기 {n}개 해시 계산 중
+	{groups} groups · {bits} identical bits	그룹 {groups}개 · 동일 비트 {bits}개
+	strictness	엄격도
+	Match	일치
+	palette	팔레트
+	How far apart two palettes may be, per channel	두 팔레트가 채널별로 얼마나 달라도 되는지
+	Select leftovers in every group ({n})	모든 그룹에서 남는 사진 선택 ({n})
+	Ticks every photo that is not its group's best, so you can review them together	그룹 최고가 아닌 사진을 모두 체크해 함께 검토할 수 있습니다
+	Selected {n} leftover(s) across {groups} group(s)	그룹 {groups}개에서 {n}장 선택됨
+	Delete the {n} selected…	선택한 {n}장 삭제…
+	Moves them to the trash, the rejects folder or a tag, after the same safety checks a cull batch gets	선별 묶음과 같은 안전 검사를 거친 후 휴지통, 제외 폴더 또는 태그로 이동합니다
+	{n} group(s) · nothing selected	그룹 {n}개 · 선택 없음
+	No groups yet	아직 그룹이 없습니다
+	Hash the library to find bursts and re-edits.	라이브러리를 해시해 연사와 재편집을 찾습니다.
+	spread {bits} bits	분포 {bits}비트
+	Select all but the best	최고를 제외한 모두 선택
+	Ticks every photo in this group except the one worth keeping	이 그룹에서 보존할 한 장을 제외하고 모두 체크합니다
+	{n} set aside	{n}장 따로 보관
+	keeping {keep}	{keep} 유지
+	best	최고
+	Removed keyword {tag}	키워드 {tag} 제거됨
+	Structure	구조
+	Either	둘 중 하나
+	Same layout and the same palette — the safe default.	같은 배치와 같은 팔레트 — 안전한 기본값.
+	Same palette anywhere in the frame, whatever the layout.	배치에 관계없이 프레임 어디든 같은 팔레트.
+	Structure or palette; the widest net, more false pairs.	구조 또는 팔레트; 가장 넓은 범위지만 잘못된 짝이 많습니다.
+	Counting	계산 중
+	Recount	다시 계산
+	Count the library again on a worker, reporting progress as it goes	백그라운드 작업자에서 라이브러리를 다시 계산하고 진행 상황을 보고합니다
+	Photos	사진
+	Keyworded	키워드 있음
+	Ratings	별점
+	Unrated	별점 없음
+	Labels	라벨
+	Kinds	종류
+	Images	이미지
+	Raw	RAW
+	Video	동영상
+	Cameras	카메라
+	Lenses	렌즈
+	Timeline	타임라인
+	No capture dates yet	아직 촬영 날짜가 없습니다
+	{n} with no capture date	촬영 날짜 없음 {n}장
+	Months	월
+	Nothing dated yet	아직 날짜가 있는 항목이 없습니다
+	Busiest month	가장 바쁜 달
+	Busiest day	가장 바쁜 날
+	Most used camera	가장 많이 쓴 카메라
+	No capture date	촬영 날짜 없음
+	January	1월
+	February	2월
+	March	3월
+	April	4월
+	May	5월
+	June	6월
+	July	7월
+	August	8월
+	September	9월
+	October	10월
+	November	11월
+	December	12월
+	Winter	겨울
+	Spring	봄
+	Summer	여름
+	Autumn	가을
+	{month} — {count} photo(s) · mostly {season}	{month} — 사진 {count}장 · 대부분 {season}
+	{month} — {count} photo(s)	{month} — 사진 {count}장
+	{date} — {count} photo(s)	{date} — 사진 {count}장
+	{camera} — {count} photo(s)	{camera} — 사진 {count}장
+	{count} photo(s), {percent} of the library	사진 {count}장, 라이브러리의 {percent}
+	Busiest: {month} · mostly {season}	가장 바쁨: {month} · 대부분 {season}
+	Busiest: {month}	가장 바쁨: {month}
+	No photo has a location yet	아직 위치가 있는 사진이 없습니다
+	A camera records where it was in the file's EXIF. Photos taken with location services off, or stripped by another tool, do not have one.	카메라는 위치를 파일의 EXIF에 기록합니다. 위치 서비스를 끄고 찍은 사진이나 다른 도구가 위치 정보를 제거한 사진에는 없습니다.
+	zoom {zoom}	확대 {zoom}
+	{located} photo(s) with a location · {dots} dot(s) · click a dot to select it	위치가 있는 사진 {located}장 · 점 {dots}개 · 점을 클릭해 선택하세요
+	No places.txt — dots show their coordinates	places.txt 없음 — 점에 좌표가 표시됩니다
+	Named from places.txt · {named} place(s) · dots within {km} km borrow a name	places.txt에서 이름 지정됨 · 장소 {named}개 · {km}km 내 점은 이름을 빌려 씁니다
+	Schematic coastline · install a tile folder or an MBTiles archive for a real basemap	개략 해안선 · 실제 배경 지도를 쓰려면 타일 폴더나 MBTiles 아카이브를 설치하세요
+	Put {z}/{x}/{y}.png tiles and an attribution.txt in {dir} — or a tiles.mbtiles archive with an `attribution` metadata row beside it — to replace the 1:110m outline. Nothing is downloaded.	{dir}에 {z}/{x}/{y}.png 타일과 attribution.txt를 넣거나, `attribution` 메타데이터 행이 있는 tiles.mbtiles 아카이브를 옆에 두면 1:110m 윤곽선을 대체합니다. 아무것도 다운로드하지 않습니다.
+	The basemap cannot be used	배경 지도를 사용할 수 없습니다
+	Nothing selected	선택된 항목 없음
+	Pick a photo in the grid, then press D.	그리드에서 사진을 선택한 뒤 D를 누르세요.
+	Back to the grid	그리드로 돌아가기
+	Loading preview…	미리보기 불러오는 중…
+	Previous	이전
+	Next	다음
+	No preview to measure	측정할 미리보기가 없습니다
+	Lookahead	미리 읽기
+	P/X/U flag · 1–5 rate · left/right walk · Z zoom · Esc close	P/X/U 플래그 · 1–5 별점 · 좌/우 이동 · Z 확대 · Esc 닫기
+	Open	열기
+	Hand this file to the desktop's default application	이 파일을 데스크톱 기본 앱으로 열기
+	Show in folder	폴더에서 보기
+	Show this file where it lives on disk	이 파일이 디스크에 있는 위치 표시
+	Write a copy somewhere; the original is not touched	다른 곳에 사본을 씁니다. 원본은 건드리지 않습니다
+	Close  Esc	닫기  Esc
+	Fit  Z	화면 맞춤  Z
+	1:1  Z	실제 크기  Z
+	Swap  S	바꾸기  S
+	Swap which pane is the left one	어느 창이 왼쪽인지 바꾸기
+	Close compare  C	비교 닫기  C
+	Go back to the single photograph	단일 사진으로 돌아가기
+	Compare  C	비교  C
+	Show the next photo beside this one, at the same magnification	같은 배율로 다음 사진을 이 옆에 표시
+	Kind	종류
+	Folder	폴더
+	Size	크기
+	Dimensions	픽셀 크기
+	Camera	카메라
+	Lens	렌즈
+	Exposure	노출
+	Captured	촬영 시각
+	Rating	별점
+	{rating} of 5	5점 중 {rating}
+	Flag	플래그
+	Label	라벨
+	Status	상태
+	missing	누락
+	present	있음
+	Image	이미지
+	pick	선택
+	reject	제외
+	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	1–5로 별점, 0으로 지우기, P로 선택, X로 제외, U로 플래그 해제.
+	Select a photo to see camera, exposure and file details.	사진을 선택하면 카메라, 노출, 파일 세부 정보를 볼 수 있습니다.
+	stars	별
+	label	라벨
+	exposure	노출
+	length	길이
+	size	크기
+	pixels	픽셀
+	{left} vs {right}	{left} 대 {right}
+	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} 대 {right_width}×{right_height}
+	Soft Focus	소프트 포커스
+	A relative cut, never a verdict	상대적 기준일 뿐, 판정이 아닙니다
+	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	선명도는 같은 조명과 같은 초점 거리에서 이 라이브러리 내의 프레임 순위를 매깁니다. 기준은 가장 부드러운 N%를 선택하므로 이 사진들에 상대적일 뿐입니다.
+	Measuring	측정 중
+	Measure sharpness	선명도 측정
+	Decode each photo and measure how much fine detail it has	각 사진을 디코딩해 세부 묘사가 얼마나 많은지 측정합니다
+	{n} photo(s) have no current score	사진 {n}장에 현재 점수가 없습니다
+	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	아직 측정하지 않았습니다. 선명도는 이 라이브러리 프레임의 순위를 매길 뿐 어느 것도 판정하지 않습니다.
+	Softest {percent}% · scores {low} to {high}	가장 부드러운 {percent}% · 점수 {low}–{high}
+	Select {n} photo(s)	사진 {n}장 선택
+	Ticks them in the library, where you can look before you act	라이브러리에서 체크해 두어 직접 확인한 뒤 작업할 수 있습니다
+	Nothing at the cut	기준에 해당하는 항목 없음
+	Nothing is scored yet	아직 점수가 없습니다
+	Every photo scored the same, so a relative cut cannot separate them	모든 사진의 점수가 같아 상대 기준으로 구분할 수 없습니다
+	1 photo at the cut, and {others} others share its score	기준에 1장, 같은 점수 {others}장
+	1 photo at or below the cut	기준 이하 1장
+	{count} photos at or below the cut ({percent}%)	기준 이하 {count}장({percent}%)
+	For You	내게 맞춤
+	On this day	오늘의 그날
+	This week in past years	지난해의 이번 주
+	Never looked at	한 번도 보지 않음
+	Resurfaced by capture date and by what you have not judged yet. Dates are read as UTC.	촬영 날짜와 아직 판정하지 않은 항목을 기준으로 다시 떠오릅니다. 날짜는 UTC로 읽습니다.
+	Nothing to resurface yet	아직 다시 떠올릴 항목이 없습니다
+	Cards appear once photos have capture dates in earlier years, or are a year old and still unrated.	사진에 이전 연도의 촬영 날짜가 있거나, 1년이 지나도록 별점이 없을 때 카드가 나타납니다.
+	{cards} card(s): {kinds}	카드 {cards}개: {kinds}
+	{month} {day}	{month} {day}일
+	{shown} of {total} photos	사진 {total}장 중 {shown}장
+	{count} photo	사진 {count}장
+	{count} photos	사진 {count}장
+	{photos} · since {year}	{photos} · {year}년부터
+	{name} · {kind}	{name} — {kind}

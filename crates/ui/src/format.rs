@@ -38,8 +38,9 @@ pub(crate) enum Order {
 }
 
 /// The styles offered, one per language the picker offers. `en` is the shape the app has always
-/// painted; `ja` is Japan's comma grouping and slash date; `ar` is Egyptian Arabic's
-/// Arabic-Indic digits with `٬` grouping, `٫` decimal and the day first.
+/// painted; `ja` is Japan's comma grouping and slash date; `ko` is Korea's comma grouping and
+/// dotted year-first date; `ar` is Egyptian Arabic's Arabic-Indic digits with `٬` grouping, `٫`
+/// decimal and the day first.
 const STYLES: &[Style] = &[
     Style {
         lang: "en",
@@ -64,6 +65,14 @@ const STYLES: &[Style] = &[
         decimal: '.',
         order: Order::YearMonthDay,
         date_sep: '/',
+    },
+    Style {
+        lang: "ko",
+        zero: '0',
+        group: Some(','),
+        decimal: '.',
+        order: Order::YearMonthDay,
+        date_sep: '.',
     },
     Style {
         lang: "zh-TW",
@@ -240,11 +249,13 @@ mod tests {
     fn numbers_follow_the_language() {
         assert_eq!(count_in(style("en"), 12_408), "12\u{202f}408");
         assert_eq!(count_in(style("ja"), 12_408), "12,408");
+        assert_eq!(count_in(style("ko"), 12_408), "12,408");
         assert_eq!(count_in(style("zh-TW"), 12_408), "12,408");
         assert_eq!(count_in(style("ar"), 12_408), "١٢٬٤٠٨");
         assert_eq!(count_in(style("ar"), 7), "٧");
         assert_eq!(size_in(style("en"), 1_400_000), "1.4 MB");
         assert_eq!(size_in(style("ja"), 1_400_000), "1.4 MB");
+        assert_eq!(size_in(style("ko"), 1_400_000), "1.4 MB");
         assert_eq!(size_in(style("ar"), 1_400_000), "١٫٤ MB");
         assert_eq!(size_in(style("ar"), 812_000_000_000), "٨١٢ GB");
     }
@@ -272,11 +283,13 @@ mod tests {
         let seconds = 1_791_000_000; // 2026-10-03 04:00 UTC
         assert_eq!(date_time_in(style("en"), seconds), "2026-10-03 04:00");
         assert_eq!(date_time_in(style("ja"), seconds), "2026/10/03 04:00");
+        assert_eq!(date_time_in(style("ko"), seconds), "2026.10.03 04:00");
         assert_eq!(date_time_in(style("zh-TW"), seconds), "2026/10/03 04:00");
         assert_eq!(date_time_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦ ٠٤:٠٠");
         // A date on its own is the same day, written the same way, with the time left off.
         assert_eq!(date_in(style("en"), seconds), "2026-10-03");
         assert_eq!(date_in(style("ja"), seconds), "2026/10/03");
+        assert_eq!(date_in(style("ko"), seconds), "2026.10.03");
         assert_eq!(date_in(style("ar"), seconds), "٠٣/١٠/٢٠٢٦");
         // An epoch second far in the past still writes its year at four digits.
         assert_eq!(date_time_in(style("en"), -1_000_000_000), "1938-04-24 22:13");

@@ -8,8 +8,8 @@
 //! The phone's trimmed font set (roadmap 3b) is one of those rules: `CRAFT_FONTS_SCRIPTS` — a
 //! comma- or space-separated list of ISO 15924 codes — narrows the embed to the faces the
 //! shipped interface languages need. A phone binary then leaves out whole families it could
-//! never paint (the manifest's Hangul face, for a build that ships English, Arabic and
-//! Japanese), while a desktop build leaves the variable unset and embeds the whole manifest.
+//! never paint (the manifest's Devanagari face, for a build whose languages are all Latin or
+//! Hangul), while a desktop build leaves the variable unset and embeds the whole manifest.
 
 #![forbid(unsafe_code)]
 
@@ -20,12 +20,12 @@ pub const REQUIRED_SCRIPTS: &[&str] = &["Latn", "Zsym"];
 
 /// The interface languages that ship with a translation, code by script: what
 /// `crate::i18n::LANGUAGES` offers, mapped to the ISO 15924 script each is written in.
-pub const SHIPPED_LANGUAGE_SCRIPTS: &[(&str, &str)] = &[("en", "Latn"), ("ar", "Arab"), ("ja", "Jpan"), ("zh-TW", "Hani")];
+pub const SHIPPED_LANGUAGE_SCRIPTS: &[(&str, &str)] = &[("en", "Latn"), ("ar", "Arab"), ("ja", "Jpan"), ("ko", "Hang"), ("zh-TW", "Hani")];
 
 /// The scripts a phone build's filter must name: the interface's own two plus every shipped
 /// language's. `cargo xtask mobile` passes exactly this list as `CRAFT_FONTS_SCRIPTS`, and the
 /// test below holds it to that definition so adding a language updates both.
-pub const PHONE_SCRIPTS: &[&str] = &["Latn", "Zsym", "Arab", "Jpan", "Hani"];
+pub const PHONE_SCRIPTS: &[&str] = &["Latn", "Zsym", "Arab", "Jpan", "Hang", "Hani"];
 
 /// One non-comment line of craft-fonts' `fonts/manifest.txt`.
 ///
@@ -137,7 +137,7 @@ mod tests {
     use super::*;
 
     /// The shape of the real manifest: Japanese with Latin, an Arabic face for the shipped
-    /// translation, Hangul the shipped languages do not use, and the two symbol faces.
+    /// translation, the Hangul face Korean ships, and the two symbol faces.
     const MANIFEST: &str = "BIZ UDPGothic | Regular | ja/BIZUDPGothic-Regular.ttf | Jpan,Latn\n\
                             BIZ UDPGothic | Bold | ja/BIZUDPGothic-Bold.ttf | Jpan,Latn\n\
                             Noto Naskh Arabic | Regular | ar/NotoNaskhArabic-Regular.ttf | Arab\n\
@@ -174,8 +174,8 @@ mod tests {
         assert!(families.contains(&"BIZ UDPGothic"), "Japanese ships on the phone");
         assert!(families.contains(&"Noto Sans Symbols"), "Zsym is required");
         assert!(families.contains(&"Noto Sans TC"), "Traditional Chinese ships on the phone");
-        assert!(!families.contains(&"NanumGothic"), "no shipped language is Korean");
-        assert_eq!(kept.len(), 6);
+        assert!(families.contains(&"NanumGothic"), "Korean ships on the phone");
+        assert_eq!(kept.len(), 7);
     }
 
     #[test]
@@ -216,7 +216,11 @@ mod tests {
         // Chinese have no face left.
         assert_eq!(
             problems,
-            vec!["the embedded set does not cover Arab", "the embedded set does not cover Hani"]
+            vec![
+                "the embedded set does not cover Arab",
+                "the embedded set does not cover Hang",
+                "the embedded set does not cover Hani"
+            ]
         );
         assert!(
             validate(MANIFEST, &["Latn", "Zsym", "Deva"]).is_err(),

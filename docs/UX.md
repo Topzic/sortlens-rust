@@ -683,7 +683,7 @@ re-checks its own contrast pairs after applying.
   chrome strokes doubled, text at AAA and muted text at AA against its black, with the same WCAG
   measure as the other presets.
 - i18n: every label is an English key; a missing translation is the English itself. The scaffold
-  ships Arabic, Japanese and Traditional Chinese (Settings → Language, persisted) with the direction plumbing: RTL
+  ships Arabic, Japanese, Korean and Traditional Chinese (Settings → Language, persisted) with the direction plumbing: RTL
   mirrors the shell's chrome — the sidebar sits at the reading start, the tool strip and right
   panel at the reading end, rows read from their reading start — and the photo is never mirrored.
   The Welcome card, the indexing screen and the "Nothing matches these filters" screen are
@@ -724,7 +724,12 @@ re-checks its own contrast pairs after applying.
   that language's words, and its numbers and dates are Taiwan's (`12,408`, `2026/10/03 04:00`). Its
   glyphs need a Traditional Han face (`Hani`); the phone's font filter now names that script, and the
   desktop build paints whichever face the craft-fonts manifest supplies.
-  The remaining three languages (ko/th/vi) and the RTL screenshots are open (M9's row); the screenshot
+  Korean joined them the same day (hundred-and-eighth entry): `crates/ui/src/i18n/ko.tsv` answers the
+  same 754 routed keys, 175 shortcut-editor strings and eleven counts, so Settings → Language offers
+  `한국어` beside the other four and every catalogued view paints Hangul, with Korea's numbers and
+  dates (`12,408`, `2026.10.03 04:00`). Its glyphs need a Hangul face (`Hang`); the phone's font
+  filter names that script too.
+  The remaining two languages (th/vi) and the RTL screenshots are open (M9's row); the screenshot
   baselines are the proof a left-to-right interface is unchanged.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal

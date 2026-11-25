@@ -862,7 +862,7 @@ resumable uploads — see the Phase 4 item 3 row), the desktop's own server star
 day, and the device protocol shipped 2026-11-24 with it (`sortlens_remote::client` +
 `Engine::open_memory`, SL-J02's engine and protocol halves — see the Phase 4 item 3 row) while the
 native phone app (`apps/sortlens-mobile`) stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
-Arabic, Japanese and the direction plumbing — see the Phase 4 row — while zh-TW/ko/th/vi, the unrouted
+Arabic, Japanese and the direction plumbing — see the Phase 4 row — while th/vi, the unrouted
 surfaces and the RTL screenshots stay open); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
 
@@ -987,7 +987,13 @@ and none of M9 is closed until the remaining rows are ticked.
   build asks for the Han face a Traditional Chinese interface needs; the face itself comes from the
   craft-fonts checkout, which a desktop build embeds whole when the checkout is present, and neither
   set is committed here.
-  Open: the other three languages (ko/th/vi), which wait for a translation pass, and RTL
+  The Korean catalogue followed (hundred-and-eighth entry): `crates/ui/src/i18n/ko.tsv` answers the
+  same 754 routed keys, the shortcut editor's 175 strings and its eleven `@plural` counts, so
+  Settings → Language offers `한국어` and the sidebar, canvas header and every catalogued dialog
+  paint Hangul — with Korea's numbers and dates (`12,408`, `2026.10.03 04:00`). The font
+  manifest's shipped-language table and the phone's script filter now name `Hang`, so a phone
+  build asks for the Hangul face a Korean interface needs.
+  Open: the other two languages (th/vi), which wait for a translation pass, and RTL
   screenshots, which need a font build with an Arabic face
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
@@ -1489,9 +1495,9 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
     the real Settings widget, `SetLanguage` asked of the host, the sources header measured in the
     right half in Arabic and the left half again in English). All 19 screenshot baselines regenerated
     byte-identical — the proof a left-to-right interface paints exactly what it painted before. Not
-    shipped here, still open under the M9 row: the other four languages the design names (zh-TW, ko,
-    th, vi), the remaining unrouted surfaces, and RTL screenshots of the painted interface, which
-    need an Arabic-capable font build (CI's has none). The export dialog and its receipt joined the
+    shipped here, still open under the M9 row: the two languages the design names that have no
+    catalogue yet (th, vi), the remaining unrouted surfaces, and RTL screenshots of the painted
+    interface, which need an Arabic-capable font build (CI's has none). The export dialog and its receipt joined the
     catalogues on 2026-11-26 (seventy-eighth entry): `sortlens-export` hands the shell
     `Spec::parts` and `Report::parts`, the pieces its English `summary`/`headline` are joined
     from, so a translated dialog cannot describe numbers the export will not write, and

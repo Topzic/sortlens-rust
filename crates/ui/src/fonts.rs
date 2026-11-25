@@ -38,7 +38,8 @@ pub use crate::font_manifest::REQUIRED_SCRIPTS;
 
 /// Scripts a translation would add, each of which needs a face when the language ships.
 pub const TRANSLATED_SCRIPTS: &[&str] = &[
-    "Jpan", "Kore", "Hans", "Hani", "Hebr", "Deva", "Beng", "Guru", "Gujr", "Orya", "Taml", "Telu", "Knda", "Mlym", "Arab", "Thai", "Geor",
+    "Jpan", "Kore", "Hang", "Hans", "Hani", "Hebr", "Deva", "Beng", "Guru", "Gujr", "Orya", "Taml", "Telu", "Knda", "Mlym", "Arab", "Thai",
+    "Geor",
 ];
 
 /// Whether the app was built with craft-fonts.
@@ -164,6 +165,7 @@ mod tests {
         // If this list changes, the keymap's keycaps and the translation plan changed with it.
         assert_eq!(REQUIRED_SCRIPTS, &["Latn", "Zsym"]);
         assert!(TRANSLATED_SCRIPTS.contains(&"Jpan"));
+        assert!(TRANSLATED_SCRIPTS.contains(&"Hang"), "Korean's script is a translation");
         assert!(!TRANSLATED_SCRIPTS.contains(&"Latn"), "Latin is not a translation");
     }
 
