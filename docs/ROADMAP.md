@@ -1165,11 +1165,17 @@ and none of M9 is closed until the remaining rows are ticked.
   the empty line and `Clear` are rows, `Alerts, {n} unread` words the count the bell speaks, and
   `notice_age` fills `{n}s`/`{n}m`/`{n}h`/`{n}d` (or `just now`) with `i18n::count`, so an Arabic
   popover reads `١ د` where it read `1m`; the painted badge over the bell and the Filter chip writes
-  those digits too. **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted
-  English that never went through `tl!`/`i18n::fmt`: the ~40 `state.notice(format!(…))` messages
-  (indexing, rating, tagging, culling, selection, errors), the palette's `No command matches` and
-  `Type a command…` hint, dozens of `on_hover_text`/accessibility names, and dialog literals such as
-  `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
+  those digits too.
+  The command palette's own chrome followed (hundred-and-thirty-seventh entry): `Type a command…` is
+  both the field's hint and its accessible name, `No command matches` and the
+  `Up/Down choose · Enter run · Esc photo search` legend are rows, and the photo search field takes
+  the same sentence its hint paints as its name through `a11y::name_field`, so a reader meets a
+  named box rather than an unnamed one. The key caps (`Up/Down`, `Enter`, `Esc`, `⌘K`/`Ctrl+K`) stay
+  as the platform spells them while the words around them translate.
+  **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
+  went through `tl!`/`i18n::fmt`: the ~40 `state.notice(format!(…))` messages
+  (indexing, rating, tagging, culling, selection, errors), dozens of `on_hover_text`/accessibility
+  names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

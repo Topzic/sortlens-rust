@@ -872,6 +872,9 @@
 	Search photos	ابحث عن الصور
 	Search photos or {keys}	ابحث عن الصور أو {keys}
 	Search in {name}	ابحث في {name}
+	Type a command…	اكتب أمرًا…
+	No command matches	لا يطابق أي أمر
+	Up/Down choose · Enter run · Esc photo search	Up/Down اختيار · Enter تشغيل · Esc بحث الصور
 	Settings could not be read in full; defaults are in use	تعذّرت قراءة الإعدادات كاملة؛ تُستخدم القيم الافتراضية
 	The library could not be opened: {error}	تعذّر فتح المكتبة: {error}
 	Import a shortcut set	استيراد مجموعة اختصارات

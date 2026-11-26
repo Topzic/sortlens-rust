@@ -504,6 +504,13 @@ empty-filter screen are routed through it: a sentence with a count in it is one 
 filled by `i18n::fmt`, so the count is written in the language's digits and a language that does
 not inflect the noun is not forced through English's plural.
 
+The command palette's own chrome is routed too: `Type a command…` is the field's hint and its
+accessible name, `No command matches` and the `Up/Down choose · Enter run · Esc photo search` legend
+are rows, and `a11y::name_field` names the field with the same sentence its hint paints — a hint is
+painted, not announced, so without it a screen reader met an unnamed box. The key caps
+(`Up/Down`, `Enter`, `Esc`, `⌘K`/`Ctrl+K`) are the platform's names for the keys and stay as written
+in every language.
+
 The export dialog and its receipt are routed the same way, but their numbers come from
 `sortlens-export`'s `Spec::parts` and `Report::parts` — the very pieces the engine's English
 `summary` and `headline` are joined from — and each piece is worded through the catalogues. A

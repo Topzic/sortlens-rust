@@ -856,6 +856,9 @@
 	Search photos	搜尋照片
 	Search photos or {keys}	搜尋照片或 {keys}
 	Search in {name}	在 {name} 中搜尋
+	Type a command…	輸入指令…
+	No command matches	沒有符合的指令
+	Up/Down choose · Enter run · Esc photo search	Up/Down 選擇 · Enter 執行 · Esc 搜尋照片
 	Settings could not be read in full; defaults are in use	無法完整讀取設定；目前使用預設值
 	The library could not be opened: {error}	無法開啟圖庫：{error}
 	Import a shortcut set	匯入快速鍵組

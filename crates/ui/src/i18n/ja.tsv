@@ -872,6 +872,9 @@
 	Search photos	写真を検索
 	Search photos or {keys}	写真を検索、または {keys}
 	Search in {name}	{name} を検索
+	Type a command…	コマンドを入力…
+	No command matches	一致するコマンドはありません
+	Up/Down choose · Enter run · Esc photo search	Up/Down 選択 · Enter 実行 · Esc 写真検索
 	Settings could not be read in full; defaults are in use	設定をすべて読み取れませんでした。既定値を使用します
 	The library could not be opened: {error}	ライブラリを開けませんでした: {error}
 	Import a shortcut set	ショートカットセットを読み込む

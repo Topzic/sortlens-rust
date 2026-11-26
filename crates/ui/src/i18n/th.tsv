@@ -873,6 +873,9 @@
 	Search photos	ค้นหารูป
 	Search photos or {keys}	ค้นหารูปหรือ {keys}
 	Search in {name}	ค้นหาใน {name}
+	Type a command…	พิมพ์คำสั่ง…
+	No command matches	ไม่มีคำสั่งที่ตรงกัน
+	Up/Down choose · Enter run · Esc photo search	Up/Down เลือก · Enter เรียกใช้ · Esc ค้นหารูป
 	Settings could not be read in full; defaults are in use	อ่านการตั้งค่าได้ไม่ครบ กำลังใช้ค่าเริ่มต้น
 	The library could not be opened: {error}	เปิดไลบรารีไม่ได้: {error}
 	Import a shortcut set	นำเข้าชุดปุ่มลัด

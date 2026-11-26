@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-thirty-seventh) — the command palette's own chrome speaks the interface language, and its field answers to a name
+
+- **Why this came up.** The hundred-and-thirty-sixth entry's Next named the palette's own chrome: three
+  English literals painted under a bar that had already been translated. `Type a command…` was the
+  field's `hint_text`, `No command matches` the empty-shelf line, and
+  `Up/Down choose · Enter run · Esc photo search` the key legend. The same field had no accessible
+  name either: a hint is painted, and a screen reader does not announce it, so it met an unnamed box.
+- **What is routed.** All three are catalogue rows in the six languages, painted through `tl!`. The key
+  caps stay as the platform spells them — `Up/Down`, `Enter`, `Esc`, and the palette chord
+  `⌘K`/`Ctrl+K` — while the words between them translate, so Arabic reads
+  `Up/Down اختيار · Enter تشغيل · Esc بحث الصور`. The palette field is named with the same row that paints
+  its hint, and the photo search field with the sentence its hint already paints (the
+  `Search photos or Ctrl+K`/`⌘K` row), so the name and the paint cannot drift apart.
+- **The seam.** `a11y::name_field` sets the AccessKit label on the node `TextEdit` already published,
+  rather than replacing its `WidgetInfo`: the role, the typed text and the hint stay egui's, and the name
+  survives an edit frame, where `widget_info` emits an event instead of filling the node.
+- **Tests.** `the_command_palettes_chrome_speaks_the_interface_language` paints the field and the palette
+  headlessly in English, Japanese and Arabic and requires the hint, the empty line and the legend to be
+  the catalogue's paint, with no English behind them; it fails on the old literals two ways — the
+  catalogue audit would have no row for them, and the Arabic lookups would return English.
+  `a_text_field_takes_its_name_and_keeps_its_text` reads the AccessKit node back and requires the name to
+  be set while the typed text survives.
+- **Docs.** ROADMAP's SL-L07 row records the palette and drops it from "still open" (the ~40 host notices,
+  the hover/accessibility names and the dialog literals stay); UX.md's palette paragraph and
+  ARCHITECTURE.md §8.4 name the chrome and the field name.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite, `layers`, `roots`,
+  `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`);
+  `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — the English paint is
+  byte for byte the same, the palette scene included; `cargo xtask snapshot` 5 passed and
+  `cargo xtask deny` (advisories, bans, licenses, sources) exit 0. `cargo xtask mobile` cannot run here
+  (no Android NDK, no Xcode) and no phone code changed; there is no `cargo xtask wasm` in this workspace.
+  No release workflow was dispatched: this is source, catalogue rows and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs`, `crates/ui/src/a11y.rs`, the six `crates/ui/src/i18n/*.tsv`,
+  `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view` — `screenshots` is the job that matters,
+  because the palette's field, empty line and legend are painted in the command-palette scene, though the
+  English text is unchanged and the baselines did not move locally. Then the shell's
+  `state.notice(format!(…))` messages, one family per tick, starting with indexing. SL-L07 stays unticked;
+  its row lists what the audit still finds. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-thirty-second) — the trunk's red `screenshots` job is adopted, and neither set may drift alone
 
 - **Why this came up.** STEP 1b's one read of CI for `80a9bc9` answered `failure`: seven jobs green,
@@ -8010,15 +8050,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirty-sixth entry).** Read this commit's `CI` run with one
-`gh run view` — `screenshots` is the job that matters, because the bell's badge now paints
-`format_count` digits and an Arabic frame that carries a badge could have moved. Then the command
-palette's own chrome in `crates/ui/src/shell.rs`: `Type a command…` (`TextEdit::hint_text`),
-`No command matches`, the `Up/Down choose · Enter run · Esc photo search` hint and the field's
-accessible name, through `tl!`/`i18n::fmt` with `⌘K`/`Ctrl+K` kept as the platform spells it. After
-that the shell's `state.notice(format!(…))` messages, one family per tick (indexing, rating,
-tagging, culling, selection). SL-L07 stays unticked; its row now lists what the audit found. No
-release run is in flight.
+**Next tick (after the hundred-and-thirty-seventh entry).** Read this commit's `CI` run with one
+`gh run view` — `screenshots` is the job that matters, because the palette's field, empty line and
+legend are painted in the command-palette scene, though the English text is unchanged and the
+baselines did not move locally. Then the shell's `state.notice(format!(…))` messages in
+`crates/ui/src/shell.rs`, one family per tick, starting with indexing; after that rating, tagging,
+culling and selection. SL-L07 stays unticked; its row now lists what the audit still finds (the ~40
+notices, the hover/accessibility names, the dialog literals). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

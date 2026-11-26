@@ -856,6 +856,9 @@
 	Search photos	사진 검색
 	Search photos or {keys}	사진 검색 또는 {keys}
 	Search in {name}	{name}에서 검색
+	Type a command…	명령 입력…
+	No command matches	일치하는 명령이 없습니다
+	Up/Down choose · Enter run · Esc photo search	Up/Down 선택 · Enter 실행 · Esc 사진 검색
 	Settings could not be read in full; defaults are in use	설정을 모두 읽지 못했습니다. 기본값을 사용합니다
 	The library could not be opened: {error}	라이브러리를 열지 못했습니다: {error}
 	Import a shortcut set	단축키 세트 가져오기

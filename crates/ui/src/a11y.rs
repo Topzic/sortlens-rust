@@ -77,6 +77,21 @@ pub fn label_widget(ui: &egui::Ui, response: &egui::Response, kind: egui::Role, 
     }
 }
 
+/// Give a text field the name it is read by.
+///
+/// A `TextEdit` publishes its role and its text, but no name unless a visible label is bound to it,
+/// and the shell's one field paints its question as a hint instead — a hint screen readers may never
+/// announce. The palette's field and the photo search therefore took no name at all. This sets the
+/// same sentence the hint paints, so the field a reader meets and the one a sighted user sees cannot
+/// describe different jobs.
+pub fn name_field(ui: &egui::Ui, response: &egui::Response, label: &str) {
+    let label = label.to_string();
+    // The node already exists — `TextEdit` registered it — so this names it without replacing the
+    // role, the text or the placeholder egui set. Setting it here rather than through
+    // `widget_info` also survives an edit frame, where `widget_info` emits an event instead.
+    ui.ctx().accesskit_node_builder(response.id, |node| node.set_label(label));
+}
+
 /// What one photo is called when read aloud: its name, then the facts that decide a cull.
 ///
 /// Written as a sentence rather than a list of fields because it is spoken, and ordered by what matters
@@ -160,6 +175,30 @@ mod tests {
         output.textures_delta.clear();
         assert_eq!(actions, 0, "naming a region does not click it");
         assert!(!output.shapes.is_empty());
+    }
+
+    /// A text field takes the name it is given and keeps the text it holds: naming it must not
+    /// turn a text box into an unnamed or emptied control.
+    #[test]
+    fn a_text_field_takes_its_name_and_keeps_its_text() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut text = String::from("beach");
+        let mut seen: Option<Option<(Option<String>, Option<String>)>> = None;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let field = ui.text_edit_singleline(&mut text);
+                name_field(ui, &field, "Type a command…");
+                seen = Some(
+                    ui.ctx()
+                        .accesskit_node_builder(field.id, |node| (node.label().map(str::to_owned), node.value().map(str::to_owned))),
+                );
+            });
+        });
+        output.textures_delta.clear();
+        let (label, value) = seen.flatten().expect("the field's node exists");
+        assert_eq!(label.as_deref(), Some("Type a command…"), "the field is named");
+        assert_eq!(value.as_deref(), Some("beach"), "and its text is still what it holds");
     }
 
     #[test]

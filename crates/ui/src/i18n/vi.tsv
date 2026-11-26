@@ -856,6 +856,9 @@
 	Search photos	Tìm ảnh
 	Search photos or {keys}	Tìm ảnh hoặc {keys}
 	Search in {name}	Tìm trong {name}
+	Type a command…	Nhập một lệnh…
+	No command matches	Không có lệnh nào khớp
+	Up/Down choose · Enter run · Esc photo search	Up/Down chọn · Enter chạy · Esc tìm ảnh
 	Settings could not be read in full; defaults are in use	Không đọc được đầy đủ cài đặt; đang dùng giá trị mặc định
 	The library could not be opened: {error}	Không mở được thư viện: {error}
 	Import a shortcut set	Nhập bộ phím tắt

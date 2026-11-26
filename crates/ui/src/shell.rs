@@ -2116,10 +2116,14 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32
     let cap = room.clamp(0.0, SEARCH_FIELD_MAX_WIDTH);
     let floor = cap.min(SEARCH_FIELD_WIDTH);
     if state.palette_open {
+        // The question is a catalogue row, and it is also the field's accessible name: a hint is
+        // painted, not announced, so a reader met an unnamed box without this (SL-L07).
+        let question = tl!("Type a command…");
         let field = ui.add_sized(
             [cap.min(SEARCH_FIELD_WIDTH).max(SEARCH_FIELD_NARROW.min(cap)), 24.0],
-            TextEdit::singleline(&mut state.palette_query).hint_text("Type a command…"),
+            TextEdit::singleline(&mut state.palette_query).hint_text(question),
         );
+        crate::a11y::name_field(ui, &field, question);
         if field.changed() {
             state.palette_index = 0;
         }
@@ -2165,7 +2169,9 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32
     // The field then takes the width its hint needs, between the two bounds: widening it a few points
     // keeps the shortcut on screen, and beyond the cap the hint is the thing that gets shorter.
     let width = (measure(ui, &hint, &body) + 16.0).clamp(floor, cap);
-    let search = ui.add_sized([width, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint));
+    let search = ui.add_sized([width, 24.0], TextEdit::singleline(&mut state.search).hint_text(hint.as_str()));
+    // The same sentence names the field for a screen reader, shortcut included.
+    crate::a11y::name_field(ui, &search, &hint);
     if search.changed() {
         state.selection.clear();
     }
@@ -2620,7 +2626,8 @@ fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                 .show(ui, |ui| {
                     ui.set_width(width - 16.0);
                     if rows.is_empty() {
-                        ui.label(RichText::new("No command matches").size(11.5).color(t.text_muted));
+                        let empty = tl!("No command matches");
+                        ui.label(RichText::new(empty).size(11.5).color(t.text_muted));
                     } else {
                         egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
                             let mut group = None;
@@ -2656,8 +2663,10 @@ fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                         });
                     }
                     ui.add_space(6.0);
+                    // The key caps are the product's names for the keys and stay as written; only
+                    // the words between them are the reader's.
                     ui.label(
-                        RichText::new("Up/Down choose · Enter run · Esc photo search")
+                        RichText::new(tl!("Up/Down choose · Enter run · Esc photo search"))
                             .size(10.0)
                             .color(t.text_faint),
                     );
@@ -21702,6 +21711,93 @@ mod tests {
         assert!(label_at(&arabic, "Flag as picked").is_none(), "no English row behind it");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The command palette's own chrome speaks the interface language (SL-L07).
+    ///
+    /// The field's hint, the empty-result line and the key legend were English literals painted
+    /// under a top bar that had already been translated, so a Japanese shell still read English.
+    /// The key caps are the product's names for the keys — `Up/Down`, `Enter`, `Esc` — and stay as
+    /// written in every language; only the sentence around them is a catalogue row.
+    #[test]
+    fn the_command_palettes_chrome_speaks_the_interface_language() {
+        use crate::i18n::from_code;
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let mut engine = Engine::new();
+        let mut actions = Vec::new();
+        let paint = |state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>| {
+            // The palette hangs from the field's rectangle, which the frame before draws, so settle.
+            let mut settled = None;
+            for _ in 0..3 {
+                let mut output = ctx.run_ui(bar_input(), |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        search_field(ui, state, engine, 400.0);
+                        command_palette(ui, state, &tokens, engine, actions);
+                    });
+                });
+                output.textures_delta.clear();
+                settled = Some(output);
+            }
+            settled.expect("three frames were painted")
+        };
+
+        // An empty query paints the hint, and it is also the field's name.
+        state.palette_open = true;
+        state.palette_query.clear();
+        let english_hint = paint(&mut state, &mut engine, &mut actions);
+        assert!(label_at(&english_hint, "Type a command…").is_some(), "the field asks for a command");
+        assert!(
+            label_at(&english_hint, "Up/Down choose · Enter run · Esc photo search").is_some(),
+            "and the legend teaches the keys"
+        );
+
+        // A query nothing matches paints the empty line.
+        state.palette_query = "zzzz-no-such-command".to_string();
+        let english_empty = paint(&mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&english_empty, "No command matches").is_some(),
+            "the palette says when nothing matches"
+        );
+
+        crate::i18n::set_current(from_code("ja").expect("Japanese is offered"));
+        state.palette_query.clear();
+        let japanese_hint = paint(&mut state, &mut engine, &mut actions);
+        assert!(label_at(&japanese_hint, "コマンドを入力…").is_some(), "the hint is the catalogue's");
+        assert!(
+            label_at(&japanese_hint, "Up/Down 選択 · Enter 実行 · Esc 写真検索").is_some(),
+            "the legend translates around the key caps"
+        );
+        assert!(
+            label_at(&japanese_hint, "Up/Down choose · Enter run · Esc photo search").is_none(),
+            "no English legend behind it"
+        );
+        state.palette_query = "zzzz-no-such-command".to_string();
+        let japanese_empty = paint(&mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&japanese_empty, "一致するコマンドはありません").is_some(),
+            "and the empty line"
+        );
+        assert!(
+            label_at(&japanese_empty, "No command matches").is_none(),
+            "no English line behind it"
+        );
+
+        crate::i18n::set_current(from_code("ar").expect("Arabic is offered"));
+        state.palette_query.clear();
+        let arabic_hint = paint(&mut state, &mut engine, &mut actions);
+        assert!(
+            label_at(&arabic_hint, "اكتب أمرًا…").is_some(),
+            "the hint is the catalogue's in Arabic too"
+        );
+        assert!(
+            label_at(&arabic_hint, "Up/Down اختيار · Enter تشغيل · Esc بحث الصور").is_some(),
+            "and the legend, with the key caps kept"
+        );
+
+        crate::i18n::set_current(from_code("en").expect("English is offered"));
     }
 
     /// The activity row speaks the interface language, from the engine's own piece (SL-L07).

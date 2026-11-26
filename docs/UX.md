@@ -137,7 +137,10 @@ Search behaviour: **one field, two modes.** Typing searches filenames (live, deb
 Pressing `⌘K` in the field, or anywhere else in the window, switches it to command mode with the
 palette hanging under it. `↑/↓` moves, `Enter` runs, `Esc` returns to photo search. The palette's
 rows are the only commands it can show: a shared test resolves every one against the registry and
-fails if a row is missing from it, is not `Ready`, or is listed twice.
+fails if a row is missing from it, is not `Ready`, or is listed twice. Its own chrome is in the
+catalogues: the field's hint (which is also its accessible name), `No command matches`, and the
+`Up/Down choose · Enter run · Esc photo search` legend, with the key caps kept as the platform spells
+them.
 
 ---
 
