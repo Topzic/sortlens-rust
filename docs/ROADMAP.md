@@ -1197,11 +1197,21 @@ and none of M9 is closed until the remaining rows are ticked.
   `#backlit taken off 2 photo(s) — one undo brings it back`, and
   `the_keyword_notices_speak_the_interface_language` deletes a real two-photo keyword under Arabic
   and requires the toast and the bell's painted history to be the catalogue's sentence.
+  The culling receipts followed (hundred-and-forty-second entry): `Culling {n} photos` and
+  `Hashing {n} previews` were already rows for the painted buttons, but the keyboard's own path —
+  the `C` key, a palette jump into Similar, and the cull screen's small-window empty state — built
+  them as English with Latin digits, so the same action read two ways depending on the door.
+  `cull_notice`/`hashing_notice` are now the only wording and all five call sites use them, and
+  `the_culling_notices_speak_the_interface_language` drives `open_cull` and `activate_view(Similar)`
+  under Arabic and requires the toast and the bell's painted history to be the catalogue's sentence
+  with its own digits.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: seven remaining `state.notice(format!(…))` messages
-  (culling, selection, a new collection, hashing previews, the softest photographs; indexing
+  went through `tl!`/`i18n::fmt`: four remaining `state.notice(format!(…))` sites — selection,
+  a new collection, the sharpness pass's stopped line and the softest photographs — plus the two
+  `Measured … photo(s)` sentences worded one line above that pass's notice (indexing
   went in the hundred-and-thirty-eighth entry, rating in the hundred-and-thirty-ninth, the flag
-  match in the hundred-and-fortieth and tagging in the hundred-and-forty-first), dozens of `on_hover_text`/accessibility
+  match in the hundred-and-fortieth, tagging in the hundred-and-forty-first and culling in the
+  hundred-and-forty-second), dozens of `on_hover_text`/accessibility
   names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.

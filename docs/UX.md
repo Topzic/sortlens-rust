@@ -820,6 +820,10 @@ re-checks its own contrast pairs after applying.
   The flag receipt followed (hundred-and-fortieth entry): `Picked`, `Rejected` and `Unflagged`, and
   their `{n} photos` forms, are five new rows with the count in the reader's digits, so an Arabic flag
   reads `٢ صورة مختارة` where it read `Picked 2 photos`.
+  The culling receipts followed (hundred-and-forty-second entry): `Culling {n} photos` and
+  `Hashing {n} previews` are the rows both the painted buttons and the keyboard's path use, the
+  count in the reader's digits, so an Arabic `C` key or a jump into Similar reads its own sentence
+  where it read `Culling 3 photos` or `Hashing 3 previews`.
   The keyword receipts followed (hundred-and-forty-first entry): the context menu's delete words
   `#{tag} taken off {n} photo` and its several-photo row, `#{tag} is not used by any photo`,
   `Removed keyword {tag}`, `Added keyword {name}` and `That keyword is already on this photo` are

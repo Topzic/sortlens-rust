@@ -631,6 +631,13 @@ and `Unflagged` and their three several-photo templates, with the count through 
 Arabic flag reads `٢ صورة مختارة` and `the_flag_notices_speak_the_interface_language` flags a real
 two-photo selection under Arabic and requires the toast and the bell's painted history to agree.
 
+The cull queue's receipt takes the same seam: `cull_notice` words `Culling {n} photos` and
+`hashing_notice` words `Hashing {n} previews`, both through `format_count`, and every door that
+starts the work — the Welcome banner, the cull screen's empty state, the palette, the `C` key and
+a jump into Similar — calls them instead of building its own sentence.
+`the_culling_notices_speak_the_interface_language` opens Similar and a cull queue under Arabic and
+requires the toast and the bell's painted history to agree with the catalogue.
+
 The keyword receipts take it over the keyword and the count: `tag_taken_off` words
 `#{tag} taken off {n} photo — one undo brings it back` and its several-photo row, with the count
 through `format_count`, while `#{tag} is not used by any photo`, `Removed keyword {tag}`,

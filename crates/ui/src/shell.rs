@@ -4161,7 +4161,7 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                                         Ok(total) => {
                                             state.view = View::Cull;
                                             state.welcome_ready = None;
-                                            state.notice(crate::i18n::fmt("Culling {n} photos", &[("n", &format_count(total as u64))]));
+                                            state.notice(cull_notice(total));
                                         }
                                         Err(error) => state.notice(error),
                                     }
@@ -5779,7 +5779,7 @@ fn activate_view(state: &mut UiState, engine: &mut Engine, view: View) -> bool {
     if view == View::Similar && engine.similar_groups().is_empty() && engine.hash_progress().is_none() {
         match engine.begin_similar(state.similar_threshold) {
             Ok(0) => {}
-            Ok(queued) => state.notice(format!("Hashing {queued} previews")),
+            Ok(queued) => state.notice(hashing_notice(queued)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -5791,10 +5791,31 @@ fn open_cull(state: &mut UiState, engine: &mut Engine) {
     state.view = View::Cull;
     if engine.cull().is_none() {
         match start_cull(engine, state) {
-            Ok(total) => state.notice(format!("Culling {total} photos")),
+            Ok(total) => state.notice(cull_notice(total)),
             Err(error) => state.notice(error),
         }
     }
+}
+
+/// The cull queue's receipt in the interface language (SL-L07).
+///
+/// Four doors start the same queue — the Welcome banner, the cull screen's empty state, the
+/// palette's `cull.start` row and the `C` key — and they used to word it two ways: the painted
+/// buttons went through the catalogue row while the keyboard's own path and the small-screen
+/// empty state built `Culling {n} photos` as English, so the same action read differently
+/// depending on how you arrived. One function now words every one of them from that row, with the
+/// count in the reader's digits.
+fn cull_notice(total: usize) -> String {
+    crate::i18n::fmt("Culling {n} photos", &[("n", &format_count(total as u64))])
+}
+
+/// The Similar view's hashing receipt from the row its own button paints (SL-L07).
+///
+/// Opening Similar from the palette or a key queued the hashes with an English sentence while the
+/// view's button read the catalogue, so a queue started on the way in read `Hashing 8 previews`
+/// under Arabic and one started inside the view read Arabic. Both call this.
+fn hashing_notice(queued: usize) -> String {
+    crate::i18n::fmt("Hashing {n} previews", &[("n", &format_count(queued as u64))])
 }
 
 /// Which folder a Rescan should walk: the scoped one, or the library's first root.
@@ -6698,7 +6719,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 .clicked()
             {
                 match start_cull(engine, state) {
-                    Ok(total) => state.notice(crate::i18n::fmt("Culling {n} photos", &[("n", &format_count(total as u64))])),
+                    Ok(total) => state.notice(cull_notice(total)),
                     Err(error) => state.notice(error),
                 }
             }
@@ -7126,7 +7147,7 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
         {
             match engine.begin_similar(threshold) {
                 Ok(0) => state.notice(tl!("Groups up to date").to_string()),
-                Ok(queued) => state.notice(crate::i18n::fmt("Hashing {n} previews", &[("n", &format_count(queued as u64))])),
+                Ok(queued) => state.notice(hashing_notice(queued)),
                 Err(error) => state.notice_problem(error.to_string()),
             }
         }
@@ -20043,6 +20064,104 @@ mod tests {
         assert!(rejected.contains("3 枚") && !rejected.contains("photos"), "{rejected}");
         let unflagged = flag_notice(Flag::None, 3);
         assert!(unflagged.contains("3 枚") && !unflagged.contains("photos"), "{unflagged}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The culling receipts speak the interface language (SL-L07).
+    ///
+    /// Two literals — `Culling {total} photos` and `Hashing {queued} previews` — reached the toast
+    /// from the keyboard's own path while the same two sentences were already catalogue rows for the
+    /// painted buttons, so an Arabic `C` or a jump into Similar from the palette read English with
+    /// Latin digits where a click read its own language. `cull_notice`/`hashing_notice` are now the
+    /// only wording, and all five doors call them.
+    #[test]
+    fn the_culling_notices_speak_the_interface_language() {
+        // Its own folder: a shared path lets a parallel test delete this library mid-run.
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-cull-notice-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-cull-notice-i18n");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40 * index as u8, 80, 160], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 3, "the fixture scans its three photographs");
+
+        // English: the sentences the buttons have always painted.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(cull_notice(3), "Culling 3 photos");
+        assert_eq!(hashing_notice(3), "Hashing 3 previews");
+
+        // Arabic, arriving from a key or the palette: Similar queues its hashes and leaves its own
+        // sentence, its own digits, and no English noun behind it.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        assert!(activate_view(&mut state, &mut engine, View::Similar));
+        let hashing = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("opening Similar queues a pass");
+        assert_eq!(hashing, hashing_notice(3), "the view's button and the way in word one sentence");
+        assert!(
+            hashing.contains('٣') && !hashing.contains("Hashing") && !hashing.contains("previews"),
+            "the count is the reader's digits under its own words: {hashing}"
+        );
+        engine.cancel_similar();
+
+        // Culling, through the keyboard's own function: the queue's receipt is the row the Welcome
+        // banner and the cull screen's button paint, not a third wording.
+        open_cull(&mut state, &mut engine);
+        assert_eq!(state.view, View::Cull);
+        let culling = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("the queue leaves a receipt");
+        assert_eq!(culling, cull_notice(3), "one sentence whatever door started the queue");
+        assert!(
+            culling.contains('٣') && !culling.contains("Culling") && !culling.contains("photos"),
+            "the count is the reader's digits under its own words: {culling}"
+        );
+
+        // The painted history is that same sentence: the toast and the bell cannot word it apart.
+        state.bell_open = true;
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint(&ctx, &mut state);
+        let frame = paint(&ctx, &mut state);
+        assert!(label_at(&frame, &culling).is_some(), "the history paints the catalogue's sentence");
+
+        // Japanese words both receipts its own way, with its own counters.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let cull = cull_notice(3);
+        assert!(cull.contains("3 枚") && !cull.contains("photos"), "{cull}");
+        let hash = hashing_notice(3);
+        assert!(hash.contains("3 件") && !hash.contains("previews"), "{hash}");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

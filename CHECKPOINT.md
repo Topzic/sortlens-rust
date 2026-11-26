@@ -1,5 +1,47 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-second) — the culling receipts speak the interface language, their counts in the reader's digits
+
+- **Why this came up.** The hundred-and-forty-first entry's Next named the culling family. Two
+  `format!` calls in `shell.rs` built `Culling {total} photos` and `Hashing {queued} previews` — the
+  keyboard's path, a palette jump into Similar, and the cull screen's small-window empty state — while
+  both sentences were already catalogue rows for the painted buttons (the Welcome banner, the cull
+  screen's own `Start culling` and the Similar view's button). So the same action worded itself two
+  ways: an Arabic click read its own language, and the `C` key or a palette jump read English with
+  Latin digits.
+- **What is routed.** `cull_notice(total)` and `hashing_notice(queued)` are the only wording now,
+  both through `crate::i18n::fmt` with the count a `format_count` placeholder, and all five call
+  sites use them, so no door can drift from another. No new catalogue rows: the two sentences already
+  existed for the buttons, which is exactly why the split was invisible to the audit that only checks
+  a row exists for every `fmt` template.
+- **Tests.** `the_culling_notices_speak_the_interface_language` pins the two English shapes, scans
+  three photographs, then under Arabic drives `activate_view(…, View::Similar)` (the palette/key
+  door) and `open_cull` (the `C` key's own function), requiring each toast to equal the helper and to
+  carry `٣` with no English word left; it paints the bell popover and requires the history to be that
+  same sentence, and requires Japanese's own counters (`3 枚`, `3 件`). It fails on the old literals:
+  the Arabic assertions would meet `Culling 3 photos` with Latin digits. It owns its own library
+  folder (`sortlens-ui-cull-notice-i18n`).
+- **Docs.** ROADMAP's SL-L07 row records the family and re-counts what is left (four
+  `state.notice(format!(…))` sites — selection, a new collection, the sharpness pass's stopped line
+  and the softest photographs — plus that pass's two `Measured … photo(s)` sentences); UX.md's i18n
+  paragraph and ARCHITECTURE.md §8.4 name the two helpers and the test. SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite — 248
+  `sortlens-ui` tests — `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`,
+  `docs`, `templates`, `workflows`); `cargo xtask screenshots` 30 passed, 1 ignored (network), no
+  baseline moved — no committed scene paints a culling receipt and the English paint is unchanged;
+  `cargo xtask snapshot` 5 passed and `cargo xtask deny` (advisories, bans, licenses, sources) exit
+  0, with `cargo xtask docs` re-run after the last prose edit. `cargo xtask mobile` cannot run here
+  (no Android NDK, no Xcode) and no phone code changed; there is no `cargo xtask wasm` in this
+  workspace. No release workflow was dispatched: source, catalogue reuse, tests and docs, no build
+  or release surface.
+- **Files.** `crates/ui/src/shell.rs`, `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and
+  this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that matters, though no committed scene paints a culling receipt). Then
+  the selection family: `Selected {total} photos` (`⌘A`) and `Selected the {} softest` in Soft
+  Focus, then a new collection and the sharpness pass. SL-L07 stays unticked; its row lists what the
+  audit still finds. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-forty-first) — the keyword receipts speak the interface language, their counts in the reader's digits
 
 - **Why this came up.** The hundred-and-fortieth entry's Next named the tagging notices. Four literals in
@@ -8209,13 +8251,14 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirty-seventh entry).** Read this commit's `CI` run with one
-`gh run view` — `screenshots` is the job that matters, because the palette's field, empty line and
-legend are painted in the command-palette scene, though the English text is unchanged and the
-baselines did not move locally. Then the shell's `state.notice(format!(…))` messages in
-`crates/ui/src/shell.rs`, one family per tick, starting with indexing; after that rating, tagging,
-culling and selection. SL-L07 stays unticked; its row now lists what the audit still finds (the ~40
-notices, the hover/accessibility names, the dialog literals). No release run is in flight.
+**Next tick (after the hundred-and-forty-second entry).** Read this commit's `CI` run with one
+`gh run view` — `screenshots` is the job that matters, though no committed scene paints a culling
+receipt and the English paint is unchanged. Then the selection family in
+`crates/ui/src/shell.rs`: `Selected {total} photos` from `⌘A` and `Selected the {} softest` in
+Soft Focus, with counts through `format_count`. After that: a new collection (`Created {name}`) and
+the sharpness pass's `Measured … photo(s)` pair plus its stopped line. SL-L07 stays unticked; its
+row lists what the audit still finds (the remaining notice literals, the hover/accessibility names,
+the dialog literals). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
