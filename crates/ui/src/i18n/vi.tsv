@@ -828,3 +828,6 @@
 	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	Lớp này vẽ kiểu {style} của OpenFreeMap, cùng bản đồ MapLibre như openfreemap.org.
 	Use OpenFreeMap's online map?	Dùng bản đồ trực tuyến của OpenFreeMap?
 	Use online map	Dùng bản đồ trực tuyến
+	+ New collection	+ Bộ sưu tập mới
+	{n} active	{n} đang bật
+	Clear every filter	Xóa mọi bộ lọc

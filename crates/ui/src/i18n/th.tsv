@@ -830,3 +830,6 @@
 	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	สิ่งนี้วาดสไตล์ {style} ของ OpenFreeMap ซึ่งเป็นแผนที่ MapLibre เดียวกับ openfreemap.org
 	Use OpenFreeMap's online map?	ใช้แผนที่ออนไลน์ของ OpenFreeMap หรือไม่?
 	Use online map	ใช้แผนที่ออนไลน์
+	+ New collection	+ คอลเลกชันใหม่
+	{n} active	{n} ใช้งานอยู่
+	Clear every filter	ล้างตัวกรองทั้งหมด

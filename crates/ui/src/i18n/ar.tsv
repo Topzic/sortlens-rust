@@ -829,3 +829,6 @@
 	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	هذا يرسم نمط {style} من OpenFreeMap، خريطة MapLibre نفسها التي تعرضها openfreemap.org.
 	Use OpenFreeMap's online map?	استخدام خريطة OpenFreeMap عبر الإنترنت؟
 	Use online map	استخدام الخريطة عبر الإنترنت
+	+ New collection	+ مجموعة جديدة
+	{n} active	{n} مفعّل
+	Clear every filter	امسح كل المرشحات

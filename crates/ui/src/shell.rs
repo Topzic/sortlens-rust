@@ -3934,14 +3934,18 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     // nowhere else in this row. Measured from the room the row actually has.
                     let room = ui.available_width();
                     if room >= HEADER_CHIP_ROOM {
-                        if state.root.is_some() && icon_button(ui, "All Photos", t).clicked() {
+                        if state.root.is_some() && icon_button(ui, tl!("All Photos"), t).clicked() {
                             state.root = None;
                             state.folder.clear();
                         }
+                        // The badge counts the filters the way the interface writes numbers: the chip
+                        // reads the Arabic row rather than an English "1 active" beside an Arabic
+                        // strip, and its hover names the same action the click performs.
                         let active = state.active_filter_count();
+                        let active_word = crate::i18n::fmt("{n} active", &[("n", &format_count(active as u64))]);
                         if active > 0
-                            && chip(ui, t, Some(crate::icons::Icon::Tag), &format!("{active} active"), true)
-                                .on_hover_text("Clear every filter")
+                            && chip(ui, t, Some(crate::icons::Icon::Tag), &active_word, true)
+                                .on_hover_text(tl!("Clear every filter"))
                                 .clicked()
                         {
                             state.search.clear();
@@ -7504,7 +7508,11 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
     // The offline picture and a click on it share the 256-point world. The online picture is the
     // 512-point world, and the frame on screen is still `centre` / `drawn_zoom` — the gesture saved
     // above is the next frame.
-    let shown_centre = if online_active { centre } else { state.places_centre.unwrap_or(centre) };
+    let shown_centre = if online_active {
+        centre
+    } else {
+        state.places_centre.unwrap_or(centre)
+    };
     let shown_zoom = if online_active { drawn_zoom } else { zoom_f };
     let scale = if online_active {
         places::online_screen_scale(shown_zoom)
@@ -9196,7 +9204,9 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
         });
     }
     if ui
-        .add(Button::new(RichText::new("+ New collection").size(10.5)).fill(Color32::TRANSPARENT))
+        // The plus is part of the catalogue key, the way the strip's "+ keyword" row is: the row
+        // says where a language puts the glyph, and the button cannot fall back on an English one.
+        .add(Button::new(RichText::new(tl!("+ New collection")).size(10.5)).fill(Color32::TRANSPARENT))
         .clicked()
     {
         let name = format!("Collection {}", collections.len() + 1);
@@ -12465,6 +12475,10 @@ mod tests {
         let engine_cell = std::cell::RefCell::new(engine);
         let ctx = egui::Context::default();
         let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        // Scoped to the library's own folder, the way the RTL baseline is: that scope is what makes
+        // the header paint its two chips — the `All Photos` reset and the active-filter badge — so the
+        // frame assertion covers words the unscoped canvas never shows.
+        state.root = Some(root.to_string_lossy().to_string());
         let mut thumbs = Thumbnails::new(dir.join("cache"));
         crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
         let mut output = ctx.run_ui(
@@ -12520,6 +12534,29 @@ mod tests {
             assert!(
                 !painted.iter().any(|text| text == english),
                 "no English filter chip {english:?} is left on the strip, painted {painted:#?}"
+            );
+        }
+
+        // The header's two scope chips and the sidebar's new-collection button: the last canvas
+        // chrome the RTL frames painted in English. Each is a key this test looks up, so a chip that
+        // loses its route falls back to English and fails here rather than in a later slice.
+        assert!(
+            painted.iter().any(|text| text == "كل الصور"),
+            "the header's All Photos chip reads the ar row, painted {painted:#?}"
+        );
+        let badge = crate::i18n::fmt("{n} active", &[("n", &format_count(1))]);
+        assert!(
+            painted.contains(&badge),
+            "the active-filter badge reads {badge:?}, painted {painted:#?}"
+        );
+        assert!(
+            painted.iter().any(|text| text == "+ مجموعة جديدة"),
+            "the new-collection button reads the ar row, painted {painted:#?}"
+        );
+        for english in ["All Photos", "1 active", "+ New collection"] {
+            assert!(
+                !painted.iter().any(|text| text == english),
+                "no English canvas chrome {english:?} is left, painted {painted:#?}"
             );
         }
 

@@ -768,8 +768,9 @@ re-checks its own contrast pairs after applying.
   The RTL screenshots shipped (hundred-and-fifteenth entry): `rtl-library-charcoal` and
   `rtl-library-paper` paint the Arabic shell right-to-left, the sidebar at the reading start and the
   vendored face drawing its words. The frames then showed which canvas chrome was still English;
-  `N shown`, the header's counts and sort value, and the filter strip's chips have since become
-  catalogue rows, so the remaining open canvas chrome is the top bar's words and `New collection`.
+  `N shown`, the header's counts and sort value, the filter strip's chips and the header's two
+  scope chips (`All Photos`, `{n} active`) have since become catalogue rows, and the sidebar's
+  `+ New collection` button with them, so the remaining open canvas chrome is the top bar's own words
   `Moved` and `Rename keyword` are the two dialog titles still English by omission, and a bin row's
   summary and mode are the engine's own sentences rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file

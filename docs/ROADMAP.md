@@ -1047,8 +1047,9 @@ and none of M9 is closed until the remaining rows are ticked.
   `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
-  Open: the canvas chrome the RTL frames still paint in English — the top bar's words and
-  `New collection` — which the row's earlier entries call the unrouted surfaces.
+  Open: the canvas chrome the RTL frames still paint in English — the top bar's own words (`Local
+  library`, the search field's `Search photos or Ctrl+K` hint, the read-only sentence) and the bottom
+  bar's `No Selection` — which the row's earlier entries call the unrouted surfaces.
   The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
   `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
   mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
@@ -1078,6 +1079,14 @@ and none of M9 is closed until the remaining rows are ticked.
   source chip's `{source} keywords` template — are catalogue rows in all six languages, so an Arabic
   canvas names its filters in Arabic instead of English. The source value itself (`Manual`, `AI`,
   `XMP`) stays the crate's recorded data word, the same one the filter JSON carries.
+  The canvas chrome's last three words followed (hundred-and-twenty-fifth entry): the header's
+  `All Photos` reset chip, its `{n} active` filter badge and the sidebar's `+ New collection` button
+  are catalogue rows in all six languages, and the badge's `Clear every filter` hover with them — so
+  an Arabic canvas reads `كل الصور` and `١ مفعّل` where it read `All Photos` and `1 active`. The frame
+  test that paints the canvas in Arabic now scopes the fixture the way the RTL baseline does, which is
+  what puts both chips on the header, and requires the three English strings to be absent. The `Photos`
+  line under the canvas header is not chrome: it is the scoped folder's own name, so it stays as the
+  folder spells it.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

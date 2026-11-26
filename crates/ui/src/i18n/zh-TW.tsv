@@ -828,3 +828,6 @@
 	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	這會繪製 OpenFreeMap 的 {style} 樣式，與 openfreemap.org 相同的 MapLibre 地圖。
 	Use OpenFreeMap's online map?	要使用 OpenFreeMap 的線上地圖嗎？
 	Use online map	使用線上地圖
+	+ New collection	+ 新選集
+	{n} active	{n} 項已啟用
+	Clear every filter	清除所有篩選條件

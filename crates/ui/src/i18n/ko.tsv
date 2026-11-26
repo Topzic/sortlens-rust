@@ -828,3 +828,6 @@
 	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	OpenFreeMap의 {style} 스타일을 그립니다. openfreemap.org와 같은 MapLibre 지도입니다.
 	Use OpenFreeMap's online map?	OpenFreeMap 온라인 지도를 사용할까요?
 	Use online map	온라인 지도 사용
+	+ New collection	+ 새 컬렉션
+	{n} active	{n}개 활성
+	Clear every filter	모든 필터 지우기

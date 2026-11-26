@@ -1,5 +1,56 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-fifth) — the canvas header's two scope chips and the sidebar's new-collection button read Arabic
+
+- **Why this came up.** The hundred-and-twenty-fourth entry's Next named SL-L07's remaining canvas
+  chrome, smallest first: the top bar's `Library` and `All Photos`, the `+ New collection` button,
+  then the canvas head's `Photos` and `1 active`. No `CI` run was red at the tick's first step — the
+  run for `9485f66` (`45757388716`) was still in flight, and the six commits before it were the Places
+  work another task shipped — so this is a roadmap slice, not a repair.
+- **Two of the named words were already rows, and one is not chrome.** `Library` is `tl!("Library")` in
+  the sidebar header and `view_word(View::Library)` in the canvas title, so both already read `المكتبة`
+  in the committed frame. The `Photos` line under the canvas header is `breadcrumbs` painting
+  `folder_name(root)` — the scoped folder's own name, a value, not a label — so the frame must keep it
+  as the folder spells it. The words actually left English were the header's `All Photos` reset chip,
+  its `1 active` badge (a `format!` in place, so no catalogue row could ever catch it), and the
+  sidebar's `+ New collection`, whose lookup key missed the existing `New collection` row by the plus.
+- **What is routed.** `All Photos` looks up the row the sidebar's `Source::All` already had; the badge
+  is the new template `{n} active` filled with `format_count`, so Arabic writes `١ مفعّل`; the badge's
+  `Clear every filter` hover is a row too; and the button's key is `+ New collection` — the plus inside
+  the key, the way the strip's `+ keyword` row works — with a row in all six catalogues.
+- **The frame proves it.** `the_canvas_chrome_reads_in_the_interface_language` now scopes its fixture
+  (`state.root`) the way the RTL baseline does, which is what makes the header paint both chips at all,
+  and requires `كل الصور`, the formatted badge `١ مفعّل` and `+ مجموعة جديدة` on the painted frame while
+  requiring `All Photos`, `1 active` and `+ New collection` to be absent. The source-reading catalogue
+  audit demands the three new keys in all six languages, so a chip that loses its row fails the suite.
+- **The repaint moved more than the words.** `UPDATE_SNAPSHOTS=1` on that one test rewrote
+  `rtl-library-{charcoal,paper}.png` (661726→663123 and 664381→665647 bytes); a second run of the same
+  test without the variable compared them byte for byte and passed. Both frames were opened at
+  1440×900: the header reads `كل الصور` and `١ مفعّل` where it read `All Photos` and `1 active`. They
+  also show the sidebar's Quick Actions section that shipped in `19b3b8a`, which the committed pair
+  predated — this is the first default-set frame with it, and its `Start Cull`, `Export Picks…` and the
+  `Ctrl+O`/`C`/`E` shortcuts are still English: the next slice, not this one.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, clippy, the workspace suite, `layers`, `roots`, `assets`,
+  `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot`
+  (5 goldens pass) and `cargo xtask deny` (advisories, bans, licenses, sources all ok, run with
+  `CARGO_HOME=/tmp/sortlens-cargo-deny`). `cargo xtask wasm` is not a task in this tree — the command
+  printed the task list, whose phone gate is `cargo xtask mobile`, so it proved nothing and is not
+  claimed. No full default-set `cargo xtask screenshots` run: 22 of the 29 scenes are red on this
+  machine for the pre-existing rasteriser difference the hundred-and-twenty-first entry recorded, so
+  only the two scenes this slice changed were repainted and re-compared.
+- **Files.** `crates/ui/src/shell.rs` (the two header chips, the badge template, the button, the
+  extended frame test), `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (three rows each),
+  `crates/ui/tests/snapshots/rtl-library-{charcoal,paper}.png`, `docs/ROADMAP.md` (the SL-L07 open line
+  and a shipped paragraph) and `docs/UX.md` (the RTL-prose reconciliation) and this file.
+- **Not verified by hand**: neither chip nor the button was clicked; the painted frame proves the
+  at-rest words only.
+- **Next.** Read this commit's `CI` run first: the `screenshots` job is expected red on the two
+  `lavapipe/rtl-library-*` frames, so `gh run download <id> -n screenshot-set -D /tmp/sl-lava` then
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt /tmp/sl-lava`, and read the pair.
+  Then SL-L07's remaining reported surfaces: the Quick Actions labels (`Start Cull`, `Export Picks…`)
+  in the sidebar's new section, the top bar's `Local library` and `Search photos or Ctrl+K` hint, and
+  the bottom bar's `No Selection`. No release workflow was dispatched: this slice touches no workflow,
+  `apps/**`, a `Cargo.toml` or release code. No release run is in flight.
 ## 2026-11-26 (hundred-and-twenty-fourth) — the lavapipe set adopts the filter strip's Arabic, and the trunk goes green
 
 - **Why this came up.** `CI` on `main` was red on `eeb254b` (run `45669464175`) with exactly one failing

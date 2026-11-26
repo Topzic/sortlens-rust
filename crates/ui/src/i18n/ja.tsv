@@ -829,3 +829,6 @@
 	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	OpenFreeMap の {style} スタイルを描画します。openfreemap.org と同じ MapLibre 地図です。
 	Use OpenFreeMap's online map?	OpenFreeMap のオンライン地図を使いますか？
 	Use online map	オンライン地図を使う
+	+ New collection	+ 新しいコレクション
+	{n} active	{n} 件有効
+	Clear every filter	すべての絞り込みを解除
