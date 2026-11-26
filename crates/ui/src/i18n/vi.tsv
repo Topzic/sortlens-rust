@@ -1075,3 +1075,19 @@
 	Sending {name} — {done} of {total} finished	Đang gửi {name} — xong {done} trên {total}
 	Sending… {done} of {total} finished	Đang gửi… xong {done} trên {total}
 	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	Xoá sẽ đưa một ảnh đã xác minh vào thùng rác của điện thoại này khi máy tính đã giữ các byte; Giữ sẽ để nguyên. Tệp mà danh mục không còn khớp sẽ bị từ chối, không bị xoá.
+	Similar Photos	Ảnh tương tự
+	Apply Rejects	Áp dụng ảnh loại
+	Show in Folder	Hiện trong thư mục
+	Open in Default App	Mở bằng ứng dụng mặc định
+	Suggest Keywords for the Library	Gợi ý từ khóa cho thư viện
+	Rescan Folder	Quét lại thư mục
+	Back Up Library…	Sao lưu thư viện…
+	Restore Backup into Folder…	Khôi phục bản sao lưu vào thư mục…
+	Export Change Report…	Xuất báo cáo thay đổi…
+	Settings…	Cài đặt…
+	Quit Sortlens	Thoát Sortlens
+	Review	Xem lại
+	Organise	Sắp xếp
+	View	Xem
+	App	Ứng dụng
+	Help	Trợ giúp

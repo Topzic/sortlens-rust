@@ -1076,3 +1076,19 @@
 	Sending {name} — {done} of {total} finished	{name} を送信中 — {total} 件中 {done} 件完了
 	Sending… {done} of {total} finished	送信中… {total} 件中 {done} 件完了
 	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	「削除」は、デスクトップがバイト列を保持した時点で検証済みの写真をこのスマートフォンのゴミ箱へ移します。「保持」はそのまま残します。カタログと一致しなくなったファイルは拒否され、削除されません。
+	Similar Photos	似ている写真
+	Apply Rejects	却下を適用
+	Show in Folder	フォルダーで表示
+	Open in Default App	既定のアプリで開く
+	Suggest Keywords for the Library	ライブラリのキーワードを提案
+	Rescan Folder	フォルダーを再走査
+	Back Up Library…	ライブラリをバックアップ…
+	Restore Backup into Folder…	バックアップをフォルダーへ復元…
+	Export Change Report…	変更レポートを書き出す…
+	Settings…	設定…
+	Quit Sortlens	Sortlens を終了
+	Review	レビュー
+	Organise	整理
+	View	表示
+	App	アプリ
+	Help	ヘルプ

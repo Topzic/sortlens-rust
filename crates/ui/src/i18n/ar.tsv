@@ -1076,3 +1076,19 @@
 	Sending {name} — {done} of {total} finished	جارٍ إرسال {name} — اكتمل {done} من {total}
 	Sending… {done} of {total} finished	جارٍ الإرسال… اكتمل {done} من {total}
 	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	«إزالة» ينقل صورة جرى التحقق منها إلى سلة مهملات هذا الهاتف بمجرد أن يحتفظ الحاسوب بالبايتات؛ «إبقاء» يتركها في مكانها. الملف الذي لم يعد الفهرس مطابقًا له يُرفض ولا يُحذف.
+	Similar Photos	صور مشابهة
+	Apply Rejects	طبّق المستبعدات
+	Show in Folder	أظهر في المجلد
+	Open in Default App	افتح في التطبيق الافتراضي
+	Suggest Keywords for the Library	اقترح كلمات مفتاحية للمكتبة
+	Rescan Folder	أعد فحص المجلد
+	Back Up Library…	نسخ المكتبة احتياطيًا…
+	Restore Backup into Folder…	استعد النسخة الاحتياطية إلى مجلد…
+	Export Change Report…	صدّر تقرير التغييرات…
+	Settings…	الإعدادات…
+	Quit Sortlens	إنهاء Sortlens
+	Review	المراجعة
+	Organise	التنظيم
+	View	العرض
+	App	التطبيق
+	Help	المساعدة

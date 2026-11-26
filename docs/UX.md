@@ -138,9 +138,10 @@ Pressing `⌘K` in the field, or anywhere else in the window, switches it to com
 palette hanging under it. `↑/↓` moves, `Enter` runs, `Esc` returns to photo search. The palette's
 rows are the only commands it can show: a shared test resolves every one against the registry and
 fails if a row is missing from it, is not `Ready`, or is listed twice. Its own chrome is in the
-catalogues: the field's hint (which is also its accessible name), `No command matches`, and the
-`Up/Down choose · Enter run · Esc photo search` legend, with the key caps kept as the platform spells
-them.
+catalogues: the field's hint (which is also its accessible name), `No command matches`, the
+`Up/Down choose · Enter run · Esc photo search` legend, and every row's label and group heading —
+registry values (`crates/engine/src/command.rs`) the paint looks up at run time — with the key caps
+kept as the platform spells them.
 
 ---
 
@@ -926,6 +927,11 @@ re-checks its own contrast pairs after applying.
   reusing the row the phone's own sentence already had — so every step of a pairing and a run reads in
   the reader's language, with the counts in its own digits and the host, the photograph's name and the
   run's place as values.
+  The command palette's rows followed (hundred-and-sixty-sixth entry): every row's label and the
+  group heading above it are registry values, so an Arabic `⌘K` reads `صور مشابهة` under `التنظيم`
+  where it read English, and the same table still supplies the English keys. A test walks the
+  palette's own list against all six catalogues, because a label looked up at paint time is
+  invisible to the source-reading audit.
   The phone link's Send button followed (hundred-and-sixty-fourth entry): its label is
   `Send the selection ({count})` with the selection's count from `i18n::count`, so the number beside
   it is written in the reader's language rather than Latin digits.

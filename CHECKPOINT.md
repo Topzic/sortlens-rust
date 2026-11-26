@@ -1,5 +1,60 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-sixth) — the command palette's rows speak the interface language
+
+- **Why this came up.** The hundred-and-sixty-fifth entry's Next named the command table's own labels
+  in `crates/engine/src/command.rs`, which the menus paint. Reading the crate showed no menu bar: the
+  registry's labels are painted by the ⌘K palette (`crates/ui/src/shell.rs`'s `command_palette`),
+  which printed `RichText::new(spec.label)` and `RichText::new(spec.group.label())` raw, while the
+  sidebar's eight rows and the shortcut editor already routed their lookups. The `CI` run for
+  `09f74c0` (`45885192753`) was in progress at STEP 1b, not red, so this is a roadmap slice.
+- **What is routed.** The palette's row label is now `RichText::new(tl!(spec.label))` and its group
+  heading `RichText::new(tl!(spec.group.label()))`. The registry stays one English table — the
+  English text is the catalogue key, so `Add Folder…`, `Settings…` and the six group names are the
+  same strings the sidebar and the shortcut editor already looked up. English keeps every word it
+  painted, so no baseline moves.
+- **Rows.** Sixteen new rows in each of the six catalogues (96 rows). `Soft Focus`, `Start Cull` and
+  `Export Picks…` already had rows from the canvas and the sidebar, so those three were reused rather
+  than re-worded; `Settings…` and `Rescan Folder` are new beside the lowercase `Settings`/`Rescan`
+  rows the Settings dialog and the folder menu own, because the registry's label is its own key.
+  Arabic reads `صور مشابهة` under `التنظيم`, `بدء الفرز` and `إنهاء Sortlens`.
+- **Tests.** `the_command_palettes_rows_speak_the_interface_language` reads `shell.rs` back (lines
+  trimmed and joined) and requires both routes with no bare-literal twin, then walks
+  `PaletteCommand::ALL` through `Registry::v0()` and asserts every label and group heading answers a
+  row in all six catalogues — keys the source-reading audit cannot see, because they come from
+  `sortlens-engine`. It then holds English unchanged, and Arabic's `بدء الفرز`, `التنظيم` and
+  `إنهاء Sortlens`. Proved to bite: restoring the pre-slice `RichText::new(spec.label)` fails it with
+  `the palette still paints RichText::new(spec.label)`. The catalogue audit also parses all six files,
+  so a duplicated or malformed row fails it — it did, twice, while this slice's rows were landing
+  (the pre-existing `Soft Focus`/`Start Cull`/`Export Picks…` rows), and the duplicate was dropped
+  rather than added.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the sweep's remaining list to the
+  shortcut editor's command names (`New Collection…`, `Pick or Reject`, `Set Rating`, `Colour Label`,
+  `Add Keyword…`, `Apply Last Keyword`, `Cull Decision`), which have no row in any catalogue yet; the
+  row stays unticked. UX.md's palette paragraph and ARCHITECTURE.md §8.4 record the route and the
+  reason a registry label needs its own guard.
+- **Visual verification.** `cargo xtask screenshots` was run because `crates/ui` changed: 30 passed,
+  1 ignored (network), and `git status` showed no baseline moved — the proof the English paint did
+  not shift.
+- **Gates.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` was covered by `cargo xtask
+  ci`; `cargo test -p sortlens-ui --lib -- the_command_palettes_rows_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice literal, quoted above); then `cargo fmt --all`; `cargo xtask ci` exit 0 (fmt, workspace
+  clippy, the whole suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5
+  passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots`
+  30 passed and 1 ignored (network) with no baseline moved. `crates/ui` changed, so `cargo xtask
+  mobile` is CI's job — this machine has no Android NDK and no Xcode, which leaves the device-side
+  leg unverified here. No release workflow was dispatched: source, catalogue rows, tests and docs,
+  no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the two routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (sixteen rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the shortcut
+  editor's command names: the `Bindable` labels `crates/ui/src/keymap.rs` builds from the registry, and
+  the seven that still have no row, through the same source-readback and Arabic lookup test. SL-L07
+  stays unticked. No release run is in flight.
 ## 2026-11-26 (hundred-and-sixty-fifth) — the keyword source's word, hover and remove suffix speak the interface language
 
 - **Why this came up.** The hundred-and-sixty-fourth entry's Next named the tag chip's hover:

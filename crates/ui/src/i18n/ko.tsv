@@ -1075,3 +1075,19 @@
 	Sending {name} — {done} of {total} finished	{name} 보내는 중 — {total}개 중 {done}개 완료
 	Sending… {done} of {total} finished	보내는 중… {total}개 중 {done}개 완료
 	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	제거는 데스크톱이 바이트를 보관한 뒤 검증된 사진을 이 휴대폰의 휴지통으로 옮깁니다. 유지는 그대로 둡니다. 카탈로그가 더 이상 일치하지 않는 파일은 거부되며 삭제되지 않습니다.
+	Similar Photos	비슷한 사진
+	Apply Rejects	제외 적용
+	Show in Folder	폴더에서 보기
+	Open in Default App	기본 앱으로 열기
+	Suggest Keywords for the Library	라이브러리 키워드 제안
+	Rescan Folder	폴더 다시 검사
+	Back Up Library…	라이브러리 백업…
+	Restore Backup into Folder…	백업을 폴더로 복원…
+	Export Change Report…	변경 보고서 내보내기…
+	Settings…	설정…
+	Quit Sortlens	Sortlens 종료
+	Review	검토
+	Organise	정리
+	View	보기
+	App	앱
+	Help	도움말

@@ -869,7 +869,12 @@ had, and the other five are new rows in each of the six catalogues. The Send but
 the same way (hundred-and-sixty-fourth entry): `Send the selection ({count})` is an `fmt` template
 whose value is `i18n::count`, and `the_send_button_counts_the_selection_in_the_interface_language`
 reads `shell.rs` back for the template, rejects the old `format!` twin, then holds English's `2` and
-Arabic's `٢`.
+Arabic's `٢`. The command table's own labels are routed at the palette (hundred-and-sixty-sixth
+entry): a ⌘K row paints `tl!(spec.label)` and its group heading `tl!(spec.group.label())`, so the
+registry stays one English table (`crates/engine/src/command.rs`) and the catalogue answers it at
+paint time. `the_command_palettes_rows_speak_the_interface_language` reads `shell.rs` back for both
+routes, rejects each bare twin, and then walks `PaletteCommand::ALL` through `Registry::v0()` in all
+six catalogues, because a label read from the engine is invisible to the source-reading audit.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

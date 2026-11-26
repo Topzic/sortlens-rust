@@ -2574,7 +2574,8 @@ impl PaletteCommand {
 /// The palette's rows for a query, resolved from the registry.
 ///
 /// Label, group and shortcut are the registry's; this function only decides which of the palette's
-/// commands answer the text, matching the label, the id and the group name.
+/// commands answer the text, matching the label, the id and the group name. The paint routes both
+/// the label and the group heading through `tl!`, so the catalogue answers them at paint time.
 fn palette_rows(query: &str) -> Vec<(PaletteCommand, sortlens_engine::command::CommandSpec)> {
     let registry = sortlens_engine::command::Registry::v0();
     let needle = query.trim().to_lowercase();
@@ -2677,12 +2678,12 @@ fn command_palette(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                                 if group != Some(spec.group) {
                                     group = Some(spec.group);
                                     ui.add_space(if index == 0 { 0.0 } else { 6.0 });
-                                    ui.label(RichText::new(spec.group.label()).size(10.0).strong().color(t.text_faint));
+                                    ui.label(RichText::new(tl!(spec.group.label())).size(10.0).strong().color(t.text_faint));
                                 }
                                 let selected = index == state.palette_index;
                                 let response = ui
                                     .horizontal(|ui| {
-                                        let response = ui.selectable_label(selected, RichText::new(spec.label).size(12.0));
+                                        let response = ui.selectable_label(selected, RichText::new(tl!(spec.label)).size(12.0));
                                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                             // The rebindable commands paint what the runtime keymap
                                             // holds, so a rebind cannot leave the palette lying.
@@ -13123,6 +13124,50 @@ mod tests {
         }
     }
 
+    /// The ⌘K palette's rows are registry labels and group headings, which the source-reading
+    /// catalogue audit cannot see — the paint looks both up at run time. This is the guard that
+    /// keeps a row from arriving in English only, and it walks the same list the palette paints
+    /// (SL-L07).
+    #[test]
+    fn the_command_palettes_rows_speak_the_interface_language() {
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect::<Vec<_>>().join("\n");
+        for route in [concat!("tl!(spec.", "label)"), concat!("tl!(spec.group.", "label())")] {
+            assert!(source.contains(route), "the palette does not route {route}");
+        }
+        for bare in [
+            concat!("RichText::new(spec.", "label)"),
+            concat!("RichText::new(spec.group.", "label())"),
+        ] {
+            assert!(!source.contains(bare), "the palette still paints {bare}");
+        }
+
+        let registry = sortlens_engine::command::Registry::v0();
+        let mut keys: Vec<&'static str> = Vec::new();
+        for command in PaletteCommand::ALL {
+            let spec = registry.get(command.id()).expect("the palette names a registry command");
+            keys.push(spec.label);
+            keys.push(spec.group.label());
+        }
+        keys.sort_unstable();
+        keys.dedup();
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).expect("the picker offers it");
+            for key in &keys {
+                assert!(
+                    crate::i18n::I18N.get(lang, "", key).is_some(),
+                    "{code} has no row for the palette's {key:?}"
+                );
+            }
+        }
+        let english = crate::i18n::from_code("en").expect("English is offered");
+        for key in &keys {
+            assert_eq!(crate::i18n::I18N.t(english, key), *key, "English answers {key:?} unchanged");
+        }
+        let arabic = crate::i18n::from_code("ar").expect("Arabic is offered");
+        assert_eq!(crate::i18n::I18N.t(arabic, "Start Cull"), "بدء الفرز");
+        assert_eq!(crate::i18n::I18N.t(arabic, "Organise"), "التنظيم");
+        assert_eq!(crate::i18n::I18N.t(arabic, "Quit Sortlens"), "إنهاء Sortlens");
+    }
     /// The search field's hint and the bottom bar's count are catalogue rows rather than English
     /// formatted in place (SL-L07). Arabic writes both sentences, keeps the platform's key cap in
     /// the hint and writes the count in its own digits; English is pinned character for character.

@@ -1397,15 +1397,28 @@ and none of M9 is closed until the remaining rows are ticked.
   then checks every language answers a row for every `TagSource::EVERY` label and explanation — keys
   the source-reading audit cannot see — and that Arabic writes the word, the explanation and the
   remove suffix in Arabic.
+  The command palette's rows followed (hundred-and-sixty-sixth entry): the ⌘K list's label and the
+  group heading above it are registry values (`crates/engine/src/command.rs`), painted through
+  `tl!(spec.label)` and `tl!(spec.group.label())`, so the table stays one English list and the
+  catalogue answers it at paint time — an Arabic palette reads `صور مشابهة` under `التنظيم` where it
+  read English. Sixteen new rows per catalogue carried the palette's own set (`Soft Focus`,
+  `Start Cull` and `Export Picks…` already had theirs from the canvas and the sidebar).
+  `the_command_palettes_rows_speak_the_interface_language` reads `shell.rs` back for both routes
+  and rejects each bare twin, then walks `PaletteCommand::ALL` through `Registry::v0()` in all six
+  catalogues — a label looked up at paint time is invisible to the source-reading audit — and holds
+  English unchanged and Arabic's `بدء الفرز`, `التنظيم` and `إنهاء Sortlens`.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining family:
-  - the command table's own labels (`crates/engine/src/command.rs`), which the menus paint.
+  - the shortcut editor's command names (`crates/ui/src/keymap.rs`): the `Bindable` labels it builds
+    from the registry — `New Collection…`, `Pick or Reject`, `Set Rating`, `Colour Label`,
+    `Add Keyword…`, `Apply Last Keyword` and `Cull Decision` — have no row in any of the six
+    catalogues yet.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
   catalogue row or a recorded exception, which the next ticks take one family at a time — the
-  command table's labels are next.
+  shortcut editor's command names are next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

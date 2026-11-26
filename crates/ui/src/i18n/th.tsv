@@ -1077,3 +1077,19 @@
 	Sending {name} — {done} of {total} finished	กำลังส่ง {name} — เสร็จแล้ว {done} จาก {total}
 	Sending… {done} of {total} finished	กำลังส่ง… เสร็จแล้ว {done} จาก {total}
 	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	การนำออกจะย้ายรูปที่ตรวจสอบแล้วไปยังถังขยะของโทรศัพท์นี้เมื่อเดสก์ท็อปเก็บไบต์ครบแล้ว ส่วนการเก็บไว้จะปล่อยไว้ที่เดิม ไฟล์ที่แคตตาล็อกไม่ตรงแล้วจะถูกปฏิเสธ ไม่ถูกลบ
+	Similar Photos	ภาพที่คล้ายกัน
+	Apply Rejects	ใช้ภาพที่ตัดออก
+	Show in Folder	แสดงในโฟลเดอร์
+	Open in Default App	เปิดในแอปเริ่มต้น
+	Suggest Keywords for the Library	เสนอคำค้นสำหรับคลังภาพ
+	Rescan Folder	สแกนโฟลเดอร์ใหม่
+	Back Up Library…	สำรองคลังภาพ…
+	Restore Backup into Folder…	กู้คืนข้อมูลสำรองลงโฟลเดอร์…
+	Export Change Report…	ส่งออกรายงานการเปลี่ยนแปลง…
+	Settings…	การตั้งค่า…
+	Quit Sortlens	ออกจาก Sortlens
+	Review	ตรวจสอบ
+	Organise	จัดระเบียบ
+	View	มุมมอง
+	App	แอป
+	Help	ความช่วยเหลือ

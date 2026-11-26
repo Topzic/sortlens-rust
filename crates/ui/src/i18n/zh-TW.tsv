@@ -1075,3 +1075,19 @@
 	Sending {name} — {done} of {total} finished	正在傳送 {name} — 已完成 {done}/{total}
 	Sending… {done} of {total} finished	正在傳送… 已完成 {done}/{total}
 	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	「移除」會在桌面取得位元組後，把已驗證的相片移到這支手機的垃圾桶；「保留」則不動它。目錄已不再相符的檔案會被拒絕，不會被刪除。
+	Similar Photos	相似照片
+	Apply Rejects	套用排除
+	Show in Folder	在資料夾中顯示
+	Open in Default App	以預設應用程式開啟
+	Suggest Keywords for the Library	為圖庫建議關鍵字
+	Rescan Folder	重新掃描資料夾
+	Back Up Library…	備份圖庫…
+	Restore Backup into Folder…	將備份還原至資料夾…
+	Export Change Report…	匯出變更報告…
+	Settings…	設定…
+	Quit Sortlens	結束 Sortlens
+	Review	檢視
+	Organise	整理
+	View	顯示
+	App	應用程式
+	Help	說明
