@@ -1091,3 +1091,6 @@
 	View	顯示
 	App	應用程式
 	Help	說明
+	Indexing · {files} files · {folders} folders	建立索引中 · {files} 個檔案 · {folders} 個資料夾
+	Scanning · {files} files	掃描中 · {files} 個檔案
+	Rate {stars}★ — the same star again clears it	評為 {stars}★ — 再按同一顆星可清除

@@ -1093,3 +1093,6 @@
 	View	มุมมอง
 	App	แอป
 	Help	ความช่วยเหลือ
+	Indexing · {files} files · {folders} folders	กำลังสร้างดัชนี · {files} ไฟล์ · {folders} โฟลเดอร์
+	Scanning · {files} files	กำลังสแกน · {files} ไฟล์
+	Rate {stars}★ — the same star again clears it	ให้คะแนน {stars}★ — ดาวเดิมอีกครั้งเพื่อล้างค่า

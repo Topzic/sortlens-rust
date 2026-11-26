@@ -1091,3 +1091,6 @@
 	View	보기
 	App	앱
 	Help	도움말
+	Indexing · {files} files · {folders} folders	색인 중 · 파일 {files}개 · 폴더 {folders}개
+	Scanning · {files} files	검사 중 · 파일 {files}개
+	Rate {stars}★ — the same star again clears it	{stars}★ 평가 — 같은 별을 다시 누르면 해제됩니다

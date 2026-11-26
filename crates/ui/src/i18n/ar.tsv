@@ -1092,3 +1092,6 @@
 	View	العرض
 	App	التطبيق
 	Help	المساعدة
+	Indexing · {files} files · {folders} folders	جارٍ الفهرسة · {files} ملفًا · {folders} مجلدًا
+	Scanning · {files} files	جارٍ الفحص · {files} ملفًا
+	Rate {stars}★ — the same star again clears it	قيّم {stars}★ — النجمة نفسها مرة أخرى تزيل التقييم

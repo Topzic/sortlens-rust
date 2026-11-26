@@ -2833,10 +2833,12 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                     }
                     if let Some(progress) = engine.scan_progress().filter(|_| engine.is_scanning()) {
                         ui.label(
-                            RichText::new(format!(
-                                "Indexing · {} files · {} folders",
-                                format_count(progress.files as u64),
-                                format_count(progress.dirs as u64)
+                            RichText::new(crate::i18n::fmt(
+                                "Indexing · {files} files · {folders} folders",
+                                &[
+                                    ("files", &format_count(progress.files as u64)),
+                                    ("folders", &format_count(progress.dirs as u64)),
+                                ],
                             ))
                             .size(11.0)
                             .color(t.accent),
@@ -2968,7 +2970,10 @@ fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
                 let name = format!("{stars} star{}", if stars == 1 { "" } else { "s" });
                 crate::a11y::label_widget(ui, &button, egui::Role::Button, &name, lit);
                 if button
-                    .on_hover_text(format!("Rate {stars}★ — the same star again clears it"))
+                    .on_hover_text(crate::i18n::fmt(
+                        "Rate {stars}★ — the same star again clears it",
+                        &[("stars", &format_count(u64::from(stars)))],
+                    ))
                     .clicked()
                 {
                     rate_selection(state, engine, if rating == stars { 0 } else { stars });
@@ -3347,9 +3352,12 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                             && engine.is_scanning()
                         {
                             ui.label(
-                                RichText::new(format!("Scanning · {} files", format_count(progress.files as u64)))
-                                    .size(11.0)
-                                    .color(t.accent),
+                                RichText::new(crate::i18n::fmt(
+                                    "Scanning · {files} files",
+                                    &[("files", &format_count(progress.files as u64))],
+                                ))
+                                .size(11.0)
+                                .color(t.accent),
                             );
                         }
                     }
@@ -13168,6 +13176,56 @@ mod tests {
         assert_eq!(crate::i18n::I18N.t(arabic, "Organise"), "التنظيم");
         assert_eq!(crate::i18n::I18N.t(arabic, "Quit Sortlens"), "إنهاء Sortlens");
     }
+    /// The canvas header's indexing line, the activity tab's scanning line and the star row's
+    /// hover are catalogue rows rather than English formatted in place (SL-L07): a Japanese canvas
+    /// says how many files it has read, and an Arabic one writes the counts in its own digits.
+    #[test]
+    fn the_progress_lines_and_the_rating_hover_speak_the_interface_language() {
+        let keys = [
+            "Indexing · {files} files · {folders} folders",
+            "Scanning · {files} files",
+            "Rate {stars}★ — the same star again clears it",
+        ];
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect::<Vec<_>>().join("\n");
+        for key in keys {
+            assert!(source.contains(key), "the shell does not route {key:?}");
+            // The old call site was a format! over the same sentence; a bare twin would paint
+            // English in every language whatever the catalogue says.
+            let bare = format!("format!(\"{key}\"");
+            assert!(!source.contains(&bare), "the shell still formats {key:?} in place");
+        }
+
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(
+            crate::i18n::fmt(keys[0], &[("files", "12"), ("folders", "3")]),
+            "Indexing · 12 files · 3 folders"
+        );
+        assert_eq!(crate::i18n::fmt(keys[1], &[("files", "7")]), "Scanning · 7 files");
+        assert_eq!(
+            crate::i18n::fmt(keys[2], &[("stars", "4")]),
+            "Rate 4★ — the same star again clears it"
+        );
+
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).expect("the picker offers it");
+            for key in keys {
+                assert!(crate::i18n::I18N.get(lang, "", key).is_some(), "{code} has no row for {key:?}");
+            }
+        }
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let line = crate::i18n::fmt(keys[0], &[("files", &format_count(12)), ("folders", &format_count(3))]);
+        assert!(line.contains("١٢"), "the canvas counts in Arabic digits: {line:?}");
+        assert!(line.contains("٣"), "and the folder count too: {line:?}");
+        assert!(!line.contains("files"), "no English is left in the indexing line: {line:?}");
+        let hover = crate::i18n::fmt(keys[2], &[("stars", &format_count(4))]);
+        assert!(hover.contains("٤"), "the hover's star count is Arabic-Indic: {hover:?}");
+        assert!(!hover.contains("clears"), "no English is left in the hover: {hover:?}");
+
+        crate::i18n::set_current(previous);
+    }
+
     /// The search field's hint and the bottom bar's count are catalogue rows rather than English
     /// formatted in place (SL-L07). Arabic writes both sentences, keeps the platform's key cap in
     /// the hint and writes the count in its own digits; English is pinned character for character.

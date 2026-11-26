@@ -1092,3 +1092,6 @@
 	View	表示
 	App	アプリ
 	Help	ヘルプ
+	Indexing · {files} files · {folders} folders	インデックス作成中 · {files} ファイル · {folders} フォルダー
+	Scanning · {files} files	スキャン中 · {files} ファイル
+	Rate {stars}★ — the same star again clears it	{stars}★ を評価 — 同じ星をもう一度押すと解除

@@ -1,5 +1,59 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-eighth) — the canvas's progress lines and star hover speak the interface language, and the sweep found the rest
+
+- **Why it came up.** The hundred-and-sixty-seventh entry's Next was the whole-source sweep that can
+  tick SL-L07, one painted surface at a time. The `CI` run for `db83c96` (`45889523590`) was still
+  in progress at STEP 1b, not red, so this was a roadmap slice.
+- **What the sweep found.** Reading `crates/ui/src` for paint calls whose first argument is a bare
+  string (not `tl!`, not `crate::i18n::fmt`) found twenty-six sites. Most are values or recorded
+  exceptions (`Sortlens`, `?`, `×`, `↔`, `+ {tag}`, `#{tag}`, `{:.1}s`, `{} → {}`). Three were
+  English sentences a reader meets: the canvas header's `Indexing · {} files · {} folders`, the
+  folder tree's and Activity tab's `Scanning · {} files`, and the star row's
+  `Rate {stars}★ — the same star again clears it`.
+- **What shipped.** All three are `fmt` templates now, with their counts still `format_count`:
+  `Indexing · {files} files · {folders} folders`, `Scanning · {files} files`, and
+  `Rate {stars}★ — the same star again clears it` (its value goes through `u64::from(stars)`). English
+  is byte-identical, so no baseline moves, and a Japanese canvas reads
+  `インデックス作成中 · 12 ファイル · 3 フォルダー` where it read English. Three new rows in each of the
+  six catalogues.
+- **The test.** `the_progress_lines_and_the_rating_hover_speak_the_interface_language` reads
+  `shell.rs` back (lines trimmed and joined), requires each template and rejects the bare `format!`
+  over the same sentence, holds the three English renderings byte for byte, requires a row in every
+  one of the six catalogues, and asserts Arabic's digits (`١٢`, `٣`, `٤`) with no English left in the
+  line or the hover. **Proved to bite:** restoring
+  `on_hover_text(format!("Rate {stars}★ — the same star again clears it"))` fails it with
+  `the shell still formats "Rate {stars}★ — the same star again clears it" in place`. (The first
+  version of the guard only compared a twelve-character prefix and did *not* catch that revert; the
+  assertion now compares the whole sentence, and the bite proof above is against the fixed version.)
+- **Still painted English, found by the same sweep, each its own surface for a later tick.** The
+  appearance, grid-density, grid-layout and thumbnail-size hovers
+  (`Appearance: {theme} — click to cycle, right-click for every theme and reduced motion`,
+  `Grid density: {size}`, `Grid layout: {layout}`, `Thumbnail size: {size}`) and the value words they
+  name: `Charcoal`, `Midnight`, `Silver`, `High Contrast`, `Comfortable`, `Roomy`, `Square` and
+  `Justified` have no rows at all (`Paper`, `Compact` and `Reduced motion` do), so Settings' theme
+  radios paint English today. Also open: the Insights breakdown's `{extra} with no …` remainder line,
+  the keyword-pack row's `{}: {problem}` and `{} keyword(s) · {}`, and the two chart hovers
+  (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`).
+- **Docs.** ROADMAP's SL-L07 row records this surface, its test and the sweep's full remaining list,
+  and names the appearance and grid value words with their four hovers as the next surface; the row
+  stays unticked. No other prose contradicted the change (UX.md's slider paragraph names the steps,
+  not their hover words).
+- **Gates.** `cargo fmt --all`; `cargo test -p sortlens-ui --lib -- the_progress_lines_and_the_rating_hover_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the bite proof above); then `cargo xtask ci`
+  exit 0, `cargo xtask snapshot` 5 passed, `cargo xtask deny` ok, and `cargo xtask screenshots`
+  30 passed and 1 ignored (network) with no baseline moved. `cargo xtask mobile` cannot run here (no
+  Android NDK, no Xcode), so CI's two mobile legs are the proof. No release workflow was dispatched:
+  source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (three routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (three rows each), `docs/ROADMAP.md` and this file.
+- **Next.** Route the appearance and grid value words with their four hovers: add rows for
+  `Charcoal`, `Midnight`, `Silver`, `High Contrast`, `Comfortable`, `Roomy`, `Square` and
+  `Justified`, then route `Appearance: {theme} — …`, `Grid density: {size}`, `Grid layout: {layout}`,
+  `Thumbnail size: {size}`, the Settings theme radios (`settings_body`) and the theme context menu,
+  through helpers like `theme_word`/`density_word`/`layout_word`, with a source-readback and Arabic
+  test. SL-L07 stays unticked. No release run in flight.
+
 ## 2026-11-26 (hundred-and-sixty-seventh) — the shortcut editor's rows were already translated, and a test now says so
 
 - **Why it came up.** The hundred-and-sixty-sixth entry's Next named the shortcut editor's command

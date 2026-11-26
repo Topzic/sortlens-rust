@@ -1091,3 +1091,6 @@
 	View	Xem
 	App	Ứng dụng
 	Help	Trợ giúp
+	Indexing · {files} files · {folders} folders	Đang lập chỉ mục · {files} tệp · {folders} thư mục
+	Scanning · {files} files	Đang quét · {files} tệp
+	Rate {stars}★ — the same star again clears it	Chấm {stars}★ — bấm lại ngôi sao đó để bỏ

@@ -1427,6 +1427,22 @@ and none of M9 is closed until the remaining rows are ticked.
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
   catalogue row or a recorded exception. No named family is left: the next slice is the
   whole-source sweep that can tick the row, one painted surface at a time.
+  The whole-source sweep that can tick the row started (hundred-and-sixty-eighth entry) with the
+  canvas header's own lines: `Indexing · {files} files · {folders} folders` (the grid's scan
+  progress), `Scanning · {files} files` (the folder tree's, and the Activity tab's, scan row) and
+  `Rate {stars}★ — the same star again clears it` (the star row's hover) are `fmt` templates, and
+  the counts are still `format_count`, so a Japanese canvas reads `インデックス作成中 · 12 ファイル · 3 フォルダー`
+  and an Arabic one `جارٍ الفهرسة · ١٢ ملفًا · ٣ مجلدًا`. Three new rows per catalogue.
+  `the_progress_lines_and_the_rating_hover_speak_the_interface_language` reads `shell.rs` back,
+  requires each template and rejects the bare `format!` over the same sentence, then holds the
+  English byte for byte and Arabic's own digits.
+  The sweep also found what is still painted English, surface by surface, for later ticks: the
+  appearance, grid-density, grid-layout and thumbnail-size hovers with the theme, density and layout
+  words they name — those value words have no rows at all except `Paper`, `Compact` and
+  `Reduced motion`, so Settings' theme radios paint English today; the Insights breakdown's
+  `{extra} with no …` remainder line; the keyword-pack row's `{}: {problem}` and
+  `{} keyword(s) · {}`; and the two chart hovers (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`).
+  The next surface is the appearance and grid value words with their four hovers.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
