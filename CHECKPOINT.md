@@ -1,5 +1,42 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fortieth) — the flag receipt speaks the interface language, its counts in the reader's digits
+
+- **Why this came up.** The hundred-and-thirty-ninth entry's Next named the flag family, the last notice pair
+  beside rating. `flag_selection` built six English strings in one `match`: `Picked`, `Rejected` and
+  `Unflagged` for one photograph and `Picked {many} photos` and its two siblings for several — an
+  English frame with Latin digits under an interface the catalogues had already translated, so an Arabic
+  flag click read `Picked 2 photos` beside its own language everywhere else.
+- **What is routed.** `flag_notice(flag, count)` matches on the engine's own `Flag` and the selection's
+  count, and words each receipt from a row: `Picked`, `Rejected`, `Unflagged`, `Picked {n} photos`,
+  `Rejected {n} photos`, `Unflagged {n} photos`. The count is a placeholder filled with `format_count`,
+  so `Picked 2 photos` reads `٢ صورة مختارة` in Arabic. Five rows per catalogue, six catalogues; the
+  one-photo `Unflagged` row already existed for the filter strip, so the receipt and the chip share it
+  rather than word the same state twice.
+- **Tests.** `the_flag_notices_speak_the_interface_language` pins all six English shapes, then flags a
+  real two-photo selection through the shell's own `flag_selection` under Arabic and requires
+  Arabic-Indic digits with no English word behind them; it paints the bell popover and requires the
+  history to be that same sentence, then unflags a single photograph and requires its own row with no
+  English left; Japanese must word all three several-photo templates with its measure word `枚`. It fails
+  on the old literals two ways: the catalogue audit would have no row for the new keys, and the Arabic
+  lookups would return English.
+- **Docs.** ROADMAP's SL-L07 row records the flag family and names it in the audit's remaining list;
+  UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name `flag_notice` and the test. SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite, `layers`, `roots`,
+  `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`);
+  `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — no committed scene
+  flags a photograph, and the English paint is unchanged; `cargo xtask snapshot` 5 passed and
+  `cargo xtask deny` (advisories, bans, licenses, sources) exit 0. `cargo xtask mobile` cannot run
+  here (no Android NDK, no Xcode) and no phone code changed; there is no `cargo xtask wasm` in this
+  workspace. No release workflow was dispatched: source, catalogue rows, tests and docs, no build or
+  release surface.
+- **Files.** `crates/ui/src/shell.rs`, the six `crates/ui/src/i18n/*.tsv` (five rows each),
+  `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that matters, though no committed scene flags a photograph). Then the tagging
+  notices: `#{tag} is not used by any photo`, `#{tag} taken off {n} photo(s) — one undo brings it back`,
+  `Removed keyword {tag}` and `Added keyword {name}` in `shell.rs`, one family per tick. SL-L07 stays
+  unticked; its row lists what the audit still finds. No release run is in flight.
 ## 2026-11-26 (hundred-and-thirty-ninth) — the rating receipt speaks the interface language, its stars in the reader's digits
 
 - **Why this came up.** The hundred-and-thirty-eighth entry's Next named the next notice family: rating.

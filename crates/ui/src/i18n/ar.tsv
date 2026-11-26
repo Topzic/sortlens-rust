@@ -957,3 +957,8 @@
 	{n} missing	{n} مفقودة
 	{n} routed by content, not name	{n} صُنّفت بالمحتوى لا بالاسم
 	{n} unreadable	{n} غير قابل للقراءة
+	Picked	مختارة
+	Rejected	مرفوضة
+	Picked {n} photos	{n} صورة مختارة
+	Rejected {n} photos	{n} صورة مرفوضة
+	Unflagged {n} photos	{n} صورة بلا علامة

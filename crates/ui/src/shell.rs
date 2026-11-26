@@ -3054,15 +3054,27 @@ fn flag_selection(state: &mut UiState, engine: &mut Engine, flag: Flag) {
     }
     let count = targets.len();
     match engine.flag(&targets, flag) {
-        Ok(_) => state.notice(match (flag, count) {
-            (Flag::Pick, 1) => "Picked".to_string(),
-            (Flag::Reject, 1) => "Rejected".to_string(),
-            (Flag::None, 1) => "Unflagged".to_string(),
-            (Flag::Pick, many) => format!("Picked {many} photos"),
-            (Flag::Reject, many) => format!("Rejected {many} photos"),
-            (Flag::None, many) => format!("Unflagged {many} photos"),
-        }),
+        Ok(_) => state.notice(flag_notice(flag, count)),
         Err(error) => state.notice_problem(error.to_string()),
+    }
+}
+
+/// The flag receipt in the interface language (SL-L07): six literals became five new rows
+/// (`Unflagged` already had the filter chip's).
+///
+/// The one-photo colours are sentences of their own rather than a count bolted onto a verb — a
+/// language may word "picked" as a state and "picked four" as an action — so each flag has a row
+/// for one and a template for several. The count is a placeholder filled with `format_count`, the
+/// way the rating receipt does it, so an Arabic toast carries Arabic-Indic digits.
+fn flag_notice(flag: Flag, count: usize) -> String {
+    let n = format_count(count as u64);
+    match (flag, count) {
+        (Flag::Pick, 1) => tl!("Picked").to_string(),
+        (Flag::Reject, 1) => tl!("Rejected").to_string(),
+        (Flag::None, 1) => tl!("Unflagged").to_string(),
+        (Flag::Pick, _) => crate::i18n::fmt("Picked {n} photos", &[("n", &n)]),
+        (Flag::Reject, _) => crate::i18n::fmt("Rejected {n} photos", &[("n", &n)]),
+        (Flag::None, _) => crate::i18n::fmt("Unflagged {n} photos", &[("n", &n)]),
     }
 }
 
@@ -19909,6 +19921,114 @@ mod tests {
         assert!(rated.contains("4★") && rated.contains("枚") && !rated.contains("photos"), "{rated}");
         assert!(rating_notice(4, 1).contains("付けました"), "{}", rating_notice(4, 1));
         assert!(rating_notice(0, 1).contains("評価を解除"), "{}", rating_notice(0, 1));
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The flag receipt speaks the interface language (SL-L07).
+    ///
+    /// Six literals built the toast a flag click leaves: `Picked`/`Rejected`/`Unflagged` for one
+    /// photograph and `Picked {many} photos` and its two siblings for several. Each is a catalogue
+    /// row now, with the count a placeholder through `format_count`, so an Arabic click reads its
+    /// own digits in its own sentence rather than an English frame around them.
+    #[test]
+    fn the_flag_notices_speak_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-flag-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-flag-i18n");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 * index, 90, 170], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "the fixture scans both photographs");
+
+        // English: the words the toast has always painted, one photo and several.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(flag_notice(Flag::Pick, 1), "Picked");
+        assert_eq!(flag_notice(Flag::Reject, 1), "Rejected");
+        assert_eq!(flag_notice(Flag::None, 1), "Unflagged");
+        assert_eq!(flag_notice(Flag::Pick, 2), "Picked 2 photos");
+        assert_eq!(flag_notice(Flag::Reject, 2), "Rejected 2 photos");
+        assert_eq!(flag_notice(Flag::None, 2), "Unflagged 2 photos");
+
+        // Arabic: the shell's own path flags the selection and leaves its own sentence, its own
+        // digits, and no English noun behind it.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.select_many(&ids);
+        flag_selection(&mut state, &mut engine, Flag::Pick);
+        let arabic = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("the flag leaves a notice");
+        assert!(
+            arabic.contains('٢') && !arabic.contains("Picked") && !arabic.contains("photos"),
+            "the count is the reader's digits under its own words: {arabic}"
+        );
+        assert_eq!(
+            engine.photo(ids[0]).expect("photo").flag,
+            Flag::Pick,
+            "the click flags the selection"
+        );
+
+        // The painted history is that same sentence: the toast and the bell cannot word it apart.
+        state.bell_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint(&ctx, &mut state);
+        let frame = paint(&ctx, &mut state);
+        assert!(label_at(&frame, &arabic).is_some(), "the history paints the catalogue's sentence");
+
+        // A single photograph is its own row, and Arabic words it as a state.
+        state.selection.select_many(&ids[..1]);
+        flag_selection(&mut state, &mut engine, Flag::None);
+        let cleared = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("unflagging leaves a notice");
+        assert_eq!(cleared, tl!("Unflagged"), "one photo takes the catalogue's own row");
+        assert!(!cleared.contains("Unflagged"), "with no English behind it: {cleared}");
+
+        // Japanese words the several-photo forms its own way, with its own measure word.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let picked = flag_notice(Flag::Pick, 3);
+        assert!(picked.contains("3 枚") && !picked.contains("photos"), "{picked}");
+        let rejected = flag_notice(Flag::Reject, 3);
+        assert!(rejected.contains("3 枚") && !rejected.contains("photos"), "{rejected}");
+        let unflagged = flag_notice(Flag::None, 3);
+        assert!(unflagged.contains("3 枚") && !unflagged.contains("photos"), "{unflagged}");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

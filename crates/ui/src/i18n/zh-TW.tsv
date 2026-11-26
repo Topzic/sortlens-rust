@@ -956,3 +956,8 @@
 	{n} missing	缺少 {n} 個
 	{n} routed by content, not name	依內容而非名稱分類 {n} 張
 	{n} unreadable	{n} 個無法讀取
+	Picked	已精選
+	Rejected	已排除
+	Picked {n} photos	已精選 {n} 張照片
+	Rejected {n} photos	已排除 {n} 張照片
+	Unflagged {n} photos	已取消 {n} 張照片的標記

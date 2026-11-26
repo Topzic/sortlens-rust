@@ -956,3 +956,8 @@
 	{n} missing	thiếu {n}
 	{n} routed by content, not name	phân loại theo nội dung, không theo tên: {n}
 	{n} unreadable	{n} không đọc được
+	Picked	Đã chọn
+	Rejected	Đã loại
+	Picked {n} photos	Đã chọn {n} ảnh
+	Rejected {n} photos	Đã loại {n} ảnh
+	Unflagged {n} photos	Đã bỏ cờ {n} ảnh

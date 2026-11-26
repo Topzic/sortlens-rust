@@ -626,6 +626,11 @@ Arabic sentence, and `the_rating_notices_speak_the_interface_language` rates a r
 selection under Arabic and requires the toast and the bell's painted history to agree with the
 catalogue.
 
+The flag receipt takes it over the click's flag and count: `flag_notice` words `Picked`, `Rejected`
+and `Unflagged` and their three several-photo templates, with the count through `format_count`, so an
+Arabic flag reads `٢ صورة مختارة` and `the_flag_notices_speak_the_interface_language` flags a real
+two-photo selection under Arabic and requires the toast and the bell's painted history to agree.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

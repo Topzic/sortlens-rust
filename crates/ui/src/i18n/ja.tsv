@@ -957,3 +957,8 @@
 	{n} missing	欠落 {n} 件
 	{n} routed by content, not name	名前ではなく内容で振り分け {n} 件
 	{n} unreadable	読み取り不可 {n} 件
+	Picked	ピックしました
+	Rejected	却下しました
+	Picked {n} photos	{n} 枚をピックしました
+	Rejected {n} photos	{n} 枚を却下しました
+	Unflagged {n} photos	{n} 枚のフラグを外しました

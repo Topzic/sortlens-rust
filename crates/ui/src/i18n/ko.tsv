@@ -956,3 +956,8 @@
 	{n} missing	{n}개 누락
 	{n} routed by content, not name	이름이 아니라 내용으로 분류 {n}개
 	{n} unreadable	{n}개 읽을 수 없음
+	Picked	선택함
+	Rejected	제외함
+	Picked {n} photos	사진 {n}장 선택함
+	Rejected {n} photos	사진 {n}장 제외함
+	Unflagged {n} photos	사진 {n}장 표시 해제

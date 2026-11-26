@@ -1182,10 +1182,17 @@ and none of M9 is closed until the remaining rows are ticked.
   count through `format_count`, so an Arabic click reads `قُيِّمت ٢ صورة بـ ٣★` in its own digits and
   `the_rating_notices_speak_the_interface_language` rates a real two-photo selection under Arabic and
   requires both the toast and the bell's painted history to be the catalogue's sentence.
+  The flag receipt followed (hundred-and-fortieth entry): `Picked`/`Rejected`/`Unflagged` and
+  `Picked {n} photos`/`Rejected {n} photos`/`Unflagged {n} photos` are five new rows (`Unflagged`
+  already had the filter chip's), with the count
+  through `format_count`, so an Arabic flag reads `٢ صورة مختارة` where it read `Picked 2 photos`, and
+  `the_flag_notices_speak_the_interface_language` flags a real two-photo selection under Arabic and
+  requires the toast and the bell's painted history to be the catalogue's sentence.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
   went through `tl!`/`i18n::fmt`: the ten remaining `state.notice(format!(…))` messages
   (tagging, culling, selection, a new collection, hashing previews, the softest photographs; indexing
-  went in the hundred-and-thirty-eighth entry and rating in the hundred-and-thirty-ninth), dozens of `on_hover_text`/accessibility
+  went in the hundred-and-thirty-eighth entry, rating in the hundred-and-thirty-ninth and the flag
+  match in the hundred-and-fortieth), dozens of `on_hover_text`/accessibility
   names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.

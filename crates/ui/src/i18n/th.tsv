@@ -958,3 +958,8 @@
 	{n} missing	หาย {n}
 	{n} routed by content, not name	แยกตามเนื้อหาไม่ใช่ชื่อ {n}
 	{n} unreadable	อ่านไม่ได้ {n}
+	Picked	เลือกแล้ว
+	Rejected	ตัดออกแล้ว
+	Picked {n} photos	เลือก {n} รูปแล้ว
+	Rejected {n} photos	ตัดออก {n} รูปแล้ว
+	Unflagged {n} photos	เอาเครื่องหมายออกจาก {n} รูปแล้ว

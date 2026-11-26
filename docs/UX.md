@@ -817,6 +817,9 @@ re-checks its own contrast pairs after applying.
   The rating receipt followed (hundred-and-thirty-ninth entry): `Rated {stars}★`, its several-photo
   form and both clearing sentences are rows, the stars and the count in the reader's digits, so an
   Arabic click reads `قُيِّمت ٢ صورة بـ ٣★` where it read `Rated 3★ on 2 photos`.
+  The flag receipt followed (hundred-and-fortieth entry): `Picked`, `Rejected` and `Unflagged`, and
+  their `{n} photos` forms, are five new rows with the count in the reader's digits, so an Arabic flag
+  reads `٢ صورة مختارة` where it read `Picked 2 photos`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
