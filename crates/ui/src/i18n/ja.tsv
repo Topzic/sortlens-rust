@@ -1119,3 +1119,19 @@
 	{label}: {n} of {whole} ({pct}%)	{label}：{whole} 件中 {n} 件（{pct}%）
 	{zoom}× · Z to fit	{zoom}倍 · Zで全体表示
 	{seconds}s	{seconds}秒
+	Kept	残しました
+	Added to collection	コレクションに追加しました
+	Add a folder before rescanning	再スキャンの前にフォルダーを追加してください
+	Redid the last undone change	元に戻した変更をやり直しました
+	Nothing to redo	やり直す変更はありません
+	Undid the last change	最後の変更を元に戻しました
+	Nothing to undo	元に戻す変更はありません
+	Nothing staged: start a cull session and reject something first	保留された決定はありません。先に選別セッションを開き、写真を1枚却下してください
+	Compare needs two photos: select one with a neighbour in view	比較には写真が2枚必要です。表示中の隣の写真があるものを選んでください
+	Nothing to compare with	比較する相手がありません
+	Every photo already has a current score	すべての写真に最新のスコアがあります
+	All {n} already tagged “{tag}”	{n} 件すべてに「{tag}」が付いています
+	Tagged “{tag}” on {n} photos	{n} 枚に「{tag}」を付けました
+	No similar groups found	似ているグループは見つかりませんでした
+	Found 1 similar group	似ているグループが1件見つかりました
+	Found {n} similar groups	似ているグループが{n}件見つかりました

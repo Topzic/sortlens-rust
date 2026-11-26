@@ -1118,3 +1118,19 @@
 	{label}: {n} of {whole} ({pct}%)	{label}: {n} trên {whole} ({pct}%)
 	{zoom}× · Z to fit	{zoom}× · Z vừa khung
 	{seconds}s	{seconds} giây
+	Kept	Đã giữ
+	Added to collection	Đã thêm vào bộ sưu tập
+	Add a folder before rescanning	Hãy thêm thư mục trước khi quét lại
+	Redid the last undone change	Đã làm lại thay đổi vừa hoàn tác
+	Nothing to redo	Không có gì để làm lại
+	Undid the last change	Đã hoàn tác thay đổi cuối
+	Nothing to undo	Không có gì để hoàn tác
+	Nothing staged: start a cull session and reject something first	Chưa có gì được giữ lại: hãy bắt đầu phiên lọc ảnh và loại một ảnh trước
+	Compare needs two photos: select one with a neighbour in view	So sánh cần hai ảnh: hãy chọn một ảnh có ảnh kề trong khung nhìn
+	Nothing to compare with	Không có gì để so sánh
+	Every photo already has a current score	Mọi ảnh đều đã có điểm hiện tại
+	All {n} already tagged “{tag}”	Cả {n} ảnh đều đã gắn thẻ “{tag}”
+	Tagged “{tag}” on {n} photos	Đã gắn thẻ “{tag}” cho {n} ảnh
+	No similar groups found	Không tìm thấy nhóm ảnh tương tự
+	Found 1 similar group	Đã tìm thấy 1 nhóm ảnh tương tự
+	Found {n} similar groups	Đã tìm thấy {n} nhóm ảnh tương tự

@@ -1119,3 +1119,19 @@
 	{label}: {n} of {whole} ({pct}%)	{label}: {n} من {whole} ({pct}٪)
 	{zoom}× · Z to fit	{zoom}× · Z للاحتواء
 	{seconds}s	{seconds} ث
+	Kept	أُبقيت
+	Added to collection	أُضيفت إلى المجموعة
+	Add a folder before rescanning	أضف مجلدًا قبل إعادة الفحص
+	Redid the last undone change	أُعيد آخر تغيير تم التراجع عنه
+	Nothing to redo	لا شيء لإعادته
+	Undid the last change	تم التراجع عن آخر تغيير
+	Nothing to undo	لا شيء للتراجع عنه
+	Nothing staged: start a cull session and reject something first	لا شيء مُعدّ: ابدأ جلسة فرز وارفض صورة أولًا
+	Compare needs two photos: select one with a neighbour in view	تحتاج المقارنة إلى صورتين: اختر صورة لها جارة في العرض
+	Nothing to compare with	لا شيء للمقارنة معه
+	Every photo already has a current score	كل صورة لها درجة حالية بالفعل
+	All {n} already tagged “{tag}”	الوسم «{tag}» موجود بالفعل على {n} صورة
+	Tagged “{tag}” on {n} photos	أُضيف الوسم «{tag}» على {n} صورة
+	No similar groups found	لم تُعثر على مجموعات مشابهة
+	Found 1 similar group	عُثر على مجموعة مشابهة واحدة
+	Found {n} similar groups	عُثر على {n} مجموعات مشابهة

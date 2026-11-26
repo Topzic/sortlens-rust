@@ -1120,3 +1120,19 @@
 	{label}: {n} of {whole} ({pct}%)	{label}: {n} จาก {whole} ({pct}%)
 	{zoom}× · Z to fit	{zoom}× · Z พอดีจอ
 	{seconds}s	{seconds} วิ
+	Kept	เก็บไว้แล้ว
+	Added to collection	เพิ่มลงคอลเลกชันแล้ว
+	Add a folder before rescanning	เพิ่มโฟลเดอร์ก่อนสแกนใหม่
+	Redid the last undone change	ทำซ้ำการเปลี่ยนแปลงที่เพิ่งเลิกทำแล้ว
+	Nothing to redo	ไม่มีอะไรให้ทำซ้ำ
+	Undid the last change	เลิกทำการเปลี่ยนแปลงล่าสุดแล้ว
+	Nothing to undo	ไม่มีอะไรให้เลิกทำ
+	Nothing staged: start a cull session and reject something first	ยังไม่มีอะไรถูกพักไว้ เริ่มเซสชันการคัดและปฏิเสธรูปก่อน
+	Compare needs two photos: select one with a neighbour in view	การเปรียบเทียบต้องใช้สองรูป เลือกรูปที่มีรูปข้างเคียงอยู่ในมุมมอง
+	Nothing to compare with	ไม่มีอะไรให้เปรียบเทียบด้วย
+	Every photo already has a current score	ทุกรูปมีคะแนนล่าสุดแล้ว
+	All {n} already tagged “{tag}”	ทั้ง {n} รูปติดแท็ก “{tag}” อยู่แล้ว
+	Tagged “{tag}” on {n} photos	ติดแท็ก “{tag}” บน {n} รูปแล้ว
+	No similar groups found	ไม่พบกลุ่มที่คล้ายกัน
+	Found 1 similar group	พบกลุ่มที่คล้ายกัน 1 กลุ่ม
+	Found {n} similar groups	พบกลุ่มที่คล้ายกัน {n} กลุ่ม

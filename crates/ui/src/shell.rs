@@ -1624,12 +1624,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
         .poll_similar_in(state.similar_threshold, state.similar_colour, state.similar_mode)
         .is_some()
     {
-        let groups = engine.similar_groups().len();
-        state.notice(match groups {
-            0 => "No similar groups found".to_string(),
-            1 => "Found 1 similar group".to_string(),
-            other => format!("Found {other} similar groups"),
-        });
+        state.notice(similar_groups_notice(engine.similar_groups().len()));
     }
     thumbs.poll(ui.ctx());
     if engine.is_scanning() || engine.hash_progress().is_some() {
@@ -3633,6 +3628,30 @@ fn tag_taken_off(tag: &str, count: usize) -> String {
     crate::i18n::fmt(template, &[("tag", tag), ("n", &n)])
 }
 
+/// The keyword-from-the-last-photo toast in the interface language (SL-L07): the keyword and the
+/// count are placeholders, English is byte-identical to the `format!` twins this replaced, and a
+/// language that counts its nouns differently gets its own row for each of the four answers.
+fn tagged_notice(tag: &str, changed: usize, count: usize) -> String {
+    let n = format_count(count as u64);
+    match (changed, count) {
+        (0, 1) => crate::i18n::fmt("Already tagged “{tag}”", &[("tag", tag)]),
+        (0, _) => crate::i18n::fmt("All {n} already tagged “{tag}”", &[("tag", tag), ("n", &n)]),
+        (_, 1) => crate::i18n::fmt("Tagged “{tag}”", &[("tag", tag)]),
+        _ => crate::i18n::fmt("Tagged “{tag}” on {n} photos", &[("tag", tag), ("n", &n)]),
+    }
+}
+
+/// What a finished similar-groups pass found, in the interface language (SL-L07): none, one and
+/// several are three rows because a language words each of them differently, and the count goes
+/// through `format_count` so an Arabic library reads its own digits.
+fn similar_groups_notice(groups: usize) -> String {
+    match groups {
+        0 => crate::i18n::fmt("No similar groups found", &[]),
+        1 => crate::i18n::fmt("Found 1 similar group", &[]),
+        other => crate::i18n::fmt("Found {n} similar groups", &[("n", &format_count(other as u64))]),
+    }
+}
+
 /// What a keyword row's context menu asks the shell to do. Painting the menu writes here; the row's
 /// caller performs the request afterwards, so a test can paint it without renaming or deleting anything.
 #[derive(Debug, Default)]
@@ -4787,7 +4806,7 @@ fn grid(
     marquee(ui, state, t, grid_rect);
     if let Some((photo, collection)) = add_to {
         match engine.add_to_collection(&[photo], collection) {
-            Ok(_) => state.notice("Added to collection"),
+            Ok(_) => state.notice(tl!("Added to collection")),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -5114,12 +5133,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
         match engine.tag_from_prev(&targets) {
             Ok(changed) => {
                 let tag = engine.last_tag().unwrap_or_default().to_string();
-                state.notice(match (changed, count) {
-                    (0, 1) => format!("Already tagged “{tag}”"),
-                    (0, many) => format!("All {many} already tagged “{tag}”"),
-                    (_, 1) => format!("Tagged “{tag}”"),
-                    (_, many) => format!("Tagged “{tag}” on {many} photos"),
-                });
+                state.notice(tagged_notice(&tag, changed, count));
             }
             Err(error) => state.notice_problem(error.to_string()),
         }
@@ -5870,23 +5884,23 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
     if rescan {
         match rescan_root(state, engine) {
             Some(root) => actions.push(Action::Rescan(root)),
-            None => state.notice("Add a folder before rescanning"),
+            None => state.notice(tl!("Add a folder before rescanning")),
         }
         return true;
     }
     // The keymap reads exactly, so Ctrl+Shift+Z is redo and never also fires undo's Ctrl+Z.
     if redo {
         match engine.redo() {
-            Ok(true) => state.notice("Redid the last undone change"),
-            Ok(false) => state.notice("Nothing to redo"),
+            Ok(true) => state.notice(tl!("Redid the last undone change")),
+            Ok(false) => state.notice(tl!("Nothing to redo")),
             Err(error) => state.notice_problem(error.to_string()),
         }
         return true;
     }
     if undo {
         match engine.undo() {
-            Ok(true) => state.notice("Undid the last change"),
-            Ok(false) => state.notice("Nothing to undo"),
+            Ok(true) => state.notice(tl!("Undid the last change")),
+            Ok(false) => state.notice(tl!("Nothing to undo")),
             Err(error) => state.notice_problem(error.to_string()),
         }
         return true;
@@ -5903,7 +5917,7 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         if engine.cull().is_some_and(|session| session.summary().rejects > 0) {
             state.apply_open = true;
         } else {
-            state.notice("Nothing staged: start a cull session and reject something first");
+            state.notice(tl!("Nothing staged: start a cull session and reject something first"));
         }
         return true;
     }
@@ -5976,7 +5990,7 @@ fn activate_view(state: &mut UiState, engine: &mut Engine, view: View) -> bool {
         match compare_partner(state, engine) {
             Some(second) => state.compare = Some(second),
             None => {
-                state.notice("Compare needs two photos: select one with a neighbour in view");
+                state.notice(tl!("Compare needs two photos: select one with a neighbour in view"));
                 return false;
             }
         }
@@ -6076,8 +6090,8 @@ pub fn toggle_compare(state: &mut UiState, engine: &Engine) {
             state.compare = Some(second);
             state.view = View::Compare;
         }
-        None if state.selection.primary().is_none() => state.notice("Pick a photo first"),
-        None => state.notice("Nothing to compare with"),
+        None if state.selection.primary().is_none() => state.notice(tl!("Pick a photo first")),
+        None => state.notice(tl!("Nothing to compare with")),
     }
 }
 
@@ -6784,11 +6798,7 @@ fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool 
         match engine.tag_from_prev(&[current]) {
             Ok(changed) => {
                 let tag = engine.last_tag().unwrap_or_default().to_string();
-                state.notice(if changed == 0 {
-                    format!("Already tagged \u{201c}{tag}\u{201d}")
-                } else {
-                    format!("Tagged \u{201c}{tag}\u{201d}")
-                });
+                state.notice(tagged_notice(&tag, changed, 1));
             }
             Err(error) => state.notice_problem(error.to_string()),
         }
@@ -9177,7 +9187,7 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
             .clicked()
         {
             match engine.begin_sharpness() {
-                Ok(0) => state.notice("Every photo already has a current score"),
+                Ok(0) => state.notice(tl!("Every photo already has a current score")),
                 Ok(_) => {}
                 Err(error) => state.notice_problem(error.to_string()),
             }
@@ -11044,8 +11054,8 @@ fn canvas_interaction(
             _ => Decision::Reject,
         });
         state.notice(match gesture {
-            Gesture::Pick => "Kept".to_string(),
-            _ => "Rejected".to_string(),
+            Gesture::Pick => tl!("Kept"),
+            _ => tl!("Rejected"),
         });
     }
     state.drag_from = None;
@@ -27364,5 +27374,112 @@ mod tests {
             }
         }
         words.chars().any(|ch| ch.is_ascii_alphabetic())
+    }
+
+    /// Every notice the shell raises is routed through the catalogues (SL-L07).
+    ///
+    /// A notice is a different sink from a widget: its text goes straight into the bottom bar and
+    /// the bell, so an English literal there is English in every language, and the widget sweep
+    /// above cannot see it because no widget is handed the string. This reads each raised notice in
+    /// the crate's painted sources, cuts away the parts a catalogue already answers (`tl!` and
+    /// `crate::i18n::fmt`), and fails on every word still spelled by hand — a match arm, an
+    /// `if`/`else`, a `format!`. The routed keys' rows are `i18n.rs`'s audit.
+    #[test]
+    fn every_notice_the_shell_raises_is_routed_through_the_catalogues() {
+        let mut calls = 0;
+        let mut unrouted = Vec::new();
+        for source in [
+            include_str!("shell.rs"),
+            include_str!("theme.rs"),
+            include_str!("sharpness.rs"),
+            include_str!("charts.rs"),
+            include_str!("places.rs"),
+        ] {
+            let source = without_test_modules(source);
+            for sink in [".notice(", ".notice_problem("] {
+                let mut cursor = 0;
+                while let Some(found) = source[cursor..].find(sink) {
+                    let open = cursor + found + sink.len() - 1;
+                    calls += 1;
+                    unrouted.extend(raised_literals(call_argument(&source, open)));
+                    cursor = open + 1;
+                }
+            }
+        }
+        assert!(calls > 40, "the sweep found {calls} raised notices, so it is not reading the sink");
+        assert!(
+            unrouted.is_empty(),
+            "the shell raises {} notice words the catalogues never see: {unrouted:#?}",
+            unrouted.len()
+        );
+        // The routes this slice added answer in the reader's language, not in English.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        assert_eq!(tagged_notice("夜空", 0, 1), "「夜空」はすでにタグ付けされています");
+        assert_eq!(tagged_notice("夜空", 0, 3), "3 件すべてに「夜空」が付いています");
+        assert_eq!(tagged_notice("夜空", 2, 4), "4 枚に「夜空」を付けました");
+        assert_eq!(similar_groups_notice(0), "似ているグループは見つかりませんでした");
+        assert_eq!(similar_groups_notice(1), "似ているグループが1件見つかりました");
+        assert_eq!(similar_groups_notice(5), "似ているグループが5件見つかりました");
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        // English is byte-identical to the `format!` twins these rows replaced.
+        assert_eq!(tagged_notice("Sunset", 0, 1), "Already tagged “Sunset”");
+        assert_eq!(tagged_notice("Sunset", 0, 3), "All 3 already tagged “Sunset”");
+        assert_eq!(tagged_notice("Sunset", 2, 4), "Tagged “Sunset” on 4 photos");
+        assert_eq!(similar_groups_notice(0), "No similar groups found");
+        assert_eq!(similar_groups_notice(1), "Found 1 similar group");
+        assert_eq!(similar_groups_notice(7), "Found 7 similar groups");
+    }
+
+    /// The literals a raised notice still paints by hand, once the parts a catalogue answers are
+    /// cut away: the inside of every `tl!` and `crate::i18n::fmt` call, wherever in the argument it
+    /// sits.
+    fn raised_literals(argument: &str) -> Vec<String> {
+        let mut routed = Vec::new();
+        // Built at run time: the audit in `i18n.rs` reads this file back for markers, and a marker
+        // spelled out here would be read as a route of its own.
+        for marker in [["tl", "!("].concat(), ["i18n", "::fmt("].concat()] {
+            let mut cursor = 0;
+            while let Some(found) = argument[cursor..].find(&marker) {
+                let open = cursor + found + marker.len() - 1;
+                let call = call_argument(argument, open);
+                routed.push((cursor + found, open + call.len() + 2));
+                cursor = open + 1;
+            }
+        }
+        string_literals(argument)
+            .into_iter()
+            .filter(|(start, end, _)| !routed.iter().any(|(from, to)| start >= from && end <= to))
+            .map(|(_, _, literal)| literal)
+            .filter(|literal| words_outside_placeholders(literal))
+            .collect()
+    }
+
+    /// Every quoted literal in `text`, with the span of its contents so a caller can ask whether a
+    /// catalogue already answers it. Escapes are skipped, so an escaped quote does not end a literal.
+    fn string_literals(text: &str) -> Vec<(usize, usize, String)> {
+        let bytes = text.as_bytes();
+        let mut out = Vec::new();
+        let mut at = 0;
+        while at < bytes.len() {
+            if bytes[at] != b'"' {
+                at += 1;
+                continue;
+            }
+            let start = at + 1;
+            let mut end = start;
+            let mut escaped = false;
+            while end < bytes.len() {
+                match bytes[end] {
+                    _ if escaped => escaped = false,
+                    b'\\' => escaped = true,
+                    b'"' => break,
+                    _ => {}
+                }
+                end += 1;
+            }
+            out.push((start, end, text[start..end].to_owned()));
+            at = end + 1;
+        }
+        out
     }
 }

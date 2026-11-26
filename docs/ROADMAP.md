@@ -1506,11 +1506,24 @@ The widget sweep followed (hundred-and-seventy-third entry):
   through `format::decimal` — so a Japanese job reads `1.4秒` and an Arabic badge `٢٫٠× · Z للاحتواء`
   where they read `1.4s` and `2.0× · Z to fit`. **Proved to bite:** with the badge reverted to
   `format!("{:.1}× · Z to fit", …)` it fails naming that literal.
-  What the sweep does not read is the notice sink — `state.notice("Nothing to undo")`, `"Pick a photo
-  first"`, `"Compare needs two photos…"`, `"Added to collection"`, `"Every photo already has a current
-  score"` and a dozen more beside the keyword toasts' `format!` twins on both tag paths — none of which
-  are paint calls, and the assistive sentences in `crate::a11y`, which the row already counts as spoken
-  rather than painted. That inventory is the next slice; SL-L07 stays unticked until it is routed.
+  The notice sink followed (hundred-and-seventy-fourth entry): a notice is not a paint call — its text
+  goes straight into the bottom bar and the bell — so the widget sweep could not see it. Every raised
+  notice is routed now: the `Undid`/`Redid` answers and their empty forms, rescan, apply, compare, the
+  collection add, the sharpness pass and the swipe's `Kept`/`Rejected` are `tl!` rows, the keyword
+  toasts on both tag paths became `tagged_notice`'s four `i18n::fmt` rows (the keyword and the count
+  are placeholders, the count through `format_count`, so an Arabic toast writes `٣` where it wrote
+  `3`), and `similar_groups_notice` owns the none/one/several answers. Sixteen new rows per catalogue.
+  `every_notice_the_shell_raises_is_routed_through_the_catalogues` reads the painted sources back,
+  cuts their `#[cfg(test)]` modules, and for every raised notice masks the parts a catalogue answers
+  (`tl!`, `crate::i18n::fmt`) and fails on every literal still spelled by hand in a match arm, an
+  `if`/`else` or a `format!`; it asserts it found more than forty calls so a broken reader cannot pass
+  silently, and holds Japanese's four tag/group renderings and English byte for byte. **Proved to
+  bite:** with `Undid the last change` reverted to `state.notice("Undid the last change")` it fails
+  naming that literal.
+  What the sweeps still do not read is the spoken sink — `crate::a11y`'s `decision_sentence`,
+  `photo_summary` and label sentences, which an assistive reader speaks rather than paints, and the
+  host app's own words in `apps/sortlens`. That is the next slice; SL-L07 stays unticked until the
+  whole-source audit covers every sink.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

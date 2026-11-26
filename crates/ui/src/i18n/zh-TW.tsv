@@ -1118,3 +1118,19 @@
 	{label}: {n} of {whole} ({pct}%)	{label}：{n}／{whole}（{pct}%）
 	{zoom}× · Z to fit	{zoom}倍 · Z 顯示全圖
 	{seconds}s	{seconds} 秒
+	Kept	已保留
+	Added to collection	已加入選集
+	Add a folder before rescanning	重新掃描前請先新增資料夾
+	Redid the last undone change	已重做上一次復原的變更
+	Nothing to redo	沒有可重做的變更
+	Undid the last change	已復原上一次變更
+	Nothing to undo	沒有可復原的變更
+	Nothing staged: start a cull session and reject something first	尚未暫存任何決定：請先開始篩選工作階段並剔除一張照片
+	Compare needs two photos: select one with a neighbour in view	比較需要兩張照片：請選取一張在檢視中有相鄰者的照片
+	Nothing to compare with	沒有可比較的對象
+	Every photo already has a current score	每張照片都已有目前評分
+	All {n} already tagged “{tag}”	{n} 張都已標記「{tag}」
+	Tagged “{tag}” on {n} photos	已在 {n} 張照片加上「{tag}」
+	No similar groups found	未找到相似群組
+	Found 1 similar group	找到 1 個相似群組
+	Found {n} similar groups	找到 {n} 個相似群組

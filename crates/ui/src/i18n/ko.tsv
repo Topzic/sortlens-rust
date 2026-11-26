@@ -1118,3 +1118,19 @@
 	{label}: {n} of {whole} ({pct}%)	{label}: {whole}개 중 {n}개 ({pct}%)
 	{zoom}× · Z to fit	{zoom}배 · Z 전체 보기
 	{seconds}s	{seconds}초
+	Kept	남겼습니다
+	Added to collection	컬렉션에 추가했습니다
+	Add a folder before rescanning	다시 검사하기 전에 폴더를 추가하세요
+	Redid the last undone change	마지막으로 취소한 변경을 다시 실행했습니다
+	Nothing to redo	다시 실행할 변경이 없습니다
+	Undid the last change	마지막 변경을 실행 취소했습니다
+	Nothing to undo	실행 취소할 변경이 없습니다
+	Nothing staged: start a cull session and reject something first	보류된 결정이 없습니다. 먼저 선별 세션을 열고 사진을 하나 제외하세요
+	Compare needs two photos: select one with a neighbour in view	비교에는 사진 두 장이 필요합니다. 보이는 이웃이 있는 사진을 선택하세요
+	Nothing to compare with	비교할 대상이 없습니다
+	Every photo already has a current score	모든 사진에 최신 점수가 있습니다
+	All {n} already tagged “{tag}”	{n}장 모두에 “{tag}” 태그가 있습니다
+	Tagged “{tag}” on {n} photos	사진 {n}장에 “{tag}” 태그를 지정했습니다
+	No similar groups found	비슷한 그룹을 찾지 못했습니다
+	Found 1 similar group	비슷한 그룹 1개를 찾았습니다
+	Found {n} similar groups	비슷한 그룹 {n}개를 찾았습니다

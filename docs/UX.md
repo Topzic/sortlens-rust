@@ -942,6 +942,12 @@ re-checks its own contrast pairs after applying.
   The phone link's Send button followed (hundred-and-sixty-fourth entry): its label is
   `Send the selection ({count})` with the selection's count from `i18n::count`, so the number beside
   it is written in the reader's language rather than Latin digits.
+  The shell's own notices followed (hundred-and-seventy-fourth entry): what the toast and the bell
+  say — the undo and redo answers with their `Nothing to…` forms, the rescan and apply refusals,
+  compare's two lines, `Added to collection`, the sharpness pass's already-scored line and the
+  swipe's `Kept`/`Rejected` — are rows, the keyword toasts' four answers are `{tag}`/`{n}` templates
+  with the count in the reader's digits, and so are the similar-groups answers' none, one and several
+  forms, so an Arabic undo reads `تم التراجع عن آخر تغيير` where it read English.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

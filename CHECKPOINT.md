@@ -1,5 +1,54 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-fourth) — the notices speak the interface language
+
+- **Why it came up.** The hundred-and-seventy-third entry's Next named the notice sink — the words
+  `state.notice(...)` raises, which the widget sweep deliberately did not read. The `CI` run for
+  `095852b` (`45903020291`) was still in progress at STEP 1b (an empty conclusion, not red), so this
+  was a roadmap slice rather than a repair.
+- **What shipped.** Every notice the shell raises is routed now. The undo and redo answers and their
+  `Nothing to…` forms, the rescan and apply refusals, compare's two lines, `Added to collection`, the
+  sharpness pass's already-scored line and the swipe's `Kept`/`Rejected` are `tl!` rows. The keyword
+  toasts on both tag paths — the look's `tag_from_prev` and the cull screen's `tag_prev` — are one
+  helper, `tagged_notice(tag, changed, count)`, with four `i18n::fmt` rows and the count through
+  `format_count`, so an Arabic toast writes `٣` where it wrote `3` and English is byte-identical
+  (`Already tagged “Sunset”`, `All 3 already tagged “Sunset”`, `Tagged “Sunset” on 4 photos`).
+  `similar_groups_notice` owns the none/one/several answers the same way. Sixteen new rows per
+  catalogue (96).
+- **The test.** `every_notice_the_shell_raises_is_routed_through_the_catalogues` reads the crate's
+  painted sources back, cuts their top-level `#[cfg(test)]` modules, and for every raised notice call
+  masks the spans a catalogue already answers (`tl!`, `i18n::fmt`) and fails on every literal still
+  spelled by hand — a match arm, an `if`/`else`, a `format!`. It asserts it found more than forty
+  calls, so a broken reader cannot pass silently; it holds Japanese's three tag answers
+  (`「夜空」はすでにタグ付けされています`, `3 件すべてに「夜空」が付いています`,
+  `4 枚に「夜空」を付けました`) and three similar-group answers, then English byte for byte. The
+  routing markers are built at run time, because `i18n.rs`'s audit reads this file back and a marker
+  spelled out was read as a route of its own on the first run (it raised a `", "` key). **Proved to
+  bite:** with `Undid the last change` reverted to `state.notice("Undid the last change")` it fails
+  with `the shell raises 1 notice words the catalogues never see: ["Undid the last change"]`.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the
+  new sweep, the widget sweep and `catalogs_load_and_routed_keys_have_rows` green, plus the bite
+  proof above; then `cargo xtask ci` exit 0 with every step ok (fmt, workspace clippy, the whole
+  suite, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`,
+  `workflows`); `cargo xtask snapshot` 5 passed; `cargo xtask deny` exit 0; and `cargo xtask
+  screenshots` 30 passed and 1 ignored (network), no baseline moved — the expected answer, because
+  English keeps its bytes and no committed scene holds an undo toast or a similar-groups report.
+  `cargo xtask mobile` cannot run here (no Android NDK, no Xcode), so CI's two mobile legs are the
+  proof — this slice touched `crates/ui`. No release workflow was dispatched: source, catalogue rows,
+  tests and docs, no build or release surface.
+- **Docs.** ROADMAP's SL-L07 row records this slice, the sweep and its bite proof, and names the
+  spoken sink (`crate::a11y` and the host app's own words) as what is left before the row can be
+  ticked; `docs/UX.md`'s notice paragraph now says the toast and the bell speak the reader's language.
+- **Files.** `crates/ui/src/shell.rs` (both helpers, every notice site, the sweep and its helpers),
+  the six `crates/ui/src/i18n/*.tsv` (sixteen rows each), `docs/ROADMAP.md`, `docs/UX.md` and this
+  file.
+- **Next.** The spoken sink: `crate::a11y`'s `cull_status`, `decision_sentence` and `describe_photo`
+  (`format!("Photo {position} of {total}{decided}")`, `"Decision cleared, {remaining} {noun} left"`,
+  the rating, flag and label parts) are read aloud by assistive technology and are still built in
+  English, as are the host app's own notices and menu words in `apps/sortlens`. Route that sink,
+  extend the audit to it, and only then run the whole-source audit that can tick SL-L07. No release
+  run is in flight.
+
 ## 2026-11-26 (hundred-and-seventy-third) — the sweep that reads every word a widget paints
 
 - **Why it came up.** The hundred-and-seventy-second entry's Next named the whole-source audit that
