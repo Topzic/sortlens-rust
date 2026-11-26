@@ -1,5 +1,53 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-eighth) — the lavapipe set adopts the whole-row paint, and the adapter set is current again
+
+- **Why this came up.** The eighty-second entry — committed as `6bd6b53`, which is the newest commit but whose
+  entry sits beside the eighty-first rather than at the top of this file — repainted the 40 *reference* frames
+  for the sidebar's whole-row clip and predicted that the `lavapipe/` set would be stale for the same scenes,
+  naming the artifact adoption as the next tick's first job. Its `CI` run, `45771651973`, had exactly one
+  failing job, `screenshots`, and `gh run view 45771651973 --json jobs` named it with the other seven green
+  (`ci` on Ubuntu and macOS, `deny`, `snapshot`, both `mobile` legs, `ci` on Windows still in progress). A red
+  trunk is the tick's slice, not a new roadmap row, so nothing else was started.
+- **One artifact, 39 frames.** `gh run download 45771651973 -n screenshot-set -D <tmp>\sortlens-ci-shots` wrote
+  exactly `lavapipe/*.new.png` for the 39 of the adapter set's 49 frames the runner painted differently, and
+  nothing else. `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt <tmp>\sortlens-ci-shots` copied
+  each one over its baseline (the tool copies bytes, so every committed frame *is* the paint the comparing run
+  reported and not a second paint from this machine). `git status --short` then listed exactly those 39 PNGs.
+- **The diff is the row band, computed not eyeballed.** All 39 old→new pairs were diffed pixel by pixel before
+  adoption. 33 of them differ only inside the band the eighty-second entry named: `18,706–245,710` (42 pixels,
+  the tops of the skipped keyword row's glyphs) at 1440×900, `18,417–247,428` (297 pixels, a whole skipped row)
+  in the four 900×620 scenes `narrow-canvas-*`, `settings-short-*`, `short-sidebar-*`, `10,598–253,610` (2,904
+  pixels, the selected folder row's band) in `filters-*` and `no-matches-*` at 1200×800, and
+  `1,195,706–1,420,710` mirrored in `rtl-library-*`. The same bands are what `6bd6b53` repainted in the reference
+  set, so the adapter set adopted exactly the change the reference set already carries.
+- **Six pixels are the adapter, not the slice.** Outside those bands the 39 pairs differ by six isolated pixels
+  in six frames — `compare-charcoal` (638,650), `filters-charcoal` and `no-matches-charcoal` (394,178),
+  `palette-charcoal` (799,230) and `rtl-library-charcoal` (181,94) and (181,95). Each is a single pixel in a
+  canvas or panel region, several hundred pixels from the row band, and is the paint Mesa produced this run
+  against a baseline from an earlier one: the size deltas are those bands' worth of bytes (e.g.
+  `library-justified-charcoal` 665426→665207, `no-matches-charcoal` 109199→108517) and no frame moved anything
+  else.
+- **The frames were read.** `library-justified-charcoal` and `rtl-library-charcoal` were opened at 1440×900. The
+  sections in the LTR frame end on a whole `sea  2` row, the hairline and the four utility rows below it, with no
+  cut glyph; the RTL frame mirrors the same ending on its own side (`sea  2` at the foot of the right-hand
+  sections), the Arabic strip, header and bar unchanged, and no other column moved.
+- **Not verified by hand**: the 37 frames that were not opened; no chip was clicked. The gate that compares this
+  set is `screenshots` on GitHub and it is read on the next tick, not waited on.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, clippy, the workspace suite including the catalogue audit,
+  `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`),
+  `cargo xtask snapshot` (5 goldens pass) and `cargo xtask deny` (advisories, bans, licenses, sources all ok,
+  with `CARGO_HOME=<tmp>/sortlens-cargo-deny`). No `cargo xtask screenshots` run here: the set this commit
+  changes is painted only by the runner, and the local adapter cannot compare it. No release dispatch: this
+  slice is 39 PNGs and this file, and touches no workflow, `apps/**`, `Cargo.toml` or release code.
+- **Files.** `crates/ui/tests/snapshots/lavapipe/*.png` (39 frames) and this file. No source, no ROADMAP row:
+  3B.6 (d)'s revisit shipped in `6bd6b53` and this commit only makes the adapter set agree with it.
+- **Next.** Read this commit's `CI` run first with one `gh run view` — `screenshots` is expected green now that
+  the set is the runner's own paint. Then SL-L07's last English on the canvas: the `Moved` receipt, whose title,
+  the sentence under it, `and {n} more` line and two buttons (`Put them back`, `Done`) are still literals at
+  `shell.rs:10239` and its call site, with a paint test built on one indexed photo and one real move. The search
+  field's hint and the bar's `No selection` count are already routed (hundred-and-twenty-seventh entry), so they
+  are not in that queue. No release run is in flight.
 ## 2026-11-26 (hundred-and-twenty-seventh) — the sidebar's quick actions, the search field's hint and the bottom bar's count read Arabic
 
 - **Why this came up.** The hundred-and-twenty-fifth entry's Next named the last English words on the
@@ -7497,17 +7545,16 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the eighty-second entry).** Read this commit's `CI` run with one `gh run view` — the
-`screenshots` job is the only one that can be red about a frame. The committed `lavapipe/` set is stale for
-the same 40 scenes the reference set had repainted (only the runner paints that set), so the expected outcome
-is a red `screenshots` job whose `screenshot-set` artifact holds the frames to adopt:
-`gh run download <id> -n screenshot-set -D .ci-shots`, then
-`SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, reading each frame's changed-pixel
-box first — the eighty-second entry's diff is a single row's band in the sections' column, and anything outside
-it is not this slice. Then finish SL-L07's canvas: the `Moved` receipt (title, the sentence under it,
-`and {n} more`, `Put them back` and `Done`) with a paint test that builds a real receipt — one indexed photo
-and one move — then the search field's `Search photos or Ctrl+K` hint and the bottom bar's `No selection`. No
-release run is in flight.
+**Next tick (after the hundred-and-twenty-eighth entry).** The `lavapipe/` set carries the runner's own paint for
+`6bd6b53`'s whole-row clip (run `45771651973`), so read this commit's `CI` run with one `gh run view` and expect
+`screenshots` green; if it is red, that run's `screenshot-set` artifact is adopted the same way
+(`gh run download <id> -n screenshot-set -D .ci-shots`, then
+`SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, with each pair's changed-pixel box
+computed first — a band in the sections' column is the paint this loop adopts, anything else is not). Then
+SL-L07's last English on the canvas: the `Moved` receipt (title, the sentence under it, `and {n} more`, `Put
+them back`, `Done`) with a paint test that builds a real receipt — one indexed photo and one move. The search
+field's hint and the bar's `No selection` count shipped in the hundred-and-twenty-seventh entry. No release run
+is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
