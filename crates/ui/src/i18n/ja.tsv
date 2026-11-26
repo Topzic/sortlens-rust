@@ -816,6 +816,10 @@
 	all	すべて
 	{source} keywords	{source} のキーワード
 	Only photos where some keyword came from here	キーワードの出どころがここである写真のみ
+	No keywords yet.	キーワードはまだありません。
+	Add keyword	キーワードを追加
+	Used elsewhere	ほかで使用中
+	Keywords and collections for the selection appear here.	選択した写真のキーワードとコレクションがここに表示されます。
 	Every destination. The row returns when the window is wide enough.	すべての行き先。ウィンドウが十分に広いとこの行が戻ります。
 	Switch between most used and A–Z	よく使う順とあ–んを切り替えます
 	Only photos rated at least this many stars	この星数以上の評価の写真のみ

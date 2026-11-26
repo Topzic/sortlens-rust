@@ -3696,7 +3696,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                 },
                 RightTab::Tags => match state.selection.primary().and_then(|id| engine.photo(id)).cloned() {
                     Some(photo) => tags(ui, t, state, engine, &photo),
-                    None => hint(ui, t, "Keywords and collections for the selection appear here."),
+                    None => hint(ui, t, tl!("Keywords and collections for the selection appear here.")),
                 },
                 RightTab::Suggestions => suggestions_tab(ui, t, state, engine),
                 RightTab::Activity => {
@@ -3810,10 +3810,10 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
     }
     ui.add_space(8.0);
 
-    ui.label(RichText::new("Keywords").size(12.0).strong().color(t.text));
+    ui.label(RichText::new(tl!("Keywords")).size(12.0).strong().color(t.text));
     let mut remove = None;
     if photo.tags.is_empty() {
-        hint(ui, t, "No keywords yet.");
+        hint(ui, t, tl!("No keywords yet."));
     }
     ui.horizontal_wrapped(|ui| {
         for tag in &photo.tags {
@@ -3850,7 +3850,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
     ui.horizontal(|ui| {
         let field = ui.add(
             TextEdit::singleline(&mut state.tag_input)
-                .hint_text("Add keyword")
+                .hint_text(tl!("Add keyword"))
                 .desired_width(150.0)
                 .font(egui::TextStyle::Small),
         );
@@ -3859,7 +3859,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
             state.tag_focus = false;
         }
         let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
-        let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
+        let clicked = ui.add(Button::new(RichText::new(tl!("Add")).size(11.0))).clicked();
         if (entered || clicked) && !state.tag_input.trim().is_empty() {
             match engine.set_tag(&[photo.id], &state.tag_input, true) {
                 Ok(0) => state.notice(tl!("That keyword is already on this photo")),
@@ -3881,7 +3881,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
         .collect();
     if !suggestions.is_empty() {
         ui.add_space(8.0);
-        ui.label(RichText::new("Used elsewhere").size(10.5).color(t.text_faint));
+        ui.label(RichText::new(tl!("Used elsewhere")).size(10.5).color(t.text_faint));
         let mut add = None;
         ui.horizontal_wrapped(|ui| {
             for (tag, _) in &suggestions {
@@ -22377,6 +22377,60 @@ mod tests {
         }
         crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
         for (english, arabic) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The inspector's keyword editor is catalogue rows, in every language the picker offers.
+    ///
+    /// The tags tab is the one place a reader types a keyword, removes one and picks one the
+    /// library already knows, so its title, its field's hint, its button, its empty state and its
+    /// "used elsewhere" group are the whole chrome of that work. A reader who chose Arabic should
+    /// not be told `No keywords yet.` in English.
+    #[test]
+    fn the_inspector_keyword_editor_speaks_the_interface_language() {
+        // One row per label the editor paints, with the call that paints it: the assertion is the
+        // wiring, so a route reading a key but painting something else cannot pass.
+        const LINES: [(&str, &str, &str); 6] = [
+            ("Keywords", "الكلمات المفتاحية", "RichText::new(tl!(\"Keywords\"))"),
+            ("No keywords yet.", "لا كلمات مفتاحية بعد.", "hint(ui, t, tl!(\"No keywords yet.\"))"),
+            ("Add keyword", "أضف كلمة مفتاحية", "hint_text(tl!(\"Add keyword\"))"),
+            ("Add", "إضافة", "RichText::new(tl!(\"Add\"))"),
+            ("Used elsewhere", "مستخدمة في مكان آخر", "RichText::new(tl!(\"Used elsewhere\"))"),
+            (
+                "Keywords and collections for the selection appear here.",
+                "تظهر هنا كلمات الصورة المحددة ومجموعاتها.",
+                "hint(ui, t, tl!(\"Keywords and collections for the selection appear here.\"))",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away, so a call rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _, route) in LINES {
+            assert!(source.contains(route), "the keyword editor's {english:?} is still a literal");
+        }
+        // The editor's bare literals are gone, not merely joined by a second routed call: the
+        // empty state, the field's hint, the button, the group name and the no-selection hint are
+        // the six sites that carried English.
+        for literal in [
+            "RichText::new(\"Keywords\")",
+            "hint(ui, t, \"No keywords yet.\")",
+            "hint_text(\"Add keyword\")",
+            "RichText::new(\"Add\")",
+            "RichText::new(\"Used elsewhere\")",
+            "hint(ui, t, \"Keywords and collections for the selection appear here.\")",
+        ] {
+            assert!(!source.contains(literal), "the keyword editor still paints {literal:?}");
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English
+        // fallback: a route whose key no catalogue answers would paint English in an Arabic window.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic, _) in LINES {
             assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
         }
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));

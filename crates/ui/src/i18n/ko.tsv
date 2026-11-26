@@ -864,6 +864,10 @@
 	Search	검색
 	Search photos	사진 검색
 	Search photos or {keys}	사진 검색 또는 {keys}
+	No keywords yet.	아직 키워드가 없습니다.
+	Add keyword	키워드 추가
+	Used elsewhere	다른 사진에서 사용됨
+	Keywords and collections for the selection appear here.	선택한 사진의 키워드와 컬렉션이 여기에 표시됩니다.
 	Every destination. The row returns when the window is wide enough.	모든 목적지. 창이 충분히 넓으면 이 행이 돌아옵니다.
 	Switch between most used and A–Z	사용 빈도순과 가–하를 전환합니다
 	Search in {name}	{name}에서 검색

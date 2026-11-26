@@ -855,6 +855,10 @@
 	Rename keyword	Đổi tên từ khóa
 	#{tag} appears on every photo it was added to.	#{tag} xuất hiện trên mọi ảnh đã thêm nó.
 	That keyword already exists; the two will be merged.	Từ khóa đó đã tồn tại; hai từ sẽ được gộp lại.
+	No keywords yet.	Chưa có từ khóa nào.
+	Add keyword	Thêm từ khóa
+	Used elsewhere	Dùng ở nơi khác
+	Keywords and collections for the selection appear here.	Từ khóa và bộ sưu tập của ảnh đang chọn sẽ hiện ở đây.
 	Every destination. The row returns when the window is wide enough.	Mọi điểm đến. Hàng này trở lại khi cửa sổ đủ rộng.
 	Switch between most used and A–Z	Chuyển giữa dùng nhiều nhất và A–Z theo tên
 	Renamed #{tag} on {n} photo(s)	Đã đổi tên #{tag} trên {n} ảnh

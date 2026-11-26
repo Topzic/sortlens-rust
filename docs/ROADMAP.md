@@ -1331,12 +1331,22 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_model_and_update_settings_speak_the_interface_language` reads `shell.rs` back, requires
   every one of the ten sites to route with no bare-literal or bare-`format!` twin, then English
   unchanged and the Arabic rows.
+  The inspector's keyword editor followed (hundred-and-fifty-eighth entry): the Tags tab's `Keywords`
+  title, its `No keywords yet.` empty line, the field's `Add keyword` hint, the `Add` button, the
+  `Used elsewhere` group and the right panel's `Keywords and collections for the selection appear
+  here.` are `tl!` rows in all six languages, so an Arabic inspector types, sees and groups keywords
+  in Arabic. `Keywords` and `Add` reuse rows the sidebar and the shortcut editor already own.
+  `the_inspector_keyword_editor_speaks_the_interface_language` reads `shell.rs` back, requires each
+  of the six sites to route with no bare-literal twin, then English unchanged and the Arabic rows. What stays
+  English beside those labels is each tag chip's hover: it is `TagSource::explanation()`, the crate's
+  own sentence, joined to the suffix `· click to remove` — an engine word with no piece yet, the same
+  kind of exception the map's `TileError::message()` is.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining families:
-  - the inspector's keyword editor (`Keywords`, `No keywords yet.`, `Add`, `Used elsewhere`) and
-    the right panel's `Keywords and collections for the selection appear here.`;
+  - the tag chip's hover in that editor (`TagSource::explanation()` and the `· click to remove`
+    suffix), which is a `sortlens-core` sentence with no piece yet;
   - the filter strip's `Select a photo, press K and type a keyword.` and the collections hint
     `Collect photos into named sets without moving them.`;
   - the folder tree's `Up one level`, the scan row's `Cancel`, the insights breakdown's

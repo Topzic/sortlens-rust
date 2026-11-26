@@ -828,6 +828,12 @@ stay as their owners worded them. `the_model_and_update_settings_speak_the_inter
 reads `shell.rs` back, so a site that falls back to a bare `RichText::new` or a bare `format!`
 fails rather than painting English.
 
+The inspector's keyword editor is routed the same way (hundred-and-fifty-eighth entry): the Tags
+tab's title, its empty line, the field's hint, the add button, the `Used elsewhere` group and the
+no-selection hint are `tl!` keys, and `the_inspector_keyword_editor_speaks_the_interface_language`
+reads `shell.rs` back for each of the six sites, so one that falls back to a bare `RichText::new` or
+a bare `hint` fails rather than painting English. The chip's hover stays the crate's
+`TagSource::explanation()` — an engine sentence with no piece yet, beside a suffix of its own.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

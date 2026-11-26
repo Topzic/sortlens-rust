@@ -1,5 +1,54 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-eighth) — the inspector's keyword editor speaks the interface language
+
+- **Why this came up.** The hundred-and-fifty-seventh entry's Next named the inspector's keyword
+  editor. `crates/ui/src/shell.rs`'s Tags tab painted `Keywords`, `No keywords yet.`, the field's
+  `Add keyword` hint, the `Add` button and `Used elsewhere` from literals, and the panel's
+  no-selection hint told an Arabic window where a selection's keywords appear in English. The `CI`
+  run for `9669c45` (`45866967817`) was still in progress at STEP 1b, not red, so this is a roadmap
+  slice.
+- **What is routed.** Six sites in `shell.rs`, four of them new rows in each of the six catalogues
+  (24 rows): `No keywords yet.`, `Add keyword`, `Used elsewhere` and `Keywords and collections for
+  the selection appear here.` are `tl!` keys at the empty state, the field's hint, the group heading
+  and the no-selection hint. `Keywords` and `Add` reuse rows the sidebar and the shortcut editor
+  already own. English keeps every word it painted.
+- **What stays English, named not fixed.** Each tag chip's hover is `TagSource::explanation()` — the
+  crate's own sentence — joined to the suffix `· click to remove`. Routing the suffix alone would
+  leave the sentence in front of it English, so the hover is recorded as an engine word with no piece
+  yet, the same kind of exception the map's `TileError::message()` is.
+- **Tests.** `the_inspector_keyword_editor_speaks_the_interface_language` reads `shell.rs` back with
+  each line's indentation trimmed, so a call rustfmt wrapped at the margin still reads as one call;
+  it requires each of the six sites to route (`RichText::new(tl!(…))`, `hint(ui, t, tl!(…))` or
+  `hint_text(tl!(…))`) with no bare-literal twin, then English must answer every key unchanged and
+  Arabic the translator's row. It was proved to bite: putting the field's hint back to a literal
+  fails it with `the keyword editor's "Add keyword" is still a literal`. The catalogue audit now
+  reads the four new keys too, so any of the six catalogues losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, names the chip hover among the sweep's
+  remaining families and keeps the row unticked; UX.md's i18n paragraph and ARCHITECTURE.md §8.4
+  record the route and the exception.
+- **Visual verification.** None expected: no committed scene opens the Tags tab in a non-English
+  language and the English paint is unchanged, so no baseline should move. `cargo xtask screenshots`
+  was run because `crates/ui` changed.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui -- the_inspector_keyword_editor_speaks_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice hint, quoted above); then `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole suite
+  including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`,
+  `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5 passed, `cargo xtask deny`
+  advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30 passed and 1 ignored
+  (network) with no baseline moved. There is no `cargo xtask wasm` in this workspace; `crates/ui`
+  changed, so `cargo xtask mobile` is CI's job — this machine has no Android NDK and no Xcode,
+  which leaves the device-side leg unverified here. No release workflow was dispatched: source,
+  catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the six routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (four rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next
+  family on the row: the filter strip's `Select a photo, press K and type a keyword.` and the
+  collections hint `Collect photos into named sets without moving them.`, through `tl!`, with the
+  same source-readback and Arabic lookup test. SL-L07 stays unticked. No release run is in flight.
 ## 2026-11-26 (hundred-and-fifty-seventh) — Settings' model and update panels speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-sixth entry's Next named the whole-source sweep SL-L07's

@@ -897,6 +897,12 @@ re-checks its own contrast pairs after applying.
   as are the update panel's one-request sentence, `Check now` and `Checking…` — so a reader who
   allowed a download in Arabic reads the permission's terms, its buttons and its receipt in Arabic,
   while `SHA-256`, the model's own name and the engine's error sentence stay values.
+  The inspector's keyword editor followed (hundred-and-fifty-eighth entry): the Tags tab's `Keywords`
+  title, its `No keywords yet.` empty line, the field's `Add keyword` hint, the `Add` button and the
+  `Used elsewhere` group are rows, as is the hint the panel shows with no photograph selected — so an
+  Arabic reader sees, types, adds and groups keywords in Arabic. What stays English beside those
+  labels is each chip's hover, which is the keyword's source explained in `sortlens-core`'s own
+  sentence.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
