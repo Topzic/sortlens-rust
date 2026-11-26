@@ -856,3 +856,22 @@
 	Search photos	搜尋照片
 	Search photos or {keys}	搜尋照片或 {keys}
 	Search in {name}	在 {name} 中搜尋
+	Settings could not be read in full; defaults are in use	無法完整讀取設定；目前使用預設值
+	The library could not be opened: {error}	無法開啟圖庫：{error}
+	Import a shortcut set	匯入快速鍵組
+	Export a shortcut set	匯出快速鍵組
+	Shortcut set	快速鍵組
+	The set could not be read: {error}	無法讀取此組：{error}
+	The set could not be written: {error}	無法寫入此組：{error}
+	Wrote “{name}”	已寫入「{name}」
+	Back up the Sortlens library	備份 Sortlens 圖庫
+	Sortlens backup	Sortlens 備份
+	Backed up {files} file(s)	已備份 {files} 個檔案
+	Choose a Sortlens backup	選擇 Sortlens 備份
+	Where should the restored library go?	還原後的圖庫要放在哪裡？
+	Restored {files} file(s) into {folder} — open that folder to use it	已將 {files} 個檔案還原到 {folder} — 開啟該資料夾即可使用
+	Serving the library — the pairing code is in Settings → Sync & devices	正在提供圖庫 — 配對碼位於設定 → 同步與裝置
+	The server is stopped; the library's write lock is free again	伺服器已停止；圖庫的寫入鎖定已再次釋放
+	The device's token is removed; it cannot call this library any more	已移除裝置權杖；該裝置無法再呼叫此圖庫
+	Writing XMP sidecars beside photos	正在相片旁寫入 XMP 附屬檔
+	Sidecar writing off; changes stay in the catalog	已關閉附屬檔寫入；變更保留在目錄中

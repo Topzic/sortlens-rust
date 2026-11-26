@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-thirty-first) — the host's library-lifecycle notices speak the interface language
+
+- **Why this came up.** The hundred-and-thirtieth entry's Next named the host's remaining notices.
+  The `CI` run for `3fc3905` (`45777738171`) was green — all eight jobs (`ci` on Ubuntu, Windows
+  and macOS, `screenshots`, `snapshot`, `deny`, both `mobile` legs) — so this is a roadmap slice
+  rather than a repair.
+- **What was English.** The startup settings report, the library-open failure, both shortcut-set
+  dialogs (`Import a shortcut set`, `Export a shortcut set`, the `Shortcut set` filter) and their
+  read/write failures plus `Wrote “{name}”`, the backup and restore dialogs (`Back up the Sortlens
+  library`, `Sortlens backup`, `Choose a Sortlens backup`, `Where should the restored library
+  go?`) and their toasts, the sync server's start, stop and revoke lines, and both sidecar toggles.
+- **What is routed.** All nineteen through `i18n::tr`/`i18n::fmt`, with `i18n::count` for the two
+  counts, so the Arabic backup toast reads `نُسّخ ٣ ملف احتياطيًا`. A failed operation's own error
+  sentence stays as it is, appended as `{error}`: the engine's and the system's words are not this
+  seam's to translate. Nineteen rows per catalogue, 114 in all six.
+- **Tests.** The host's source-reading listing gains the nineteen keys; the new
+  `the_hosts_library_notices_read_the_interface_language` pins the English `Backed up 3 file(s)`,
+  the Arabic library-open frame (Arabic verb, no `opened`), the restored toast's `٣` and folder,
+  and the Arabic backup title and sync line differing from English. It fails on the old literals in
+  two ways: `routed_keys` would not see them, and the Arabic lookups would return English.
+- **Docs.** UX.md's i18n paragraph records the library-lifecycle set; ARCHITECTURE.md names the new
+  test; ROADMAP's SL-L07 row states what remains (the suggest, pack, tag, undo, change-report,
+  remap, rescan, consent and remove-root notices, and the last two `rfd` titles).
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite including the
+  catalogue audit and the host's three tests, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`); `cargo test -p sortlens the_hosts`
+  3 passed; `cargo xtask snapshot` (5 goldens), `cargo xtask deny` (advisories, bans, licenses,
+  sources) and `cargo xtask screenshots` (29 passed, 1 ignored, no baseline moved — no committed
+  frame paints a host notice) all exit 0. No `cargo xtask wasm` exists in this workspace;
+  `cargo xtask mobile` cannot run here (no NDK, no Xcode) and no phone code changed. No release
+  workflow was dispatched: this is source, catalogue rows and docs, no build or release surface.
+- **Files.** `apps/sortlens/src/main.rs` (routing, the listing and the new test),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (19 rows each), `docs/UX.md`,
+  `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` and this file.
+- **Next.** Read this commit's `CI` run first with one `gh run view` (`screenshots` is the job that
+  matters; no committed frame paints these notices). Then the host's last notices — the suggest
+  pass, pack and tag toasts, undo-move, the change report, remap and rescan, both consent lines and
+  remove-root — plus the two remaining `rfd` titles (`Save the change report`, `Where does this
+  folder live now?`), through the same seam. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-twenty-ninth) — the `Moved` receipt speaks the interface language, and no English is left on the canvas
 ## 2026-11-26 (hundred-and-thirtieth) — the desktop's own pick, move and export words speak the interface language
 
@@ -7646,12 +7686,12 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirtieth entry).** Read this commit's `CI` run with one `gh run view` —
-`screenshots` is the job that matters, and no committed frame paints a word this tick routed. Then the host's
-remaining English in `apps/sortlens/src/main.rs`, through the same `i18n::tr`/`i18n::fmt` seam: the
-library-open failure and `Settings could not be read in full`, backup and restore (both titles, the restore
-destination title, and their toasts), the sync server's three lines, the shortcut-set read/write errors, and
-the two sidecars toggles. The host's listing test is where each new row lands. No release run is in flight.
+**Next tick (after the hundred-and-thirty-first entry).** Read this commit's `CI` run with one `gh run view` —
+`screenshots` is the job that matters, and no committed frame paints a host notice. Then the host's last
+English in `apps/sortlens/src/main.rs`, through the same `i18n::tr`/`i18n::fmt` seam: the suggest pass,
+pack and tag toasts, undo-move, the change report, remap and rescan, both consent lines and remove-root,
+plus the two remaining `rfd` titles (`Save the change report`, `Where does this folder live now?`). The
+host's listing test is where each new row lands. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

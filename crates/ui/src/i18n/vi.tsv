@@ -856,3 +856,22 @@
 	Search photos	Tìm ảnh
 	Search photos or {keys}	Tìm ảnh hoặc {keys}
 	Search in {name}	Tìm trong {name}
+	Settings could not be read in full; defaults are in use	Không đọc được đầy đủ cài đặt; đang dùng giá trị mặc định
+	The library could not be opened: {error}	Không mở được thư viện: {error}
+	Import a shortcut set	Nhập bộ phím tắt
+	Export a shortcut set	Xuất bộ phím tắt
+	Shortcut set	Bộ phím tắt
+	The set could not be read: {error}	Không đọc được bộ này: {error}
+	The set could not be written: {error}	Không ghi được bộ này: {error}
+	Wrote “{name}”	Đã ghi “{name}”
+	Back up the Sortlens library	Sao lưu thư viện Sortlens
+	Sortlens backup	Bản sao lưu Sortlens
+	Backed up {files} file(s)	Đã sao lưu {files} tệp
+	Choose a Sortlens backup	Chọn bản sao lưu Sortlens
+	Where should the restored library go?	Đặt thư viện đã khôi phục ở đâu?
+	Restored {files} file(s) into {folder} — open that folder to use it	Đã khôi phục {files} tệp vào {folder} — mở thư mục đó để dùng
+	Serving the library — the pairing code is in Settings → Sync & devices	Đang phục vụ thư viện — mã ghép nối nằm trong Cài đặt → Đồng bộ & thiết bị
+	The server is stopped; the library's write lock is free again	Máy chủ đã dừng; khóa ghi của thư viện đã được giải phóng
+	The device's token is removed; it cannot call this library any more	Đã xóa mã thông báo của thiết bị; thiết bị không thể gọi thư viện này nữa
+	Writing XMP sidecars beside photos	Đang ghi tệp XMP đi kèm cạnh ảnh
+	Sidecar writing off; changes stay in the catalog	Đã tắt ghi tệp đi kèm; thay đổi vẫn ở trong danh mục

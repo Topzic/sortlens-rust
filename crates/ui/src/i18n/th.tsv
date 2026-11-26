@@ -858,3 +858,22 @@
 	Search photos	ค้นหารูป
 	Search photos or {keys}	ค้นหารูปหรือ {keys}
 	Search in {name}	ค้นหาใน {name}
+	Settings could not be read in full; defaults are in use	อ่านการตั้งค่าได้ไม่ครบ กำลังใช้ค่าเริ่มต้น
+	The library could not be opened: {error}	เปิดไลบรารีไม่ได้: {error}
+	Import a shortcut set	นำเข้าชุดปุ่มลัด
+	Export a shortcut set	ส่งออกชุดปุ่มลัด
+	Shortcut set	ชุดปุ่มลัด
+	The set could not be read: {error}	อ่านชุดนี้ไม่ได้: {error}
+	The set could not be written: {error}	เขียนชุดนี้ไม่ได้: {error}
+	Wrote “{name}”	เขียน “{name}” แล้ว
+	Back up the Sortlens library	สำรองข้อมูลไลบรารี Sortlens
+	Sortlens backup	ข้อมูลสำรอง Sortlens
+	Backed up {files} file(s)	สำรองข้อมูล {files} ไฟล์แล้ว
+	Choose a Sortlens backup	เลือกข้อมูลสำรอง Sortlens
+	Where should the restored library go?	จะวางไลบรารีที่กู้คืนไว้ที่ใด
+	Restored {files} file(s) into {folder} — open that folder to use it	กู้คืน {files} ไฟล์ไปยัง {folder} — เปิดโฟลเดอร์นั้นเพื่อใช้งาน
+	Serving the library — the pairing code is in Settings → Sync & devices	กำลังให้บริการไลบรารี — รหัสจับคู่อยู่ในการตั้งค่า → ซิงก์และอุปกรณ์
+	The server is stopped; the library's write lock is free again	เซิร์ฟเวอร์หยุดแล้ว ล็อกการเขียนของไลบรารีว่างอีกครั้ง
+	The device's token is removed; it cannot call this library any more	นำโทเค็นของอุปกรณ์ออกแล้ว อุปกรณ์นั้นเรียกไลบรารีนี้ไม่ได้อีก
+	Writing XMP sidecars beside photos	กำลังเขียนไซด์คาร์ XMP ข้างภาพ
+	Sidecar writing off; changes stay in the catalog	ปิดการเขียนไซด์คาร์แล้ว การเปลี่ยนแปลงอยู่ในการจัดเก็บข้อมูล

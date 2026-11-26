@@ -857,3 +857,22 @@
 	Search photos	写真を検索
 	Search photos or {keys}	写真を検索、または {keys}
 	Search in {name}	{name} を検索
+	Settings could not be read in full; defaults are in use	設定をすべて読み取れませんでした。既定値を使用します
+	The library could not be opened: {error}	ライブラリを開けませんでした: {error}
+	Import a shortcut set	ショートカットセットを読み込む
+	Export a shortcut set	ショートカットセットを書き出す
+	Shortcut set	ショートカットセット
+	The set could not be read: {error}	セットを読み取れませんでした: {error}
+	The set could not be written: {error}	セットを書き出せませんでした: {error}
+	Wrote “{name}”	「{name}」を書き出しました
+	Back up the Sortlens library	Sortlens ライブラリをバックアップ
+	Sortlens backup	Sortlens バックアップ
+	Backed up {files} file(s)	{files} 個のファイルをバックアップしました
+	Choose a Sortlens backup	Sortlens バックアップを選択
+	Where should the restored library go?	復元したライブラリの保存先は？
+	Restored {files} file(s) into {folder} — open that folder to use it	{files} 個のファイルを {folder} に復元しました。そのフォルダーを開いて使います
+	Serving the library — the pairing code is in Settings → Sync & devices	ライブラリを提供中 — ペアリングコードは設定 → 同期とデバイスにあります
+	The server is stopped; the library's write lock is free again	サーバーを停止しました。ライブラリの書き込みロックは再び解放されています
+	The device's token is removed; it cannot call this library any more	デバイスのトークンを削除しました。このライブラリを呼び出せなくなります
+	Writing XMP sidecars beside photos	写真の隣に XMP サイドカーを書き込みます
+	Sidecar writing off; changes stay in the catalog	サイドカーの書き込みはオフです。変更はカタログに残ります

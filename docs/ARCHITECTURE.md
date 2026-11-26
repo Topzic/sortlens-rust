@@ -598,7 +598,11 @@ audit in `crates/ui` reads only its own crate's sources, the host carries its ow
 `the_hosts_words_have_a_row_in_every_catalogue` reads `main.rs` back, collects every `i18n::tr`/
 `i18n::fmt` key and requires a row for each in all six catalogues, and
 `the_hosts_move_notice_reads_the_interface_language` pins the English, the Arabic count and noun,
-and the Arabic dialog title.
+and the Arabic dialog title. The library-lifecycle notices take the same seam — settings, library
+open, backup and restore (titles, filters and toasts), the shortcut set's import and export, the
+sync server's start, stop and revoke lines, and both sidecar toggles — and
+`the_hosts_library_notices_read_the_interface_language` pins the English count and the Arabic
+failure frame and restored toast with its Arabic-Indic digit.
 
 A colour label is one worded piece: `colour_word` reads the `Red`…`Purple` rows, and every
 surface that paints one goes through it — the filter chip's word and its spoken name, the folder

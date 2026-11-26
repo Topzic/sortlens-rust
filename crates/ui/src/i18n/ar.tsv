@@ -857,3 +857,22 @@
 	Search photos	ابحث عن الصور
 	Search photos or {keys}	ابحث عن الصور أو {keys}
 	Search in {name}	ابحث في {name}
+	Settings could not be read in full; defaults are in use	تعذّرت قراءة الإعدادات كاملة؛ تُستخدم القيم الافتراضية
+	The library could not be opened: {error}	تعذّر فتح المكتبة: {error}
+	Import a shortcut set	استيراد مجموعة اختصارات
+	Export a shortcut set	تصدير مجموعة اختصارات
+	Shortcut set	مجموعة اختصارات
+	The set could not be read: {error}	تعذّرت قراءة المجموعة: {error}
+	The set could not be written: {error}	تعذّرت كتابة المجموعة: {error}
+	Wrote “{name}”	كُتبت «{name}»
+	Back up the Sortlens library	انسخ مكتبة Sortlens احتياطيًا
+	Sortlens backup	نسخة Sortlens الاحتياطية
+	Backed up {files} file(s)	نُسّخ {files} ملف احتياطيًا
+	Choose a Sortlens backup	اختر نسخة Sortlens احتياطية
+	Where should the restored library go?	أين تُوضع المكتبة المستعادة؟
+	Restored {files} file(s) into {folder} — open that folder to use it	استُعيد {files} ملف إلى {folder} — افتح ذلك المجلد لاستخدامه
+	Serving the library — the pairing code is in Settings → Sync & devices	تقديم المكتبة — رمز الاقتران في الإعدادات ← المزامنة والأجهزة
+	The server is stopped; the library's write lock is free again	الخادم متوقف؛ قفل الكتابة على المكتبة متاح مجددًا
+	The device's token is removed; it cannot call this library any more	أُزيل رمز الجهاز؛ لم يعد بإمكانه استدعاء هذه المكتبة
+	Writing XMP sidecars beside photos	كتابة ملفات XMP الجانبية بجانب الصور
+	Sidecar writing off; changes stay in the catalog	كتابة الملفات الجانبية متوقفة؛ تبقى التغييرات في الفهرس

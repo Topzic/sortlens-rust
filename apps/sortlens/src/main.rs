@@ -177,13 +177,16 @@ impl App {
             sortlens_ui::i18n::apply_direction(&cc.egui_ctx);
         }
         if report.has_problems() {
-            ui.notice("Settings could not be read in full; defaults are in use");
+            ui.notice(i18n::tr("Settings could not be read in full; defaults are in use"));
         }
 
         let engine = match Engine::open(library_dir()) {
             Ok(engine) => engine,
             Err(error) => {
-                ui.notice(format!("The library could not be opened: {error}"));
+                ui.notice(i18n::fmt(
+                    "The library could not be opened: {error}",
+                    &[("error", &error.to_string())],
+                ));
                 Engine::new()
             }
         };
@@ -365,29 +368,33 @@ impl App {
             }
             Action::ImportShortcuts => {
                 let Some(path) = rfd::FileDialog::new()
-                    .set_title("Import a shortcut set")
-                    .add_filter("Shortcut set", &["json"])
+                    .set_title(i18n::tr("Import a shortcut set"))
+                    .add_filter(i18n::tr("Shortcut set"), &["json"])
                     .pick_file()
                 else {
                     return;
                 };
                 match std::fs::read_to_string(&path) {
                     Ok(text) => self.ui.pending_shortcut_import = Some(text),
-                    Err(error) => self.ui.notice(format!("The set could not be read: {error}")),
+                    Err(error) => self
+                        .ui
+                        .notice(i18n::fmt("The set could not be read: {error}", &[("error", &error.to_string())])),
                 }
             }
             Action::ExportShortcuts(name, json) => {
                 let Some(path) = rfd::FileDialog::new()
-                    .set_title("Export a shortcut set")
+                    .set_title(i18n::tr("Export a shortcut set"))
                     .set_file_name(format!("{name}.json"))
-                    .add_filter("Shortcut set", &["json"])
+                    .add_filter(i18n::tr("Shortcut set"), &["json"])
                     .save_file()
                 else {
                     return;
                 };
                 match std::fs::write(&path, json) {
-                    Ok(()) => self.ui.notice(format!("Wrote \u{201c}{name}\u{201d}")),
-                    Err(error) => self.ui.notice(format!("The set could not be written: {error}")),
+                    Ok(()) => self.ui.notice(i18n::fmt("Wrote “{name}”", &[("name", &name)])),
+                    Err(error) => self
+                        .ui
+                        .notice(i18n::fmt("The set could not be written: {error}", &[("error", &error.to_string())])),
                 }
             }
             Action::SetPack(name, on) => match self.engine.set_pack(&name, on) {
@@ -443,9 +450,9 @@ impl App {
                 self.store.update(|prefs| prefs.library.sort = sort.id().to_owned());
             }
             Action::SetSidecars(on) => self.ui.notice(if on {
-                "Writing XMP sidecars beside photos"
+                i18n::tr("Writing XMP sidecars beside photos")
             } else {
-                "Sidecar writing off; changes stay in the catalog"
+                i18n::tr("Sidecar writing off; changes stay in the catalog")
             }),
             Action::SetModelConsent(on) => {
                 self.store.update(|prefs| prefs.ai.download_consent = on);
@@ -465,36 +472,41 @@ impl App {
             }
             Action::Backup => {
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Back up the Sortlens library")
+                    .set_title(i18n::tr("Back up the Sortlens library"))
                     .set_file_name("sortlens-library.backup")
-                    .add_filter("Sortlens backup", &["backup"])
+                    .add_filter(i18n::tr("Sortlens backup"), &["backup"])
                     .save_file()
                 {
                     match self.engine.export_backup(&path) {
-                        Ok(files) => self.ui.notice(format!("Backed up {files} file(s)")),
+                        Ok(files) => self
+                            .ui
+                            .notice(i18n::fmt("Backed up {files} file(s)", &[("files", &i18n::count(files as u64))])),
                         Err(error) => self.ui.notice(error.to_string()),
                     }
                 }
             }
             Action::RestoreBackup => {
                 let Some(path) = rfd::FileDialog::new()
-                    .set_title("Choose a Sortlens backup")
-                    .add_filter("Sortlens backup", &["backup"])
+                    .set_title(i18n::tr("Choose a Sortlens backup"))
+                    .add_filter(i18n::tr("Sortlens backup"), &["backup"])
                     .pick_file()
                 else {
                     return;
                 };
                 let Some(dest) = rfd::FileDialog::new()
-                    .set_title("Where should the restored library go?")
+                    .set_title(i18n::tr("Where should the restored library go?"))
                     .pick_folder()
                 else {
                     return;
                 };
                 match sortlens_engine::Engine::import_backup(&path, &dest) {
-                    Ok(files) => self.ui.notice(format!(
-                        "Restored {files} file(s) into {} — open that folder to use it",
-                        folder_name(&dest.to_string_lossy())
-                    )),
+                    Ok(files) => {
+                        let dest = folder_name(&dest.to_string_lossy());
+                        self.ui.notice(i18n::fmt(
+                            "Restored {files} file(s) into {folder} — open that folder to use it",
+                            &[("files", &i18n::count(files as u64)), ("folder", &dest)],
+                        ));
+                    }
                     Err(error) => self.ui.notice(error.to_string()),
                 }
             }
@@ -505,17 +517,18 @@ impl App {
             Action::ServerStart => match self.sync.start(&library_dir()) {
                 Ok(()) => self
                     .ui
-                    .notice("Serving the library — the pairing code is in Settings → Sync & devices"),
+                    .notice(i18n::tr("Serving the library — the pairing code is in Settings → Sync & devices")),
                 Err(error) => self.ui.notice(error),
             },
             Action::ServerStop => {
                 self.sync.stop();
-                self.ui.notice("The server is stopped; the library's write lock is free again");
+                self.ui
+                    .notice(i18n::tr("The server is stopped; the library's write lock is free again"));
             }
             Action::ServerRevoke(token) => match self.sync.revoke(&library_dir(), &token) {
                 Ok(()) => self
                     .ui
-                    .notice("The device's token is removed; it cannot call this library any more"),
+                    .notice(i18n::tr("The device's token is removed; it cannot call this library any more")),
                 Err(error) => self.ui.notice(error),
             },
             // The phone's section is gated on the phone width, so these cannot come from this
@@ -680,6 +693,25 @@ mod tests {
             "Export into…",
             "Indexing {folder}…",
             "Exporting {n} file(s)…",
+            "Settings could not be read in full; defaults are in use",
+            "The library could not be opened: {error}",
+            "Import a shortcut set",
+            "Export a shortcut set",
+            "Shortcut set",
+            "The set could not be read: {error}",
+            "The set could not be written: {error}",
+            "Wrote “{name}”",
+            "Back up the Sortlens library",
+            "Sortlens backup",
+            "Backed up {files} file(s)",
+            "Choose a Sortlens backup",
+            "Where should the restored library go?",
+            "Restored {files} file(s) into {folder} — open that folder to use it",
+            "Serving the library — the pairing code is in Settings → Sync & devices",
+            "The server is stopped; the library's write lock is free again",
+            "The device's token is removed; it cannot call this library any more",
+            "Writing XMP sidecars beside photos",
+            "Sidecar writing off; changes stay in the catalog",
         ] {
             assert!(keys.iter().any(|seen| seen == key), "the listing lost {key:?}");
         }
@@ -708,6 +740,40 @@ mod tests {
         assert!(!one.contains("photo"), "no English noun is left: {one}");
         assert_ne!(i18n::tr("Pick a photo first"), "Pick a photo first");
         assert!(i18n::fmt("Indexing {folder}…", &[("folder", "sea")]).contains("جارٍ"));
+        i18n::set_current(english);
+    }
+
+    /// The host's library, backup, shortcut and sync notices read the interface language, and a
+    /// count keeps the reader's digits: the same rows the shell's own dialogs paint, reached from
+    /// the file no catalogue audit in `crates/ui` can read.
+    #[test]
+    fn the_hosts_library_notices_read_the_interface_language() {
+        let english = i18n::from_code("en").expect("English");
+        let arabic = i18n::from_code("ar").expect("Arabic");
+        i18n::set_current(english);
+        assert_eq!(
+            i18n::fmt("Backed up {files} file(s)", &[("files", &i18n::count(3))]),
+            "Backed up 3 file(s)"
+        );
+        assert_eq!(
+            i18n::tr("Sidecar writing off; changes stay in the catalog"),
+            "Sidecar writing off; changes stay in the catalog"
+        );
+        i18n::set_current(arabic);
+        let opened = i18n::fmt("The library could not be opened: {error}", &[("error", "denied")]);
+        assert!(opened.contains("تعذّر") && opened.contains("denied"), "{opened}");
+        assert!(!opened.contains("opened"), "no English verb is left: {opened}");
+        let restored = i18n::fmt(
+            "Restored {files} file(s) into {folder} — open that folder to use it",
+            &[("files", &i18n::count(3)), ("folder", "sea")],
+        );
+        assert!(restored.contains('٣') && restored.contains("sea"), "digits and folder: {restored}");
+        assert!(!restored.contains("file(s)"), "no English noun is left: {restored}");
+        assert_ne!(i18n::tr("Back up the Sortlens library"), "Back up the Sortlens library");
+        assert_ne!(
+            i18n::tr("Serving the library — the pairing code is in Settings → Sync & devices"),
+            "Serving the library — the pairing code is in Settings → Sync & devices"
+        );
         i18n::set_current(english);
     }
 }

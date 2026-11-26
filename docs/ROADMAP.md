@@ -1115,9 +1115,14 @@ and none of M9 is closed until the remaining rows are ticked.
   native `rfd` dialog titles through `i18n::tr`/`i18n::fmt`, and the move notice asks the receipt's
   own `move_receipt_headline` so the dialog and the status line cannot disagree. Because the shell's
   audit cannot read another crate's source, the host carries its own listing: a test reads `main.rs`
-  back, collects every routed key and requires a row for each in all six catalogues. What remains on
-  this row is the host's other notices — library open, backup and restore, and the sync server's
-  lines — and the remaining `rfd` titles.
+  back, collects every routed key and requires a row for each in all six catalogues. The
+  library-lifecycle notices followed (hundred-and-thirty-first entry): the settings and library-open
+  failures, the backup and restore dialogs and their toasts, the shortcut set's import/export and
+  read/write failures, the sync server's start, stop and revoke lines, and both sidecar toggles are
+  rows in all six catalogues, with counts through `i18n::count` and the failed operation's own error
+  sentence appended unchanged. What remains on this row is the host's suggest, pack, tag, undo,
+  change-report, remap, rescan, consent and remove-root notices, and the two remaining `rfd` titles
+  (`Save the change report`, `Where does this folder live now?`).
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -788,8 +788,13 @@ re-checks its own contrast pairs after applying.
   `Moved 1 photo(s) to Rejects`. The host's own words followed for the add-folder, pick, move and
   export path: each status line and the three native file-dialog titles are looked up, so an Arabic
   window reads `اختر صورة أولًا` where it read `Pick a photo first`, and the move notice is the
-  receipt's own headline. A bin row's summary and mode remain the engine's own sentences rather than
-  the shell's.
+  receipt's own headline. The host's library-lifecycle notices followed (hundred-and-thirty-first
+  entry): settings it could not read in full, a library it could not open, the backup and restore
+  dialogs with their toasts, the shortcut set's import and export dialogs with their read and write
+  failures, the sync server's start, stop and revoke lines, and both sidecar toggles are rows, so an
+  Arabic window reads `تعذّر فتح المكتبة` and `نُسّخ ٣ ملف احتياطيًا`. The error a failed operation
+  carries stays the engine's or the system's own sentence, appended to the localised frame. A bin
+  row's summary and mode remain the engine's own sentences rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
