@@ -1,5 +1,40 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-seventh) — the photo and keyword context menus speak the interface language
+
+- **Why this came up.** The hundred-and-forty-sixth entry's Next named the inspector's action buttons.
+  Reading the source showed the same family in two right-click menus: a photo cell still painted
+  `Export…`, `Show in folder`, `Open in default app`, `Add to Collection` and the empty picker
+  `No collections yet`; a keyword row still painted `Rename or merge…` and `Delete everywhere` with
+  an English hover, and its aliases hover was built with `format!`. An Arabic right-click therefore
+  read English beside an Arabic sidebar and grid.
+- **What is routed.** Eight rows per catalogue, 48 in all. `photo_menu` words the photo cell's four
+  action rows and their hover sentences, `add_to_collection_menu` words the collection picker (its
+  empty row included), and `keyword_menu` words the two keyword rows and their hovers;
+  `also written as {aliases}` is an `i18n::fmt` template. `Export…`, `Show in folder` and their
+  three hover sentences were already catalogue rows and are reused rather than duplicated. Each menu
+  writes into a `PhotoMenuActions` or `KeywordMenuActions` struct, so painting it cannot export,
+  reveal, open, add or delete anything.
+- **Tests.** `the_photo_and_keyword_menus_speak_the_interface_language` paints the real
+  `photo_menu`, `add_to_collection_menu` and `keyword_menu` under English and Arabic. It pins every
+  English shape, requires the Arabic rows (including `إظهار في المجلد`, `أضف إلى مجموعة`,
+  `لا مجموعات بعد` and `احذف في كل مكان`), asserts that no English row survives either menu, and
+  that a paint leaves every action field unset. It fails on the pre-slice source: the helpers do not
+  exist and the catalogue audit has no row for any of the new keys.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows what the audit still finds to the
+  Settings checkboxes, two empty-state hints and the remaining `on_hover_text` names. UX.md's i18n
+  paragraph and ARCHITECTURE.md §8.4 name the three helpers and the test. SL-L07 stays unticked.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` and
+  `cargo test -p sortlens-ui the_photo_and_keyword_menus_speak_the_interface_language` (1 passed,
+  252 filtered out) are green. Full gate: pending this tick.
+- **Files.** `crates/ui/src/shell.rs` (three helpers, the rewired cell and keyword menus, the aliases
+  hover and the new test), the six `crates/ui/src/i18n/*.tsv` (eight rows each), `docs/ROADMAP.md`,
+  `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the Settings checkboxes in `crates/ui/src/shell.rs`: `Reduced motion`, `Allow downloading
+  models (network)` and `Check for updates (network)`, through `tl!` with a paint test under
+  Arabic. SL-L07 stays unticked. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-forty-sixth) — the collection rows and their menu speak the interface language
 
 - **Why this came up.** The hundred-and-forty-fifth entry's Next named the collection rows' context
@@ -8430,13 +8465,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-forty-fifth entry).** Read this commit's `CI` run with one
-`gh run view` — no committed scene paints a folder menu and the English paint is unchanged, so no
-baseline should have moved. Then the collection rows' context menu in `crates/ui/src/shell.rs`'s
-`collections_section`: its `{n} collections` label, both pin labels and its delete row, with the
-collection headers' counts through `format_count`. SL-L07 stays unticked; its row lists what the
-audit still finds (the hover/accessibility names and the collection menu's literals, now that the
-folder rows are done). No release run is in flight.
+**Next tick (after the hundred-and-forty-seventh entry).** Read this commit's `CI` run with one
+`gh run view` — no committed scene paints a context menu and the English paint is unchanged, so no
+baseline should have moved. Then the Settings checkboxes in `crates/ui/src/shell.rs`: `Reduced
+motion`, `Allow downloading models (network)` and `Check for updates (network)`, through `tl!`,
+with a paint test that chooses Arabic and requires the Arabic rows with no English left. SL-L07
+stays unticked; its row lists what the audit still finds (the empty-state hints and the rest of the
+`on_hover_text` names). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

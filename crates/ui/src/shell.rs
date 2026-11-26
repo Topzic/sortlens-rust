@@ -3391,7 +3391,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                             } else {
                                 // Say where a keyword came from: a rename leaves a trail behind it.
                                 nav_row(ui, t, crate::icons::Icon::Tag, tag, &format_count(*count as u64), selected)
-                                    .on_hover_text(format!("also written as {}", aliases.join(", ")))
+                                    .on_hover_text(crate::i18n::fmt("also written as {aliases}", &[("aliases", &aliases.join(", "))]))
                             };
                             if row.clicked() {
                                 if selected {
@@ -3401,17 +3401,13 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                                 }
                             }
                             row.context_menu(|ui| {
-                                if ui.button("Rename or merge…").clicked() {
+                                let mut menu = KeywordMenuActions::default();
+                                keyword_menu(ui, &mut menu);
+                                if menu.rename {
                                     state.tag_edit = Some((tag.clone(), tag.clone()));
-                                    ui.close();
                                 }
-                                if ui
-                                    .button("Delete everywhere")
-                                    .on_hover_text("Take the keyword off every photo; one undo brings it back")
-                                    .clicked()
-                                {
+                                if menu.delete {
                                     tag_delete = Some(tag.clone());
-                                    ui.close();
                                 }
                             });
                         }
@@ -3601,6 +3597,37 @@ fn tag_taken_off(tag: &str, count: usize) -> String {
         "#{tag} taken off {n} photos — one undo brings it back"
     };
     crate::i18n::fmt(template, &[("tag", tag), ("n", &n)])
+}
+
+/// What a keyword row's context menu asks the shell to do. Painting the menu writes here; the row's
+/// caller performs the request afterwards, so a test can paint it without renaming or deleting anything.
+#[derive(Debug, Default)]
+struct KeywordMenuActions {
+    rename: bool,
+    delete: bool,
+}
+
+/// A keyword row's context menu: rename or merge, and take the keyword off every photo.
+///
+/// One function rather than a closure so a test can paint the menu without a mouse, and so its words and
+/// the actions they set stay in the same place.
+fn keyword_menu(ui: &mut Ui, actions: &mut KeywordMenuActions) {
+    if ui
+        .button(tl!("Rename or merge…"))
+        .on_hover_text(tl!("Give this keyword another name, or merge it into an existing one"))
+        .clicked()
+    {
+        actions.rename = true;
+        ui.close();
+    }
+    if ui
+        .button(tl!("Delete everywhere"))
+        .on_hover_text(tl!("Take the keyword off every photo; one undo brings it back"))
+        .clicked()
+    {
+        actions.delete = true;
+        ui.close();
+    }
 }
 
 /// The far-edge tool strip: one glyph per question the panel can answer.
@@ -4257,6 +4284,66 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
         });
 }
 
+/// What a photo's context menu asks the shell to do. Painting the menu writes here; the cell's caller
+/// performs the request afterwards, so a test can paint it without exporting or opening anything.
+#[derive(Debug, Default)]
+struct PhotoMenuActions {
+    export: bool,
+    reveal: bool,
+    open_external: bool,
+    add_to: Option<sortlens_core::CollectionId>,
+}
+
+/// The Add to Collection submenu: every collection, or one line saying there are none yet.
+///
+/// Its own function so a test can paint the empty picker without a mouse opening a submenu.
+fn add_to_collection_menu(ui: &mut Ui, collections: &[sortlens_engine::Collection], actions: &mut PhotoMenuActions) {
+    if collections.is_empty() {
+        ui.label(RichText::new(tl!("No collections yet")).size(10.5));
+    }
+    for collection in collections {
+        if ui.button(&collection.name).clicked() {
+            actions.add_to = Some(collection.id);
+            ui.close();
+        }
+    }
+}
+
+/// A photo cell's context menu: export, reveal, open elsewhere, then add to a collection.
+///
+/// One function rather than a closure so a test can paint the menu without a mouse, and so its words and
+/// the actions they set stay in the same place.
+fn photo_menu(ui: &mut Ui, collections: &[sortlens_engine::Collection], actions: &mut PhotoMenuActions) {
+    if ui
+        .button(tl!("Export…"))
+        .on_hover_text(tl!("Write a copy somewhere; the original is not touched"))
+        .clicked()
+    {
+        actions.export = true;
+        ui.close();
+    }
+    if ui
+        .button(tl!("Show in folder"))
+        .on_hover_text(tl!("Show this file where it lives on disk"))
+        .clicked()
+    {
+        actions.reveal = true;
+        ui.close();
+    }
+    if ui
+        .button(tl!("Open in default app"))
+        .on_hover_text(tl!("Hand this file to the desktop's default application"))
+        .clicked()
+    {
+        actions.open_external = true;
+        ui.close();
+    }
+    ui.separator();
+    ui.menu_button(tl!("Add to Collection"), |ui| {
+        add_to_collection_menu(ui, collections, actions);
+    });
+}
+
 /// What a click, a modifier-click, a double-click and the context menu mean on one cell.
 ///
 /// Shared by both grid layouts: the gestures are about photos, not about pixels, and two grids that disagreed
@@ -4294,32 +4381,22 @@ fn cell_gestures(
         open_detail(state);
     }
     response.context_menu(|ui| {
-        if ui.button("Export…").clicked() {
+        let collections = engine.collections();
+        let mut menu = PhotoMenuActions::default();
+        photo_menu(ui, &collections, &mut menu);
+        if menu.export {
             state.export_ids = vec![photo.id];
             state.export_open = true;
-            ui.close();
         }
-        if ui.button("Show in folder").clicked() {
+        if menu.reveal {
             actions.push(Action::Reveal(photo.id));
-            ui.close();
         }
-        if ui.button("Open in default app").clicked() {
+        if menu.open_external {
             actions.push(Action::OpenExternal(photo.id));
-            ui.close();
         }
-        ui.separator();
-        ui.menu_button("Add to Collection", |ui| {
-            let collections = engine.collections();
-            if collections.is_empty() {
-                ui.label(RichText::new("No collections yet").size(10.5));
-            }
-            for collection in collections {
-                if ui.button(&collection.name).clicked() {
-                    *add_to = Some((photo.id, collection.id));
-                    ui.close();
-                }
-            }
-        });
+        if let Some(collection) = menu.add_to {
+            *add_to = Some((photo.id, collection));
+        }
     });
 }
 
@@ -18050,6 +18127,96 @@ mod tests {
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The two right-click menus a photo and a keyword offer speak the interface language (SL-L07).
+    ///
+    /// The family that was still English on the context menus: a photo's export, reveal, open and
+    /// add-to-collection rows, the empty collection picker, and a keyword's rename/merge and
+    /// delete-everywhere rows with their hover sentences. This paints the real helper functions — the
+    /// ones the two right-clicks call — rather than a copy of their words, and requires the Arabic
+    /// frame to leave no English row behind.
+    #[test]
+    fn the_photo_and_keyword_menus_speak_the_interface_language() {
+        fn paint_menu(ctx: &egui::Context, mut body: impl FnMut(&mut Ui)) -> Vec<String> {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| body(ui));
+            });
+            output.textures_delta.clear();
+            painted_texts(&output)
+        }
+
+        let ctx = egui::Context::default();
+        let no_collections: Vec<sortlens_engine::Collection> = Vec::new();
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let mut keyword_english = KeywordMenuActions::default();
+        let keyword_texts = paint_menu(&ctx, |ui| keyword_menu(ui, &mut keyword_english));
+        assert_painted(&keyword_texts, &["Rename or merge…", "Delete everywhere"]);
+        assert!(
+            !keyword_english.rename && !keyword_english.delete,
+            "painting a keyword menu acts on nothing"
+        );
+
+        let mut photo_english = PhotoMenuActions::default();
+        let photo_texts = paint_menu(&ctx, |ui| photo_menu(ui, &no_collections, &mut photo_english));
+        assert_painted(
+            &photo_texts,
+            &["Export…", "Show in folder", "Open in default app", "Add to Collection"],
+        );
+        let mut empty_english = PhotoMenuActions::default();
+        let empty_texts = paint_menu(&ctx, |ui| add_to_collection_menu(ui, &no_collections, &mut empty_english));
+        assert_painted(&empty_texts, &["No collections yet"]);
+        assert!(
+            !photo_english.export
+                && !photo_english.reveal
+                && !photo_english.open_external
+                && photo_english.add_to.is_none()
+                && empty_english.add_to.is_none(),
+            "painting a photo menu acts on nothing"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let mut keyword_arabic = KeywordMenuActions::default();
+        let keyword_texts = paint_menu(&ctx, |ui| keyword_menu(ui, &mut keyword_arabic));
+        assert_painted(&keyword_texts, &["إعادة تسمية أو دمج…", "احذف في كل مكان"]);
+        assert!(
+            !keyword_texts.iter().any(|text| text.contains("Rename") || text.contains("Delete")),
+            "no English keyword row is left: {keyword_texts:?}"
+        );
+        assert!(
+            !keyword_arabic.rename && !keyword_arabic.delete,
+            "painting the Arabic menu acts on nothing"
+        );
+
+        let mut photo_arabic = PhotoMenuActions::default();
+        let photo_texts = paint_menu(&ctx, |ui| photo_menu(ui, &no_collections, &mut photo_arabic));
+        assert_painted(
+            &photo_texts,
+            &["تصدير…", "إظهار في المجلد", "افتح في التطبيق الافتراضي", "أضف إلى مجموعة"],
+        );
+        assert!(
+            !photo_texts.iter().any(|text| {
+                text.contains("Export")
+                    || text.contains("Show in folder")
+                    || text.contains("Open in default app")
+                    || text.contains("Add to Collection")
+            }),
+            "no English photo row is left: {photo_texts:?}"
+        );
+        let mut empty_arabic = PhotoMenuActions::default();
+        let empty_texts = paint_menu(&ctx, |ui| add_to_collection_menu(ui, &no_collections, &mut empty_arabic));
+        assert_painted(&empty_texts, &["لا مجموعات بعد"]);
+        assert!(
+            !photo_arabic.export
+                && !photo_arabic.reveal
+                && !photo_arabic.open_external
+                && photo_arabic.add_to.is_none()
+                && empty_arabic.add_to.is_none(),
+            "painting the Arabic photo menu acts on nothing"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// The sources ask different questions, and each one is the whole question rather than a nudge.

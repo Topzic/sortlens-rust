@@ -990,3 +990,11 @@
 	Remove from favourites	お気に入りから削除
 	Rescan	再スキャン
 	Remove from library	ライブラリから削除
+	Open in default app	既定のアプリで開く
+	Add to Collection	コレクションに追加
+	No collections yet	コレクションはまだありません
+	Rename or merge…	名前を変更または統合…
+	Give this keyword another name, or merge it into an existing one	このキーワードに別の名前を付けるか、既存のキーワードに統合します
+	Delete everywhere	すべての写真から削除
+	Take the keyword off every photo; one undo brings it back	すべての写真からキーワードを外します。元に戻す操作は 1 回です
+	also written as {aliases}	別名: {aliases}

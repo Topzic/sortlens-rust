@@ -848,6 +848,11 @@ re-checks its own contrast pairs after applying.
   `{n} selected · ⌘-click to add, Shift-click for a run`, and the pin and delete receipts are rows
   and templates with the counts in the reader's digits, so an Arabic menu reads `٢ مجموعات` above
   `حذف ٢ مجموعات`.
+  The photo and keyword context menus followed (hundred-and-forty-seventh entry): a photo's
+  `Export…`, `Show in folder`, `Open in default app` and `Add to Collection` rows, its empty
+  picker `No collections yet`, and a keyword's `Rename or merge…` and `Delete everywhere` rows
+  with their hover sentences and the aliases hover are catalogue rows, so an Arabic right-click reads
+  `إظهار في المجلد` and `احذف في كل مكان` where it read English.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

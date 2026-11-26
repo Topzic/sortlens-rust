@@ -1246,10 +1246,18 @@ and none of M9 is closed until the remaining rows are ticked.
   `٢ مجموعات` above `حذف ٢ مجموعات`, and the batch line keeps its shortcuts in the reader's digits.
   `the_collection_rows_and_their_menu_speak_the_interface_language` paints the real two-row and
   one-row menus and the real section under Arabic, and the helpers pin every English shape.
+  The photo and keyword context menus followed (hundred-and-forty-seventh entry): a photo cell's
+  `Export…`, `Show in folder`, `Open in default app` and `Add to Collection`, its empty picker
+  `No collections yet`, and a keyword row's `Rename or merge…` and `Delete everywhere`, with their
+  hover sentences and the keyword aliases hover, are rows and one template. `photo_menu`,
+  `add_to_collection_menu` and `keyword_menu` are the functions the two right-clicks paint, and each
+  writes into an actions struct, so painting cannot export, open or delete. An Arabic photo menu reads
+  `إظهار في المجلد` beside `أضف إلى مجموعة`, and a keyword menu reads `احذف في كل مكان`.
+  `the_photo_and_keyword_menus_speak_the_interface_language` paints the real menus and the empty
+  picker under English and Arabic and requires no English row to survive.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: twenty-three `on_hover_text` names, the Settings checkboxes
-  `Reduced motion`, `Allow downloading models (network)` and `Check for updates (network)`, the
-  inspector buttons `Rename or merge…`, `Export…`, `Show in folder` and `Open in default app`, two
+  went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names, the Settings checkboxes
+  `Reduced motion`, `Allow downloading models (network)` and `Check for updates (network)`, and two
   empty-state hints — no production `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
   entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the

@@ -680,6 +680,13 @@ through `format_count`. `the_collection_rows_and_their_menu_speak_the_interface_
 the real two-row and one-row menus and the section's batch line under Arabic, and requires every
 count to be the reader's digits.
 
+The two remaining context menus use the same seam: `photo_menu` words a photo cell's export,
+reveal, open and add-to-collection rows and `add_to_collection_menu` its empty picker, while
+`keyword_menu` words a keyword row's rename/merge and delete-everywhere rows and their hover
+sentences. Each writes into a `PhotoMenuActions` or `KeywordMenuActions` struct rather than acting,
+so `the_photo_and_keyword_menus_speak_the_interface_language` can paint the real menus under
+English and Arabic without exporting, opening or deleting anything.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with
