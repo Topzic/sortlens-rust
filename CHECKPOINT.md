@@ -7410,6 +7410,46 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Next.** Repaint the committed reference set and read every frame (the explicit plan is in the
   section below), then SL-L07's `Moved` receipt. No release run is in flight.
 
+## 2026-11-26 (eighty-first) — the reference set is repainted at last, and the red trunk's two RTL frames
+
+- **Why it was red.** `CI` on `ce56574` (run `45767097177`) concluded red in one job: `screenshots`. Its
+  `screenshot-set` artifact held exactly two frames, `lavapipe/rtl-library-{charcoal,paper}.new.png` — the
+  eightieth entry's fix was right, and the sidebar's new QUICK ACTIONS block and the search hint are now
+  Arabic in that frame, so the lavapipe RTL baselines that predate them no longer match. Nothing else in
+  that set moved, which is the useful half of the read: `CI` compares only the lavapipe set.
+- **The committed reference set was stale by 47 of its 49 frames, and this commit repaints them.**
+  `cargo test -p sortlens-ui --features screenshots --test screenshots -- --test-threads=1` wrote a
+  `.new.png` beside every one of them; only the two RTL frames — adopted from the runner last tick —
+  matched, which is why the failure count was 23 tests and not 29. Each pair was diffed to its
+  changed-pixel bounding box before adoption, and every box is structural: the sidebar's QUICK ACTIONS
+  block (x 0–300 in all 28 shell scenes), the Insights summary card (245k pixels, the largest delta),
+  the Places pin labels, the shortcut editor's rows, and a 13,767-pixel band at x 700–1099, y 850–899
+  that is the bottom bar's annotation pill — the same count in charcoal and paper to the pixel.
+  Antialiasing noise from a different rasteriser is neither localized to one block nor identical in
+  both themes, so these are the app's own paint and not this machine's.
+- **Read before adopting.** Three full pairs: `library-justified-charcoal` (QUICK ACTIONS: Add Folder…,
+  Start Cull, Export Picks…, Insights), `insights-charcoal` (the Summary card's ruler and percentages),
+  and the runner's own `lavapipe/rtl-library-charcoal`, where the sidebar, the bar's count and the
+  filter strip all speak Arabic and no English is left in them. The remaining 44 were read as their
+  changed-region crops, each one inside the block its diff box named. The `.new.png` files were then
+  promoted in place, so the six scenes that already matched keep their bytes.
+- **Verified.** `cargo xtask screenshots` green afterwards: `29 passed; 0 failed; 1 ignored` (before
+  adoption the same run was `6 passed; 23 failed`). `cargo xtask ci`, `cargo xtask snapshot` and
+  `cargo xtask deny` green. `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and this
+  commit touches no phone code. No release workflow was dispatched: 49 PNGs and this entry, no build or
+  release surface.
+- **Named defect — the next tick's first slice.** With QUICK ACTIONS in place at 1440×900, the sidebar's
+  scroll clip ends mid-row: the keyword row under `sea` is cut through its text above the pinned foot.
+  The fortieth entry's test asserts every painted text rect intersects its own clip rect, and a half row
+  still does — the clip is legal and wrong. The fix is to clip whole rows only, and to extend that test
+  so a row is either fully visible or not painted at all.
+- **Next.** That sidebar clip, then SL-L07's `Moved` receipt (title, the sentence under it,
+  `and {n} more`, `Put them back`, `Done`) with a paint test built on one indexed photo and one real move, then
+  the search field's `Search photos or Ctrl+K` hint and the bottom bar's `No selection`. Even with the
+  reference set current, `screenshots` on GitHub remains the only half this machine cannot prove — it
+  compares the lavapipe set — so the next commit's run is read first, as always. No release run is in
+  flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7418,17 +7458,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the eightieth entry).** Read this commit's `CI` run with one `gh run view`: the run
-for `d9df9d3` was red only in `screenshots`, and the eightieth entry is that fix, whose lavapipe half only
-the runner can prove. Then repaint the committed reference set, which is stale by more than this commit:
-`cargo test -p sortlens-ui --features screenshots --test screenshots` writes a `.new.png` for every scene
-that differs (23 of 29 when this was written), each one is read and compared as `filters-charcoal` was —
-the app's current sidebar, not the pre-Quick-Actions one — and the reference frame is adopted only when
-that read says the difference is the app and not the machine, until `cargo xtask screenshots` is green
-locally as well as on the runner. Then finish SL-L07's canvas: the `Moved` receipt (title, the sentence
-under it, `and {n} more`, `Put them back` and `Done`) with a paint test that builds a real receipt — one
-indexed photo and one move — then the search field's `Search photos or Ctrl+K` hint and the bottom bar's
-`No selection`. No release run is in flight.
+**Next tick (after the eighty-first entry).** Read this commit's `CI` run with one `gh run view` — the
+`screenshots` job is the only one that can be red about a frame, and the lavapipe set this commit adopts
+is exactly what the runner compares. Then the sidebar's half-row clip the eighty-first entry named: at
+1440×900 the keyword row under `sea` is cut through its text above the pinned foot, because the scroll
+clip ends wherever the foot leaves room rather than on a row boundary. Fix it by clipping whole rows and
+extend the fortieth entry's visibility sweep to demand a row is either fully inside its clip or not
+painted at all; `short-sidebar-charcoal`/`-paper` and `library-justified-*` are the frames that move.
+Then finish SL-L07's canvas: the `Moved` receipt (title, the sentence under it, `and {n} more`, `Put them
+back` and `Done`) with a paint test that builds a real receipt — one indexed photo and one move — then
+the search field's `Search photos or Ctrl+K` hint and the bottom bar's `No selection`. No release run is
+in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
