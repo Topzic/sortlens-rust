@@ -865,6 +865,10 @@ re-checks its own contrast pairs after applying.
   and the ten-minute sentence, the starting and stopped states, the loopback note, the `--bind lan`
   note and the section's four hover names are rows, so an Arabic Settings explains the pairing in
   Arabic where it read English.
+  The Settings tree's own hover names followed (hundred-and-fifty-first entry): `Every binding,
+  searchable`, the backup and restore buttons' two sentences, the shortcut editor's, the suggestion
+  pass's and the model stop and remove names are seven rows in all six languages, so the control
+  under the pointer explains itself in the reader's language.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

@@ -1002,6 +1002,13 @@
 	Allow downloading models (network)	モデルのダウンロードを許可（ネットワーク）
 	Check for updates (network)	アップデートを確認（ネットワーク）
 	No devices are paired yet; pairing starts from the code above.	ペアリングされたデバイスはまだありません。ペアリングは上のコードから始まります。
+	Every binding, searchable	すべての割り当てを検索できます
+	One verified file holding the index and every decision	索引とすべての決定を収めた検証済みの 1 ファイル
+	Unpack a backup as a separate library; the open one is untouched	バックアップを別のライブラリとして展開します。開いているライブラリはそのままです
+	Rebind keys, resolve conflicts, and import or export shortcut sets	キーを割り当て直し、競合を解決し、ショートカットセットを読み込みまたは書き出します
+	Proposes keywords for every photo that has something to say; writes nothing until you accept	伝えることのあるすべての写真にキーワードを提案します。承認するまで何も書き込みません
+	Keeps the partial download; installing again resumes it	途中までのダウンロードを保持します。再インストールすると続きから再開します
+	Delete the file from the model store; you can install it again later	モデルストアからファイルを削除します。後で再インストールできます
 	No packs installed.	パックはインストールされていません。
 	Serving on 127.0.0.1:{port}	127.0.0.1:{port} で提供中
 	Pairing code  {code}	ペアリングコード  {code}

@@ -1001,6 +1001,13 @@
 	Allow downloading models (network)	允許下載模型（網路）
 	Check for updates (network)	檢查更新（網路）
 	No devices are paired yet; pairing starts from the code above.	尚無已配對的裝置；配對從上方的代碼開始。
+	Every binding, searchable	每個按鍵綁定都可搜尋
+	One verified file holding the index and every decision	一個經過驗證的檔案，保存索引與每一項決定
+	Unpack a backup as a separate library; the open one is untouched	將備份解開為另一個圖庫；目前開啟的圖庫不受影響
+	Rebind keys, resolve conflicts, and import or export shortcut sets	重新綁定按鍵、解決衝突，並匯入或匯出快速鍵組合
+	Proposes keywords for every photo that has something to say; writes nothing until you accept	為每張有話可說的相片建議關鍵字；在你接受之前不會寫入任何內容
+	Keeps the partial download; installing again resumes it	保留未完成的下載；再次安裝會從中斷處繼續
+	Delete the file from the model store; you can install it again later	從模型存放區刪除檔案；你之後可以再次安裝
 	No packs installed.	尚未安裝任何套件。
 	Serving on 127.0.0.1:{port}	正在 127.0.0.1:{port} 提供服務
 	Pairing code  {code}	配對碼  {code}

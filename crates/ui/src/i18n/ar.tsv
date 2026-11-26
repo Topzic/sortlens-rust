@@ -1002,6 +1002,13 @@
 	Allow downloading models (network)	السماح بتنزيل النماذج (شبكة)
 	Check for updates (network)	التحقق من التحديثات (شبكة)
 	No devices are paired yet; pairing starts from the code above.	لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.
+	Every binding, searchable	كل اختصار قابل للبحث
+	One verified file holding the index and every decision	ملف واحد موثَّق يحوي الفهرس وكل قرار
+	Unpack a backup as a separate library; the open one is untouched	فكَّ نسخة احتياطية كمكتبة منفصلة؛ المكتبة المفتوحة لا تُمسّ
+	Rebind keys, resolve conflicts, and import or export shortcut sets	أعد ربط المفاتيح، وحلّ التعارضات، واستورد أو صدّر مجموعات الاختصارات
+	Proposes keywords for every photo that has something to say; writes nothing until you accept	يقترح كلمات مفتاحية لكل صورة لديها ما تقوله؛ لا يكتب شيئًا حتى تقبل
+	Keeps the partial download; installing again resumes it	يحتفظ بالتنزيل الجزئي؛ التثبيت مجددًا يستأنفه
+	Delete the file from the model store; you can install it again later	يحذف الملف من مخزن النماذج؛ يمكنك تثبيته مجددًا لاحقًا
 	No packs installed.	لا حزم مثبّتة.
 	Serving on 127.0.0.1:{port}	يُقدَّم على 127.0.0.1:{port}
 	Pairing code  {code}	رمز الاقتران  {code}

@@ -3564,7 +3564,7 @@ fn sidebar_foot(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
                 };
                 let row = nav_row(ui, t, icon, tl!(spec.label), &trailing, false);
                 let row = if command == PaletteCommand::Shortcuts {
-                    row.on_hover_text("Every binding, searchable")
+                    row.on_hover_text(tl!("Every binding, searchable"))
                 } else {
                     row
                 };
@@ -11405,14 +11405,14 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     ui.horizontal(|ui| {
         if ui
             .button(RichText::new(tl!("Back up library…")).size(12.0))
-            .on_hover_text("One verified file holding the index and every decision")
+            .on_hover_text(tl!("One verified file holding the index and every decision"))
             .clicked()
         {
             actions.push(Action::Backup);
         }
         if ui
             .button(RichText::new(tl!("Restore into a folder…")).size(12.0))
-            .on_hover_text("Unpack a backup as a separate library; the open one is untouched")
+            .on_hover_text(tl!("Unpack a backup as a separate library; the open one is untouched"))
             .clicked()
         {
             actions.push(Action::RestoreBackup);
@@ -11428,7 +11428,7 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     ui.label(RichText::new(tl!("Shortcuts")).size(11.0).color(t.text_muted));
     if ui
         .button(RichText::new(tl!("Edit shortcuts…")).size(12.0))
-        .on_hover_text("Rebind keys, resolve conflicts, and import or export shortcut sets")
+        .on_hover_text(tl!("Rebind keys, resolve conflicts, and import or export shortcut sets"))
         .clicked()
     {
         // One modal at a time, and the palette's keyboard must not reach the editor.
@@ -11455,7 +11455,9 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     keyword_packs(ui, t, engine, actions);
     if ui
         .button(RichText::new("Suggest keywords for the library…").size(12.0))
-        .on_hover_text("Proposes keywords for every photo that has something to say; writes nothing until you accept")
+        .on_hover_text(tl!(
+            "Proposes keywords for every photo that has something to say; writes nothing until you accept"
+        ))
         .clicked()
     {
         state.suggest_open = true;
@@ -11505,7 +11507,7 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
                                 );
                                 if ui
                                     .button(RichText::new("Stop").size(11.0))
-                                    .on_hover_text("Keeps the partial download; installing again resumes it")
+                                    .on_hover_text(tl!("Keeps the partial download; installing again resumes it"))
                                     .clicked()
                                 {
                                     engine.cancel_model_install();
@@ -11537,7 +11539,7 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
                         if row.installed
                             && ui
                                 .button(RichText::new("Remove").size(11.0))
-                                .on_hover_text("Delete the file from the model store; you can install it again later")
+                                .on_hover_text(tl!("Delete the file from the model store; you can install it again later"))
                                 .clicked()
                         {
                             match engine.remove_model(&row.id.clone()) {
@@ -22062,6 +22064,67 @@ mod tests {
         }
         assert!(actions.borrow().is_empty(), "painting the Arabic section starts and stops nothing");
 
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The Settings tree's hover names are catalogue rows, in every language the picker offers.
+    ///
+    /// A hover never paints in a frame, so the catalogue is the witness: each name resolves to the
+    /// reader's own row, and the source read back here proves the call site routes through `tl!`
+    /// instead of carrying the literal. The catalogue audit in `i18n` can only see keys that already
+    /// route, which is exactly what a hover left in English would not do.
+    #[test]
+    fn the_settings_tree_hovers_speak_the_interface_language() {
+        // One row per name the Settings tree and its sections hang on a control.
+        const HOVERS: [(&str, &str); 7] = [
+            ("Every binding, searchable", "كل اختصار قابل للبحث"),
+            (
+                "One verified file holding the index and every decision",
+                "ملف واحد موثَّق يحوي الفهرس وكل قرار",
+            ),
+            (
+                "Unpack a backup as a separate library; the open one is untouched",
+                "فكَّ نسخة احتياطية كمكتبة منفصلة؛ المكتبة المفتوحة لا تُمسّ",
+            ),
+            (
+                "Rebind keys, resolve conflicts, and import or export shortcut sets",
+                "أعد ربط المفاتيح، وحلّ التعارضات، واستورد أو صدّر مجموعات الاختصارات",
+            ),
+            (
+                "Proposes keywords for every photo that has something to say; writes nothing until you accept",
+                "يقترح كلمات مفتاحية لكل صورة لديها ما تقوله؛ لا يكتب شيئًا حتى تقبل",
+            ),
+            (
+                "Keeps the partial download; installing again resumes it",
+                "يحتفظ بالتنزيل الجزئي؛ التثبيت مجددًا يستأنفه",
+            ),
+            (
+                "Delete the file from the model store; you can install it again later",
+                "يحذف الملف من مخزن النماذج؛ يمكنك تثبيته مجددًا لاحقًا",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in HOVERS {
+            assert!(
+                source.contains(&format!("on_hover_text(tl!(\"{english}\"))")),
+                "the hover {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("on_hover_text(\"{english}\")")),
+                "the hover {english:?} also paints a bare literal"
+            );
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), arabic, "the hover row for {english:?} is Arabic");
+        }
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 

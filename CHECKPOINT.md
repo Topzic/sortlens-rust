@@ -1,5 +1,55 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-first) — the Settings tree's hover names speak the interface language
+
+- **Why this came up.** The hundred-and-fiftieth entry's Next named the Settings tree's seven
+  remaining hover names. `sidebar_foot`'s shortcut row, the backup, restore and shortcut-editor
+  buttons, the suggestion pass's button and the model installer's stop and remove buttons still
+  carried `&str` literals in `on_hover_text`, so an Arabic Settings explained every one of them in
+  English, and no frame could show it: a hover paints nothing until a pointer rests on it.
+- **What is routed.** Seven rows per catalogue, 42 in all: `Every binding, searchable`, `One
+  verified file holding the index and every decision`, `Unpack a backup as a separate library; the
+  open one is untouched`, `Rebind keys, resolve conflicts, and import or export shortcut sets`,
+  `Proposes keywords for every photo that has something to say; writes nothing until you accept`,
+  `Keeps the partial download; installing again resumes it` and `Delete the file from the model
+  store; you can install it again later` are `tl!` keys in the six catalogues, and every call site
+  hands the lookup's string to `on_hover_text`. English keeps every word it painted.
+- **Tests.** `the_settings_tree_hovers_speak_the_interface_language` reads `shell.rs` back with each
+  line's indentation trimmed — so a `tl!` rustfmt wrapped at the margin, as the suggestion pass's
+  is, still reads as one call — and requires each of the seven sites to be
+  `on_hover_text(tl!("…"))` with no bare `on_hover_text("…")` twin; then it requires English to
+  answer each key unchanged and Arabic to answer all seven translated rows through `i18n::tr`. It
+  fails on the pre-slice source at the first wiring assertion (every one of the seven was a bare
+  literal) and would fail at the Arabic lookups if the rows were added without the route. The
+  catalogue audit `catalogs_load_and_routed_keys_have_rows` now reads the seven keys too and
+  requires their rows in all six languages.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the audit's remaining list to the
+  thirteen `on_hover_text` sites over twelve sentences (the app mark, the canvas's export pair, the
+  cull help and fit names, the destination strip, the phone link's four and the keyword menu's one)
+  and the packs instruction; UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name the test and why a
+  hover needs the source read back. SL-L07 stays unticked.
+- **Verified.** `cargo fmt --all` (one `tl!` wrapped at the margin);
+  `cargo clippy -p sortlens-ui --all-targets -- -D warnings` green;
+  `cargo test -p sortlens-ui the_settings_tree_hovers_speak_the_interface_language` 1 passed (256
+  filtered out); `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole suite, `layers`, `roots`,
+  `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`);
+  `cargo xtask snapshot` 5 passed; `cargo xtask deny` advisories, bans, licenses and sources ok;
+  `cargo xtask screenshots` 30 passed, 1 ignored (network), and no baseline moved — no committed
+  scene rests a pointer on a hover, and the English paint is unchanged. There is no `cargo xtask
+  wasm` in this workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job: this machine has
+  no Android NDK and no Xcode, which is what leaves the device-side leg unverified here. No release
+  workflow was dispatched — source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the seven routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (seven rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the phone link's five hover names — `Stop the run before forgetting the desktop it is sending
+  to`, `The stored token is dropped; pairing again needs a fresh code`, `Asks the desktop at that
+  address whether it is there, before a code is spent on it`, `Trades the code for a scoped token;
+  the code itself is never stored` and `The photograph it is on finishes or stays a server-side
+  partial; the rest are not attempted` — through `tl!`, with the same source-readback and Arabic
+  lookup test. SL-L07 stays unticked until the source audit proves every painted literal is a
+  catalogue row. No release run is in flight.
 ## 2026-11-26 (hundred-and-fiftieth) — the Sync & devices section speaks the interface language
 
 - **Why this came up.** The hundred-and-forty-ninth entry's Next named the section's remaining

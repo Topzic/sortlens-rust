@@ -1001,6 +1001,13 @@
 	Allow downloading models (network)	Cho phép tải mô hình (mạng)
 	Check for updates (network)	Kiểm tra cập nhật (mạng)
 	No devices are paired yet; pairing starts from the code above.	Chưa có thiết bị nào được ghép nối; việc ghép nối bắt đầu từ mã ở trên.
+	Every binding, searchable	Mọi phím tắt đều tìm được
+	One verified file holding the index and every decision	Một tệp đã kiểm tra chứa chỉ mục và mọi quyết định
+	Unpack a backup as a separate library; the open one is untouched	Giải nén bản sao lưu thành một thư viện riêng; thư viện đang mở không bị đụng tới
+	Rebind keys, resolve conflicts, and import or export shortcut sets	Gán lại phím, giải quyết xung đột và nhập hoặc xuất bộ phím tắt
+	Proposes keywords for every photo that has something to say; writes nothing until you accept	Đề xuất từ khóa cho mọi ảnh có điều để nói; không ghi gì cho đến khi bạn chấp nhận
+	Keeps the partial download; installing again resumes it	Giữ lại phần tải dở; cài lại sẽ tiếp tục từ đó
+	Delete the file from the model store; you can install it again later	Xóa tệp khỏi kho mô hình; bạn có thể cài lại sau
 	No packs installed.	Chưa cài đặt gói nào.
 	Serving on 127.0.0.1:{port}	Đang phục vụ trên 127.0.0.1:{port}
 	Pairing code  {code}	Mã ghép đôi  {code}

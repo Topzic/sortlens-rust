@@ -1274,8 +1274,17 @@ and none of M9 is closed until the remaining rows are ticked.
   Arabic Settings names the port and the live code inside an Arabic sentence where it read English.
   `the_sync_section_speaks_the_interface_language` paints the real section in its running, starting
   and stopped states under English and Arabic.
+  The Settings tree's hover names followed (hundred-and-fifty-first entry): the shortcut row's
+  `Every binding, searchable`, the backup and restore buttons' two sentences, the shortcut editor's,
+  the suggestion pass's and the model stop and remove names are seven `tl!` rows in all six
+  languages, so an Arabic Settings explains each control in Arabic.
+  `the_settings_tree_hovers_speak_the_interface_language` reads `shell.rs` back to prove each call
+  site routes through `tl!` — a hover never paints, so a literal there is invisible to any frame —
+  then requires the Arabic row for all seven through `i18n::tr`.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names, and the keyword packs empty
+  went through `tl!`/`i18n::fmt`: thirteen more `on_hover_text` sites over twelve sentences (the app
+  mark, the canvas's export pair, the cull help and fit names, the destination strip, the phone
+  link's four and the keyword menu's), and the keyword packs empty
   state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
   lists where.`, which names a menu path no catalogue row covers yet) — no production
   `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth

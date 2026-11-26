@@ -706,6 +706,13 @@ the `--bind lan` note and the section's four hover names are `tl!` keys, so
 `the_sync_section_speaks_the_interface_language` paints the real section in all three states under
 English and Arabic.
 
+The Settings tree's hover names take the same route: `Every binding, searchable`, the backup and
+restore sentences, the shortcut editor's, the suggestion pass's and the model stop and remove names
+are seven `tl!` keys in all six catalogues. A hover never paints, so no frame can witness it:
+`the_settings_tree_hovers_speak_the_interface_language` reads `shell.rs` back line by line (trimmed,
+so a `tl!` rustfmt wrapped at the margin still reads as one call) and requires every site to be
+`on_hover_text(tl!(…))`, then asks `i18n::tr` for the Arabic row of each one.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

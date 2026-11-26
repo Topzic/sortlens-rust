@@ -1003,6 +1003,13 @@
 	Allow downloading models (network)	อนุญาตการดาวน์โหลดโมเดล (เครือข่าย)
 	Check for updates (network)	ตรวจสอบอัปเดต (เครือข่าย)
 	No devices are paired yet; pairing starts from the code above.	ยังไม่มีอุปกรณ์ที่จับคู่ การจับคู่เริ่มจากรหัสด้านบน
+	Every binding, searchable	ค้นหาการผูกปุ่มได้ทุกอัน
+	One verified file holding the index and every decision	ไฟล์เดียวที่ตรวจสอบแล้วซึ่งเก็บดัชนีและการตัดสินใจทั้งหมด
+	Unpack a backup as a separate library; the open one is untouched	แตกไฟล์สำรองเป็นไลบรารีแยกต่างหาก ไลบรารีที่เปิดอยู่ไม่ถูกแตะต้อง
+	Rebind keys, resolve conflicts, and import or export shortcut sets	ผูกปุ่มใหม่ แก้ไขข้อขัดแย้ง และนำเข้าหรือส่งออกชุดปุ่มลัด
+	Proposes keywords for every photo that has something to say; writes nothing until you accept	เสนอคำค้นสำหรับทุกภาพที่มีอะไรจะบอก ไม่เขียนสิ่งใดจนกว่าคุณจะยอมรับ
+	Keeps the partial download; installing again resumes it	เก็บการดาวน์โหลดที่ค้างไว้ การติดตั้งอีกครั้งจะทำต่อจากเดิม
+	Delete the file from the model store; you can install it again later	ลบไฟล์ออกจากที่เก็บโมเดล ติดตั้งใหม่ได้ภายหลัง
 	No packs installed.	ยังไม่ได้ติดตั้งแพ็ก
 	Serving on 127.0.0.1:{port}	กำลังให้บริการที่ 127.0.0.1:{port}
 	Pairing code  {code}	รหัสจับคู่  {code}
