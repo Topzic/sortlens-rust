@@ -903,3 +903,8 @@
 	Removed {n} photos from {folder}	{folder}에서 사진 {n}장을 제거했습니다
 	Send to desktop is the phone app's; this library is the desktop	“데스크톱으로 보내기”는 휴대폰 앱의 기능입니다. 이 라이브러리가 데스크톱입니다
 	{n} photo(s) have something to suggest	사진 {n}장에 제안할 내용이 있습니다
+	kept on disk	디스크에 그대로 있음
+	just now	방금
+	{n} min ago	{n}분 전
+	{n} h ago	{n}시간 전
+	{n} days ago	{n}일 전

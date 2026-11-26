@@ -797,8 +797,12 @@ re-checks its own contrast pairs after applying.
   device that is no longer paired, the two missing-binary sentences and the device list's `unknown` date
   are rows too, so an Arabic window reads `الخادم يعمل بالفعل` where it read `The server is already
   running`, and the host's catalogue audit reads `sync.rs` as well as `main.rs`. The error a failed
-  operation carries stays the engine's or the system's own sentence, appended to the localised frame. A bin
-  row's summary and mode remain the engine's own sentences rather than the shell's.
+  operation carries stays the engine's or the system's own sentence, appended to the localised frame. The
+  rejects bin's rows followed (hundred-and-thirty-third entry): a row's count, its failed count, its age and
+  where the files went are worded by the shell's own `bin_row` from the batch's own pieces, so a Japanese
+  bin reads `写真 2 枚` over `たった今 · ディスクに保持` where it read `2 photos` over `just now · tag` —
+  the engine's English and a mode id no screen ever names. The age label they share with the change viewer
+  is routed with them, so its ages are rows and Arabic writes `٢ صورة` over `الآن · بقي على القرص`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

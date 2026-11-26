@@ -7757,6 +7757,52 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   machine, and it compares the lavapipe set). Then the canvas chrome `FEATURES.md` names as SL-L07's
   open part — the areas the shell still paints from engine strings rather than catalogue rows — one
   surface per tick, each with a paint test. No release run is in flight.
+
+## 2026-11-26 (hundred-and-thirty-third) — the rejects bin's rows are worded from the batch, and a mode id stops reaching the screen
+
+- **Why it came up.** The hundred-and-thirty-second entry's Next named the shell surfaces that still
+  paint engine strings. The `CI` run for `984b126` (`45784147625`) was in progress at the tick's first
+  step and the five runs before it were green (`45782233764` and back), so this is a roadmap slice
+  rather than a repair.
+- **What was English.** `deleted_dialog` painted `DeletedBatch::summary()` — `2 photos · kept on disk ·
+  1 failed` — over `format!("{age} · {mode}")`, where `mode` is the stored id (`trash`, `tag`,
+  `move:Rejects`) and `age_label` was four English unit strings. A translated window therefore read the
+  engine's English under a translated title, above a value the interface never names anywhere else.
+- **What is routed.** `bin_row` joins both lines from the batch's own pieces: `{n} photo`/`{n} photos`
+  through `i18n::fmt` over `i18n::count`, ` · {n} failed`, and the age through the routed `age_label`.
+  The destination comes from `Receipt::of(batch, 0).destination()` — the same `Destination` the Batch
+  applied receipt words — so `kept on disk` is one row shared by both, and `Moved to the system Trash`
+  and `Moved to {folder}` are the receipt's existing rows. Five new rows per catalogue (30):
+  `kept on disk`, `just now`, `{n} min ago`, `{n} h ago`, `{n} days ago`.
+- **The age label is shared.** `age_label` paints the change viewer's timestamps as well as the bin's,
+  so the viewer's ages became catalogue rows in the same edit and an Arabic viewer writes them in
+  Arabic-Indic digits.
+- **Tests.** `a_bin_row_speaks_the_interface_language` indexes two photographs, rejects both, applies a
+  real tag-only batch and paints the dialog through `Context::run_ui` in English, Japanese and Arabic.
+  English must read `2 photos` over `just now · kept on disk` and never `tag`; Japanese must read
+  `写真 2 枚` and `たった今 · ディスクに保持` with no `photo` or `kept on disk` left behind; Arabic must
+  carry `٢` and `بقي على القرص`. `age_label(now - 3_600)` and `(now - 7_200)` pin `1 h ago` and
+  `2 時間前`, which the old literals could not be. `catalogs_load_and_routed_keys_have_rows` fails if
+  any of the five rows is missing from a catalogue.
+- **Visual verification.** `cargo xtask screenshots` exit 0 — 29 passed, 1 ignored, no baseline moved,
+  which is the expected answer: no committed frame opens the bin with a batch in it (the bin's frame
+  only ever paints its empty state) and no frame paints the change viewer's age.
+- **Gates.** `cargo xtask ci` exit 0 on the first run (fmt, workspace clippy, the workspace suite
+  including the catalogue audit and the new paint test, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), then
+  `cargo xtask snapshot`, `cargo xtask deny` and `cargo xtask screenshots` all exit 0. There is no
+  `cargo xtask wasm` in this workspace; `cargo xtask mobile` cannot run here (no Android NDK, no
+  Xcode) and no phone code changed. No release workflow was dispatched: shell source, catalogue rows
+  and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (`age_label`, the new `bin_row`, the dialog and the test),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (five rows each), `docs/UX.md`,
+  `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` and this file.
+- **Next.** Read this commit's `CI` run first (`screenshots` is the job that can disagree with this
+  machine). Then SL-L07's remaining open part as `FEATURES.md` states it: the phone host's own notices
+  in `apps/sortlens-mobile` — `lib.rs`, `prefs.rs` and `send.rs` still build every status line in
+  English, and the desktop's source-reading audit cannot see them — one surface per tick, each with a
+  paint test. No release run is in flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7765,11 +7811,11 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the eighty-fourth entry).** Read this commit's `CI` run with one `gh run view` —
-`screenshots` is the job that matters. Then the canvas chrome `docs/FEATURES.md` names as SL-L07's open
-part — the areas the shell still paints from engine strings rather than catalogue rows — one surface per
-tick, each with a paint test. The host now builds no English of its own outside the engine's sentences.
-No release run is in flight.
+**Next tick (after the hundred-and-thirty-third entry).** Read that commit's `CI` run with one
+`gh run view` — `screenshots` is the job that matters. Then SL-L07's remaining open part as
+`docs/FEATURES.md` states it: the phone host's own notices in `apps/sortlens-mobile` (`lib.rs`,
+`prefs.rs`, `send.rs`), which the desktop's source-reading audit cannot reach — one surface per tick,
+each with its own source-reading test and catalogue rows. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

@@ -903,3 +903,8 @@
 	{path} was not found — build it with the rest of the workspace	找不到 {path} — 請與工作區其餘部分一起建置
 	the app has no containing directory	這個應用程式沒有所屬目錄
 	unknown	不明
+	kept on disk	保留在磁碟上
+	just now	剛剛
+	{n} min ago	{n} 分鐘前
+	{n} h ago	{n} 小時前
+	{n} days ago	{n} 天前

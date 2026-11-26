@@ -518,6 +518,13 @@ momentary, unlike the receipt — while the dialog itself repaints on a language
 audit reads both routes, `tl!` literals and `fmt` templates, so a template a translator has no row for
 is a failing test rather than a sentence that quietly stays English.
 
+The rejects bin's rows are routed the same way, from the applied batch's own pieces: `bin_row` joins a
+row from `DeletedBatch`'s count and `failed`, its `applied_at` through the shared `age_label`, and the
+`Destination` `sortlens-cull` decodes from the stored `mode` — the piece the Batch applied receipt is
+worded from — so the two surfaces cannot describe one batch differently and no mode id reaches the
+screen. `a_bin_row_speaks_the_interface_language` applies a real tag-only batch and paints the dialog in
+English, Japanese and Arabic.
+
 The rename and About dialogs are routed end to end: titles and buttons through `tl!`, the rename
 toast and both About lines (`Version {version}`, `{commands} commands, {ready} ready today.`) through
 `i18n::fmt`, because a language puts a version number where its own grammar wants it. They are the two

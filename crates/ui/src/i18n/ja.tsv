@@ -904,3 +904,8 @@
 	Removed {n} photos from {folder}	{folder} から {n} 枚の写真を削除しました
 	Send to desktop is the phone app's; this library is the desktop	「デスクトップに送る」はスマートフォンアプリの機能です。このライブラリがデスクトップです
 	{n} photo(s) have something to suggest	{n} 枚の写真に提案があります
+	kept on disk	ディスクに保持
+	just now	たった今
+	{n} min ago	{n} 分前
+	{n} h ago	{n} 時間前
+	{n} days ago	{n} 日前

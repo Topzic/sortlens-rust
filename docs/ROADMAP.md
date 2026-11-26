@@ -1134,9 +1134,14 @@ and none of M9 is closed until the remaining rows are ticked.
   rest of the workspace`), the missing containing directory and the device list's `unknown` date go
   through `i18n::tr`/`i18n::fmt`, and the host's own listing now reads `sync.rs` as well as `main.rs`,
   so a route added in either file with no catalogue row fails the audit instead of painting English.
-  The engine's own error and `Op` description sentences stay the engine's English by design,
-  because the shell re-words every one it paints, and a host notice forwarding `error.to_string()` shows
-  those words rather than a catalogue miss.
+  The rejects bin's rows followed (hundred-and-thirty-third entry): `bin_row` words a row from the
+  batch's own count, `failed`, `applied_at` and the `Destination` `sortlens-cull` decodes from the stored
+  `mode`, so `2 photos` over `just now · tag` — the engine's English and a mode id no screen names —
+  reads `写真 2 枚` over `たった今 · ディスクに保持` in Japanese. The `age_label` the bin shares with the
+  change viewer is routed with it, so the viewer's ages are rows too and an Arabic bin writes `٢ صورة`
+  over `الآن · بقي على القرص`. The engine's own error and `Op` description sentences stay the engine's
+  English by design, because the shell re-words every one it paints, and a host notice forwarding
+  `error.to_string()` shows those words rather than a catalogue miss.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

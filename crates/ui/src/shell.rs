@@ -9415,7 +9415,11 @@ fn card_years(engine: &Engine, ids: &[PhotoId]) -> Vec<(i64, usize)> {
     counts.into_iter().collect()
 }
 
-/// Human-friendly age for a batch.
+/// Human-friendly age for a batch, in the reader's language and digits (SL-L07).
+///
+/// The two surfaces that paint it — the rejects bin's rows and the change viewer — read it in
+/// whatever language Settings → Language chose, so the four unit rows are catalogue rows and the
+/// number is `format::count`.
 fn age_label(applied_at: i64) -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -9423,11 +9427,38 @@ fn age_label(applied_at: i64) -> String {
         .unwrap_or(applied_at);
     let seconds = (now - applied_at).max(0);
     match seconds {
-        0..=59 => "just now".to_string(),
-        60..=3599 => format!("{} min ago", seconds / 60),
-        3600..=86_399 => format!("{} h ago", seconds / 3600),
-        _ => format!("{} days ago", seconds / 86_400),
+        0..=59 => tl!("just now").to_string(),
+        60..=3599 => crate::i18n::fmt("{n} min ago", &[("n", &crate::i18n::count(seconds as u64 / 60))]),
+        3600..=86_399 => crate::i18n::fmt("{n} h ago", &[("n", &crate::i18n::count(seconds as u64 / 3_600))]),
+        _ => crate::i18n::fmt("{n} days ago", &[("n", &crate::i18n::count(seconds as u64 / 86_400))]),
     }
+}
+
+/// One row of the rejects bin, worded from the batch's own pieces (SL-L07).
+///
+/// The row used to paint `DeletedBatch::summary()` and the stored `mode` id — `2 photos · kept on
+/// disk` over `12 min ago · tag` — so a translated bin still read the engine's English, and the
+/// second line showed a value no interface ever names. Both lines are joined here instead: the
+/// count and the failed count through the shell's own templates, and where the files went through
+/// the same `Destination` `sortlens-cull` decodes from that `mode` for the Batch applied receipt,
+/// so the bin and the receipt cannot disagree about what happened.
+fn bin_row(batch: &sortlens_cull::trash::DeletedBatch) -> (String, String) {
+    let photos = crate::i18n::count(batch.items.len() as u64);
+    let mut summary = if batch.items.len() == 1 {
+        crate::i18n::fmt("{n} photo", &[("n", &photos)])
+    } else {
+        crate::i18n::fmt("{n} photos", &[("n", &photos)])
+    };
+    if batch.failed > 0 {
+        summary.push_str(" · ");
+        summary.push_str(&crate::i18n::fmt("{n} failed", &[("n", &crate::i18n::count(batch.failed as u64))]));
+    }
+    let destination = match sortlens_cull::trash::Receipt::of(batch, 0).destination() {
+        sortlens_cull::trash::Destination::Trash => tl!("Moved to the system Trash").to_string(),
+        sortlens_cull::trash::Destination::KeptOnDisk => tl!("kept on disk").to_string(),
+        sortlens_cull::trash::Destination::Folder(folder) => crate::i18n::fmt("Moved to {folder}", &[("folder", &folder)]),
+    };
+    (summary, format!("{} · {destination}", age_label(batch.applied_at)))
 }
 
 fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine) {
@@ -9438,11 +9469,14 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
         .collapsible(false)
         .default_width(420.0)
         .show(ui.ctx(), |ui| {
-            let batches: Vec<(u64, String, String, String)> = engine
+            let batches: Vec<(u64, String, String)> = engine
                 .deleted_batches()
                 .iter()
                 .rev()
-                .map(|batch| (batch.id, batch.summary(), age_label(batch.applied_at), batch.mode.clone()))
+                .map(|batch| {
+                    let (summary, when) = bin_row(batch);
+                    (batch.id, summary, when)
+                })
                 .collect();
             if batches.is_empty() {
                 hint(ui, t, tl!("Nothing has been deleted yet."));
@@ -9457,11 +9491,11 @@ fn deleted_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Eng
             }
             let mut restore = None;
             let mut forget = None;
-            for (id, summary, age, mode) in batches {
+            for (id, summary, when) in batches {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
                         ui.label(RichText::new(summary).size(12.0).color(t.text));
-                        ui.label(RichText::new(format!("{age} · {mode}")).size(10.5).color(t.text_faint));
+                        ui.label(RichText::new(when).size(10.5).color(t.text_faint));
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         if ui
@@ -12923,6 +12957,126 @@ mod tests {
         let arabic = paint(&ctx, &mut state, &mut engine);
         assert!(arabic.iter().any(|text| text == "المحذوفة حديثًا"), "{arabic:?}");
         assert!(arabic.iter().any(|text| text == "لم يُحذف شيء بعد."), "{arabic:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A rejects-bin row is worded from the batch's own pieces (SL-L07).
+    ///
+    /// The row used to paint `DeletedBatch::summary()` over the stored `mode` id — `2 photos` above
+    /// `just now · tag` — under a translated title, so a Japanese bin still read the engine's
+    /// English and a mode nothing on screen names. Both lines are joined here from the batch's
+    /// count, its `failed`, its `applied_at` and the `Destination` the crate decodes from that
+    /// same mode, so the row and the receipt beside it describe one batch.
+    #[test]
+    fn a_bin_row_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-bin-row-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-bin-row-i18n");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30, 60 * index as u8, 140], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("cull");
+        engine.cull_decide(Decision::Reject);
+        engine.cull_decide(Decision::Reject);
+        // Tag-only keeps both files on disk, which is the second line's whole fact.
+        engine.cull_apply(sortlens_cull::trash::Mode::TagOnly).expect("apply");
+        assert_eq!(engine.deleted_batches().len(), 1, "the batch is in the bin");
+        let batch = engine.deleted_batches()[0].clone();
+
+        // English: the count, the age and where the files went — no raw mode id anywhere.
+        let (summary, when) = bin_row(&batch);
+        assert_eq!(summary, "2 photos");
+        assert_eq!(when, "just now · kept on disk");
+        assert!(!when.contains("tag"), "a mode id is not a word: {when}");
+
+        // The age's units are catalogue rows in the reader's digits, not only "just now".
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_secs() as i64;
+        assert_eq!(age_label(now - 3_600), "1 h ago");
+        assert_eq!(age_label(now - 90), "1 min ago");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.deleted_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let input = || egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+                ..egui::RawInput::default()
+            };
+            // A window measures itself on its first frame and paints from the second.
+            let mut warm = ctx.run_ui(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    deleted_dialog(ui, state, &tokens, engine);
+                });
+            });
+            warm.textures_delta.clear();
+            let mut out = ctx.run_ui(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    deleted_dialog(ui, state, &tokens, engine);
+                });
+            });
+            out.textures_delta.clear();
+            fn walk(shape: &egui::Shape, sink: &mut Vec<String>) {
+                match shape {
+                    egui::Shape::Text(text) => sink.push(text.galley.text().to_owned()),
+                    egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, sink)),
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &out.shapes {
+                walk(&clipped.shape, &mut sink);
+            }
+            sink
+        };
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(english.iter().any(|text| text == "2 photos"), "{english:?}");
+        assert!(english.iter().any(|text| text == "just now · kept on disk"), "{english:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let (summary, when) = bin_row(&batch);
+        assert_eq!(summary, "写真 2 枚", "the count is a catalogue row");
+        assert_eq!(when, "たった今 · ディスクに保持", "so are the age and the destination");
+        assert_eq!(age_label(now - 7_200), "2 時間前");
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(japanese.iter().any(|text| text == "写真 2 枚"), "{japanese:?}");
+        assert!(
+            !japanese.iter().any(|text| text.contains("photo") || text.contains("kept on disk")),
+            "the bin row leaves no English behind: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let (summary, when) = bin_row(&batch);
+        assert!(summary.contains('٢') && !summary.contains("photo"), "{summary}");
+        assert!(when.contains("الآن") && when.contains("بقي على القرص"), "{when}");
+        assert!(!when.contains("kept on disk"), "{when}");
+        let arabic = paint(&ctx, &mut state, &mut engine);
+        assert!(
+            !arabic.iter().any(|text| text.contains("photos") || text.contains("kept on disk")),
+            "no English row behind the Arabic bin: {arabic:?}"
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
