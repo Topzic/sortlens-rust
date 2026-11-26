@@ -11391,9 +11391,11 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
         actions.push(Action::SetSidecars(write_sidecars));
     }
     ui.label(
-        RichText::new("Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.")
-            .size(10.5)
-            .color(t.text_faint),
+        RichText::new(tl!(
+            "Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo."
+        ))
+        .size(10.5)
+        .color(t.text_faint),
     );
     ui.add_space(8.0);
     ui.label(RichText::new(tl!("Applying a cull batch")).size(11.0).color(t.text_muted));
@@ -11422,9 +11424,11 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
         }
     });
     ui.label(
-        RichText::new("Photos are never copied, so a backup holds the index and the review state, not pixels.")
-            .size(10.5)
-            .color(t.text_faint),
+        RichText::new(tl!(
+            "Photos are never copied, so a backup holds the index and the review state, not pixels."
+        ))
+        .size(10.5)
+        .color(t.text_faint),
     );
     ui.add_space(8.0);
     ui.separator();
@@ -11457,7 +11461,7 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     ui.label(RichText::new(tl!("Keyword packs")).size(11.0).color(t.text_muted));
     keyword_packs(ui, t, engine, actions);
     if ui
-        .button(RichText::new("Suggest keywords for the library…").size(12.0))
+        .button(RichText::new(tl!("Suggest keywords for the library…")).size(12.0))
         .on_hover_text(tl!(
             "Proposes keywords for every photo that has something to say; writes nothing until you accept"
         ))
@@ -22557,6 +22561,61 @@ mod tests {
             assert!(source.contains(route), "the label {english:?} is still a literal");
             let literal = format!("RichText::new(\"{english}\")");
             assert!(!source.contains(&literal), "the label {english:?} also paints a bare literal");
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English
+        // fallback: a route whose key no catalogue answers would paint English in an Arabic window.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The Settings library notes and the Suggest keywords button are catalogue rows, in every
+    /// language the picker offers.
+    ///
+    /// The two notes say what a sidecar holds and what a backup leaves out, so they are the only
+    /// place a reader learns that a backup is not a copy of their photos; the button under the
+    /// keyword packs opens the whole suggestion flow. A reader who chose Arabic should not meet
+    /// any of the three in English. Each site keeps the size it painted, because both notes share
+    /// the muted-line shape every other Settings note uses and the button sits beside a dozen
+    /// others in the same dialog.
+    #[test]
+    fn the_settings_notes_and_suggest_keywords_button_speak_the_interface_language() {
+        // One row per label, with the call that paints it: the assertion is the wiring, so a route
+        // reading a key but painting something else cannot pass.
+        const LINES: [(&str, &str, &str); 3] = [
+            (
+                "Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.",
+                "تُكتب التقييمات والملصقات والكلمات المفتاحية وقرار الفرز في ملف .xmp بجوار كل صورة.",
+                "RichText::new(tl!(\"Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.\")).size(10.5)",
+            ),
+            (
+                "Photos are never copied, so a backup holds the index and the review state, not pixels.",
+                "لا تُنسخ الصور أبدًا، لذا يحوي النسخ الاحتياطي الفهرس وحالة المراجعة، لا وحدات البكسل.",
+                "RichText::new(tl!(\"Photos are never copied, so a backup holds the index and the review state, not pixels.\")).size(10.5)",
+            ),
+            (
+                "Suggest keywords for the library…",
+                "اقترح كلمات مفتاحية للمكتبة…",
+                ".button(RichText::new(tl!(\"Suggest keywords for the library…\")).size(12.0))",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away and the lines joined, so a call
+        // rustfmt wrapped at the margin still reads as one call: the wiring is the claim, not the
+        // line break. The notes are long enough that rustfmt splits them inside `tl!`.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _, route) in LINES {
+            assert!(source.contains(route), "the Settings label {english:?} is still a literal");
+            let literal = format!("RichText::new(\"{english}\")");
+            assert!(
+                !source.contains(&literal),
+                "the Settings label {english:?} also paints a bare literal"
+            );
         }
         // English is unchanged, and Arabic is the translator's row rather than the English
         // fallback: a route whose key no catalogue answers would paint English in an Arabic window.

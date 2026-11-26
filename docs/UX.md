@@ -913,6 +913,10 @@ re-checks its own contrast pairs after applying.
   (hundred-and-sixty-first entry): `Nothing recorded yet` and the heading `OpenFreeMap · online`
   are rows, so a breakdown with nothing in it and the word that marks the styles leaving this machine
   are the reader's language; the product's name stays `OpenFreeMap` everywhere.
+  Settings' sidecar and backup notes and the Suggest keywords button followed (hundred-and-sixty-second
+  entry): the sentence under the sidecar switch, the sentence under the backup buttons and
+  `Suggest keywords for the library…` are rows, so what a sidecar holds, that a backup is not a copy
+  of the photos and the button that starts the suggestion flow are the reader's language.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

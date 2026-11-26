@@ -1362,20 +1362,27 @@ and none of M9 is closed until the remaining rows are ticked.
   every catalogue. `the_insights_breakdown_and_map_style_menu_speak_the_interface_language` reads
   `shell.rs` back, requires both labels to route with no bare-literal twin, then English unchanged
   and the Arabic rows.
+  Settings' sidecar and backup notes and the Suggest keywords button followed
+  (hundred-and-sixty-second entry): the sentence under the sidecar switch, the sentence under the
+  backup buttons and `Suggest keywords for the library…` are `tl!` rows, so the one place that says
+  what a sidecar holds, the one that says a backup is not a copy of the photos and the button that
+  starts the suggestion flow are the reader's language.
+  `the_settings_notes_and_suggest_keywords_button_speak_the_interface_language` reads `shell.rs`
+  back, requires all three to route with no bare-literal twin, then English unchanged and the
+  Arabic rows.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining families:
   - the tag chip's hover in that editor (`TagSource::explanation()` and the `· click to remove`
     suffix), which is a `sortlens-core` sentence with no piece yet;
-  - Settings' sidecar and backup notes, `Suggest keywords for the library…`, and the phone link's
-    pair and remove sentences;
+  - the phone link's pair and remove sentences: `Paired with {host}:{port}`, the
+    `Testing {host}:{port}…` and sending progress lines and the note under the remove switch;
   - the command table's own labels (`crates/engine/src/command.rs`), which the menus paint.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
-  catalogue row or a recorded exception, which the next ticks take one family at a time — Settings'
-  sidecar and backup notes, `Suggest keywords for the library…` and the phone link's pair and
-  remove sentences are next.
+  catalogue row or a recorded exception, which the next ticks take one family at a time — the phone
+  link's pair and remove sentences are next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

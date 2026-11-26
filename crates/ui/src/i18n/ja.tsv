@@ -1057,3 +1057,6 @@
 	Select a photo, press K and type a keyword.	写真を選び、K を押してキーワードを入力します。
 	Collect photos into named sets without moving them.	写真を移動せずに、名前付きのセットにまとめます。
 	Up one level	1つ上へ
+	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	評価・ラベル・キーワード・選別の決定は、各写真の隣の .xmp ファイルに書き込まれます。
+	Photos are never copied, so a backup holds the index and the review state, not pixels.	写真はコピーされないため、バックアップには索引とレビュー状態が入り、画素は入りません。
+	Suggest keywords for the library…	ライブラリのキーワードを提案…

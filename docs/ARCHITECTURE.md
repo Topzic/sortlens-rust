@@ -847,7 +847,11 @@ matched with its `.size(10.5)`, because `Cancel` is a key a dozen dialogs paint.
 breakdown's empty line and the map style menu's online group are routed the same way
 (hundred-and-sixty-first entry): `Nothing recorded yet` and `OpenFreeMap · online` are `tl!` calls,
 and `the_insights_breakdown_and_map_style_menu_speak_the_interface_language` reads `shell.rs` back
-for both, so one that falls back to a bare literal fails rather than painting English.
+for both, so one that falls back to a bare literal fails rather than painting English. Settings' sidecar and backup notes and the Suggest keywords button are routed the same
+way (hundred-and-sixty-second entry): both notes and `Suggest keywords for the library…` are `tl!`
+calls, and `the_settings_notes_and_suggest_keywords_button_speak_the_interface_language` reads
+`shell.rs` back for all three, so one that falls back to a bare literal fails rather than painting
+English.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

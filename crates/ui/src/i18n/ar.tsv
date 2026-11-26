@@ -1057,3 +1057,6 @@
 	Select a photo, press K and type a keyword.	اختر صورة، واضغط K واكتب كلمة مفتاحية.
 	Collect photos into named sets without moving them.	اجمع الصور في مجموعات مسماة دون نقلها.
 	Up one level	مستوى أعلى
+	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	تُكتب التقييمات والملصقات والكلمات المفتاحية وقرار الفرز في ملف .xmp بجوار كل صورة.
+	Photos are never copied, so a backup holds the index and the review state, not pixels.	لا تُنسخ الصور أبدًا، لذا يحوي النسخ الاحتياطي الفهرس وحالة المراجعة، لا وحدات البكسل.
+	Suggest keywords for the library…	اقترح كلمات مفتاحية للمكتبة…

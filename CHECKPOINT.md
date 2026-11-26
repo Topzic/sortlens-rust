@@ -1,5 +1,53 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-second) — the Settings library notes and the suggest-keywords button speak the interface language
+
+- **Why this came up.** The hundred-and-sixty-first entry's Next named Settings' sidecar and backup
+  notes, `Suggest keywords for the library…` and the phone link's pair and remove sentences. The
+  `CI` run for `c1ff66a` (`45875660607`) was in progress at STEP 1b, not red, so this is a roadmap
+  slice. `crates/ui/src/shell.rs` painted three literals in `settings_body`: the two muted lines that
+  explain what a sidecar holds and what a backup leaves out, and the button under the keyword packs
+  that opens the suggestion flow.
+- **What is routed.** All three are `tl!` rows: the sidecar note and the backup note keep their
+  `.size(10.5)`/`.color(t.text_faint)` shape (rustfmt splits each inside `tl!(…)` because the
+  sentence is long), and `Suggest keywords for the library…` is `RichText::new(tl!(…)).size(12.0)` on
+  the button. Three new rows in each of the six catalogues (18 rows); English keeps every word it
+  painted.
+- **Tests.** `the_settings_notes_and_suggest_keywords_button_speak_the_interface_language` reads
+  `shell.rs` back with each line's indentation trimmed and the lines joined, so a call rustfmt wrapped
+  inside `tl!` still reads as one call; it requires all three routes and rejects a bare-literal twin,
+  then English must answer every key unchanged and Arabic the translator's row. It was proved to bite:
+  putting the button back to a literal fails it with `the Settings label "Suggest keywords for the
+  library…" is still a literal`. The catalogue audit reads the three new keys too, so any of the six
+  catalogues losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, drops the two notes and the button from the
+  sweep's remaining list and names the phone link's pair and remove sentences as next; the row stays
+  unticked. UX.md's i18n paragraph and ARCHITECTURE.md §8.4 record the route.
+- **Visual verification.** None expected: no committed scene paints these three labels in a
+  non-English window and the English paint is unchanged, so no baseline should move.
+  `cargo xtask screenshots` was run because `crates/ui` changed: 30 passed, 1 ignored (network), and
+  `git status` showed no baseline moved.
+- **Gates.** `cargo fmt --all`; targeted `cargo test -p sortlens-ui --lib --
+  the_settings_notes_and_suggest_keywords_button_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice literal, quoted above); then `cargo xtask ci` completed with every gate green (fmt,
+  workspace clippy, the whole suite including the catalogue audit, `layers`, `roots`, `assets`,
+  `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask
+  snapshot` 5 passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask
+  screenshots` 30 passed and 1 ignored (network) with no baseline moved. There is no `cargo xtask
+  wasm` in this workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job — this machine has
+  no Android NDK and no Xcode, which leaves the device-side leg unverified here. No release workflow
+  was dispatched: source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the three routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (one row each for three keys), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next family
+  on the row: the phone link's pair and remove sentences — `Paired with {host}:{port}`, `Testing
+  {host}:{port}…`, the two `Sending…` progress lines and the note under the remove switch — through
+  `tl!`/`fmt`, with the same source-readback and Arabic lookup test. SL-L07 stays unticked. No
+  release run is in flight.
+
 ## 2026-11-26 (hundred-and-sixty-first) — the insights breakdown and the map style menu speak the interface language
 
 - **Why this came up.** The hundred-and-sixtieth entry's Next named the insights breakdown's empty

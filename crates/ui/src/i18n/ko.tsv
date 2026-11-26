@@ -1056,3 +1056,6 @@
 	Select a photo, press K and type a keyword.	사진을 선택하고 K를 눌러 키워드를 입력하세요.
 	Collect photos into named sets without moving them.	사진을 옮기지 않고 이름이 있는 세트로 모읍니다.
 	Up one level	한 단계 위로
+	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	평가, 라벨, 키워드, 선별 결정은 각 사진 옆의 .xmp 파일에 기록됩니다.
+	Photos are never copied, so a backup holds the index and the review state, not pixels.	사진은 복사되지 않으므로 백업에는 색인과 검토 상태가 담기고 픽셀은 담기지 않습니다.
+	Suggest keywords for the library…	라이브러리 키워드 제안…

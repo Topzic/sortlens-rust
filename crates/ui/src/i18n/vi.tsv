@@ -1056,3 +1056,6 @@
 	Select a photo, press K and type a keyword.	Chọn một ảnh, nhấn K và nhập từ khóa.
 	Collect photos into named sets without moving them.	Gom ảnh vào các bộ có tên mà không di chuyển chúng.
 	Up one level	Lên một cấp
+	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	Điểm đánh giá, nhãn, từ khóa và quyết định tuyển chọn được ghi vào tệp .xmp cạnh mỗi ảnh.
+	Photos are never copied, so a backup holds the index and the review state, not pixels.	Ảnh không bao giờ được sao chép, nên bản sao lưu chứa chỉ mục và trạng thái duyệt, không chứa điểm ảnh.
+	Suggest keywords for the library…	Đề xuất từ khóa cho thư viện…

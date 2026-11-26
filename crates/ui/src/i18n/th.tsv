@@ -1058,3 +1058,6 @@
 	Select a photo, press K and type a keyword.	เลือกรูป กด K แล้วพิมพ์คำค้น
 	Collect photos into named sets without moving them.	รวบรวมรูปเป็นชุดที่มีชื่อโดยไม่ย้ายไฟล์
 	Up one level	ขึ้นหนึ่งระดับ
+	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	คะแนน ป้าย คำค้น และการตัดสินใจคัดเลือกจะถูกเขียนลงไฟล์ .xmp ข้างแต่ละภาพ
+	Photos are never copied, so a backup holds the index and the review state, not pixels.	รูปภาพจะไม่ถูกคัดลอก ดังนั้นการสำรองข้อมูลจึงเก็บดัชนีและสถานะการตรวจทาน ไม่ใช่พิกเซล
+	Suggest keywords for the library…	เสนอคำค้นสำหรับคลังภาพ…
