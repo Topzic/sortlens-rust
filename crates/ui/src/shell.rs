@@ -25,7 +25,7 @@ use egui::{
 };
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
 use sortlens_cull::gesture::Gesture;
-use sortlens_engine::{Decision, Engine, Filter, Job, JobDetail, Photo, Sort, TagOrder};
+use sortlens_engine::{Decision, Engine, Filter, Job, JobDetail, Photo, ScanFinished, Sort, TagOrder};
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::rc::Rc;
@@ -1512,6 +1512,55 @@ impl UiState {
     }
 }
 
+/// The first line of a finished scan's news: `Indexed 2 photos in DCIM` (SL-L07).
+///
+/// One photo and several are two rows, because a language may word the noun — or the sentence
+/// around it — differently; the count goes through [`crate::i18n::count`], so an Arabic reader
+/// sees Arabic-Indic digits.
+fn indexed_lead(count: usize, root: &str) -> String {
+    let n = crate::i18n::count(count as u64);
+    let folder = folder_name(root);
+    if count == 1 {
+        crate::i18n::fmt("Indexed {n} photo in {folder}", &[("n", &n), ("folder", &folder)])
+    } else {
+        crate::i18n::fmt("Indexed {n} photos in {folder}", &[("n", &n), ("folder", &folder)])
+    }
+}
+
+/// A completed scan's notice: the lead plus the outcomes a person can act on (SL-L07).
+///
+/// The three suffixes keep the ` · ` junction outside the rows, the way the rejects bin joins its
+/// own pieces; each count is its own template, so no sentence is assembled from English words here.
+fn scan_notice(done: &ScanFinished) -> String {
+    let mut message = indexed_lead(done.added + done.updated, &done.root);
+    if done.missing > 0 {
+        message.push_str(" · ");
+        message.push_str(&crate::i18n::fmt("{n} missing", &[("n", &crate::i18n::count(done.missing as u64))]));
+    }
+    if done.mislabelled > 0 {
+        // Named because it is the one scan outcome the user can act on: a file that says one thing
+        // and contains another is a file whose name is wrong, and only they can decide to fix it.
+        message.push_str(" · ");
+        message.push_str(&crate::i18n::fmt(
+            "{n} routed by content, not name",
+            &[("n", &crate::i18n::count(done.mislabelled as u64))],
+        ));
+    }
+    if !done.errors.is_empty() {
+        message.push_str(" · ");
+        message.push_str(&crate::i18n::fmt(
+            "{n} unreadable",
+            &[("n", &crate::i18n::count(done.errors.len() as u64))],
+        ));
+    }
+    message
+}
+
+/// The notice for a scan the person stopped: the root keeps its spelling, the sentence does not.
+fn cancelled_notice(root: &str) -> String {
+    crate::i18n::fmt("Cancelled indexing {folder}", &[("folder", &folder_name(root))])
+}
+
 /// Draw the whole window.
 ///
 /// Returns host actions; the caller applies them and, for a theme change, persists the choice.
@@ -1545,25 +1594,12 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
     if let Some(done) = engine.poll() {
         if had_photos == 0 && done.added > 0 {
             // The first scan found the library; say so once, then get out of the way.
-            let noun = if done.added == 1 { "photo" } else { "photos" };
-            state.welcome_ready = Some(format!("Indexed {} {noun} in {}", done.added, folder_name(&done.root)));
+            state.welcome_ready = Some(indexed_lead(done.added, &done.root));
         }
         if done.cancelled {
-            state.notice(format!("Cancelled indexing {}", folder_name(&done.root)));
+            state.notice(cancelled_notice(&done.root));
         } else {
-            let mut message = format!("Indexed {} photos in {}", done.added + done.updated, folder_name(&done.root));
-            if done.missing > 0 {
-                message.push_str(&format!(" · {} missing", done.missing));
-            }
-            if done.mislabelled > 0 {
-                // Named because it is the one scan outcome the user can act on: a file that says one thing
-                // and contains another is a file whose name is wrong, and only they can decide to fix it.
-                message.push_str(&format!(" · {} routed by content, not name", done.mislabelled));
-            }
-            if !done.errors.is_empty() {
-                message.push_str(&format!(" · {} unreadable", done.errors.len()));
-            }
-            state.notice(message);
+            state.notice(scan_notice(&done));
         }
     }
     if engine
@@ -4077,15 +4113,19 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(message).size(12.0).strong());
                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                if ui.small_button("Dismiss").clicked() {
+                                if ui.small_button(tl!("Dismiss")).clicked() {
                                     state.welcome_ready = None;
                                 }
-                                if ui.button(RichText::new("Start culling").size(11.5)).clicked() {
+                                // The banner's own action names the work it starts, through the same
+                                // row the cull screen's button paints (SL-L07).
+                                let start =
+                                    crate::i18n::fmt("Start culling {n} photos", &[("n", &format_count(engine.stats().total as u64))]);
+                                if ui.button(RichText::new(start).size(11.5)).clicked() {
                                     match start_cull(engine, state) {
                                         Ok(total) => {
                                             state.view = View::Cull;
                                             state.welcome_ready = None;
-                                            state.notice(format!("Culling {total} photos"));
+                                            state.notice(crate::i18n::fmt("Culling {n} photos", &[("n", &format_count(total as u64))]));
                                         }
                                         Err(error) => state.notice(error),
                                     }
@@ -19648,6 +19688,117 @@ mod tests {
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// A finished scan speaks the interface language, from the scan's own counts (SL-L07).
+    ///
+    /// The indexing family was the first the notices list named: four `format!` calls built the
+    /// lead, the cancelled line and the missing/mislabelled/unreadable suffixes, and the banner's
+    /// own Start culling read English under a sentence the catalogue had already translated. Each
+    /// is a template or a row now, with counts through `i18n::count`.
+    #[test]
+    fn the_indexing_notices_speak_the_interface_language() {
+        let done = ScanFinished {
+            root: "/photos/DCIM".to_owned(),
+            added: 2,
+            updated: 1,
+            missing: 3,
+            restored: 0,
+            errors: vec!["bad header".to_owned()],
+            mislabelled: 1,
+            elapsed: std::time::Duration::from_millis(5),
+            cancelled: false,
+        };
+
+        // English: the words the notice has always painted, suffixes and all.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(
+            scan_notice(&done),
+            "Indexed 3 photos in DCIM · 3 missing · 1 routed by content, not name · 1 unreadable"
+        );
+        assert_eq!(indexed_lead(1, "/photos/DCIM"), "Indexed 1 photo in DCIM");
+        assert_eq!(cancelled_notice("/photos/DCIM"), "Cancelled indexing DCIM");
+
+        // Arabic: its own digits and words, with no English left in the joined sentence.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = scan_notice(&done);
+        assert!(
+            arabic.contains('٣') && arabic.contains("فهرسة") && arabic.contains("DCIM"),
+            "{arabic}"
+        );
+        assert!(
+            !arabic.contains("Indexed") && !arabic.contains("missing") && !arabic.contains("unreadable"),
+            "{arabic}"
+        );
+        let cancelled = cancelled_notice("/photos/DCIM");
+        assert!(cancelled.contains("DCIM") && !cancelled.contains("Cancelled"), "{cancelled}");
+
+        // Japanese: the same counts in the language's own measure words.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = scan_notice(&done);
+        assert!(
+            japanese.contains("索引") && japanese.contains("3 枚") && japanese.contains("DCIM"),
+            "{japanese}"
+        );
+        assert!(
+            !japanese.contains("routed by content") && !japanese.contains("missing"),
+            "{japanese}"
+        );
+
+        // The shell's own path: a real first scan under Arabic sets both the welcome banner and
+        // the notice from the catalogue, and the banner's Start culling names the work it starts.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-index-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("DCIM");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-index-i18n");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [30, 60, 140], 64, 48), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut painted = None;
+        for _ in 0..600 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, &mut state, &mut engine, &mut thumbs);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            if state.notices.front().is_some() {
+                painted = Some(output);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let painted = painted.expect("the scan finished and its notice is painted");
+        let notice = state
+            .notices
+            .front()
+            .map(|notice| notice.text.clone())
+            .expect("the scan leaves a notice");
+        assert!(
+            notice.contains("فهرسة") && notice.contains('١') && !notice.contains("Indexed"),
+            "{notice}"
+        );
+        assert!(
+            label_at(&painted, &notice).is_some(),
+            "the painted notice is the catalogue's sentence"
+        );
+        let banner = state.welcome_ready.clone().expect("the first scan sets the welcome banner");
+        assert!(banner.contains("صورة") && !banner.contains("photo"), "{banner}");
+        assert!(label_at(&painted, "ابدأ فرز").is_some(), "the banner's Start culling is a row");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The quit guard speaks the interface language, from the engine's own pieces (SL-L07).

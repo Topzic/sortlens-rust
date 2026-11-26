@@ -1172,9 +1172,15 @@ and none of M9 is closed until the remaining rows are ticked.
   the same sentence its hint paints as its name through `a11y::name_field`, so a reader meets a
   named box rather than an unnamed one. The key caps (`Up/Down`, `Enter`, `Esc`, `⌘K`/`Ctrl+K`) stay
   as the platform spells them while the words around them translate.
+  The scan's own news followed (hundred-and-thirty-eighth entry): the lead (`Indexed {n} photo in
+  {folder}` / `Indexed {n} photos in {folder}`), the cancelled line, the three actionable suffixes
+  (`{n} missing`, `{n} routed by content, not name`, `{n} unreadable`) and the first-scan banner's
+  `Start culling {n} photos` and `Dismiss` are rows and templates, with counts through
+  `i18n::count`, so an Arabic scan reads `تمت فهرسة ١ صورة في …` where it read `Indexed 1 photo in …`.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the ~40 `state.notice(format!(…))` messages
-  (indexing, rating, tagging, culling, selection, errors), dozens of `on_hover_text`/accessibility
+  went through `tl!`/`i18n::fmt`: the remaining ~30 `state.notice(format!(…))` messages
+  (rating, tagging, culling, selection, errors; indexing went in the hundred-and-thirty-eighth
+  entry), dozens of `on_hover_text`/accessibility
   names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.

@@ -948,3 +948,9 @@
 	No answer from {host}:{port}: {reason}	ไม่มีการตอบกลับจาก {host}:{port}: {reason}
 	the pairing thread could not start: {error}	เริ่มเธรดการจับคู่ไม่ได้: {error}
 	the test thread could not start: {error}	เริ่มเธรดการทดสอบไม่ได้: {error}
+	Indexed {n} photo in {folder}	ทำดัชนี {n} รูปใน {folder} แล้ว
+	Indexed {n} photos in {folder}	ทำดัชนี {n} รูปใน {folder} แล้ว
+	Cancelled indexing {folder}	ยกเลิกการทำดัชนี {folder} แล้ว
+	{n} missing	หาย {n}
+	{n} routed by content, not name	แยกตามเนื้อหาไม่ใช่ชื่อ {n}
+	{n} unreadable	อ่านไม่ได้ {n}

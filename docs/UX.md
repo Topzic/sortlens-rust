@@ -809,6 +809,11 @@ re-checks its own contrast pairs after applying.
   The notices panel followed (hundred-and-thirty-sixth entry): the bell's window title, its hover,
   the empty line and `Clear` are rows, and an age is the reader's digits in the language's own unit
   (`١ د` where it read `1m`) — the unread badge over the bell paints those digits too.
+  A finished scan followed (hundred-and-thirty-eighth entry): the lead, the cancelled line and the
+  three actionable suffixes (`{n} missing`, `{n} routed by content, not name`, `{n} unreadable`) are
+  templates, the first-scan banner's `Start culling {n} photos` and `Dismiss` are rows, and the
+  counts go through `format::count`, so an Arabic scan reads `تمت فهرسة ١ صورة في …` with its own
+  digits where it read `Indexed 1 photo in …`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

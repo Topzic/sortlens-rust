@@ -947,3 +947,9 @@
 	No answer from {host}:{port}: {reason}	لا استجابة من {host}:{port}: {reason}
 	the pairing thread could not start: {error}	تعذّر بدء خيط الاقتران: {error}
 	the test thread could not start: {error}	تعذّر بدء خيط الاختبار: {error}
+	Indexed {n} photo in {folder}	تمت فهرسة {n} صورة في {folder}
+	Indexed {n} photos in {folder}	تمت فهرسة {n} صور في {folder}
+	Cancelled indexing {folder}	أُلغي إنشاء الفهرس لـ {folder}
+	{n} missing	{n} مفقودة
+	{n} routed by content, not name	{n} صُنّفت بالمحتوى لا بالاسم
+	{n} unreadable	{n} غير قابل للقراءة

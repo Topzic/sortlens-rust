@@ -946,3 +946,9 @@
 	No answer from {host}:{port}: {reason}	Không có phản hồi từ {host}:{port}: {reason}
 	the pairing thread could not start: {error}	không khởi động được luồng ghép nối: {error}
 	the test thread could not start: {error}	không khởi động được luồng kiểm tra: {error}
+	Indexed {n} photo in {folder}	Đã lập chỉ mục {n} ảnh trong {folder}
+	Indexed {n} photos in {folder}	Đã lập chỉ mục {n} ảnh trong {folder}
+	Cancelled indexing {folder}	Đã hủy lập chỉ mục {folder}
+	{n} missing	thiếu {n}
+	{n} routed by content, not name	phân loại theo nội dung, không theo tên: {n}
+	{n} unreadable	{n} không đọc được

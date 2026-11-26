@@ -610,6 +610,15 @@ are `tl!` rows, `bell_button` words the unread count it speaks through `Alerts, 
 paints the popover and the bell in English, Arabic and Japanese and requires the Arabic age and
 badge to carry `١` and no English title or `Clear` behind them.
 
+The scan-finished notice is the same seam over a `ScanFinished`: `indexed_lead` words one photo and
+several through two templates (`Indexed {n} photo in {folder}` / `Indexed {n} photos in {folder}`),
+`scan_notice` appends `{n} missing`, `{n} routed by content, not name` and `{n} unreadable` with the
+` · ` junction outside the rows, and `cancelled_notice` words the stopped walk. The first-scan banner
+takes its lead from the same `indexed_lead` and its `Start culling {n} photos` from the row the cull
+screen's button paints. `the_indexing_notices_speak_the_interface_language` pins the English sentence
+with all three suffixes, the Arabic and Japanese fills, and then runs a real first scan under Arabic
+through `show`, requiring both the banner and the notice to be the catalogue's sentence.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

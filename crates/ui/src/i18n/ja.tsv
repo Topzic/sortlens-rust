@@ -947,3 +947,9 @@
 	No answer from {host}:{port}: {reason}	{host}:{port} から応答がありません: {reason}
 	the pairing thread could not start: {error}	ペアリングのスレッドを開始できませんでした: {error}
 	the test thread could not start: {error}	接続テストのスレッドを開始できませんでした: {error}
+	Indexed {n} photo in {folder}	{folder} の写真 {n} 枚を索引に追加しました
+	Indexed {n} photos in {folder}	{folder} の写真 {n} 枚を索引に追加しました
+	Cancelled indexing {folder}	{folder} の索引作成を中止しました
+	{n} missing	欠落 {n} 件
+	{n} routed by content, not name	名前ではなく内容で振り分け {n} 件
+	{n} unreadable	読み取り不可 {n} 件

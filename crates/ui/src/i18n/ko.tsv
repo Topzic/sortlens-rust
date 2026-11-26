@@ -946,3 +946,9 @@
 	No answer from {host}:{port}: {reason}	{host}:{port}에서 응답이 없습니다: {reason}
 	the pairing thread could not start: {error}	페어링 스레드를 시작하지 못했습니다: {error}
 	the test thread could not start: {error}	연결 테스트 스레드를 시작하지 못했습니다: {error}
+	Indexed {n} photo in {folder}	{folder}에서 사진 {n}장을 색인했습니다
+	Indexed {n} photos in {folder}	{folder}에서 사진 {n}장을 색인했습니다
+	Cancelled indexing {folder}	{folder} 색인을 취소했습니다
+	{n} missing	{n}개 누락
+	{n} routed by content, not name	이름이 아니라 내용으로 분류 {n}개
+	{n} unreadable	{n}개 읽을 수 없음

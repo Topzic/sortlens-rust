@@ -1,5 +1,46 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-thirty-eighth) — a finished scan reports in the interface language, suffixes and banner included
+
+- **Why this came up.** The hundred-and-thirty-seventh entry's Next named the shell's
+  `state.notice(format!(…))` messages and said the indexing family went first. Four `format!` calls
+  built that family: the `Indexed {n} photos in {folder}` lead, `Cancelled indexing {folder}` and the
+  three suffixes `{n} missing`, `{n} routed by content, not name`, `{n} unreadable`. The banner a
+  first scan raises painted the same lead in English beside a bare `Start culling` and `Dismiss`.
+- **What is routed.** `indexed_lead` words one photo and several through two rows, the count through
+  `i18n::count`; `scan_notice` appends the three actionable suffixes with the ` · ` junction outside
+  the rows (the way `bin_row` joins the rejects bin), and `cancelled_notice` words the stopped walk.
+  The first-scan banner takes the same lead, `Dismiss` from the row the dialogs already paint and
+  `Start culling {n} photos` from the row the cull screen's button paints — so the banner now names
+  the work it starts. Six rows per catalogue, so a language that neither inflects the noun nor
+  leaves English behind has one sentence for one photo and one for several.
+- **Tests.** `the_indexing_notices_speak_the_interface_language` pins the English sentence with all
+  three suffixes and its one-photo form, the cancelled line, and the Arabic (its own digits) and
+  Japanese (its own measure word) fills; then it runs a real first scan under Arabic through `show`
+  and requires the painted banner and the newest notice to be the catalogue's sentence
+  `تمت فهرسة ١ صورة في …`, with the banner's `Start culling` painted as its Arabic row. It fails on
+  the old literals two ways: the audit would have no row for the new keys, and the Arabic lookups
+  return English.
+- **Docs.** ROADMAP's SL-L07 row records the indexing family and drops indexing from its remaining
+  notice list (SL-L07 stays unticked: the rating, tagging, culling, selection and error notices and
+  the hover/accessibility names are still literals); UX.md's i18n paragraph and ARCHITECTURE.md §8.4
+  name the templates, the banner and the test.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite, `layers`,
+  `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`,
+  `workflows`); `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — no
+  committed scene sets a notice or a banner, and the English paint of the scenes is unchanged;
+  `cargo xtask snapshot` 5 passed and `cargo xtask deny` (advisories, bans, licenses, sources) exit 0.
+  `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and no phone code changed; there is
+  no `cargo xtask wasm` in this workspace. No release workflow was dispatched: this is source,
+  catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs`, the six `crates/ui/src/i18n/*.tsv`, `docs/ROADMAP.md`,
+  `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view` — `screenshots` is the job that
+  matters, because the banner's `Start culling` label changed from the bare two words to the row the
+  cull screen paints, though no committed scene sets a notice or a banner. Then the next notice
+  family, rating, one per tick. SL-L07 stays unticked; its row lists what the audit still finds. No
+  release run is in flight.
+
 ## 2026-11-26 (hundred-and-thirty-seventh) — the command palette's own chrome speaks the interface language, and its field answers to a name
 
 - **Why this came up.** The hundred-and-thirty-sixth entry's Next named the palette's own chrome: three
