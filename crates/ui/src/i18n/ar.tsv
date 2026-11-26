@@ -876,3 +876,24 @@
 	The device's token is removed; it cannot call this library any more	أُزيل رمز الجهاز؛ لم يعد بإمكانه استدعاء هذه المكتبة
 	Writing XMP sidecars beside photos	كتابة ملفات XMP الجانبية بجانب الصور
 	Sidecar writing off; changes stay in the catalog	كتابة الملفات الجانبية متوقفة؛ تبقى التغييرات في الفهرس
+	Opened the containing folder — this desktop cannot select a file in it	فُتح المجلد الحاوي — لا يمكن لسطح المكتب هذا تحديد ملف داخله
+	Could not run {program}: {error}	تعذّر تشغيل {program}: {error}
+	Nothing to suggest: the library is empty	لا شيء لاقتراحه: المكتبة فارغة
+	Looking at {n} photo(s)…	جارٍ النظر في {n} صورة…
+	Stopping the suggestion pass	إيقاف مرور الاقتراحات
+	Cleared the suggestions	مُسحت الاقتراحات
+	Already tagged “{tag}”	الوسم «{tag}» موجود بالفعل
+	Put {n} photo(s) back	أُعيدت {n} صورة
+	Save the change report	احفظ تقرير التغييرات
+	Text	نص
+	Wrote {lines} line(s) to {folder}	كُتب {lines} سطر إلى {folder}
+	Where does this folder live now?	أين يوجد هذا المجلد الآن؟
+	Repointed {n} photo(s) to {folder}	أُعيد توجيه {n} صورة إلى {folder}
+	Rescanning {folder}…	جارٍ إعادة فحص {folder}…
+	Model downloads allowed — nothing downloads until you install one	تنزيلات النماذج مسموحة — لا يُنزَّل شيء حتى تثبّت نموذجًا
+	Model downloads switched off	تنزيلات النماذج متوقفة
+	Update checks allowed — nothing is fetched until you run one	فحوص التحديث مسموحة — لا يُجلب شيء حتى تُجري فحصًا
+	Update checks switched off	فحوص التحديث متوقفة
+	Removed {n} photos from {folder}	أُزيلت {n} صورة من {folder}
+	Send to desktop is the phone app's; this library is the desktop	«الإرسال إلى سطح المكتب» من تطبيق الهاتف؛ هذه المكتبة هي سطح المكتب
+	{n} photo(s) have something to suggest	لدى {n} صورة ما تقترحه

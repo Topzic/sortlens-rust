@@ -898,8 +898,9 @@ resumable uploads — see the Phase 4 item 3 row), the desktop's own server star
 day, and the device protocol shipped 2026-11-24 with it (`sortlens_remote::client` +
 `Engine::open_memory`, SL-J02's engine and protocol halves — see the Phase 4 item 3 row) while the
 native phone app (`apps/sortlens-mobile`) stays open in Phase 4, as is the rest of i18n (the scaffolding shipped 2026-11-24 with
-Arabic, Japanese and the direction plumbing — see the Phase 4 row — while the unrouted
-surfaces stay open; the six catalogues and the RTL screenshots have shipped since); the keymap editor shipped 2026-11-24 (see the Phase 4 row),
+Arabic, Japanese and the direction plumbing — see the Phase 4 row; the six catalogues, the RTL
+screenshots and every desktop surface have shipped since, leaving four `sync.rs` refusal sentences);
+the keymap editor shipped 2026-11-24 (see the Phase 4 row),
 and none of M9 is closed until the remaining rows are ticked.
 
 - [x] MCP server: `sortlens-mcp` — newline-delimited JSON-RPC over stdio, `tools/list` straight from the command registry, `tools/call` through `Engine::run`, `sortlens-cli mcp` (E) — SL-K05
@@ -1120,9 +1121,17 @@ and none of M9 is closed until the remaining rows are ticked.
   failures, the backup and restore dialogs and their toasts, the shortcut set's import/export and
   read/write failures, the sync server's start, stop and revoke lines, and both sidecar toggles are
   rows in all six catalogues, with counts through `i18n::count` and the failed operation's own error
-  sentence appended unchanged. What remains on this row is the host's suggest, pack, tag, undo,
-  change-report, remap, rescan, consent and remove-root notices, and the two remaining `rfd` titles
-  (`Save the change report`, `Where does this folder live now?`).
+  sentence appended unchanged. The host's last notices followed (eighty-third entry): the suggestion
+  pass's start, stop, clear and finished lines, the pack and tag toasts, undo-move, the change report's
+  title, `Text` filter and `Wrote {lines} line(s) to {folder}` receipt, remap's title and
+  `Repointed {n} photo(s) to {folder}`, `Rescanning {folder}…`, both consent lines, `Removed {n} photos
+  from {folder}`, the reveal and `Could not run {program}: {error}` failures and the phone-only fallback
+  are rows in all six catalogues — 21 new rows each, with counts through `i18n::count`. The pack toasts
+  and the tag toast reuse the change report's and the shell's own rows rather than wording the same event
+  twice. What remains on this row is `apps/sortlens/src/sync.rs`'s four English refusal sentences (the next
+  tick's slice); the engine's own error and `Op` description sentences stay the engine's English by design,
+  because the shell re-words every one it paints, and a host notice forwarding `error.to_string()` shows
+  those words rather than a catalogue miss.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

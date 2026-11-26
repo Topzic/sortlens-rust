@@ -877,3 +877,24 @@
 	The device's token is removed; it cannot call this library any more	นำโทเค็นของอุปกรณ์ออกแล้ว อุปกรณ์นั้นเรียกไลบรารีนี้ไม่ได้อีก
 	Writing XMP sidecars beside photos	กำลังเขียนไซด์คาร์ XMP ข้างภาพ
 	Sidecar writing off; changes stay in the catalog	ปิดการเขียนไซด์คาร์แล้ว การเปลี่ยนแปลงอยู่ในการจัดเก็บข้อมูล
+	Opened the containing folder — this desktop cannot select a file in it	เปิดโฟลเดอร์ที่เก็บไฟล์แล้ว — เดสก์ท็อปนี้ไม่สามารถเลือกไฟล์ได้
+	Could not run {program}: {error}	เรียกใช้ {program} ไม่ได้: {error}
+	Nothing to suggest: the library is empty	ไม่มีอะไรให้เสนอ: ไลบรารีว่างเปล่า
+	Looking at {n} photo(s)…	กำลังตรวจดู {n} ภาพ…
+	Stopping the suggestion pass	กำลังหยุดการทำงานของข้อเสนอ
+	Cleared the suggestions	ล้างข้อเสนอแล้ว
+	Already tagged “{tag}”	ติดแท็ก “{tag}” อยู่แล้ว
+	Put {n} photo(s) back	คืน {n} ภาพกลับแล้ว
+	Save the change report	บันทึกรายงานการเปลี่ยนแปลง
+	Text	ข้อความ
+	Wrote {lines} line(s) to {folder}	เขียน {lines} บรรทัดไปยัง {folder}
+	Where does this folder live now?	โฟลเดอร์นี้อยู่ที่ไหนแล้ว
+	Repointed {n} photo(s) to {folder}	ชี้ {n} ภาพไปยัง {folder} ใหม่แล้ว
+	Rescanning {folder}…	กำลังสแกน {folder} ใหม่…
+	Model downloads allowed — nothing downloads until you install one	อนุญาตการดาวน์โหลดโมเดลแล้ว — จะไม่มีการดาวน์โหลดจนกว่าคุณจะติดตั้ง
+	Model downloads switched off	ปิดการดาวน์โหลดโมเดลแล้ว
+	Update checks allowed — nothing is fetched until you run one	อนุญาตการตรวจสอบอัปเดตแล้ว — จะไม่มีการดึงข้อมูลจนกว่าคุณจะตรวจสอบ
+	Update checks switched off	ปิดการตรวจสอบอัปเดตแล้ว
+	Removed {n} photos from {folder}	นำ {n} ภาพออกจาก {folder} แล้ว
+	Send to desktop is the phone app's; this library is the desktop	“ส่งไปยังเดสก์ท็อป” เป็นของแอปบนโทรศัพท์ ไลบรารีนี้คือเดสก์ท็อป
+	{n} photo(s) have something to suggest	มี {n} ภาพที่มีสิ่งจะเสนอ

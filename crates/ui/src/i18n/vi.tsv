@@ -875,3 +875,24 @@
 	The device's token is removed; it cannot call this library any more	Đã xóa mã thông báo của thiết bị; thiết bị không thể gọi thư viện này nữa
 	Writing XMP sidecars beside photos	Đang ghi tệp XMP đi kèm cạnh ảnh
 	Sidecar writing off; changes stay in the catalog	Đã tắt ghi tệp đi kèm; thay đổi vẫn ở trong danh mục
+	Opened the containing folder — this desktop cannot select a file in it	Đã mở thư mục chứa — màn hình nền này không thể chọn tệp bên trong
+	Could not run {program}: {error}	Không chạy được {program}: {error}
+	Nothing to suggest: the library is empty	Không có gì để gợi ý: thư viện trống
+	Looking at {n} photo(s)…	Đang xem {n} ảnh…
+	Stopping the suggestion pass	Đang dừng lượt gợi ý
+	Cleared the suggestions	Đã xóa các gợi ý
+	Already tagged “{tag}”	Đã gắn thẻ “{tag}” rồi
+	Put {n} photo(s) back	Đã đặt lại {n} ảnh
+	Save the change report	Lưu báo cáo thay đổi
+	Text	Văn bản
+	Wrote {lines} line(s) to {folder}	Đã ghi {lines} dòng vào {folder}
+	Where does this folder live now?	Thư mục này giờ nằm ở đâu?
+	Repointed {n} photo(s) to {folder}	Đã trỏ lại {n} ảnh tới {folder}
+	Rescanning {folder}…	Đang quét lại {folder}…
+	Model downloads allowed — nothing downloads until you install one	Đã cho phép tải mô hình — không tải gì cho đến khi bạn cài đặt
+	Model downloads switched off	Đã tắt tải mô hình
+	Update checks allowed — nothing is fetched until you run one	Đã cho phép kiểm tra cập nhật — không tải gì cho đến khi bạn chạy kiểm tra
+	Update checks switched off	Đã tắt kiểm tra cập nhật
+	Removed {n} photos from {folder}	Đã xóa {n} ảnh khỏi {folder}
+	Send to desktop is the phone app's; this library is the desktop	“Gửi tới máy tính” thuộc ứng dụng điện thoại; thư viện này là máy tính
+	{n} photo(s) have something to suggest	Có {n} ảnh có gợi ý

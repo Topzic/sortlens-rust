@@ -7678,6 +7678,47 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   computed the same way. Then SL-L07's `Moved` receipt, the search field's `Search photos or Ctrl+K` hint and
   the bottom bar's `No selection`.
 
+## 2026-11-26 (eighty-third) — the host's last notices speak the interface language, from the suggestion pass to remove-root
+
+- **Why it came up.** The hundred-and-thirty-first entry left a named remainder on SL-L07's row: every
+  notice `apps/sortlens/src/main.rs` builds that no shell dialog paints, and the two `rfd` titles still
+  hard-coded in English. The shell's catalogue audit reads `crates/ui` only, so nothing would have caught
+  these staying English in all six languages.
+- **Shipped.** The suggestion pass (`Nothing to suggest: the library is empty`, `Looking at {n} photo(s)…`,
+  stopping, cleared, and the finished `{n} photo(s) have something to suggest`), the pack and tag toasts,
+  undo-move, the change report's title, its `Text` filter and its `Wrote {lines} line(s) to {folder}`
+  receipt, remap's title and `Repointed {n} photo(s) to {folder}`, `Rescanning {folder}…`, both consent
+  lines for models and updates, `Removed {n} photos from {folder}`, `Opened the containing folder…` and
+  `Could not run {program}: {error}`, and the phone-only fallback all go through `i18n::tr`/`i18n::fmt`,
+  with counts through `i18n::count`.
+- **Reused, not re-worded.** The pack toasts route the change report's own rows (`Switched on/off the
+  “{name}” keyword pack`) and the tag toast the shell's `Tagged “{tag}”`, so a toast and the report word the
+  same event identically and a translator sees one row. Those three rows already existed; this tick adds 21.
+- **Catalogues.** 21 new rows in each of ar/ja/ko/th/vi/zh-TW, each translation carrying the English
+  template's placeholder names unchanged, so `I18n::check_all` stays empty.
+- **Tests.** `the_hosts_suggest_and_repair_notices_read_the_interface_language` pins the English wording
+  (`Repointed 3 photo(s) to sea`) and then requires Arabic to carry Arabic-Indic digits and no English noun
+  for `Looking at`, `Put … back` and `Removed … from`, with both consent lines, `Text` and remap's title
+  differing from English. `the_hosts_words_have_a_row_in_every_catalogue` grew to 46 listed routes; it
+  already demanded a row for every routed key in all six catalogues, so a route added without one fails.
+- **Visual verification.** No baseline paints a host notice or either native dialog, so none was expected to
+  move, and none did: `cargo xtask screenshots` finished `29 passed; 0 failed; 1 ignored` against the
+  committed set, so no PNG in this commit changed.
+- **Gates.** `cargo xtask ci` green, `cargo xtask snapshot` green (`every_published_output_is_unchanged`),
+  `cargo xtask deny` green (`advisories ok, bans ok, licenses ok, sources ok`) and `cargo xtask screenshots`
+  as above. `cargo xtask wasm` does not exist in this workspace; `cargo xtask mobile` cannot run here (no
+  Android NDK, no Xcode) and no phone code changed. No release workflow was dispatched: host source,
+  catalogue rows and docs, no build or release surface.
+- **What this leaves on SL-L07.** `apps/sortlens/src/sync.rs` still returns four English sentences as
+  notices (`The server is already running`, `Stop the server before revoking a device`, `That device is not
+  paired any more`, `Could not find this app: {error}`), and the engine's own error and `Op` description
+  sentences stay the engine's English by design — the shell re-words what it paints, but a host notice that
+  forwards `error.to_string()` shows those words. The four sync rows are the next tick's first slice; the
+  engine's sentences are a data-layer question, not a catalogue gap, and the phone app is Phase 4 item 3.
+- **Next.** Read this commit's `CI` run first (windows-latest is the slow leg; `screenshots` is the one that
+  can disagree with this machine). Then the four `sync.rs` sentences through `i18n::fmt`/`i18n::tr`, added
+  to the host's listing the same way. No release run is in flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7686,12 +7727,11 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirty-first entry).** Read this commit's `CI` run with one `gh run view` —
-`screenshots` is the job that matters, and no committed frame paints a host notice. Then the host's last
-English in `apps/sortlens/src/main.rs`, through the same `i18n::tr`/`i18n::fmt` seam: the suggest pass,
-pack and tag toasts, undo-move, the change report, remap and rescan, both consent lines and remove-root,
-plus the two remaining `rfd` titles (`Save the change report`, `Where does this folder live now?`). The
-host's listing test is where each new row lands. No release run is in flight.
+**Next tick (after the eighty-third entry).** Read this commit's `CI` run with one `gh run view` —
+`screenshots` is the job that matters. Then the host's four remaining English sentences in
+`apps/sortlens/src/sync.rs` (`The server is already running`, `Stop the server before revoking a device`,
+`That device is not paired any more`, `Could not find this app: {error}`), through `i18n::tr`/`i18n::fmt`,
+added to the host's listing and tested the same way. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

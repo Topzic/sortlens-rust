@@ -242,13 +242,16 @@ impl App {
                 let folder_only = sortlens_core::Desktop::current().is_some_and(|desktop| !sortlens_core::reveal::reveal_selects(desktop))
                     && mode == sortlens_engine::RevealMode::Reveal;
                 let note = if folder_only {
-                    "Opened the containing folder — this desktop cannot select a file in it".to_string()
+                    i18n::tr("Opened the containing folder — this desktop cannot select a file in it").to_string()
                 } else {
                     built.display()
                 };
                 self.ui.notice(note);
             }
-            Err(error) => self.ui.notice(format!("Could not run {}: {error}", built.program)),
+            Err(error) => self.ui.notice(i18n::fmt(
+                "Could not run {program}: {error}",
+                &[("program", &built.program), ("error", &error.to_string())],
+            )),
         }
     }
 
@@ -351,17 +354,19 @@ impl App {
                 }
             }
             Action::StartSuggest => match self.engine.begin_batch_suggest() {
-                Ok(0) => self.ui.notice("Nothing to suggest: the library is empty"),
-                Ok(count) => self.ui.notice(format!("Looking at {count} photo(s)…")),
+                Ok(0) => self.ui.notice(i18n::tr("Nothing to suggest: the library is empty")),
+                Ok(count) => self
+                    .ui
+                    .notice(i18n::fmt("Looking at {n} photo(s)…", &[("n", &i18n::count(count as u64))])),
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::CancelSuggest => {
                 self.engine.cancel_batch();
-                self.ui.notice("Stopping the suggestion pass");
+                self.ui.notice(i18n::tr("Stopping the suggestion pass"));
             }
             Action::ClearSuggest => {
                 self.engine.clear_batch();
-                self.ui.notice("Cleared the suggestions");
+                self.ui.notice(i18n::tr("Cleared the suggestions"));
             }
             Action::SaveShortcuts(profiles) => {
                 self.store.update(|prefs| prefs.shortcuts = profiles);
@@ -399,50 +404,69 @@ impl App {
             }
             Action::SetPack(name, on) => match self.engine.set_pack(&name, on) {
                 Ok(true) => {
-                    let verb = if on { "Switched on" } else { "Switched off" };
-                    self.ui.notice(format!("{verb} the “{name}” pack"));
+                    // The change report's own sentence, so the toast and the report word a pack the
+                    // same way, and a language translates the row once.
+                    let words = if on {
+                        i18n::fmt("Switched on the “{name}” keyword pack", &[("name", &name)])
+                    } else {
+                        i18n::fmt("Switched off the “{name}” keyword pack", &[("name", &name)])
+                    };
+                    self.ui.notice(words);
                 }
                 Ok(false) => {}
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::AcceptSuggestion(id, tag) => match self.engine.accept_suggestion(id, &tag) {
-                Ok(true) => self.ui.notice(format!("Tagged “{tag}”")),
-                Ok(false) => self.ui.notice(format!("Already tagged “{tag}”")),
+                Ok(true) => self.ui.notice(i18n::fmt("Tagged “{tag}”", &[("tag", &tag)])),
+                Ok(false) => self.ui.notice(i18n::fmt("Already tagged “{tag}”", &[("tag", &tag)])),
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::UndoMove(id) => match self.engine.undo_move(id) {
                 Ok(count) => {
                     self.ui.move_receipt = None;
-                    self.ui.notice(format!("Put {count} photo(s) back"));
+                    self.ui
+                        .notice(i18n::fmt("Put {n} photo(s) back", &[("n", &i18n::count(count as u64))]));
                 }
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::ExportHistory => {
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Save the change report")
+                    .set_title(i18n::tr("Save the change report"))
                     .set_file_name("sortlens-change-report.txt")
-                    .add_filter("Text", &["txt"])
+                    .add_filter(i18n::tr("Text"), &["txt"])
                     .save_file()
                 {
                     match self.engine.export_history(&path) {
-                        Ok(lines) => self
-                            .ui
-                            .notice(format!("Wrote {lines} line(s) to {}", folder_name(&path.to_string_lossy()))),
+                        Ok(lines) => self.ui.notice(i18n::fmt(
+                            "Wrote {lines} line(s) to {folder}",
+                            &[
+                                ("lines", &i18n::count(lines as u64)),
+                                ("folder", &folder_name(&path.to_string_lossy())),
+                            ],
+                        )),
                         Err(error) => self.ui.notice(error.to_string()),
                     }
                 }
             }
             Action::RemapRoot(from) => {
-                if let Some(folder) = rfd::FileDialog::new().set_title("Where does this folder live now?").pick_folder() {
+                if let Some(folder) = rfd::FileDialog::new()
+                    .set_title(i18n::tr("Where does this folder live now?"))
+                    .pick_folder()
+                {
                     let to = folder.to_string_lossy().to_string();
                     match self.engine.remap_root(&from, &to) {
-                        Ok(count) => self.ui.notice(format!("Repointed {count} photo(s) to {}", folder_name(&to))),
+                        Ok(count) => self.ui.notice(i18n::fmt(
+                            "Repointed {n} photo(s) to {folder}",
+                            &[("n", &i18n::count(count as u64)), ("folder", &folder_name(&to))],
+                        )),
                         Err(error) => self.ui.notice(error.to_string()),
                     }
                 }
             }
             Action::Rescan(root) => match self.engine.begin_scan(root.clone()) {
-                Ok(()) => self.ui.notice(format!("Rescanning {}…", folder_name(&root))),
+                Ok(()) => self
+                    .ui
+                    .notice(i18n::fmt("Rescanning {folder}…", &[("folder", &folder_name(&root))])),
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::SetSort(sort) => {
@@ -457,17 +481,17 @@ impl App {
             Action::SetModelConsent(on) => {
                 self.store.update(|prefs| prefs.ai.download_consent = on);
                 self.ui.notice(if on {
-                    "Model downloads allowed — nothing downloads until you install one"
+                    i18n::tr("Model downloads allowed — nothing downloads until you install one")
                 } else {
-                    "Model downloads switched off"
+                    i18n::tr("Model downloads switched off")
                 });
             }
             Action::SetUpdateConsent(on) => {
                 self.store.update(|prefs| prefs.updates.check_consent = on);
                 self.ui.notice(if on {
-                    "Update checks allowed — nothing is fetched until you run one"
+                    i18n::tr("Update checks allowed — nothing is fetched until you run one")
                 } else {
-                    "Update checks switched off"
+                    i18n::tr("Update checks switched off")
                 });
             }
             Action::Backup => {
@@ -511,7 +535,10 @@ impl App {
                 }
             }
             Action::RemoveRoot(root) => match self.engine.remove_root(&root) {
-                Ok(count) => self.ui.notice(format!("Removed {count} photos from {}", folder_name(&root))),
+                Ok(count) => self.ui.notice(i18n::fmt(
+                    "Removed {n} photos from {folder}",
+                    &[("n", &i18n::count(count as u64)), ("folder", &folder_name(&root))],
+                )),
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::ServerStart => match self.sync.start(&library_dir()) {
@@ -533,9 +560,9 @@ impl App {
             },
             // The phone's section is gated on the phone width, so these cannot come from this
             // host's interface; if one ever does, it is answered rather than silently dropped.
-            Action::SendPair { .. } | Action::SendTest { .. } | Action::SendForget | Action::SendToDesktop(..) | Action::SendCancel => {
-                self.ui.notice("Send to desktop is the phone app's; this library is the desktop")
-            }
+            Action::SendPair { .. } | Action::SendTest { .. } | Action::SendForget | Action::SendToDesktop(..) | Action::SendCancel => self
+                .ui
+                .notice(i18n::tr("Send to desktop is the phone app's; this library is the desktop")),
         }
     }
 }
@@ -571,7 +598,10 @@ impl eframe::App for App {
 
         // The suggestion pass reports on its own thread; notice it finished where the export is noticed.
         if let Some(count) = self.engine.poll_batch() {
-            self.ui.notice(format!("{count} photo(s) have something to suggest"));
+            self.ui.notice(i18n::fmt(
+                "{n} photo(s) have something to suggest",
+                &[("n", &i18n::count(count as u64))],
+            ));
             ctx.request_repaint();
         }
         if self.engine.batch_progress().is_some() {
@@ -712,6 +742,32 @@ mod tests {
             "The device's token is removed; it cannot call this library any more",
             "Writing XMP sidecars beside photos",
             "Sidecar writing off; changes stay in the catalog",
+            // This tick's routes: the suggestion pass, the pack and tag toasts, undo, the change
+            // report, remap and rescan, both consent lines, remove-root and the phone fallback.
+            "Opened the containing folder — this desktop cannot select a file in it",
+            "Could not run {program}: {error}",
+            "Nothing to suggest: the library is empty",
+            "Looking at {n} photo(s)…",
+            "Stopping the suggestion pass",
+            "Cleared the suggestions",
+            "Switched on the “{name}” keyword pack",
+            "Switched off the “{name}” keyword pack",
+            "Tagged “{tag}”",
+            "Already tagged “{tag}”",
+            "Put {n} photo(s) back",
+            "Save the change report",
+            "Text",
+            "Wrote {lines} line(s) to {folder}",
+            "Where does this folder live now?",
+            "Repointed {n} photo(s) to {folder}",
+            "Rescanning {folder}…",
+            "Model downloads allowed — nothing downloads until you install one",
+            "Model downloads switched off",
+            "Update checks allowed — nothing is fetched until you run one",
+            "Update checks switched off",
+            "Removed {n} photos from {folder}",
+            "Send to desktop is the phone app's; this library is the desktop",
+            "{n} photo(s) have something to suggest",
         ] {
             assert!(keys.iter().any(|seen| seen == key), "the listing lost {key:?}");
         }
@@ -774,6 +830,36 @@ mod tests {
             i18n::tr("Serving the library — the pairing code is in Settings → Sync & devices"),
             "Serving the library — the pairing code is in Settings → Sync & devices"
         );
+        i18n::set_current(english);
+    }
+
+    /// The suggestion pass, remap and rescan, the consent lines and undo all speak the interface
+    /// language, and a count keeps the reader's digits. This is the host's last English: each row
+    /// below is a sentence no shell dialog paints, so nothing else would catch it staying English.
+    #[test]
+    fn the_hosts_suggest_and_repair_notices_read_the_interface_language() {
+        let english = i18n::from_code("en").expect("English");
+        let arabic = i18n::from_code("ar").expect("Arabic");
+        i18n::set_current(english);
+        assert_eq!(
+            i18n::fmt("Repointed {n} photo(s) to {folder}", &[("n", &i18n::count(3)), ("folder", "sea")]),
+            "Repointed 3 photo(s) to sea"
+        );
+        assert_eq!(i18n::tr("Stopping the suggestion pass"), "Stopping the suggestion pass");
+        assert_eq!(i18n::tr("Text"), "Text");
+
+        i18n::set_current(arabic);
+        let looking = i18n::fmt("Looking at {n} photo(s)…", &[("n", &i18n::count(3))]);
+        assert!(looking.contains('٣') && looking.contains("صورة"), "{looking}");
+        assert!(!looking.contains("photo(s)"), "no English noun is left: {looking}");
+        let put_back = i18n::fmt("Put {n} photo(s) back", &[("n", &i18n::count(1))]);
+        assert!(put_back.contains('١') && !put_back.contains("photo(s)"), "{put_back}");
+        let removed = i18n::fmt("Removed {n} photos from {folder}", &[("n", &i18n::count(2)), ("folder", "sea")]);
+        assert!(removed.contains("sea") && !removed.contains("photos"), "{removed}");
+        assert_ne!(i18n::tr("Stopping the suggestion pass"), "Stopping the suggestion pass");
+        assert_ne!(i18n::tr("Update checks switched off"), "Update checks switched off");
+        assert_ne!(i18n::tr("Text"), "Text");
+        assert_ne!(i18n::tr("Where does this folder live now?"), "Where does this folder live now?");
         i18n::set_current(english);
     }
 }

@@ -875,3 +875,24 @@
 	The device's token is removed; it cannot call this library any more	기기의 토큰을 제거했습니다. 더 이상 이 라이브러리를 호출할 수 없습니다
 	Writing XMP sidecars beside photos	사진 옆에 XMP 사이드카를 기록합니다
 	Sidecar writing off; changes stay in the catalog	사이드카 기록이 꺼져 있습니다. 변경 사항은 카탈로그에 남습니다
+	Opened the containing folder — this desktop cannot select a file in it	포함된 폴더를 열었습니다 — 이 데스크톱에서는 파일을 선택할 수 없습니다
+	Could not run {program}: {error}	{program}을(를) 실행할 수 없습니다: {error}
+	Nothing to suggest: the library is empty	제안할 것이 없습니다: 라이브러리가 비어 있습니다
+	Looking at {n} photo(s)…	사진 {n}장을 살펴보는 중…
+	Stopping the suggestion pass	제안 작업을 중지하는 중
+	Cleared the suggestions	제안을 지웠습니다
+	Already tagged “{tag}”	“{tag}” 태그가 이미 있습니다
+	Put {n} photo(s) back	사진 {n}장을 되돌려 놓았습니다
+	Save the change report	변경 보고서 저장
+	Text	텍스트
+	Wrote {lines} line(s) to {folder}	{folder}에 {lines}줄을 썼습니다
+	Where does this folder live now?	이 폴더는 지금 어디에 있나요?
+	Repointed {n} photo(s) to {folder}	사진 {n}장을 {folder}(으)로 다시 지정했습니다
+	Rescanning {folder}…	{folder}을(를) 다시 검사하는 중…
+	Model downloads allowed — nothing downloads until you install one	모델 다운로드를 허용했습니다 — 설치하기 전에는 아무것도 내려받지 않습니다
+	Model downloads switched off	모델 다운로드를 껐습니다
+	Update checks allowed — nothing is fetched until you run one	업데이트 확인을 허용했습니다 — 실행하기 전에는 아무것도 가져오지 않습니다
+	Update checks switched off	업데이트 확인을 껐습니다
+	Removed {n} photos from {folder}	{folder}에서 사진 {n}장을 제거했습니다
+	Send to desktop is the phone app's; this library is the desktop	“데스크톱으로 보내기”는 휴대폰 앱의 기능입니다. 이 라이브러리가 데스크톱입니다
+	{n} photo(s) have something to suggest	사진 {n}장에 제안할 내용이 있습니다
