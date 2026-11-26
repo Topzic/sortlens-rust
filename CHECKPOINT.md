@@ -1,5 +1,58 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-fifth) — the destination strip and the keyword order toggle speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-fourth entry's Next named the last three hover literals
+  in `crates/ui/src/shell.rs`. `destination_strip` painted `Every destination. The row returns when
+  the window is wide enough.` as a bare `on_hover_text` literal, and `keyword_section_header` painted
+  `Switch between most used and A–Z` in both of its layout branches, so an Arabic window explained
+  its own view menu and its own order toggle in English. The `CI` run for `a168e40`
+  (`45859315468`) was green at STEP 1b, so this is a roadmap slice.
+- **What is routed.** Two rows per catalogue, 12 in all: `Every destination. The row returns when the
+  window is wide enough.` is a `tl!` key at the destination strip's response, and
+  `Switch between most used and A–Z` is a `tl!` key at both branches of `keyword_section_header`.
+  English keeps every word and the en dash it painted.
+- **A–Z is an order's name.** Each catalogue names its own alphabet inside the sentence — Arabic
+  reads `بدّل بين الأكثر استخدامًا وأ–ي`, Japanese `よく使う順とあ–んを切り替えます` — the way the
+  `most used`/`A–Z` rows already did on their own. The Arabic destination strip reads
+  `كل الوجهات. يعود الصف عندما تكون النافذة عريضة بما يكفي.`
+- **Tests.** `the_destination_strip_and_keyword_order_hovers_speak_the_interface_language` reads
+  `shell.rs` back with each line's indentation trimmed, so a `tl!` rustfmt wrapped at the margin
+  still reads as one call, and requires all three sites to be `on_hover_text(tl!("…"))` with no bare
+  literal twin. It also counts the toggle's route before `#[cfg(test)]` and requires two — one per
+  layout branch — so a single routed branch beside a literal one cannot pass. Then English must
+  answer each key unchanged and Arabic the translator's row. It fails on the pre-slice source at the
+  first wiring assertion, and would fail at the Arabic lookups if the rows were added without the
+  route. The catalogue audit now reads the two keys too, so any of the six catalogues losing a row
+  fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the audit's remaining list to the
+  keyword packs empty state's second line (which names a menu path no row covers yet) and then the
+  whole-source sweep that can tick the row. UX.md's i18n paragraph and ARCHITECTURE.md §8.4 record
+  the route and the two-branch count. SL-L07 stays unticked.
+- **Visual verification.** None expected: no committed scene rests a pointer on a hover and the
+  English paint is unchanged, so no baseline should move. `cargo xtask screenshots` was run because
+  `crates/ui` changed.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui -- the_destination_strip_and_keyword_order_hovers_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed; then `cargo xtask ci` exit 0 (fmt, workspace
+  clippy, the whole suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5
+  passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and
+  `cargo xtask screenshots` 30 passed and 1 ignored (network) with no baseline moved.
+  There is no `cargo xtask wasm` in this workspace; `crates/ui` changed, so `cargo xtask mobile`
+  is CI's job — this machine has no Android NDK and no Xcode, which leaves the device-side leg
+  unverified here. No release workflow was dispatched: source, catalogue rows, tests and docs, no
+  build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the three routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (two rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline moved here). Then the keyword
+  packs empty state's second line — `Put a .json pack in the library's packs folder; Organise ▸
+  Keyword Packs lists where.` — through `tl!`, with the same source-readback and Arabic lookup test.
+  SL-L07 stays unticked; after that the row's audit list is empty and the whole-source sweep decides
+  whether it can be ticked. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-fourth) — the cull screen's help and fit names speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-third entry's Next named the cull screen's two hover

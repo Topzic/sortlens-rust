@@ -938,6 +938,8 @@
 	; removed {n} from this phone	；已從這支手機移除 {n} 張
 	; none of the {n} were removed from this phone	；這 {n} 張都沒有從這支手機移除
 	; removed {removed} of {chosen} from this phone	；已從這支手機移除 {chosen} 張中的 {removed} 張
+	Every destination. The row returns when the window is wide enough.	所有目的地。視窗夠寬時這一列會回來。
+	Switch between most used and A–Z	在最常用與依字母之間切換
 	 ({n} could not be removed: {reason})	（{n} 張無法移除：{reason}）
 	Could not remove {n} photo(s): {reason}	無法移除 {n} 張相片：{reason}
 	Removed {n} photo(s) from this phone	已從這支手機移除 {n} 張相片

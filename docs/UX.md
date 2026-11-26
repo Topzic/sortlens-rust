@@ -882,6 +882,10 @@ re-checks its own contrast pairs after applying.
   (`Every shortcut in this mode  ?`) and its zoom chip (`Fit the photograph to the window, or show
   it at 1:1  Z`) are rows, so an Arabic cull screen explains both in Arabic while the key cap that
   ends each name stays the ASCII key a person presses.
+  The destination strip and the keyword order toggle followed (hundred-and-fifty-fifth entry): the
+  bottom bar's explanation of its view menu and both branches of the Keywords heading's order
+  toggle are rows, so an Arabic window explains its own destinations and names its own alphabet
+  where the toggle's name ends on `A–Z`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

@@ -745,6 +745,8 @@
 	Image	صورة
 	pick	مختارة
 	reject	مرفوضة
+	Every destination. The row returns when the window is wide enough.	كل الوجهات. يعود الصف عندما تكون النافذة عريضة بما يكفي.
+	Switch between most used and A–Z	بدّل بين الأكثر استخدامًا وأ–ي
 	Press 1–5 to rate, 0 to clear, P to pick, X to reject, U to unflag.	اضغط 1–5 للتقييم، و0 للمسح، وP للاختيار، وX للرفض، وU لإزالة الوسم.
 	Select a photo to see camera, exposure and file details.	اختر صورة لعرض الكاميرا والتعريض وتفاصيل الملف.
 	stars	النجوم

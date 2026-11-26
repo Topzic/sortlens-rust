@@ -864,6 +864,8 @@
 	Search	검색
 	Search photos	사진 검색
 	Search photos or {keys}	사진 검색 또는 {keys}
+	Every destination. The row returns when the window is wide enough.	모든 목적지. 창이 충분히 넓으면 이 행이 돌아옵니다.
+	Switch between most used and A–Z	사용 빈도순과 가–하를 전환합니다
 	Search in {name}	{name}에서 검색
 	Type a command…	명령 입력…
 	No command matches	일치하는 명령이 없습니다

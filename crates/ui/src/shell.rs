@@ -2924,7 +2924,7 @@ fn view_menu(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
         &format!("Views, now {}", view_word(state.view)),
         true,
     );
-    response.on_hover_text("Every destination. The row returns when the window is wide enough.");
+    response.on_hover_text(tl!("Every destination. The row returns when the window is wide enough."));
     if let Some(view) = chosen {
         match view.milestone() {
             Some(milestone) => actions.push(Action::Notice(format!("{} arrives in {milestone}", view.label()))),
@@ -12279,7 +12279,7 @@ fn keyword_section_header(ui: &mut Ui, t: &Tokens, state: &mut UiState, order: &
             ui.with_layout(craft_ui::direction::trailing(ui), |ui| {
                 clicked = ui
                     .add(Button::new(RichText::new(order).size(9.5)).frame(false))
-                    .on_hover_text("Switch between most used and A–Z")
+                    .on_hover_text(tl!("Switch between most used and A–Z"))
                     .clicked();
             });
         });
@@ -12289,7 +12289,7 @@ fn keyword_section_header(ui: &mut Ui, t: &Tokens, state: &mut UiState, order: &
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 clicked = ui
                     .add(Button::new(RichText::new(order).size(9.5)).frame(false))
-                    .on_hover_text("Switch between most used and A–Z")
+                    .on_hover_text(tl!("Switch between most used and A–Z"))
                     .clicked();
             });
         });
@@ -22269,6 +22269,59 @@ mod tests {
                 "the hover {english:?} also paints a bare literal"
             );
         }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), arabic, "the hover row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The destination strip's and the keyword order toggle's hover names are catalogue rows, in
+    /// every language the picker offers.
+    ///
+    /// A hover never paints in a frame, so the catalogue is the witness: each name resolves to the
+    /// reader's own row, and the source read back proves the call site routes through `tl!` instead
+    /// of carrying the literal. The order toggle stands at the same place in both layout branches,
+    /// so each branch's own call is what has to route: one routed and one literal would leave an
+    /// Arabic sidebar explaining its own toggle in English. `A–Z` stays the order's own name in
+    /// every catalogue, the way `most used` does.
+    #[test]
+    fn the_destination_strip_and_keyword_order_hovers_speak_the_interface_language() {
+        // One row per name the bottom bar's destination strip and the Keywords heading hang on a
+        // control.
+        const HOVERS: [(&str, &str); 2] = [
+            (
+                "Every destination. The row returns when the window is wide enough.",
+                "كل الوجهات. يعود الصف عندما تكون النافذة عريضة بما يكفي.",
+            ),
+            ("Switch between most used and A–Z", "بدّل بين الأكثر استخدامًا وأ–ي"),
+        ];
+        // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in HOVERS {
+            assert!(
+                source.contains(&format!("on_hover_text(tl!(\"{english}\"))")),
+                "the hover {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("on_hover_text(\"{english}\")")),
+                "the hover {english:?} also paints a bare literal"
+            );
+        }
+        // The toggle is painted once per layout branch; two routes, not one. Counted outside the
+        // test module, which reads this same source back.
+        let paint = source.split("#[cfg(test)]").next().unwrap_or(&source);
+        assert_eq!(
+            paint.matches(r#"on_hover_text(tl!("Switch between most used and A–Z"))"#).count(),
+            2,
+            "the order toggle routes in both layout branches"
+        );
         // English is unchanged, and Arabic is the translator's row rather than the English fallback.
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         for (english, _) in HOVERS {

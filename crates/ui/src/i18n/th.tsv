@@ -604,6 +604,8 @@
 	Reject	ตัดออก
 	Defer	เลื่อน
 	Apply rejects…	ใช้การตัดออก…
+	Every destination. The row returns when the window is wide enough.	ทุกจุดหมาย แถวนี้จะกลับมาเมื่อหน้าต่างกว้างพอ
+	Switch between most used and A–Z	สลับระหว่างใช้บ่อยที่สุดกับ ก–ฮ
 	Reject a photo first; picks and defers need no apply	ตัดรูปออกก่อน ส่วนการเลือกและการเลื่อนไม่ต้องใช้
 	Move picks…	ย้ายรูปที่เลือก…
 	Pick a photo first	เลือกรูปก่อน

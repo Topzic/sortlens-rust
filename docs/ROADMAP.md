@@ -1304,10 +1304,17 @@ and none of M9 is closed until the remaining rows are ticked.
   sentence around it is written in — which is the same rule the Detail view's `Fit  Z` row follows.
   `the_cull_s_hover_names_speak_the_interface_language` reads `shell.rs` back, requires both sites
   to route, then English unchanged and the Arabic rows.
+  The destination strip and the keyword order toggle followed (hundred-and-fifty-fifth entry): the
+  bottom bar's `Every destination. The row returns when the window is wide enough.` and the Keywords
+  heading's two `Switch between most used and A–Z` sites — one per layout branch — are `tl!` rows
+  in all six languages, so an Arabic window explains its view menu and its order toggle in Arabic.
+  `A–Z` stays the order's own name the way `most used` does, so each catalogue names its own
+  alphabet inside the sentence that says what the toggle switches between.
+  `the_destination_strip_and_keyword_order_hovers_speak_the_interface_language` reads `shell.rs`
+  back, requires all three sites to route — counting the toggle's two outside the test module, so
+  one branch cannot stay a literal — then English unchanged and the Arabic rows.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: three more `on_hover_text` sites over two sentences (the
-  destination strip's `Every destination. The row returns when the window is wide enough.`, and the
-  keyword menu's two `Switch between most used and A–Z`), and the keyword packs empty
+  went through `tl!`/`i18n::fmt`: the keyword packs empty
   state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
   lists where.`, which names a menu path no catalogue row covers yet) — no production
   `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth

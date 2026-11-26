@@ -733,6 +733,12 @@ keys, and `the_cull_s_hover_names_speak_the_interface_language` reads both sites
 The trailing `?`/`Z` is the key cap, not prose: it stays ASCII in every language, as the Detail
 view's `Fit  Z` row already does.
 
+The destination strip and the keyword order toggle take it too (hundred-and-fifty-fifth entry): the
+bottom bar's `Every destination. The row returns when the window is wide enough.` and both layout
+branches' `Switch between most used and A–Z` are `tl!` keys, and
+`the_destination_strip_and_keyword_order_hovers_speak_the_interface_language` reads the three sites
+back, counting the toggle's route outside the test module so one branch cannot stay a literal.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with
