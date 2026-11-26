@@ -841,3 +841,11 @@
 	That keyword already exists; the two will be merged.	มีคีย์เวิร์ดนั้นอยู่แล้ว ทั้งสองจะถูกรวมเข้าด้วยกัน
 	Renamed #{tag} on {n} photo(s)	เปลี่ยนชื่อ #{tag} บน {n} ภาพแล้ว
 	#{tag} is not used by any photo	ไม่มีภาพใดใช้ #{tag}
+	Start Cull	เริ่มคัด
+	Export Picks…	ส่งออกรูปที่เลือก…
+	No selection	ไม่ได้เลือกอะไร
+	{n} selected	เลือก {n} รูป
+	Search	ค้นหา
+	Search photos	ค้นหารูป
+	Search photos or {keys}	ค้นหารูปหรือ {keys}
+	Search in {name}	ค้นหาใน {name}

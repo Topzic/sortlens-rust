@@ -1096,6 +1096,16 @@ and none of M9 is closed until the remaining rows are ticked.
   what puts both chips on the header, and requires the three English strings to be absent. The `Photos`
   line under the canvas header is not chrome: it is the scoped folder's own name, so it stays as the
   folder spells it.
+  The sidebar's quick actions, the search field's hint and the bottom bar's count followed
+  (hundred-and-twenty-seventh entry): `Start Cull` and `Export Picks…` — the two registry labels the
+  quick-actions section paints — are rows in all six languages, and a test walks both sidebar command
+  lists against every catalogue, because those labels are looked up at run time where the
+  source-reading audit cannot see them. The search field's `Search photos or {keys}` hint, its two
+  fallbacks (`Search photos`, `Search`) and the collection scope's `Search in {name}` are rows, so an
+  Arabic phone shortens an Arabic sentence instead of an English one, and the key cap stays
+  `Ctrl+K`/`⌘K` as the platform spells it in every language. The bottom bar's `No selection` and
+  `{n} selected` count — and the marquee's toast, which shares that template — are a row and a
+  template over `format_count`, so an Arabic bar reads `لم يتم تحديد شيء` and `٢ محددة`.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

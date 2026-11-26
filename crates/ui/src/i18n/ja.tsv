@@ -840,3 +840,11 @@
 	That keyword already exists; the two will be merged.	そのキーワードは既に存在します。2 つは統合されます。
 	Renamed #{tag} on {n} photo(s)	#{tag} を {n} 枚の写真で名前変更しました
 	#{tag} is not used by any photo	#{tag} はどの写真でも使われていません
+	Start Cull	選別を開始
+	Export Picks…	採用を書き出し…
+	No selection	未選択
+	{n} selected	{n} 枚を選択
+	Search	検索
+	Search photos	写真を検索
+	Search photos or {keys}	写真を検索、または {keys}
+	Search in {name}	{name} を検索

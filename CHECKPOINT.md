@@ -1,5 +1,61 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-seventh) — the sidebar's quick actions, the search field's hint and the bottom bar's count read Arabic
+
+- **Why this came up.** The hundred-and-twenty-fifth entry's Next named the last English words on the
+  default-set RTL frames: the Quick Actions rows `Start Cull` and `Export Picks…`, the search field's
+  hint and the bottom bar's `No selection` count. No `CI` run was red at the tick's first step — the run
+  for `1800781` (`45764901256`) was still in flight — so this is a roadmap slice, not a repair. (The
+  number follows ROADMAP's own citations, which already call the top bar's words the
+  hundred-and-twenty-sixth entry; that tick left no CHECKPOINT heading.)
+- **One of the named surfaces was already routed.** `Local library` is a row in all six catalogues and
+  `the_top_bar_names_the_library_in_the_interface_language` proves the bar looks it up, so the
+  hundred-and-twenty-fifth entry's "still English" note was stale for that line and this tick changed
+  nothing there. The quick-actions rows were routed (`tl!(spec.label)`) but their labels are looked up
+  at run time, so the source-reading catalogue audit could never see `Start Cull` or `Export Picks…` —
+  and neither had a row. The hint and the bar's count were English formatted in place.
+- **What is routed.** `Start Cull` and `Export Picks…` are rows in all six catalogues, and the new
+  `the_sidebar_command_rows_speak_the_interface_language` walks `SIDEBAR_QUICK` and `SIDEBAR_FOOT`
+  against every catalogue, which is the guard the audit cannot be. `palette_hint` is now
+  `fmt("Search photos or {keys}")` over the platform's own key cap (`⌘K`/`Ctrl+K`, never translated);
+  the field's two fallbacks are `tl!("Search photos")`/`tl!("Search")`; the collection scope is
+  `fmt("Search in {name}")`. The bar's count is the new `selection_count_text`: `tl!("No selection")`
+  at zero and `fmt("{n} selected")` over `format_count` above it, shared with the marquee's toast,
+  which formatted `{count} selected` in place.
+- **The frame proves it.** `the_canvas_chrome_reads_in_the_interface_language` now requires
+  `بدء الفرز` and `تصدير المختارة…`, the Arabic hint and the Arabic count on the painted frame, and
+  requires `Start Cull`, `Export Picks…`, `No selection`, `Search photos or Ctrl+K` and
+  `Search photos` to be absent. `the_search_hint_and_the_selection_count_speak_the_interface_language`
+  pins English (`Search photos or Ctrl+K`, `No selection`, `3 selected`) and Arabic
+  (`لم يتم تحديد شيء`, `محددة`, `٣`) as values, so a lost row fails without a paint.
+- **The repaint moved more than the words.** `UPDATE_SNAPSHOTS=1` on
+  `the_arabic_interface_paints_right_to_left_in_both_themes` rewrote
+  `rtl-library-{charcoal,paper}.png` (663346→663849 and 665851→666267 bytes); a second run of that one
+  test without the variable compared them byte for byte and passed. Both frames were opened at
+  1440×900: the sidebar reads `بدء الفرز` and `تصدير المختارة…`, the field reads
+  `ابحث عن الصور أو Ctrl+K`, and the bar reads `لم يتم تحديد شيء`; the paper theme matches modulo the
+  palette, and no other pixel moved. The `Photos` line under the canvas header is still the folder's
+  own name, as the hundred-and-twenty-fifth entry recorded.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, clippy, the workspace suite including the catalogue audit,
+  `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`,
+  `workflows`), `cargo xtask snapshot` (5 goldens pass) and `cargo xtask deny` (advisories, bans,
+  licenses, sources all ok, with `CARGO_HOME=/tmp/sortlens-cargo-deny`). The screenshots gate was run
+  for the one scene this slice changed and re-compared byte for byte; no full default-set run, because
+  22 of the 29 scenes are red on this machine for the pre-existing rasteriser difference the
+  hundred-and-twenty-first entry recorded. No `release` dispatch: this slice touches `crates/ui/src`
+  and the catalogues, not `.github/workflows/**`, `xtask/src/workflow.rs`, `apps/**`, a `Cargo.toml` or
+  release code.
+- **Files.** `crates/ui/src/shell.rs` (the hint, the two fallbacks, the collection scope, the bar's
+  count helper, the marquee toast, the frame assertion and the two new tests),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (eight rows each),
+  `crates/ui/tests/snapshots/rtl-library-{charcoal,paper}.png`, `docs/ROADMAP.md` (the SL-L07 Open
+  line) and `docs/UX.md` (the canvas-prose reconciliation).
+- **Next.** Read this commit's `CI` run first: its `screenshots` job is expected red on the two
+  `lavapipe/rtl-library-*` frames, which this machine cannot paint — `gh run download <id> -n
+  screenshot-set -D .ci-shots`, then `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt
+  .ci-shots`, and read the pair. Then SL-L07's last English on the canvas: the `Moved` receipt, whose
+  title, sentence under it, `and {n} more` line and two buttons are still literals at the call site —
+  unless that `CI` run is red for another reason, which it then is.
 ## 2026-11-26 (hundred-and-twenty-fifth) — the canvas header's two scope chips and the sidebar's new-collection button read Arabic
 
 - **Why this came up.** The hundred-and-twenty-fourth entry's Next named SL-L07's remaining canvas

@@ -839,3 +839,11 @@
 	That keyword already exists; the two will be merged.	該關鍵字已存在；兩者將合併。
 	Renamed #{tag} on {n} photo(s)	已在 {n} 張相片上重新命名 #{tag}
 	#{tag} is not used by any photo	沒有任何相片使用 #{tag}
+	Start Cull	開始篩選
+	Export Picks…	匯出精選…
+	No selection	未選取
+	{n} selected	已選取 {n}
+	Search	搜尋
+	Search photos	搜尋照片
+	Search photos or {keys}	搜尋照片或 {keys}
+	Search in {name}	在 {name} 中搜尋

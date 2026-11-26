@@ -839,3 +839,11 @@
 	That keyword already exists; the two will be merged.	그 키워드는 이미 있습니다. 둘은 병합됩니다.
 	Renamed #{tag} on {n} photo(s)	사진 {n}장에서 #{tag} 이름을 변경했습니다
 	#{tag} is not used by any photo	#{tag}은(는) 어떤 사진에서도 사용되지 않습니다
+	Start Cull	선별 시작
+	Export Picks…	선택 항목 내보내기…
+	No selection	선택 없음
+	{n} selected	{n}장 선택됨
+	Search	검색
+	Search photos	사진 검색
+	Search photos or {keys}	사진 검색 또는 {keys}
+	Search in {name}	{name}에서 검색

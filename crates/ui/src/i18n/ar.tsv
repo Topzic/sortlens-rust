@@ -840,3 +840,11 @@
 	That keyword already exists; the two will be merged.	هذه الكلمة المفتاحية موجودة بالفعل؛ ستُدمج الاثنتان.
 	Renamed #{tag} on {n} photo(s)	أُعيدت تسمية #{tag} على {n} صورة
 	#{tag} is not used by any photo	#{tag} غير مستخدمة في أي صورة
+	Start Cull	بدء الفرز
+	Export Picks…	تصدير المختارة…
+	No selection	لم يتم تحديد شيء
+	{n} selected	{n} محددة
+	Search	بحث
+	Search photos	ابحث عن الصور
+	Search photos or {keys}	ابحث عن الصور أو {keys}
+	Search in {name}	ابحث في {name}

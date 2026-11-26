@@ -2066,11 +2066,14 @@ fn caption_glyph(painter: &egui::Painter, rect: Rect, caption: Caption, ink: Col
 /// What the search field's hint says on this platform: the shortcut is the palette's, and the
 /// modifier is the one the platform's keyboard has.
 fn palette_hint() -> String {
-    if craft_keymap::Platform::current().is_mac() {
-        "Search photos or ⌘K".to_owned()
+    // The key cap is the product's name for a keystroke, not prose: it stays as the platform spells
+    // it in every language, and only the sentence that carries it is a catalogue row.
+    let key = if craft_keymap::Platform::current().is_mac() {
+        "⌘K"
     } else {
-        "Search photos or Ctrl+K".to_owned()
-    }
+        "Ctrl+K"
+    };
+    crate::i18n::fmt("Search photos or {keys}", &[("keys", key)])
 }
 
 /// The narrowest the search field gets, and the widest it may grow to keep its hint whole.
@@ -2129,13 +2132,17 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32
     let room = (cap - 16.0).max(0.0);
     let style = ui.style().clone();
     let body = egui::TextStyle::Body.resolve(&style);
+    // Every hint the field may fall back to is a catalogue row, so the sentence shortens in the
+    // reader's language rather than shrinking to English (SL-L07).
+    let photos = tl!("Search photos");
+    let search = tl!("Search");
     let hint: String = match state
         .collection_filter
         .and_then(|id| engine.collections().into_iter().find(|collection| collection.id == id))
     {
         Some(collection) => {
-            let named = format!("Search in {}", collection.name);
-            let candidates = [named.as_str(), "Search photos", "Search"];
+            let named = crate::i18n::fmt("Search in {name}", &[("name", &collection.name)]);
+            let candidates = [named.as_str(), photos, search];
             fitting_hint(&candidates, |text| measure(ui, text, &body), room).to_owned()
         }
         None => {
@@ -2144,9 +2151,9 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32
             // A phone has none of those keys, so its hint does not name one.
             let palette = palette_hint();
             let candidates: &[&str] = if state.narrow {
-                &["Search photos", "Search"]
+                &[photos, search]
             } else {
-                &[palette.as_str(), "Search photos", "Search"]
+                &[palette.as_str(), photos, search]
             };
             fitting_hint(candidates, |text| measure(ui, text, &body), room).to_owned()
         }
@@ -2942,19 +2949,24 @@ fn annotation_pill(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
                 ui.label(RichText::new(photo.tags.len().to_string()).size(10.5).color(t.text_faint));
             }
             ui.add_space(4.0);
-            let count = state.selection.len();
-            let text = match count {
-                0 => "No selection".to_string(),
-                1 => "1 selected".to_string(),
-                many => format!("{many} selected"),
-            };
-            ui.label(
-                RichText::new(text)
-                    .size(11.0)
-                    .color(if count == 0 { t.text_faint } else { t.text_muted }),
-            );
+            let selected = state.selection.len();
+            ui.label(RichText::new(selection_count_text(selected)).size(11.0).color(if selected == 0 {
+                t.text_faint
+            } else {
+                t.text_muted
+            }));
         });
     });
+}
+
+/// The bottom bar's count, a catalogue template rather than a number glued to an English word: the
+/// digits go through `format_count` and the sentence through `fmt`, so an Arabic bar reads
+/// `٢ محددة` rather than an English phrase carrying Arabic-Indic digits (SL-L07).
+fn selection_count_text(count: usize) -> String {
+    match count {
+        0 => tl!("No selection").to_string(),
+        many => crate::i18n::fmt("{n} selected", &[("n", &format_count(many as u64))]),
+    }
 }
 
 /// Rate the selection, saying what happened the way the keyboard does.
@@ -4190,7 +4202,7 @@ fn marquee(ui: &mut Ui, state: &mut UiState, t: &Tokens, grid_rect: Rect) {
         let count = hits.len();
         state.selection.set_many(&hits);
         if count > 0 {
-            state.notice(format!("{count} selected"));
+            state.notice(crate::i18n::fmt("{n} selected", &[("n", &format_count(count as u64))]));
         }
     }
 }
@@ -12571,8 +12583,93 @@ mod tests {
             );
         }
 
+        // The sidebar's quick actions, the search field's hint and the bottom bar's count: the last
+        // three surfaces the RTL frames painted in English. The hint and the count are looked up
+        // through the same functions the field and the bar call, so a route that loses its row
+        // fails here instead of in a later slice.
+        for arabic in ["بدء الفرز", "تصدير المختارة…"] {
+            assert!(
+                painted.iter().any(|text| text == arabic),
+                "the quick actions paint {arabic:?}, painted {painted:#?}"
+            );
+        }
+        let hint = palette_hint();
+        assert!(
+            painted.contains(&hint),
+            "the search field's hint reads {hint:?}, painted {painted:#?}"
+        );
+        let count = selection_count_text(state.selection.len());
+        assert!(
+            painted.contains(&count),
+            "the bottom bar's count reads {count:?}, painted {painted:#?}"
+        );
+        for english in [
+            "Start Cull",
+            "Export Picks…",
+            "No selection",
+            "Search photos or Ctrl+K",
+            "Search photos",
+        ] {
+            assert!(
+                !painted.iter().any(|text| text == english),
+                "no English chrome {english:?} is left, painted {painted:#?}"
+            );
+        }
+
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The sidebar's two command lists are registry labels, which the source-reading catalogue audit
+    /// cannot see — the paint looks up `spec.label` at run time. This is the guard that keeps a row
+    /// from arriving in English only, and it reads the same lists the panel paints (SL-L07).
+    #[test]
+    fn the_sidebar_command_rows_speak_the_interface_language() {
+        let registry = sortlens_engine::command::Registry::v0();
+        let labels: Vec<&'static str> = SIDEBAR_QUICK
+            .into_iter()
+            .chain(SIDEBAR_FOOT)
+            .map(|(command, _)| registry.get(command.id()).expect("the row names a registry command").label)
+            .collect();
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).expect("the picker offers it");
+            for label in &labels {
+                assert_ne!(
+                    crate::i18n::I18N.t(lang, label),
+                    *label,
+                    "{code} has no row for the sidebar command {label:?}"
+                );
+            }
+        }
+    }
+
+    /// The search field's hint and the bottom bar's count are catalogue rows rather than English
+    /// formatted in place (SL-L07). Arabic writes both sentences, keeps the platform's key cap in
+    /// the hint and writes the count in its own digits; English is pinned character for character.
+    #[test]
+    fn the_search_hint_and_the_selection_count_speak_the_interface_language() {
+        let previous = crate::i18n::current();
+        let key = if craft_keymap::Platform::current().is_mac() {
+            "⌘K"
+        } else {
+            "Ctrl+K"
+        };
+        assert_eq!(palette_hint(), format!("Search photos or {key}"));
+        assert_eq!(selection_count_text(0), "No selection");
+        assert_eq!(selection_count_text(3), "3 selected");
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let hint = palette_hint();
+        assert!(hint.contains("ابحث عن الصور"), "the hint reads {hint:?}");
+        assert!(hint.contains(key), "the hint keeps the platform's key cap {key:?}");
+        assert!(!hint.contains("Search"), "no English is left in the hint: {hint:?}");
+        assert_eq!(selection_count_text(0), "لم يتم تحديد شيء");
+        let three = selection_count_text(3);
+        assert!(three.contains("محددة"), "the bar's count reads {three:?}");
+        assert!(three.contains(&format_count(3)), "and the digits are Arabic-Indic: {three:?}");
+        assert!(!three.contains("selected"), "no English is left in the count: {three:?}");
+
+        crate::i18n::set_current(previous);
     }
 
     /// Every state of the filter strip's chips is a catalogue row, not only the at-rest word: the flag

@@ -773,7 +773,12 @@ re-checks its own contrast pairs after applying.
   `+ New collection` button with them. The top bar's `Local library` line followed, with both
   read-only sentences — the label and the hover naming the other window that holds the lock — and the
   keyword editor followed too: its title, the sentence about the tag, the merge warning, both buttons
-  and both toasts are rows. What is still English on the canvas is the `Moved` receipt: its title,
+  and both toasts are rows. The sidebar's quick actions, the search field's hint and the bottom bar's
+  count followed (hundred-and-twenty-seventh entry): `Start Cull`, `Export Picks…`, the
+  `Search photos or {keys}` hint with its two fallbacks and the `No selection`/`{n} selected` count
+  are rows, so an Arabic bar reads `لم يتم تحديد شيء` and `٢ محددة` while the hint keeps
+  `Ctrl+K`/`⌘K` as the platform spells it. What is still English on the canvas is the `Moved` receipt:
+  its title,
   the sentence under it, its `and {n} more` line and its two buttons are literals at the call site. A
   bin row's summary and mode are the engine's own sentences rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
