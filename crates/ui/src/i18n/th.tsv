@@ -920,3 +920,20 @@
 	That is not available on the phone yet	ยังใช้บนโทรศัพท์ไม่ได้
 	Paired with the desktop as {device}	จับคู่กับเดสก์ท็อปในชื่อ {device} แล้ว
 	Pairing failed: {reason}	จับคู่ไม่สำเร็จ: {reason}
+	Nothing was sent	ไม่ได้ส่งอะไรเลย
+	Sent {n} photo(s): {kept} kept, {removed} to remove	ส่งรูปภาพ {n} รูปแล้ว: เก็บไว้ {kept} รูป, จะลบ {removed} รูป
+	; {n} failed: {reason}	; ล้มเหลว {n} รายการ: {reason}
+	; {error}	; {error}
+	 (stopped)	 (หยุดแล้ว)
+	; removed {n} from this phone	; ลบ {n} รูปออกจากโทรศัพท์เครื่องนี้แล้ว
+	; none of the {n} were removed from this phone	; ไม่มีรูปใดใน {n} รูปที่ถูกลบออกจากโทรศัพท์เครื่องนี้
+	; removed {removed} of {chosen} from this phone	; ลบ {removed} จาก {chosen} รูปออกจากโทรศัพท์เครื่องนี้แล้ว
+	 ({n} could not be removed: {reason})	 ({n} รูปลบไม่ได้: {reason})
+	Could not remove {n} photo(s): {reason}	ลบรูปภาพ {n} รูปไม่ได้: {reason}
+	Removed {n} photo(s) from this phone	ลบรูปภาพ {n} รูปออกจากโทรศัพท์เครื่องนี้แล้ว
+	; none of the {n} were removed from this phone: {error}	; ไม่มีรูปใดใน {n} รูปที่ถูกลบออกจากโทรศัพท์เครื่องนี้: {error}
+	Could not remove {n} photo(s): {error}	ลบรูปภาพ {n} รูปไม่ได้: {error}
+	The desktop at {host}:{port} answered	เดสก์ท็อปที่ {host}:{port} ตอบกลับแล้ว
+	No answer from {host}:{port}: {reason}	ไม่มีการตอบกลับจาก {host}:{port}: {reason}
+	the pairing thread could not start: {error}	เริ่มเธรดการจับคู่ไม่ได้: {error}
+	the test thread could not start: {error}	เริ่มเธรดการทดสอบไม่ได้: {error}

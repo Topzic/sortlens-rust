@@ -19,7 +19,7 @@ use sortlens_cull::trash::Mode;
 use sortlens_engine::Engine;
 use sortlens_remote::client::{Client, TcpTransport};
 use sortlens_remote::send::{SendItem, SendOutcome, SendQueue};
-use sortlens_ui::SendSurface;
+use sortlens_ui::{SendSurface, i18n};
 
 /// The name this phone records itself under when it pairs.
 pub const DEVICE: &str = "Sortlens phone";
@@ -117,8 +117,9 @@ impl DesktopLink {
         if let Err(error) = spawned {
             // A thread that never starts still owes the caller an answer; say so where the next
             // poll reads it instead of leaving an attempt that never lands.
+            let error = error.to_string();
             if let Ok(mut slot) = answer.lock() {
-                *slot = Some(Err(format!("the pairing thread could not start: {error}")));
+                *slot = Some(Err(i18n::fmt("the pairing thread could not start: {error}", &[("error", &error)])));
             }
         }
         self.pairing = Some(PairAttempt {
@@ -183,8 +184,9 @@ impl DesktopLink {
         if let Err(error) = spawned {
             // A thread that never starts still owes the caller an answer; the sentence the
             // next poll reads is the reason.
+            let error = error.to_string();
             if let Ok(mut slot) = answer.lock() {
-                *slot = Some(Err(format!("the test thread could not start: {error}")));
+                *slot = Some(Err(i18n::fmt("the test thread could not start: {error}", &[("error", &error)])));
             }
         }
         self.check = Some(Check {
@@ -203,9 +205,15 @@ impl DesktopLink {
         let host = check.host.clone();
         let port = check.port;
         self.check = None;
+        // The address is a wire value, not a count: its digits stay the ones a person types,
+        // whatever the interface's own digits are.
+        let port = port.to_string();
         let sentence = match answer {
-            Ok(()) => format!("The desktop at {host}:{port} answered"),
-            Err(reason) => format!("No answer from {host}:{port}: {reason}"),
+            Ok(()) => i18n::fmt("The desktop at {host}:{port} answered", &[("host", &host), ("port", &port)]),
+            Err(reason) => i18n::fmt(
+                "No answer from {host}:{port}: {reason}",
+                &[("host", &host), ("port", &port), ("reason", &reason)],
+            ),
         };
         self.check_last = Some(sentence.clone());
         Some(sentence)
@@ -291,26 +299,32 @@ impl DesktopLink {
 /// The one sentence a finished run earns, failures named the way a notice would read them. The
 /// ack's remove decisions are still decisions here — the host appends what it could carry out.
 pub(crate) fn sentence(outcome: &SendOutcome) -> String {
+    // Every clause is a catalogue row, the separators included: a language may join its clauses
+    // with its own marks, and the counts keep the reader's digits. The engine's own error text is
+    // a value here, not a sentence this module words.
     let mut text = if outcome.sent == 0 {
-        "Nothing was sent".to_owned()
+        i18n::tr("Nothing was sent").to_owned()
     } else {
-        format!(
-            "Sent {} photo{}: {} kept, {} to remove",
-            outcome.sent,
-            if outcome.sent == 1 { "" } else { "s" },
-            outcome.kept,
-            outcome.removed
+        i18n::fmt(
+            "Sent {n} photo(s): {kept} kept, {removed} to remove",
+            &[
+                ("n", &i18n::count(outcome.sent as u64)),
+                ("kept", &i18n::count(outcome.kept as u64)),
+                ("removed", &i18n::count(outcome.removed as u64)),
+            ],
         )
     };
-    if !outcome.failed.is_empty() {
-        text.push_str(&format!("; {} failed: {}", outcome.failed.len(), outcome.failed[0].1.clone()));
+    if let Some((_, reason)) = outcome.failed.first() {
+        text.push_str(&i18n::fmt(
+            "; {n} failed: {reason}",
+            &[("n", &i18n::count(outcome.failed.len() as u64)), ("reason", reason)],
+        ));
     }
     if let Some(error) = &outcome.error {
-        text.push_str("; ");
-        text.push_str(error);
+        text.push_str(&i18n::fmt("; {error}", &[("error", error)]));
     }
     if outcome.cancelled {
-        text.push_str(" (stopped)");
+        text.push_str(i18n::tr(" (stopped)"));
     }
     text
 }
@@ -342,28 +356,49 @@ pub fn remove_from_phone(engine: &mut Engine, outcome: &SendOutcome, mode: Mode)
             let failed = report.failed.len();
             let reason = report.failed.first().map(|(_, reason)| reason.clone());
             let mut coda = if removed == chosen {
-                format!("; removed {removed} from this phone")
+                i18n::fmt("; removed {n} from this phone", &[("n", &i18n::count(removed as u64))])
             } else if removed == 0 {
-                format!("; none of the {chosen} were removed from this phone")
+                i18n::fmt(
+                    "; none of the {n} were removed from this phone",
+                    &[("n", &i18n::count(chosen as u64))],
+                )
             } else {
-                format!("; removed {removed} of {chosen} from this phone")
+                i18n::fmt(
+                    "; removed {removed} of {chosen} from this phone",
+                    &[("removed", &i18n::count(removed as u64)), ("chosen", &i18n::count(chosen as u64))],
+                )
             };
             if let Some(reason) = &reason {
-                coda.push_str(&format!(" ({failed} could not be removed: {reason})"));
+                coda.push_str(&i18n::fmt(
+                    " ({n} could not be removed: {reason})",
+                    &[("n", &i18n::count(failed as u64)), ("reason", reason)],
+                ));
             }
             let notice = match &reason {
-                Some(reason) => format!("Could not remove {failed} photo(s): {reason}"),
-                None => format!("Removed {removed} photo(s) from this phone"),
+                Some(reason) => i18n::fmt(
+                    "Could not remove {n} photo(s): {reason}",
+                    &[("n", &i18n::count(failed as u64)), ("reason", reason)],
+                ),
+                None => i18n::fmt("Removed {n} photo(s) from this phone", &[("n", &i18n::count(removed as u64))]),
             };
             Removal {
                 coda,
                 notice: Some(notice),
             }
         }
-        Err(error) => Removal {
-            coda: format!("; none of the {chosen} were removed from this phone: {error}"),
-            notice: Some(format!("Could not remove {chosen} photo(s): {error}")),
-        },
+        Err(error) => {
+            let error = error.to_string();
+            Removal {
+                coda: i18n::fmt(
+                    "; none of the {n} were removed from this phone: {error}",
+                    &[("n", &i18n::count(chosen as u64)), ("error", &error)],
+                ),
+                notice: Some(i18n::fmt(
+                    "Could not remove {n} photo(s): {error}",
+                    &[("n", &i18n::count(chosen as u64)), ("error", &error)],
+                )),
+            }
+        }
     }
 }
 
@@ -753,5 +788,57 @@ mod tests {
         let d = &store.get().desktop;
         let link = DesktopLink::open(&d.host, d.port, &d.token, &d.device);
         assert!(!link.surface().paired, "no token, no pairing");
+    }
+
+    /// The run's summary and the removal's coda speak the interface language, counts in the
+    /// reader's own digits: these sentences are the Settings section's words, so a phone running
+    /// an Arabic shell must not read this module's English.
+    #[test]
+    fn the_run_s_sentences_read_the_interface_language() {
+        let english = i18n::from_code("en").expect("English");
+        let arabic = i18n::from_code("ar").expect("Arabic");
+        let outcome = SendOutcome {
+            sent: 3,
+            kept: 1,
+            removed: 2,
+            ..SendOutcome::default()
+        };
+        i18n::set_current(english);
+        assert_eq!(sentence(&outcome), "Sent 3 photo(s): 1 kept, 2 to remove");
+
+        i18n::set_current(arabic);
+        let translated = sentence(&outcome);
+        i18n::set_current(english);
+        assert!(!translated.contains("Sent"), "no English is left: {translated}");
+        assert!(translated.contains('٣'), "the count is in Arabic-Indic digits: {translated}");
+        assert!(translated.contains("أُرسلت"), "the summary is Arabic: {translated}");
+    }
+
+    /// The removal's own words are the catalogue's too: the notice a person hears and the coda
+    /// the Settings section appends are both translated, through the same audited delete path.
+    #[test]
+    fn the_removal_notice_reads_the_interface_language() {
+        let (fixture, mut engine) = scanned("phone-link-remove-ar", 2);
+        let chosen = engine.all_photos()[0].id;
+        let outcome = SendOutcome {
+            sent: 1,
+            removed: 1,
+            to_remove: vec![chosen.0],
+            ..SendOutcome::default()
+        };
+        let english = i18n::from_code("en").expect("English");
+        let arabic = i18n::from_code("ar").expect("Arabic");
+        i18n::set_current(arabic);
+        let removal = remove_from_phone(&mut engine, &outcome, Mode::Move(fixture.root().join("rejects")));
+        i18n::set_current(english);
+        let notice = removal.notice.expect("a removal is announced");
+        assert!(notice.contains("أُزيلت"), "the notice is Arabic: {notice}");
+        assert!(!notice.contains("Removed"), "no English is left: {notice}");
+        assert!(
+            removal.coda.contains('١'),
+            "the coda's count is in Arabic-Indic digits: {}",
+            removal.coda
+        );
+        engine.close().expect("library closes");
     }
 }

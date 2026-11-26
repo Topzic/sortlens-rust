@@ -918,3 +918,20 @@
 	That is not available on the phone yet	아직 휴대폰에서 사용할 수 없습니다
 	Paired with the desktop as {device}	데스크톱과 {device} 이름으로 페어링했습니다
 	Pairing failed: {reason}	페어링하지 못했습니다: {reason}
+	Nothing was sent	보낸 사진이 없습니다
+	Sent {n} photo(s): {kept} kept, {removed} to remove	사진 {n}장을 보냈습니다: {kept}장 유지, {removed}장 제거 예정
+	; {n} failed: {reason}	; {n}개 실패: {reason}
+	; {error}	; {error}
+	 (stopped)	 (중지됨)
+	; removed {n} from this phone	; 이 휴대폰에서 {n}장 제거됨
+	; none of the {n} were removed from this phone	; {n}장 모두 이 휴대폰에서 제거되지 않았습니다
+	; removed {removed} of {chosen} from this phone	; 이 휴대폰에서 {chosen}장 중 {removed}장 제거됨
+	 ({n} could not be removed: {reason})	 ({n}장은 제거하지 못했습니다: {reason})
+	Could not remove {n} photo(s): {reason}	사진 {n}장을 제거하지 못했습니다: {reason}
+	Removed {n} photo(s) from this phone	이 휴대폰에서 사진 {n}장을 제거했습니다
+	; none of the {n} were removed from this phone: {error}	; {n}장 모두 이 휴대폰에서 제거되지 않았습니다: {error}
+	Could not remove {n} photo(s): {error}	사진 {n}장을 제거하지 못했습니다: {error}
+	The desktop at {host}:{port} answered	{host}:{port}의 데스크톱이 응답했습니다
+	No answer from {host}:{port}: {reason}	{host}:{port}에서 응답이 없습니다: {reason}
+	the pairing thread could not start: {error}	페어링 스레드를 시작하지 못했습니다: {error}
+	the test thread could not start: {error}	연결 테스트 스레드를 시작하지 못했습니다: {error}

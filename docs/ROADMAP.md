@@ -1151,10 +1151,16 @@ and none of M9 is closed until the remaining rows are ticked.
   English. Because the shell's audit cannot read an `apps/` crate, the phone carries its own listing:
   `the_hosts_words_have_a_row_in_every_catalogue` reads `lib.rs` and `prefs.rs` back, collects every
   routed key and requires a row in all six catalogues, and
-  `the_hosts_notices_read_the_interface_language` proves the English, the Arabic count and noun. What
-  is still English in this crate is `send.rs`'s own sentences — the run summary, the removal coda and
-  its notice, and the connection test's two answers — and the engine's `error.to_string()` words the
-  host appends unchanged.
+  `the_hosts_notices_read_the_interface_language` proves the English, the Arabic count and noun.
+  The link's own sentences followed (hundred-and-thirty-fifth entry): `send.rs`'s run summary, its three
+  removal codas with their failure parenthesis and both notices, the connection test's two answers and
+  both thread-start failures are seventeen rows across the six catalogues, with counts through
+  `i18n::count` and the clause separators inside the rows so a language joins them with its own marks.
+  The address stays ASCII: `{host}:{port}` is formatted as a wire value, never as a counted one. The
+  phone's listing now reads all three files and asks for the row's presence rather than for a text that
+  differs, because `; {error}` is a separator and a placeholder a language may legitimately word the
+  same way. What stays English in this crate is the engine's `error.to_string()` words the host
+  appends unchanged.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -919,3 +919,20 @@
 	That is not available on the phone yet	هذا غير متاح على الهاتف بعد
 	Paired with the desktop as {device}	تم الاقتران بسطح المكتب باسم {device}
 	Pairing failed: {reason}	فشل الاقتران: {reason}
+	Nothing was sent	لم يُرسَل شيء
+	Sent {n} photo(s): {kept} kept, {removed} to remove	أُرسلت {n} صورة: {kept} أُبقيت، {removed} للإزالة
+	; {n} failed: {reason}	؛ فشل {n}: {reason}
+	; {error}	؛ {error}
+	 (stopped)	 (أُوقف)
+	; removed {n} from this phone	؛ أُزيلت {n} من هذا الهاتف
+	; none of the {n} were removed from this phone	؛ لم تُزَل أي صورة من {n} من هذا الهاتف
+	; removed {removed} of {chosen} from this phone	؛ أُزيلت {removed} من {chosen} من هذا الهاتف
+	 ({n} could not be removed: {reason})	 ({n} تعذّرت إزالتها: {reason})
+	Could not remove {n} photo(s): {reason}	تعذّرت إزالة {n} صورة: {reason}
+	Removed {n} photo(s) from this phone	أُزيلت {n} صورة من هذا الهاتف
+	; none of the {n} were removed from this phone: {error}	؛ لم تُزَل أي صورة من {n} من هذا الهاتف: {error}
+	Could not remove {n} photo(s): {error}	تعذّرت إزالة {n} صورة: {error}
+	The desktop at {host}:{port} answered	استجاب سطح المكتب على {host}:{port}
+	No answer from {host}:{port}: {reason}	لا استجابة من {host}:{port}: {reason}
+	the pairing thread could not start: {error}	تعذّر بدء خيط الاقتران: {error}
+	the test thread could not start: {error}	تعذّر بدء خيط الاختبار: {error}

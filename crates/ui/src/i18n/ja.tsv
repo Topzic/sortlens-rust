@@ -919,3 +919,20 @@
 	That is not available on the phone yet	それはスマートフォンではまだ利用できません
 	Paired with the desktop as {device}	デスクトップと {device} としてペアリングしました
 	Pairing failed: {reason}	ペアリングに失敗しました: {reason}
+	Nothing was sent	何も送信されませんでした
+	Sent {n} photo(s): {kept} kept, {removed} to remove	{n} 枚の写真を送信しました: 保持 {kept} 枚、削除 {removed} 枚
+	; {n} failed: {reason}	；{n} 件失敗: {reason}
+	; {error}	；{error}
+	 (stopped)	（停止しました）
+	; removed {n} from this phone	；この端末から {n} 枚を削除しました
+	; none of the {n} were removed from this phone	；{n} 枚はいずれもこの端末から削除されませんでした
+	; removed {removed} of {chosen} from this phone	；この端末から {chosen} 枚のうち {removed} 枚を削除しました
+	 ({n} could not be removed: {reason})	（{n} 枚は削除できませんでした: {reason}）
+	Could not remove {n} photo(s): {reason}	{n} 枚の写真を削除できませんでした: {reason}
+	Removed {n} photo(s) from this phone	この端末から {n} 枚の写真を削除しました
+	; none of the {n} were removed from this phone: {error}	；{n} 枚はいずれもこの端末から削除されませんでした: {error}
+	Could not remove {n} photo(s): {error}	{n} 枚の写真を削除できませんでした: {error}
+	The desktop at {host}:{port} answered	{host}:{port} のデスクトップが応答しました
+	No answer from {host}:{port}: {reason}	{host}:{port} から応答がありません: {reason}
+	the pairing thread could not start: {error}	ペアリングのスレッドを開始できませんでした: {error}
+	the test thread could not start: {error}	接続テストのスレッドを開始できませんでした: {error}

@@ -7857,6 +7857,63 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   the two thread-start failures — with the same source-reading listing extended to `send.rs`. No release
   run is in flight.
 
+## 2026-11-26 (hundred-and-thirty-fifth) — the link's own sentences speak the interface language
+
+- **Why it came up.** The hundred-and-thirty-fourth entry's Next named `apps/sortlens-mobile/src/send.rs`
+  as SL-L07's last English surface inside the phone crate. The `CI` run for `98b5136` (`45786942689`) came
+  back with all eight jobs green — `ci` on three hosts, `snapshot`, `deny`, `screenshots` and both
+  `mobile` legs — so this is a roadmap slice, not a repair.
+- **What was English.** `send.rs` built every sentence it hands the Settings section with `format!`:
+  `sentence`'s run summary (`Sent 2 photos: 1 kept, 1 to remove`, with a hand-rolled `photo`/`photos`
+  suffix), its `; 1 failed: …` clause and its ` (stopped)` tail; `remove_from_phone`'s three codas, their
+  failure parenthesis, both notices and both `Err` fallbacks; `poll_test`'s two answers; and the two
+  thread-start failures. A phone in Arabic read the shell in Arabic and the link's answer in English.
+- **What is routed.** Seventeen keys per catalogue (102 rows) through `i18n::tr`/`i18n::fmt`, with every
+  count through `i18n::count` so the digits are the reader's: `Nothing was sent`,
+  `Sent {n} photo(s): {kept} kept, {removed} to remove`, `; {n} failed: {reason}`, `; {error}`,
+  ` (stopped)`, the three removal codas, ` ({n} could not be removed: {reason})`, both
+  `Could not remove {n} photo(s)` forms, `Removed {n} photo(s) from this phone`, `The desktop at
+  {host}:{port} answered`, `No answer from {host}:{port}: {reason}` and both thread-start failures. The
+  separators are inside the rows on purpose: a language joins its clauses with its own marks, so `; ` is a
+  Japanese `；` and an Arabic `؛`.
+- **The address is not a count.** `{host}` and `{port}` are wire values, so the port is formatted once as
+  plain ASCII before the row is filled — an Arabic phone must still be able to type `192.168.1.10:52114`
+  and read it back in the same digits.
+- **The audit reads `send.rs` too.** `the_hosts_words_have_a_row_in_every_catalogue` now reads `lib.rs`,
+  `prefs.rs` and `send.rs`, requires all thirty-eight listed keys to be among the routes it finds, and
+  asks for a row in each of the six catalogues. That check changed from "the translation differs from the
+  English" to "the row exists": `; {error}` is a separator and a placeholder, and Korean, Thai and
+  Vietnamese legitimately word it as the English does — the row, not the difference, is the proof a
+  translator has seen it.
+- **Tests.** `the_run_s_sentences_read_the_interface_language` pins `Sent 3 photo(s): 1 kept, 2 to remove`
+  in English and requires the Arabic summary to carry `أُرسلت` and `٣` with no `Sent` left behind.
+  `the_removal_notice_reads_the_interface_language` runs the real audited delete path with two indexed
+  photographs in Arabic: the notice must carry `أُزيلت` and no `Removed`, and the coda's count must be
+  Arabic-Indic. Both fail on the pre-slice source, which had no route there at all; the listing fails the
+  moment a key loses its row in any language.
+- **What stays English.** The engine's own `error.to_string()` text, which the host appends unchanged by
+  design, and `entry.rs`'s `eprintln!` lines, which are developer output rather than interface prose.
+- **Visual verification.** None expected and none taken: no baseline paints a phone notice, no `crates/ui`
+  source changed, and the catalogues are data. `cargo xtask screenshots` was not run for that reason — the
+  run against identical shell sources was green in the hundred-and-thirty-fourth entry's commit. There is
+  no `cargo xtask wasm` in this workspace, and `cargo xtask mobile` needs the Android NDK and Xcode, which
+  this machine does not have; the phone's own crate was compiled and tested here, and the `mobile` job on
+  GitHub is the leg that compiles the device targets.
+- **Gates.** `cargo fmt --all`; `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole suite including
+  the catalogue audit and the two new mobile tests, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`), then `cargo xtask snapshot` and
+  `cargo xtask deny` exit 0. No release workflow was dispatched: host source, catalogue rows and docs, no
+  build or release surface.
+- **Files.** `apps/sortlens-mobile/src/send.rs` (the routes and the two tests),
+  `apps/sortlens-mobile/src/lib.rs` (the listing reads `send.rs`; presence instead of difference),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (seventeen rows each), `docs/ROADMAP.md`,
+  `docs/FEATURES.md` and this file.
+- **Next.** Read the `CI` run for this commit with one `gh run view` (`screenshots` and the two `mobile`
+  legs are the jobs that can disagree with this machine). Then close SL-L07: grep the phone crate and the
+  shell for any painted English that is not the engine's own error text, name the remaining ones in the
+  row, and tick `docs/ROADMAP.md`'s i18n row in the same commit if the audit finds none. No release run is
+  in flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7865,13 +7922,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirty-fourth entry).** Read the `CI` runs for `98b5136`
-(`45786942689`) and for this commit with one `gh run view` each — `screenshots` is the job that
-matters. Then SL-L07's remaining open part: `apps/sortlens-mobile/src/send.rs`'s own sentences — the
-run summary (`sentence`), the removal coda and its notice (`remove_from_phone`), the connection
-test's two answers (`poll_test`) and the two thread-start failures — which the desktop's
-source-reading audit cannot reach. Extend the phone's listing to `send.rs` in the same commit, with
-catalogue rows in all six languages. No release run is in flight.
+**Next tick (after the hundred-and-thirty-fifth entry).** Read this commit's `CI` run with one
+`gh run view` — `screenshots` and the two `mobile` legs are the jobs that can disagree with this
+machine. Then close SL-L07: audit the phone crate and the shell for painted English that is not the
+engine's own error text, name anything still open in the row, and tick `docs/ROADMAP.md`'s i18n row
+in the same commit if the audit finds nothing — `apps/sortlens-mobile`'s `lib.rs`, `prefs.rs` and
+`send.rs` are now all catalogued, and `docs/FEATURES.md` has been reworded to say so. No release run
+is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

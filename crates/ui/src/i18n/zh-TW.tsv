@@ -918,3 +918,20 @@
 	That is not available on the phone yet	這在手機上尚無法使用
 	Paired with the desktop as {device}	已以 {device} 的身分與桌面電腦配對
 	Pairing failed: {reason}	配對失敗：{reason}
+	Nothing was sent	沒有傳送任何內容
+	Sent {n} photo(s): {kept} kept, {removed} to remove	已傳送 {n} 張相片：保留 {kept} 張，待移除 {removed} 張
+	; {n} failed: {reason}	；{n} 項失敗：{reason}
+	; {error}	；{error}
+	 (stopped)	（已停止）
+	; removed {n} from this phone	；已從這支手機移除 {n} 張
+	; none of the {n} were removed from this phone	；這 {n} 張都沒有從這支手機移除
+	; removed {removed} of {chosen} from this phone	；已從這支手機移除 {chosen} 張中的 {removed} 張
+	 ({n} could not be removed: {reason})	（{n} 張無法移除：{reason}）
+	Could not remove {n} photo(s): {reason}	無法移除 {n} 張相片：{reason}
+	Removed {n} photo(s) from this phone	已從這支手機移除 {n} 張相片
+	; none of the {n} were removed from this phone: {error}	；這 {n} 張都沒有從這支手機移除：{error}
+	Could not remove {n} photo(s): {error}	無法移除 {n} 張相片：{error}
+	The desktop at {host}:{port} answered	{host}:{port} 的桌面電腦已回應
+	No answer from {host}:{port}: {reason}	{host}:{port} 沒有回應：{reason}
+	the pairing thread could not start: {error}	無法啟動配對執行緒：{error}
+	the test thread could not start: {error}	無法啟動測試執行緒：{error}

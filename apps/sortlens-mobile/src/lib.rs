@@ -288,17 +288,17 @@ mod tests {
     use sortlens_ui::i18n;
 
     /// Every route the phone host's own words take, read out of the files themselves: `i18n::tr(`
-    /// literals and `i18n::fmt(` templates in `lib.rs` and in `prefs.rs`. The shell's catalogue
-    /// audit in `crates/ui` cannot read this crate, so the phone carries its own listing — a key
-    /// routed here with no row is a notice that quietly stays English, which is the debt SL-L07
-    /// exists to pay.
+    /// literals and `i18n::fmt(` templates in `lib.rs`, `prefs.rs` and `send.rs`. The shell's
+    /// catalogue audit in `crates/ui` cannot read this crate, so the phone carries its own listing —
+    /// a key routed here with no row is a notice that quietly stays English, which is the debt
+    /// SL-L07 exists to pay.
     fn routed_keys() -> Vec<String> {
         let mut keys = Vec::new();
         // A route's literal may sit on the next line, so the whitespace after the parenthesis is
         // skipped before the opening quote is required.
         // Split here rather than on a literal marker, so these two lines do not list themselves.
         let markers = [["i18n", "::tr("].concat(), ["i18n", "::fmt("].concat()];
-        for source in [include_str!("lib.rs"), include_str!("prefs.rs")] {
+        for source in [include_str!("lib.rs"), include_str!("prefs.rs"), include_str!("send.rs")] {
             for marker in &markers {
                 for part in source.split(marker.as_str()).skip(1) {
                     if let Some(rest) = part.trim_start().strip_prefix('"')
@@ -338,18 +338,41 @@ mod tests {
             "{n} photo(s) have something to suggest",
             "Paired with the desktop as {device}",
             "Pairing failed: {reason}",
+            "Nothing was sent",
+            "Sent {n} photo(s): {kept} kept, {removed} to remove",
+            "; {n} failed: {reason}",
+            "; {error}",
+            " (stopped)",
+            "; removed {n} from this phone",
+            "; none of the {n} were removed from this phone",
+            "; removed {removed} of {chosen} from this phone",
+            " ({n} could not be removed: {reason})",
+            "Could not remove {n} photo(s): {reason}",
+            "Removed {n} photo(s) from this phone",
+            "; none of the {n} were removed from this phone: {error}",
+            "Could not remove {n} photo(s): {error}",
+            "The desktop at {host}:{port} answered",
+            "No answer from {host}:{port}: {reason}",
+            "the pairing thread could not start: {error}",
+            "the test thread could not start: {error}",
         ] {
             assert!(keys.iter().any(|seen| seen == key), "the listing lost {key:?}");
         }
         assert!(
-            keys.len() >= 21,
+            keys.len() >= 38,
             "only {} routes found; the audit is not reading the sources",
             keys.len()
         );
         for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
             let lang = i18n::from_code(code).expect("an offered interface language");
             for key in &keys {
-                assert_ne!(i18n::I18N.t(lang, key), key, "{code} has no row for the phone host's {key:?}");
+                // Presence, not difference: a row that is a separator and a placeholder — the
+                // `; {error}` the run's sentence appends — may legitimately read the same in a
+                // language, and the row is what says the translator has seen it.
+                assert!(
+                    i18n::I18N.get(lang, "", key).is_some(),
+                    "{code} has no row for the phone host's {key:?}"
+                );
             }
         }
     }

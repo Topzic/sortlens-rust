@@ -918,3 +918,20 @@
 	That is not available on the phone yet	Tính năng đó chưa có trên điện thoại
 	Paired with the desktop as {device}	Đã ghép nối với máy tính với tên {device}
 	Pairing failed: {reason}	Ghép nối thất bại: {reason}
+	Nothing was sent	Không có gì được gửi
+	Sent {n} photo(s): {kept} kept, {removed} to remove	Đã gửi {n} ảnh: giữ {kept}, xóa {removed}
+	; {n} failed: {reason}	; {n} mục thất bại: {reason}
+	; {error}	; {error}
+	 (stopped)	 (đã dừng)
+	; removed {n} from this phone	; đã xóa {n} khỏi điện thoại này
+	; none of the {n} were removed from this phone	; không ảnh nào trong {n} ảnh được xóa khỏi điện thoại này
+	; removed {removed} of {chosen} from this phone	; đã xóa {removed} trong {chosen} khỏi điện thoại này
+	 ({n} could not be removed: {reason})	 ({n} ảnh không xóa được: {reason})
+	Could not remove {n} photo(s): {reason}	Không xóa được {n} ảnh: {reason}
+	Removed {n} photo(s) from this phone	Đã xóa {n} ảnh khỏi điện thoại này
+	; none of the {n} were removed from this phone: {error}	; không ảnh nào trong {n} ảnh được xóa khỏi điện thoại này: {error}
+	Could not remove {n} photo(s): {error}	Không xóa được {n} ảnh: {error}
+	The desktop at {host}:{port} answered	Máy tính tại {host}:{port} đã phản hồi
+	No answer from {host}:{port}: {reason}	Không có phản hồi từ {host}:{port}: {reason}
+	the pairing thread could not start: {error}	không khởi động được luồng ghép nối: {error}
+	the test thread could not start: {error}	không khởi động được luồng kiểm tra: {error}
