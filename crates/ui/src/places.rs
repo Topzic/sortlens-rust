@@ -19,6 +19,16 @@ use sortlens_geo::tiles::TileSet;
 use walkers::sources::Attribution;
 use walkers::{Tile, TileId, TilePiece, Tiles};
 
+/// Screen points per zoom-0 world pixel from [`sortlens_geo::project`], on a MapLibre camera.
+///
+/// `project` divides the world into 256 pixels at zoom 0, which is the offline map's scale. MapLibre's
+/// zoom is a world 512 points wide at zoom 0, so the same zoom number puts an offline-scaled pin halfway
+/// from the centre to the place the online picture shows.
+#[must_use]
+pub fn online_screen_scale(zoom: f64) -> f64 {
+    zoom.exp2() * 2.0
+}
+
 /// The deepest zoom Places offers when no tile set says otherwise.
 ///
 /// The shipped coastline has no detail this deep, but the pins do: zooming in is how a cluster of
@@ -359,6 +369,10 @@ impl OnlineMap {
             options: Options {
                 min_zoom: Some(1.0),
                 max_zoom: Some(f64::from(MAX_ZOOM)),
+                // The shell moves this camera with the same gestures as the offline map. Leaving gestures on
+                // here would pan the picture while the pins stayed on the camera-at-rest, which is all the
+                // public record reports until the gesture ends.
+                interactive: Some(false),
                 // Places is a two-dimensional map for now: a pin's geographic point must be the point a click
                 // reaches, and a turned or pitched map would need a second pin geometry to keep that true.
                 drag_rotate: Some(false),
@@ -380,6 +394,38 @@ impl OnlineMap {
     #[must_use]
     pub fn style(&self) -> OpenFreeMapStyle {
         self.style
+    }
+
+    /// Aim the map at `centre` and `zoom` on its next frame.
+    ///
+    /// The shell calls this with the camera it is about to draw the pins from. The map does not take
+    /// its own gestures, so this is the only way the picture moves, and the pins cannot drift off it.
+    pub fn sync_camera(&mut self, centre: LatLon, zoom: f64) {
+        let mut inputs = self.map.inputs().clone();
+        let same_place = (inputs.camera.center[0] - centre.lon).abs() < 1e-9 && (inputs.camera.center[1] - centre.lat).abs() < 1e-9;
+        let same_zoom = (inputs.camera.zoom - zoom).abs() < 1e-6;
+        if same_place && same_zoom && inputs.camera.bearing == 0.0 && inputs.camera.pitch == 0.0 {
+            return;
+        }
+        inputs.camera.center = [centre.lon, centre.lat];
+        inputs.camera.zoom = zoom;
+        inputs.camera.bearing = 0.0;
+        inputs.camera.pitch = 0.0;
+        self.map.set_inputs(inputs);
+    }
+
+    /// Where [`sync_camera`](Self::sync_camera) last aimed the map.
+    #[cfg(test)]
+    fn aim(&self) -> (LatLon, f64) {
+        let camera = &self.map.inputs().camera;
+        let place = LatLon::new(camera.center[1], camera.center[0]).unwrap_or(LatLon { lat: 0.0, lon: 0.0 });
+        (place, camera.zoom)
+    }
+
+    /// Whether the map widget pans and zooms from the pointer itself.
+    #[cfg(test)]
+    fn follows_pointer(&self) -> bool {
+        self.map.inputs().options.interactive != Some(false)
     }
 
     /// Replace the style, keeping the camera.
@@ -1340,6 +1386,37 @@ mod tests {
         });
         output.textures_delta.clear();
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_online_pin_uses_maplibres_512_point_world() {
+        // Zoom 0: one pixel of the 256-point projection is two screen points.
+        assert!((online_screen_scale(0.0) - 2.0).abs() < 1e-9);
+        // Zoom 10: the world is 512 × 2^10 points wide, and project() counts 256ths of that world.
+        let world_points = 512.0 * 1024.0;
+        assert!((online_screen_scale(10.0) - world_points / 256.0).abs() < 1e-6);
+        // A place one 256-world-pixel east of centre is that many screen points to the right.
+        let east = 1.0 * online_screen_scale(10.0);
+        assert!((east - 2048.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_online_map_is_aimed_by_the_shell() {
+        let at = sortlens_geo::LatLon::new(44.0, -77.5).expect("a place");
+        let mut map = OnlineMap::new(OpenFreeMapStyle::Liberty, at, 11.0);
+        assert!(!map.follows_pointer(), "the picture must not move without the pins");
+        let (place, zoom) = map.aim();
+        assert!((place.lat - at.lat).abs() < 1e-9 && (place.lon - at.lon).abs() < 1e-9);
+        assert!((zoom - 11.0).abs() < 1e-9);
+        let closer = sortlens_geo::LatLon::new(44.01, -77.48).expect("a place");
+        map.sync_camera(closer, 13.0);
+        let (place, zoom) = map.aim();
+        assert!((place.lat - closer.lat).abs() < 1e-9 && (place.lon - closer.lon).abs() < 1e-9);
+        assert!((zoom - 13.0).abs() < 1e-6);
+        map.sync_camera(closer, 13.0);
+        let (again, zoom_again) = map.aim();
+        assert!((again.lat - place.lat).abs() < 1e-12 && (again.lon - place.lon).abs() < 1e-12);
+        assert!((zoom_again - zoom).abs() < 1e-12);
     }
 
     #[test]
