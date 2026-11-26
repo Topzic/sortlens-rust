@@ -3366,6 +3366,21 @@ fn quick_actions(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
 /// exact height built from this number, so a row cannot grow without the panel that pins it.
 const NAV_ROW_H: f32 = 24.0;
 
+/// Whether a row of the given height at the cursor lies wholly inside the clip it would be painted with.
+///
+/// The sections scroll inside a viewport that ends wherever the pinned foot leaves room, and that edge is
+/// not a row boundary: the row that straddles it was painted as half its own text above the foot's hairline
+/// (the eighty-first entry's `sea` row). A row that does not fit is skipped instead — its space is still
+/// claimed, so the sections keep their full extent and a wheel still reaches every row — and a half row at
+/// the top edge, after a scroll, is skipped for the same reason. The claim is exact rather than a snapped
+/// grid: every row asks the clip it is about to paint into, so the rule holds at any panel height and at
+/// any scroll offset.
+fn whole_row(ui: &Ui, height: f32) -> bool {
+    let top = ui.cursor().top();
+    let clip = ui.clip_rect();
+    top >= clip.top() - 0.5 && top + height <= clip.bottom() + 0.5
+}
+
 /// The hairline above the foot and the space it needs, painted as one band so every point of the
 /// foot's height is accounted for below.
 const FOOT_HAIRLINE: f32 = 9.0;
@@ -11808,7 +11823,11 @@ fn nav_heading(ui: &mut Ui, t: &Tokens, title: &str, open: bool) -> bool {
     let caption = title.to_uppercase();
     let font = t.font(9.5);
     let galley = ui.painter().layout_no_wrap(caption.clone(), font.clone(), t.text_faint);
+    let whole = whole_row(ui, 16.0);
     let (rect, _) = ui.allocate_exact_size(vec2(14.0 + galley.size().x + 4.0, 16.0), Sense::hover());
+    if !whole {
+        return false;
+    }
     let response = ui.interact(rect, ui.scope_id().with(("sidebar_section", title)), Sense::click());
     let tint = if response.hovered() { t.text_muted } else { t.text_faint };
     if response.hovered() {
@@ -11880,7 +11899,16 @@ fn keyword_section_header(ui: &mut Ui, t: &Tokens, state: &mut UiState, order: &
 
 fn nav_row(ui: &mut Ui, t: &Tokens, icon: crate::icons::Icon, label: &str, count: &str, selected: bool) -> egui::Response {
     let height = NAV_ROW_H;
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    // A row is painted whole or not at all — see `whole_row`. The space is claimed either way, and a
+    // skipped row is not clickable: a sliver of a row is a target nobody aimed at.
+    let whole = whole_row(ui, height);
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(ui.available_width(), height),
+        if whole { Sense::click() } else { Sense::hover() },
+    );
+    if !whole {
+        return response;
+    }
     let spoken = if count.is_empty() {
         label.to_string()
     } else {
@@ -17951,6 +17979,185 @@ mod tests {
             "the foot moved with the sections ({:?} → {:?}) instead of staying pinned",
             foot_before,
             foot_after
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The eighty-first entry: the sections' scroll clip ends where the pinned foot leaves room, and that
+    /// edge is not a row boundary, so the keyword row under `sea` was painted as half its own text.
+    ///
+    /// The claim is exact: **every text the sidebar paints lies wholly inside the clip it carries**, at rest
+    /// and after a scroll. The fortieth entry's sweep asked only that a text intersect its clip, which a
+    /// half row does — the clip was legal and wrong. Two things keep it from passing vacuously: the same
+    /// library is painted at a height where every row fits, so the short frame really is hiding rows, and a
+    /// wheel event changes which rows are painted while the invariant still holds.
+    #[test]
+    fn the_sidebar_paints_whole_rows_and_never_half_of_one() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-whole-rows-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let root = dir.join("photos");
+        std::fs::create_dir_all(root.join("Trip")).expect("root");
+        std::fs::create_dir_all(root.join("Studio")).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-whole-rows");
+        for name in ["Trip/a.jpg", "Trip/b.jpg", "Studio/c.jpg", "Studio/d.jpg"] {
+            std::fs::copy(fixture.jpeg(name, [90, 120, 200], 64, 64), root.join(name)).expect("copy");
+        }
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 4, "four photos indexed");
+        // The library the baselines paint: a rating, two keywords and a collection, so the sections have
+        // rows under the fold at 1440×900 rather than a page that ends before the foot.
+        engine.rate(&ids[0..2], 5).expect("rate");
+        engine.set_tag(&ids[0..1], "sea", true).expect("keyword");
+        engine.set_tag(&ids[2..3], "sea", true).expect("keyword");
+        engine.set_tag(&ids[3..4], "portrait", true).expect("keyword");
+        engine.set_tag(&ids[1..2], "shoreline", true).expect("keyword");
+        engine.set_tag(&ids[2..3], "golden hour", true).expect("keyword");
+        let keepers = engine.create_collection("Keepers").expect("collection");
+        engine.add_to_collection(&ids[0..2], keepers).expect("members");
+
+        let t = ThemeKind::Charcoal.tokens();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.root = Some(root.to_string_lossy().to_string());
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+
+        fn texts(output: &egui::FullOutput) -> Vec<(String, Rect, Rect)> {
+            fn walk(shape: &egui::Shape, clip: Rect, sink: &mut Vec<(String, Rect, Rect)>) {
+                match shape {
+                    egui::Shape::Text(text) => {
+                        sink.push((text.galley.job.text.clone(), text.visual_bounding_rect(), clip));
+                    }
+                    egui::Shape::Vec(shapes) => {
+                        for shape in shapes {
+                            walk(shape, clip, sink);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &output.shapes {
+                walk(&clipped.shape, clipped.clip_rect, &mut sink);
+            }
+            sink
+        }
+        let sidebar = |output: &egui::FullOutput, screen: Rect| -> Vec<(String, Rect, Rect)> {
+            let column_bottom = screen.bottom() - t.bottom_bar_h;
+            texts(output)
+                .into_iter()
+                .filter(|(_, rect, _)| rect.center().x <= t.left_w && rect.center().y <= column_bottom)
+                .collect()
+        };
+        let assert_whole = |screen: Rect, painted: &[(String, Rect, Rect)], when: &str| {
+            for (text, rect, clip) in painted {
+                assert!(
+                    clip.expand(0.51).contains_rect(*rect),
+                    "{when}: `{text}` was painted at {rect:?}, straddling the {clip:?} it was clipped to \
+                     ({screen:?}) — half a row is a row nobody can read"
+                );
+            }
+        };
+        let frame = |state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, engine, thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        let short = Rect::from_min_size(pos2(0.0, 0.0), vec2(1440.0, 900.0));
+        let rest = frame(
+            &mut state,
+            &mut engine,
+            &mut thumbs,
+            egui::RawInput {
+                screen_rect: Some(short),
+                ..egui::RawInput::default()
+            },
+        );
+        let painted = sidebar(&rest, short);
+        assert_whole(short, &painted, "at rest");
+        assert!(
+            painted.iter().any(|(text, _, _)| text == "sea"),
+            "the keyword rows are part of the frame: {:?}",
+            painted.iter().map(|(text, _, _)| text.as_str()).collect::<Vec<_>>()
+        );
+
+        // The same library in a window tall enough for every row: if it fits there and not at 900 points,
+        // the short frame is really hiding rows and the invariant above is not passing on an empty list.
+        let tall = Rect::from_min_size(pos2(0.0, 0.0), vec2(1440.0, 1600.0));
+        let mut tall_state = UiState::new(ThemeKind::Charcoal, 0.0);
+        tall_state.root = state.root.clone();
+        let roomy = frame(
+            &mut tall_state,
+            &mut engine,
+            &mut thumbs,
+            egui::RawInput {
+                screen_rect: Some(tall),
+                ..egui::RawInput::default()
+            },
+        );
+        let roomy_painted = sidebar(&roomy, tall);
+        assert_whole(tall, &roomy_painted, "a window with room");
+        assert!(
+            roomy_painted.len() > painted.len(),
+            "the sections must overflow at 900 points ({} texts) and fit at 1600 ({}), or this proves nothing",
+            painted.len(),
+            roomy_painted.len()
+        );
+
+        // A wheel event over the sidebar moves the sections under the same clip; the rows at both edges are
+        // then the ones that used to be cut, and they are skipped rather than painted in halves.
+        let scroll = egui::RawInput {
+            screen_rect: Some(short),
+            events: vec![
+                egui::Event::PointerMoved(pos2(120.0, 320.0)),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, -260.0),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Wheel,
+                    modifiers: egui::Modifiers::default(),
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        let mut output = frame(&mut state, &mut engine, &mut thumbs, scroll);
+        for _ in 0..12 {
+            output = frame(
+                &mut state,
+                &mut engine,
+                &mut thumbs,
+                egui::RawInput {
+                    screen_rect: Some(short),
+                    ..egui::RawInput::default()
+                },
+            );
+        }
+        let scrolled = sidebar(&output, short);
+        assert_whole(short, &scrolled, "after a scroll");
+        let before: Vec<(&str, i32)> = painted.iter().map(|(text, rect, _)| (text.as_str(), rect.min.y as i32)).collect();
+        assert!(
+            scrolled
+                .iter()
+                .any(|(text, rect, _)| !before.contains(&(text.as_str(), rect.min.y as i32))),
+            "the wheel must change which rows are painted, or the scrolled frame proves nothing"
         );
 
         let _ = std::fs::remove_dir_all(&dir);

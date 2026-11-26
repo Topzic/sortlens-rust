@@ -213,7 +213,11 @@ sections above them grow.
 The sections scroll in the room the foot leaves, and they are clipped at the hairline rather than painted
 across it: a short window (620 points is the reported case) has more scopes, folders and keywords than the
 panel can show, and a section row drawn over the utilities makes the one strip that must always be
-reachable unreadable. The four utility rows stay put while the sections move under them.
+reachable unreadable. The four utility rows stay put while the sections move under them. The clip ends
+between rows, not through one: the room the foot leaves is not a multiple of a row's height, so a row —
+or a section heading — that does not lie wholly inside the clip is not painted at all, at either edge,
+while its space stays claimed so a wheel still reaches it. A row cut through its own text is a row nobody
+can read, and the section list ends on its last whole row instead.
 
 Each row *is* a command palette row: its label and its shortcut are the command registry's (`library.deleted`,
 `library.health`, `library.history`, `app.shortcuts`) and clicking it runs the same handler `⌘K` does. That is

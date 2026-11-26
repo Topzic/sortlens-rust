@@ -7450,6 +7450,45 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   compares the lavapipe set — so the next commit's run is read first, as always. No release run is in
   flight.
 
+## 2026-11-26 (eighty-second) — the sidebar's clip ends on a whole row, at both edges and at any height
+
+- **Why it came up.** The eighty-first entry named it as the next tick's first slice: the sections' scroll
+  clip ends wherever the pinned foot leaves room, which is not a row boundary, so at 1440×900 the keyword row
+  under `sea` was painted as the top half of its own text. The fortieth entry's sweep could not see it — it asked
+  whether a painted text *intersects* its clip, and half a row does.
+- **Shipped.** `whole_row(ui, height)` asks the question exactly: is the row at the cursor wholly inside
+  `ui.clip_rect()`? `nav_row` and `nav_heading` ask it before they paint. A row that does not fit claims its
+  space and paints nothing, so the sections keep their full extent and a wheel still reaches the rows under the
+  fold; a skipped row is allocated with `Sense::hover()` instead of `Sense::click()`, because a sliver of a row
+  is a target nobody aimed at. The rule is checked against the clip rather than a precomputed grid, so it holds
+  at every panel height and at the top edge too, after a scroll.
+- **Tests.** `the_sidebar_paints_whole_rows_and_never_half_of_one` paints the baselines' library (four photos in
+  two folders, three keywords, a collection) through the whole shell at 1440×900 and asserts every painted
+  sidebar text is *contained* in the clip it carries — at rest and after a settled wheel event. Two things keep
+  it honest: the same library is painted at 1440×1600 and the short frame must paint fewer texts (so the rows
+  really are being hidden), and the scrolled frame must paint a row the resting frame did not. It fails on the
+  old paint both ways: at rest `COLLECTIONS` straddles the clip, after the scroll `QUICK ACTIONS` does.
+- **Visual verification.** 40 reference frames repainted (all 29 scenes, both themes, plus high contrast). Before
+  adoption every pair's changed-pixel box was computed, not eyeballed: each one is a single row's band in the
+  sections' column — `18,706–244,709` at 1440×900 (42–87 pixels: the tops of the skipped row's glyphs),
+  `10,598–252,609` at 1200×800, `18,417–246,427` at 900×620, and `1195,706–1419,709` in the RTL pair, mirrored
+  with the sidebar. No frame changed outside that band. `short-sidebar-charcoal` and
+  `library-justified-charcoal` were then read at 3×: the sections end on `Rated 8` and on `sea 2` respectively,
+  the hairline and the four utility rows below them, and no cut glyphs. `cargo xtask screenshots`: 29 passed,
+  0 failed, 1 ignored.
+- **Docs.** ROADMAP 3B.6 (d) gained the revisit in the same commit, and UX.md §4.4 now says the clip ends between
+  rows rather than through one.
+- **Gates.** `cargo xtask ci` (the first run stopped at `cargo fmt --check`, fixed with `cargo fmt --all` and the
+  full gate re-run), `cargo xtask snapshot`, `cargo xtask deny` green. No `cargo xtask wasm` exists in this
+  workspace; `cargo xtask mobile` cannot run here (no NDK, no Xcode) and no phone code changed. No release
+  workflow was dispatched: this is UI source and PNGs, no build or release surface.
+- **Next.** Read this commit's `CI` run first. The committed `lavapipe/` set is now stale for the same 40
+  scenes — this machine painted the reference set, and only the runner can paint the other — so the
+  `screenshots` job is expected to hand over its `screenshot-set` artifact, which is adopted with
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots` after each frame's changed box is
+  computed the same way. Then SL-L07's `Moved` receipt, the search field's `Search photos or Ctrl+K` hint and
+  the bottom bar's `No selection`.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7458,17 +7497,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the eighty-first entry).** Read this commit's `CI` run with one `gh run view` — the
-`screenshots` job is the only one that can be red about a frame, and the lavapipe set this commit adopts
-is exactly what the runner compares. Then the sidebar's half-row clip the eighty-first entry named: at
-1440×900 the keyword row under `sea` is cut through its text above the pinned foot, because the scroll
-clip ends wherever the foot leaves room rather than on a row boundary. Fix it by clipping whole rows and
-extend the fortieth entry's visibility sweep to demand a row is either fully inside its clip or not
-painted at all; `short-sidebar-charcoal`/`-paper` and `library-justified-*` are the frames that move.
-Then finish SL-L07's canvas: the `Moved` receipt (title, the sentence under it, `and {n} more`, `Put them
-back` and `Done`) with a paint test that builds a real receipt — one indexed photo and one move — then
-the search field's `Search photos or Ctrl+K` hint and the bottom bar's `No selection`. No release run is
-in flight.
+**Next tick (after the eighty-second entry).** Read this commit's `CI` run with one `gh run view` — the
+`screenshots` job is the only one that can be red about a frame. The committed `lavapipe/` set is stale for
+the same 40 scenes the reference set had repainted (only the runner paints that set), so the expected outcome
+is a red `screenshots` job whose `screenshot-set` artifact holds the frames to adopt:
+`gh run download <id> -n screenshot-set -D .ci-shots`, then
+`SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, reading each frame's changed-pixel
+box first — the eighty-second entry's diff is a single row's band in the sections' column, and anything outside
+it is not this slice. Then finish SL-L07's canvas: the `Moved` receipt (title, the sentence under it,
+`and {n} more`, `Put them back` and `Done`) with a paint test that builds a real receipt — one indexed photo
+and one move — then the search field's `Search photos or Ctrl+K` hint and the bottom bar's `No selection`. No
+release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

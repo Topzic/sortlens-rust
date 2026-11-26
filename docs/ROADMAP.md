@@ -1429,7 +1429,16 @@ textured rectangles in the top bar, bottom bar and sidebar. All 18 baselines reg
   `Recently Deleted` does not move a point. `short-sidebar-charcoal`/`-paper` at 1280×620 added; `filters-*` and
   `no-matches-*` regenerated and read — their only change is that the `+ New collection` row, which used to sit on
   the hairline, is now clipped above it. `docs/UX.md` §4.4 updated: the sections scroll, they are still not
-  collapsible or reorderable
+  collapsible or reorderable — **revisited 2026-11-26 (eighty-second)**: that bottom edge was legal and wrong.
+  It ends wherever the pinned foot leaves room, and that is not a row boundary, so the keyword row under `sea`
+  was painted as the top half of its own text. `whole_row` now asks every row and every section heading whether
+  it lies wholly inside the clip it is about to paint into; one that does not is skipped — its space is still
+  claimed, so the sections keep their extent and a wheel still reaches it — and a skipped row is not clickable,
+  because a sliver of a row is a target nobody aimed at. The new test paints the library at 1440×900 and asserts
+  every painted sidebar text is *contained* in its clip, at rest and after a scroll; it refuses to pass on a
+  window tall enough for every row, and it fails on the old paint (at rest `COLLECTIONS`, after a scroll
+  `QUICK ACTIONS`). 40 reference frames repainted, and every one's changed-pixel box lies inside a single row's
+  band of the sections' column (`18,706–244,709` at 1440×900, mirrored to `1195,706–1419,709` in the RTL pair).
 - [x] 3B.6 (e) The canvas header keeps its name whole on a narrow canvas — **shipped 2026-11-23 (part 7)**: the
   header was a plain `horizontal`, so the right block was handed the width the left block left over and, when that
   number ran small, was laid out from a cursor already past the right edge — at 900 px with both docks open the
