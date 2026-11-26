@@ -606,6 +606,13 @@
 	Indexing {folder}…	กำลังทำดัชนี {folder}…
 	Exporting {n} file(s)…	กำลังส่งออก {n} ไฟล์…
 	Back	ย้อนกลับ
+	The server is already running	เซิร์ฟเวอร์กำลังทำงานอยู่แล้ว
+	Stop the server before revoking a device	หยุดเซิร์ฟเวอร์ก่อนเพิกถอนอุปกรณ์
+	That device is not paired any more	อุปกรณ์นั้นไม่ได้จับคู่อีกต่อไป
+	Could not find this app: {error}	ไม่พบแอปนี้: {error}
+	{path} was not found — build it with the rest of the workspace	ไม่พบ {path} — สร้างพร้อมส่วนที่เหลือของเวิร์กสเปซ
+	the app has no containing directory	แอปนี้ไม่มีไดเรกทอรีที่บรรจุอยู่
+	unknown	ไม่ทราบ
 	Remove keyword from this photo	เอาคำค้นออกจากรูปนี้
 	Add keyword to this photo	เพิ่มคำค้นให้รูปนี้
 	Add	เพิ่ม

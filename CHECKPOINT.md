@@ -7719,6 +7719,44 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   can disagree with this machine). Then the four `sync.rs` sentences through `i18n::fmt`/`i18n::tr`, added
   to the host's listing the same way. No release run is in flight.
 
+## 2026-11-26 (eighty-fourth) — the server supervision's refusals speak the interface language
+
+- **Why it came up.** The eighty-third entry left the last English the host builds itself: `sync.rs`'s
+  refusals and missing-binary sentences, which the shell paints verbatim through `UiState::notice`
+  (`Action::ServerStart` and `Action::ServerRevoke` hand it the `Err` untouched), so nothing in the
+  shell's catalogue audit could ever see them.
+- **Shipped.** `Sync::start`'s `The server is already running`, `Sync::revoke`'s `Stop the server before
+  revoking a device` and `That device is not paired any more`, `locate`'s `Could not find this app:
+  {error}`, `{path} was not found — build it with the rest of the workspace` and `the app has no
+  containing directory`, and `format_day`'s `unknown` date all go through `i18n::tr`/`i18n::fmt`. The
+  first of the two missing-binary rows was lower case in the code (`could not find this app:`); it now
+  starts with a capital like every other notice, which is what the row's key says.
+- **The audit now reads both host files.** `routed_keys()` in `main.rs` reads `main.rs` and `sync.rs`
+  through `include_str!` and collects the routes from both, so a route added in either file with no
+  catalogue row fails `the_hosts_words_have_a_row_in_every_catalogue` instead of painting English. The
+  listing grew from 46 to 53 keys — the seven above — and all six catalogues carry a row for each.
+- **Tests.** `the_device_list_is_the_token_file_and_revoke_needs_a_stopped_server` and
+  `revoke_while_the_server_runs_is_refused_by_name` keep their English assertions and now also pin the
+  refusals in Arabic: `That device is not paired any more`, `Stop the server before revoking a device`
+  and a second `start`'s `The server is already running` must each differ from the English and carry
+  Arabic letters. A literal left in `sync.rs` fails both, and `the_hosts_words_have_a_row_in_every_catalogue`
+  fails if a catalogue falls behind. The running-server test now proves `start` twice is named rather than
+  silently ignored, which no test asked before.
+- **Visual verification.** None expected and none taken: no baseline paints a host notice or a device
+  list's date, and this slice changes no shell source. `cargo xtask screenshots` was not run for that
+  reason — the previous tick ran it against identical host-only changes and every frame matched its bytes.
+- **Gates.** `cargo xtask ci` stopped at `cargo fmt --check` (a long `map_err` chain and two trailing
+  newlines); `cargo fmt --all` was applied and the full gate re-run per the eighty-second entry's
+  precedent. `cargo xtask snapshot` and `cargo xtask deny` green. There is no `cargo xtask wasm` in this
+  workspace; `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and no phone code changed.
+  No release workflow was dispatched: host source, catalogue rows and docs, no build or release surface.
+- **What remains on SL-L07.** The engine's own error and `Op` description sentences stay the engine's
+  English by design, because the shell re-words every one it paints. The phone's canvas chrome named in
+  `FEATURES.md` is the row's open part; it is Phase 4 item 3's surface, not a catalogue gap.
+- **Next.** Read this commit's `CI` run first (`screenshots` is the job that can disagree with this
+  machine, and it compares the lavapipe set). Then the canvas chrome `FEATURES.md` names as SL-L07's
+  open part — the areas the shell still paints from engine strings rather than catalogue rows — one
+  surface per tick, each with a paint test. No release run is in flight.
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7727,11 +7765,11 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the eighty-third entry).** Read this commit's `CI` run with one `gh run view` —
-`screenshots` is the job that matters. Then the host's four remaining English sentences in
-`apps/sortlens/src/sync.rs` (`The server is already running`, `Stop the server before revoking a device`,
-`That device is not paired any more`, `Could not find this app: {error}`), through `i18n::tr`/`i18n::fmt`,
-added to the host's listing and tested the same way. No release run is in flight.
+**Next tick (after the eighty-fourth entry).** Read this commit's `CI` run with one `gh run view` —
+`screenshots` is the job that matters. Then the canvas chrome `docs/FEATURES.md` names as SL-L07's open
+part — the areas the shell still paints from engine strings rather than catalogue rows — one surface per
+tick, each with a paint test. The host now builds no English of its own outside the engine's sentences.
+No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

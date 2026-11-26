@@ -860,6 +860,13 @@
 	The library could not be opened: {error}	Không mở được thư viện: {error}
 	Import a shortcut set	Nhập bộ phím tắt
 	Export a shortcut set	Xuất bộ phím tắt
+	The server is already running	Máy chủ đang chạy sẵn rồi
+	Stop the server before revoking a device	Dừng máy chủ trước khi thu hồi một thiết bị
+	That device is not paired any more	Thiết bị đó không còn được ghép nối nữa
+	Could not find this app: {error}	Không tìm thấy ứng dụng này: {error}
+	{path} was not found — build it with the rest of the workspace	Không tìm thấy {path} — hãy dựng nó cùng phần còn lại của workspace
+	the app has no containing directory	Ứng dụng không có thư mục chứa nó
+	unknown	không rõ
 	Shortcut set	Bộ phím tắt
 	The set could not be read: {error}	Không đọc được bộ này: {error}
 	The set could not be written: {error}	Không ghi được bộ này: {error}

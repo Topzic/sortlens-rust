@@ -815,6 +815,13 @@
 	Drop the restore record; the files stay where they are	復元記録だけを消します。ファイルはそのまま残ります
 	Restore	元に戻す
 	Empty bin…	箱を空にする…
+	The server is already running	サーバーはすでに実行中です
+	Stop the server before revoking a device	デバイスの解除の前にサーバーを停止してください
+	That device is not paired any more	そのデバイスはもうペアリングされていません
+	Could not find this app: {error}	このアプリが見つかりません: {error}
+	{path} was not found — build it with the rest of the workspace	{path} が見つかりません — ワークスペースの残りと一緒にビルドしてください
+	the app has no containing directory	アプリを含むディレクトリがありません
+	unknown	不明
 	Forget every restore record; files on disk are untouched	すべての復元記録を消します。ディスク上のファイルは変更されません
 	Files sent to the system Trash are restored from the Trash itself.	システムのゴミ箱へ送られたファイルは、ゴミ箱から復元します。
 	Restored {n} photo(s)	{n} 枚の写真を元に戻しました

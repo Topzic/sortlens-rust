@@ -1128,8 +1128,13 @@ and none of M9 is closed until the remaining rows are ticked.
   from {folder}`, the reveal and `Could not run {program}: {error}` failures and the phone-only fallback
   are rows in all six catalogues — 21 new rows each, with counts through `i18n::count`. The pack toasts
   and the tag toast reuse the change report's and the shell's own rows rather than wording the same event
-  twice. What remains on this row is `apps/sortlens/src/sync.rs`'s four English refusal sentences (the next
-  tick's slice); the engine's own error and `Op` description sentences stay the engine's English by design,
+  twice. The server supervision's own sentences followed (hundred-and-thirty-second entry):
+  `apps/sortlens/src/sync.rs`'s already-running and revoke-while-running refusals, the not-paired answer,
+  the missing-binary two (`Could not find this app: {error}` and `{path} was not found — build it with the
+  rest of the workspace`), the missing containing directory and the device list's `unknown` date go
+  through `i18n::tr`/`i18n::fmt`, and the host's own listing now reads `sync.rs` as well as `main.rs`,
+  so a route added in either file with no catalogue row fails the audit instead of painting English.
+  The engine's own error and `Op` description sentences stay the engine's English by design,
   because the shell re-words every one it paints, and a host notice forwarding `error.to_string()` shows
   those words rather than a catalogue miss.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

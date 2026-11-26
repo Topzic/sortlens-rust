@@ -688,23 +688,25 @@ mod tests {
         assert_eq!(title_bar_height(&Frame::Native), None);
     }
 
-    /// Every route this file's own words take, read out of the file itself: `i18n::tr(` literals and
-    /// `i18n::fmt(` templates. The shell's catalogue audit cannot reach this crate, so the host
-    /// carries its own listing — a key routed here with no row is a notice that quietly stays
-    /// English, which is exactly the debt SL-L07 exists to pay.
+    /// Every route the host's own words take, read out of the files themselves: `i18n::tr(`
+    /// literals and `i18n::fmt(` templates in `main.rs` and in `sync.rs`, which is the desktop's
+    /// server supervision rather than its window. The shell's catalogue audit cannot reach this
+    /// crate, so the host carries its own listing — a key routed here with no row is a notice that
+    /// quietly stays English, which is exactly the debt SL-L07 exists to pay.
     fn routed_keys() -> Vec<String> {
-        let source = include_str!("main.rs");
         let mut keys = Vec::new();
         // A route's literal may sit on the next line, so the whitespace after the parenthesis is
         // skipped before the opening quote is required.
         // Split here rather than on a literal marker, so these two lines do not list themselves.
         let markers = [["i18n", "::tr("].concat(), ["i18n", "::fmt("].concat()];
-        for marker in markers {
-            for part in source.split(marker.as_str()).skip(1) {
-                if let Some(rest) = part.trim_start().strip_prefix('"')
-                    && let Some(end) = rest.find('"')
-                {
-                    keys.push(rest[..end].to_owned());
+        for source in [include_str!("main.rs"), include_str!("sync.rs")] {
+            for marker in &markers {
+                for part in source.split(marker.as_str()).skip(1) {
+                    if let Some(rest) = part.trim_start().strip_prefix('"')
+                        && let Some(end) = rest.find('"')
+                    {
+                        keys.push(rest[..end].to_owned());
+                    }
                 }
             }
         }
@@ -768,6 +770,14 @@ mod tests {
             "Removed {n} photos from {folder}",
             "Send to desktop is the phone app's; this library is the desktop",
             "{n} photo(s) have something to suggest",
+            // `sync.rs`: the server-supervision refusals and the binary it could not find.
+            "The server is already running",
+            "Stop the server before revoking a device",
+            "That device is not paired any more",
+            "Could not find this app: {error}",
+            "{path} was not found — build it with the rest of the workspace",
+            "the app has no containing directory",
+            "unknown",
         ] {
             assert!(keys.iter().any(|seen| seen == key), "the listing lost {key:?}");
         }

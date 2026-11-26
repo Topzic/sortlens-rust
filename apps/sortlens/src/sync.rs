@@ -7,7 +7,7 @@
 
 use sortlens_remote::supervise::{ServerState, Supervisor};
 use sortlens_remote::tokens::TokenStore;
-use sortlens_ui::{DeviceRow, ServerSurface};
+use sortlens_ui::{DeviceRow, ServerSurface, i18n};
 use std::path::{Path, PathBuf};
 
 /// The library's sync server, owned by the desktop.
@@ -26,7 +26,7 @@ impl Sync {
     /// Spawn the server binary that sits beside this app, against `library`.
     pub fn start(&mut self, library: &Path) -> Result<(), String> {
         if self.supervisor.is_some() {
-            return Err("The server is already running".to_owned());
+            return Err(i18n::tr("The server is already running").to_owned());
         }
         let exe = locate()?;
         match Supervisor::spawn(&exe, library) {
@@ -67,13 +67,13 @@ impl Sync {
     /// the running server would resurrect the row on its next write-through.
     pub fn revoke(&self, library: &Path, token: &str) -> Result<(), String> {
         if self.supervisor.is_some() {
-            return Err("Stop the server before revoking a device".to_owned());
+            return Err(i18n::tr("Stop the server before revoking a device").to_owned());
         }
         let path = tokens_path(library);
         let mut store = TokenStore::load(&path).map_err(|error| error.to_string())?;
         match store.revoke(token) {
             Ok(true) => Ok(()),
-            Ok(false) => Err("That device is not paired any more".to_owned()),
+            Ok(false) => Err(i18n::tr("That device is not paired any more").to_owned()),
             Err(error) => Err(error.to_string()),
         }
     }
@@ -93,18 +93,18 @@ fn tokens_path(library: &Path) -> PathBuf {
 /// The server binary, beside this app. `cargo run` and the packaged bundle both keep the
 /// binaries together; a missing one is a build problem worth naming, not a silent absence.
 fn locate() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe().map_err(|error| format!("could not find this app: {error}"))?;
+    let exe = std::env::current_exe().map_err(|error| i18n::fmt("Could not find this app: {error}", &[("error", &error.to_string())]))?;
     let mut path = exe
         .parent()
-        .ok_or_else(|| "the app has no containing directory".to_owned())?
+        .ok_or_else(|| i18n::tr("the app has no containing directory").to_owned())?
         .to_path_buf();
     path.push(if cfg!(windows) { "sortlens-server.exe" } else { "sortlens-server" });
     if path.exists() {
         Ok(path)
     } else {
-        Err(format!(
-            "{} was not found — build it with the rest of the workspace",
-            path.display()
+        Err(i18n::fmt(
+            "{path} was not found — build it with the rest of the workspace",
+            &[("path", &path.display().to_string())],
         ))
     }
 }
@@ -138,7 +138,7 @@ fn read_devices(library: &Path) -> Vec<DeviceRow> {
 /// dialog is not worth its advisories.
 fn format_day(seconds: i64) -> String {
     if seconds <= 0 {
-        return "unknown".to_owned();
+        return i18n::tr("unknown").to_owned();
     }
     let days = seconds.div_euclid(86_400);
     let z = days + 719_468;
@@ -197,6 +197,17 @@ mod tests {
             sync.revoke(&library, "ab12cd34").expect_err("the row is already gone"),
             "That device is not paired any more"
         );
+
+        // The same refusal in Arabic: a reader who cannot read English is told the same thing,
+        // and a row added to the listing without a catalogue row would leave this English.
+        i18n::set_current(i18n::from_code("ar").expect("Arabic"));
+        let arabic = sync.revoke(&library, "ab12cd34").expect_err("the row is already gone");
+        assert_ne!(arabic, "That device is not paired any more", "the refusal is translated: {arabic}");
+        assert!(
+            arabic.chars().any(|c| ('\u{0600}'..='\u{06ff}').contains(&c)),
+            "the refusal is written in Arabic letters: {arabic}"
+        );
+        i18n::set_current(i18n::from_code("en").expect("English"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -238,10 +249,32 @@ mod tests {
             sync.revoke(&library, "deadbeef").expect_err("running refuses"),
             "Stop the server before revoking a device"
         );
+        assert_eq!(
+            sync.start(&library).expect_err("a second start refuses"),
+            "The server is already running",
+            "starting twice is named, not silently ignored"
+        );
         assert!(
             TokenStore::load(tokens_path(&library)).unwrap().find("deadbeef").is_some(),
             "the row is untouched"
         );
+
+        // Both refusals speak the interface language: the shell paints the error it is handed,
+        // so a sentence left English here would be the one English line in an Arabic window.
+        i18n::set_current(i18n::from_code("ar").expect("Arabic"));
+        let revoking = sync.revoke(&library, "deadbeef").expect_err("running refuses");
+        assert_ne!(revoking, "Stop the server before revoking a device", "translated: {revoking}");
+        assert!(
+            revoking.chars().any(|c| ('\u{0600}'..='\u{06ff}').contains(&c)),
+            "Arabic letters, not the English sentence: {revoking}"
+        );
+        let starting = sync.start(&library).expect_err("a second start refuses");
+        assert_ne!(starting, "The server is already running", "translated: {starting}");
+        assert!(
+            starting.chars().any(|c| ('\u{0600}'..='\u{06ff}').contains(&c)),
+            "Arabic letters, not the English sentence: {starting}"
+        );
+        i18n::set_current(i18n::from_code("en").expect("English"));
         sync.stop();
         let _ = std::fs::remove_dir_all(&dir);
     }

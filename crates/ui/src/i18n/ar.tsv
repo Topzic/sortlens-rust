@@ -748,6 +748,13 @@
 	{left_width}×{left_height} vs {right_width}×{right_height}	{left_width}×{left_height} مقابل {right_width}×{right_height}
 	Soft Focus	تركيز ناعم
 	A relative cut, never a verdict	قطع نسبي، لا حكم
+	The server is already running	الخادم يعمل بالفعل
+	Stop the server before revoking a device	أوقف الخادم قبل إلغاء اقتران جهاز
+	That device is not paired any more	لم يعد ذلك الجهاز مقترنًا
+	Could not find this app: {error}	تعذّر العثور على هذا التطبيق: {error}
+	{path} was not found — build it with the rest of the workspace	لم يُعثر على {path} — ابنِه مع بقية مساحة العمل
+	the app has no containing directory	لا يوجد للتطبيق مجلد حاوٍ
+	unknown	غير معروف
 	Sharpness ranks frames inside this library, in one light at one focal length. The cut takes the softest N%, so it can only ever claim to be relative to these photographs.	ترتّب الحِدّة إطارات هذه المكتبة في ضوء واحد وطول بؤري واحد. ويأخذ القطع أضعف N%، فلا يدّعي إلا أنه نسبي إلى هذه الصور.
 	Measuring	القياس جارٍ
 	Measure sharpness	قياس الحِدّة

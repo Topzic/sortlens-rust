@@ -896,3 +896,10 @@
 	Removed {n} photos from {folder}	已從 {folder} 移除 {n} 張相片
 	Send to desktop is the phone app's; this library is the desktop	「傳送到桌面」是手機應用程式的功能；這個圖庫就是桌面
 	{n} photo(s) have something to suggest	有 {n} 張相片可提供建議
+	The server is already running	伺服器已在執行中
+	Stop the server before revoking a device	撤銷裝置前請先停止伺服器
+	That device is not paired any more	該裝置已不再配對
+	Could not find this app: {error}	找不到這個應用程式：{error}
+	{path} was not found — build it with the rest of the workspace	找不到 {path} — 請與工作區其餘部分一起建置
+	the app has no containing directory	這個應用程式沒有所屬目錄
+	unknown	不明

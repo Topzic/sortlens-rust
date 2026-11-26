@@ -792,8 +792,12 @@ re-checks its own contrast pairs after applying.
   entry): settings it could not read in full, a library it could not open, the backup and restore
   dialogs with their toasts, the shortcut set's import and export dialogs with their read and write
   failures, the sync server's start, stop and revoke lines, and both sidecar toggles are rows, so an
-  Arabic window reads `تعذّر فتح المكتبة` and `نُسّخ ٣ ملف احتياطيًا`. The error a failed operation
-  carries stays the engine's or the system's own sentence, appended to the localised frame. A bin
+  Arabic window reads `تعذّر فتح المكتبة` and `نُسّخ ٣ ملف احتياطيًا`. The server supervision's own
+  refusals followed (hundred-and-thirty-second entry): a second Start, a revoke while the server runs, a
+  device that is no longer paired, the two missing-binary sentences and the device list's `unknown` date
+  are rows too, so an Arabic window reads `الخادم يعمل بالفعل` where it read `The server is already
+  running`, and the host's catalogue audit reads `sync.rs` as well as `main.rs`. The error a failed
+  operation carries stays the engine's or the system's own sentence, appended to the localised frame. A bin
   row's summary and mode remain the engine's own sentences rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
