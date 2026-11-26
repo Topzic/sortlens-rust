@@ -1313,10 +1313,17 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_destination_strip_and_keyword_order_hovers_speak_the_interface_language` reads `shell.rs`
   back, requires all three sites to route — counting the toggle's two outside the test module, so
   one branch cannot stay a literal — then English unchanged and the Arabic rows.
-  **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the keyword packs empty
-  state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
-  lists where.`, which names a menu path no catalogue row covers yet) — no production
+  The keyword packs empty state followed (hundred-and-fifty-sixth entry): both lines a library with
+  no pack file shows — `No packs installed.` and `Put a .json pack in the library's packs folder;
+  Organise ▸ Keyword Packs lists where.` — are `tl!` rows in all six languages, so an Arabic
+  Settings tells the reader where to put a pack in Arabic. The menu path inside the second row stays
+  ASCII in every catalogue, because the menus themselves are painted from their own English labels:
+  a translated path would point at words no screen shows.
+  `the_keyword_packs_empty_state_speaks_the_interface_language` reads `shell.rs` back, requires both
+  labels to be `RichText::new(tl!(…))` with no bare-literal twin, then English unchanged and the
+  Arabic rows.
+  **Still open in this row.** The literal list the audit kept is empty: every painted English string
+  in `crates/ui/src/shell.rs` now goes through `tl!`/`i18n::fmt` — no production
   `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
   entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the

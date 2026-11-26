@@ -1011,6 +1011,7 @@
 	Keeps the partial download; installing again resumes it	부분 다운로드를 유지합니다. 다시 설치하면 이어서 받습니다
 	Delete the file from the model store; you can install it again later	모델 저장소에서 파일을 삭제합니다. 나중에 다시 설치할 수 있습니다
 	No packs installed.	설치된 팩이 없습니다.
+	Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.	라이브러리의 packs 폴더에 .json 팩을 넣으세요. Organise ▸ Keyword Packs 에서 위치를 알려 줍니다.
 	Serving on 127.0.0.1:{port}	127.0.0.1:{port}에서 제공 중
 	Pairing code  {code}	페어링 코드  {code}
 	The code lives ten minutes; a fresh one is printed here when it does.	코드는 10분 동안 유효하며, 만료되면 새 코드가 여기에 표시됩니다.

@@ -1013,6 +1013,7 @@
 	Keeps the partial download; installing again resumes it	เก็บการดาวน์โหลดที่ค้างไว้ การติดตั้งอีกครั้งจะทำต่อจากเดิม
 	Delete the file from the model store; you can install it again later	ลบไฟล์ออกจากที่เก็บโมเดล ติดตั้งใหม่ได้ภายหลัง
 	No packs installed.	ยังไม่ได้ติดตั้งแพ็ก
+	Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.	วางแพ็ก .json ไว้ในโฟลเดอร์ packs ของไลบรารี; Organise ▸ Keyword Packs บอกตำแหน่งไว้
 	Serving on 127.0.0.1:{port}	กำลังให้บริการที่ 127.0.0.1:{port}
 	Pairing code  {code}	รหัสจับคู่  {code}
 	The code lives ten minutes; a fresh one is printed here when it does.	รหัสมีอายุสิบนาที เมื่อหมดอายุจะมีรหัสใหม่แสดงที่นี่

@@ -739,6 +739,13 @@ branches' `Switch between most used and A–Z` are `tl!` keys, and
 `the_destination_strip_and_keyword_order_hovers_speak_the_interface_language` reads the three sites
 back, counting the toggle's route outside the test module so one branch cannot stay a literal.
 
+The keyword packs empty state takes it as well (hundred-and-fifty-sixth entry): both
+`RichText::new(tl!(…))` lines are keys, and
+`the_keyword_packs_empty_state_speaks_the_interface_language` reads both back and then the Arabic
+rows. The instruction's menu path (`Organise ▸ Keyword Packs`) stays ASCII in every catalogue
+because menu labels are painted from the command table's own English strings; a translated path
+would be a sentence about words no menu shows.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

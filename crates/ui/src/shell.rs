@@ -11864,9 +11864,11 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
     if packs.is_empty() {
         ui.label(RichText::new(tl!("No packs installed.")).size(10.5).color(t.text_faint));
         ui.label(
-            RichText::new("Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.")
-                .size(10.5)
-                .color(t.text_faint),
+            RichText::new(tl!(
+                "Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where."
+            ))
+            .size(10.5)
+            .color(t.text_faint),
         );
         return;
     }
@@ -22330,6 +22332,48 @@ mod tests {
         crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
         for (english, arabic) in HOVERS {
             assert_eq!(crate::i18n::tr(english), arabic, "the hover row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The keyword packs empty state is catalogue rows, in every language the picker offers.
+    ///
+    /// The two lines are what a library with no pack file shows instead of a switch per pack, so
+    /// the instruction is part of the screen and not a developer's note beside it. The sentence
+    /// names the menu path a person has to walk to reach the folder, and that path stays ASCII:
+    /// the menus themselves are painted from their own English labels, so a translated path would
+    /// point at words no screen shows.
+    #[test]
+    fn the_keyword_packs_empty_state_speaks_the_interface_language() {
+        // One row per line the empty state paints.
+        const LINES: [(&str, &str); 2] = [
+            ("No packs installed.", "لا حزم مثبّتة."),
+            (
+                "Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.",
+                "ضع حزمة .json في مجلد الحزم في المكتبة؛ يوضّح Organise ▸ Keyword Packs مكانه.",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away, so a wrapped call still
+        // reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in LINES {
+            assert!(
+                source.contains(&format!("RichText::new(tl!(\"{english}\"))")),
+                "the empty-state line {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("RichText::new(\"{english}\")")),
+                "the empty-state line {english:?} also paints a bare literal"
+            );
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
         }
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }

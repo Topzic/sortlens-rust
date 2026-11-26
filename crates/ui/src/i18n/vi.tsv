@@ -1011,6 +1011,7 @@
 	Keeps the partial download; installing again resumes it	Giữ lại phần tải dở; cài lại sẽ tiếp tục từ đó
 	Delete the file from the model store; you can install it again later	Xóa tệp khỏi kho mô hình; bạn có thể cài lại sau
 	No packs installed.	Chưa cài đặt gói nào.
+	Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.	Đặt gói .json vào thư mục packs của thư viện; Organise ▸ Keyword Packs cho biết vị trí.
 	Serving on 127.0.0.1:{port}	Đang phục vụ trên 127.0.0.1:{port}
 	Pairing code  {code}	Mã ghép đôi  {code}
 	The code lives ten minutes; a fresh one is printed here when it does.	Mã có hiệu lực mười phút; khi hết hạn, mã mới sẽ được in ở đây.

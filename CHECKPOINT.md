@@ -1,5 +1,54 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-sixth) — the keyword packs empty state speaks the interface language
+
+- **Why this came up.** The hundred-and-fifty-fifth entry's Next named the last painted literal in
+  `crates/ui/src/shell.rs`: `keyword_packs` painted `Put a .json pack in the library's packs folder;
+  Organise ▸ Keyword Packs lists where.` as a bare `RichText::new` literal, so an Arabic library with
+  no pack file told the reader where to put one in English — and named a menu path in a language the
+  reader may not have chosen. The `CI` run for `3f99ea4` (`45861800088`) was still in progress at
+  STEP 1b, not red, so this is a roadmap slice.
+- **What is routed.** One row per catalogue, 6 in all: the instruction is a `tl!` key at the empty
+  state's `RichText::new(tl!(…))`. Its partner `No packs installed.` was already a row from the
+  hundred-and-forty-ninth entry, so the empty state is now catalogued end to end. English keeps every
+  word, the `.json` and the `▸` it painted.
+- **The menu path stays ASCII.** The sentence names `Organise ▸ Keyword Packs`, and those menus paint
+  their own English labels from the command table (`crates/engine/src/command.rs`), which no catalogue
+  row covers yet. A translated path would point at words no screen shows, so the path is unchanged in
+  all six catalogues while the sentence around it is the reader's — an Arabic Settings reads
+  `ضع حزمة .json في مجلد الحزم في المكتبة؛ يوضّح Organise ▸ Keyword Packs مكانه.`
+- **Tests.** `the_keyword_packs_empty_state_speaks_the_interface_language` reads `shell.rs` back with
+  each line's indentation trimmed, so a `tl!` rustfmt wrapped at the margin still reads as one call,
+  and requires both empty-state lines to be `RichText::new(tl!("…"))` with no bare-literal twin.
+  It fails on the pre-slice source at the second line's wiring assertion, and would fail at the Arabic
+  lookup if the row were not added. The catalogue audit reads the new key too, so any of the six
+  catalogues losing the row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, the ASCII-path rule and narrows the audit to the
+  whole-source sweep: the literal list it kept is now empty. UX.md's i18n paragraph and
+  ARCHITECTURE.md §8.4 record the route and why the menu path stays ASCII. SL-L07 stays unticked,
+  because the row ticks only when a source audit proves every painted literal is a catalogue row.
+- **Visual verification.** None expected: the English paint is unchanged and no committed scene
+  opens a library with no pack file in a non-English language, so no baseline should move.
+  `cargo xtask screenshots` was run because `crates/ui` changed.
+- **Gates.** `cargo fmt --all`; `cargo test -p sortlens-ui -- the_keyword_packs_empty_state_speaks_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed; then `cargo xtask ci` exit 0 (fmt, workspace
+  clippy, the whole suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5
+  passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots`
+  30 passed and 1 ignored (network) with no baseline moved. There is no
+  `cargo xtask wasm` in this workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job —
+  this machine has no Android NDK and no Xcode, which leaves the device-side leg unverified here.
+  No release workflow was dispatched: source, catalogue rows, tests and docs, no build or release
+  surface.
+- **Files.** `crates/ui/src/shell.rs` (the route and the new test), the six `crates/ui/src/i18n/*.tsv`
+  (one row each), `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline moved here). Then the whole-source
+  sweep SL-L07's row now asks for: audit `crates/ui/src/*.rs` and `apps/sortlens/src/main.rs` for
+  painted English that never reaches `tl!`/`i18n::fmt`/`i18n::tr` — menu labels from the command
+  table are the known family, since they paint from `crates/engine/src/command.rs` — and either route
+  what it finds or record each surviving literal as a deliberate exception. Only then can SL-L07 be
+  ticked. No release run is in flight.
 ## 2026-11-26 (hundred-and-fifty-fifth) — the destination strip and the keyword order toggle speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-fourth entry's Next named the last three hover literals

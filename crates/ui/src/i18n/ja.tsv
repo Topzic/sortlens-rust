@@ -1012,6 +1012,7 @@
 	Keeps the partial download; installing again resumes it	途中までのダウンロードを保持します。再インストールすると続きから再開します
 	Delete the file from the model store; you can install it again later	モデルストアからファイルを削除します。後で再インストールできます
 	No packs installed.	パックはインストールされていません。
+	Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.	ライブラリの packs フォルダーに .json パックを置いてください。Organise ▸ Keyword Packs にその場所が出ています。
 	Serving on 127.0.0.1:{port}	127.0.0.1:{port} で提供中
 	Pairing code  {code}	ペアリングコード  {code}
 	The code lives ten minutes; a fresh one is printed here when it does.	コードの有効期限は10分です。切れると新しいコードがここに表示されます。
