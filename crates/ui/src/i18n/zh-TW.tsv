@@ -831,3 +831,11 @@
 	+ New collection	+ 新選集
 	{n} active	{n} 項已啟用
 	Clear every filter	清除所有篩選條件
+	Local library	本機圖庫
+	Read-only · another window has this library	唯讀 · 另一個視窗正在使用此圖庫
+	Close the other Sortlens window to edit here. Everything stays readable meanwhile.	請關閉另一個 Sortlens 視窗才能在此編輯。在此之前一切仍可閱讀。
+	Rename keyword	重新命名關鍵字
+	#{tag} appears on every photo it was added to.	#{tag} 會顯示在所有加入過的相片上。
+	That keyword already exists; the two will be merged.	該關鍵字已存在；兩者將合併。
+	Renamed #{tag} on {n} photo(s)	已在 {n} 張相片上重新命名 #{tag}
+	#{tag} is not used by any photo	沒有任何相片使用 #{tag}

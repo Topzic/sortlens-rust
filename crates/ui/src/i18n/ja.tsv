@@ -832,3 +832,11 @@
 	+ New collection	+ 新しいコレクション
 	{n} active	{n} 件有効
 	Clear every filter	すべての絞り込みを解除
+	Local library	ローカルライブラリ
+	Read-only · another window has this library	読み取り専用 · 別のウィンドウがこのライブラリを開いています
+	Close the other Sortlens window to edit here. Everything stays readable meanwhile.	ここで編集するには、もう一方の Sortlens ウィンドウを閉じてください。それまでの間もすべて閲覧できます。
+	Rename keyword	キーワード名を変更
+	#{tag} appears on every photo it was added to.	#{tag} は追加されたすべての写真に表示されます。
+	That keyword already exists; the two will be merged.	そのキーワードは既に存在します。2 つは統合されます。
+	Renamed #{tag} on {n} photo(s)	#{tag} を {n} 枚の写真で名前変更しました
+	#{tag} is not used by any photo	#{tag} はどの写真でも使われていません

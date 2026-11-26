@@ -832,3 +832,11 @@
 	+ New collection	+ مجموعة جديدة
 	{n} active	{n} مفعّل
 	Clear every filter	امسح كل المرشحات
+	Local library	مكتبة محلية
+	Read-only · another window has this library	للقراءة فقط · نافذة أخرى تستخدم هذه المكتبة
+	Close the other Sortlens window to edit here. Everything stays readable meanwhile.	أغلق نافذة Sortlens الأخرى للتحرير هنا. يبقى كل شيء قابلًا للقراءة في هذه الأثناء.
+	Rename keyword	إعادة تسمية الكلمة المفتاحية
+	#{tag} appears on every photo it was added to.	يظهر #{tag} على كل صورة أُضيف إليها.
+	That keyword already exists; the two will be merged.	هذه الكلمة المفتاحية موجودة بالفعل؛ ستُدمج الاثنتان.
+	Renamed #{tag} on {n} photo(s)	أُعيدت تسمية #{tag} على {n} صورة
+	#{tag} is not used by any photo	#{tag} غير مستخدمة في أي صورة

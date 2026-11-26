@@ -7274,6 +7274,53 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
 - **Verified.** `cargo xtask ci` green (exit code read from a log file), `cargo xtask snapshot` green, `cargo xtask deny` green. `cargo test -p sortlens-ui --features screenshots --test screenshots places_paints_in_both_themes` compares the *reference* set against this machine's paint and differs by 615 and 712 pixels; the diff image was read, and the difference is the `⌘K` hint's glyph and the credit line's text antialiasing, not layout, so the reference frames stay as the reference machine painted them while the lavapipe set is the runner's own paint. No release workflow was dispatched: four PNGs and this entry, no build or release surface.
 - **Next.** Read this commit's `CI` run with one `gh run view` — it is the first run since `8123392` that can be green on all five gates if the adopted paint is whole. Then SL-L07's last English: the top bar's `Local library` and the read-only sentence with its hover, then the `Moved` and `Rename keyword` dialog titles (`+ New collection` is routed now, so the sidebar half of that row is done).
 
+## 2026-11-26 (seventy-ninth) — the top bar says the library's name in the interface's language, and the keyword editor renames in it
+
+- **Why this came up.** The RTL frames still painted English canvas chrome, and the queue named the top
+  bar's `Local library` line and its two read-only sentences as the next row. All three were literals at
+  the call site, so an Arabic shell never painted `مكتبة محلية` and still said
+  "Read-only · another window has this library" in English over an Arabic library.
+- **What was routed.** Three rows in the bar: `Local library`, `Read-only · another window has this
+  library` (one row behind two painters — the wide bar's 10.5-point line and the narrow bar's glyph
+  name), and the hover that explains the lock,
+  `Close the other Sortlens window to edit here. Everything stays readable meanwhile.`
+- **The keyword editor came with them**, because it is the same omission one level down: `Rename
+  keyword`, `#{tag} appears on every photo it was added to.`, `That keyword already exists; the two
+  will be merged.`, `Rename`/`Cancel` (rows it shared with the rename-collection dialog but never read)
+  and both toasts — `Renamed #{tag} on {n} photo(s)` and `#{tag} is not used by any photo` — as `fmt`
+  templates, the tag travelling as an isolated placeholder and the count in the language's digits.
+- **What stays English, and says so.** The `Moved` receipt: its title, the sentence under it, its
+  `and {n} more` line and its two buttons are still literals at the call site (the button rows exist for
+  other dialogs, so that is a call-site route rather than new rows). UX.md and ROADMAP.md now name it as
+  the canvas's remaining English instead of the top bar. The receipt's own body would need a real move to
+  paint, which is why it was not folded into this slice's test.
+- **Rows.** Eight rows in each of the six catalogues (`ar`, `ja`, `ko`, `th`, `vi`, `zh-TW`), appended
+  after the filter-strip block. The catalogue audit's duplicate-row check passed on the first run.
+- **Tests.** `the_top_bar_names_the_library_in_the_interface_language` paints the whole shell at
+  1440×900: English shows `Local library`; Japanese shows `ローカルライブラリ` and no `Local library`;
+  Arabic shows `مكتبة محلية`. `the_keyword_editor_speaks_the_interface_language` paints the dialog with
+  `run_ui` (a warm frame first, then the frame that paints) with a `cat` tag armed: English pins the
+  title, the tag sentence, `Rename` and `Cancel` character for character, Japanese pins
+  `キーワード名を変更`, the sentence and both buttons and requires no English left, Arabic requires the
+  placeholder inside its own sentence, and both languages assert the paint did not commit the rename.
+  `catalogs_load_and_routed_keys_have_rows` now demands the eight new keys in all six catalogues.
+- **Files.** `crates/ui/src/shell.rs` (the bar, `tag_edit_dialog`, two tests);
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (eight rows each); `docs/UX.md`, `docs/ROADMAP.md`.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the two new tests and
+  the catalogue audit green; `cargo fmt --all` left the tree formatted; `cargo xtask ci` exit code 0
+  read from `$LASTEXITCODE` with the output in a log file (the pipe's own exit 1 is PowerShell treating
+  cargo's stderr as an error; the log's last lines are the gate's `ok`s), `cargo xtask snapshot` green,
+  `cargo xtask deny` green (`advisories ok, bans ok, licenses ok, sources ok`). English is
+  byte-identical and no layout moved, so no baseline can change — `cargo xtask screenshots` was not spent
+  on a set this slice cannot move. `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and
+  this slice touches no phone code. No release workflow was dispatched: `crates/ui` source, catalogues,
+  tests and docs.
+- **Next.** The `Moved` receipt is the last English on the canvas: title, the "Ratings, labels and
+  keywords travelled with the files." sentence, `and {n} more`, `Put them back` and `Done`. Its paint
+  test needs a receipt, and a receipt needs one indexed photo and one real move, which is the fixture the
+  next tick builds. Then the search field's `Search photos or Ctrl+K` hint and the bottom bar's
+  `No selection`.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7282,12 +7329,11 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the seventy-eighth entry).** Read the `CI` run for the baseline commit with ONE
-`gh run view` — four runs had been red, and this commit is the first that can be green. Then finish
-SL-L07's open canvas chrome: the top bar's `Local library` and the read-only sentence with its hover,
-then the `Moved` and `Rename keyword` dialog titles (`+ New collection` and the header chips are routed
-already; the filter strip's chips, the counts and the sort value before them). No release run is in
-flight.
+**Next tick (after the seventy-ninth entry).** Read the `CI` run for `e6152f1` and this commit's with
+one `gh run view` each — `e6152f1` was still in progress when this tick read it. Then finish SL-L07's
+canvas: the `Moved` receipt (title, the sentence under it, `and {n} more`, `Put them back` and `Done`)
+with a paint test that builds a real receipt — one indexed photo and one move — then the search field's
+`Search photos or Ctrl+K` hint and the bottom bar's `No selection`. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

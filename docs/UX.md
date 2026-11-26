@@ -760,8 +760,8 @@ re-checks its own contrast pairs after applying.
   keys, 175 shortcut-editor strings and eleven counts, so Settings → Language offers `ไทย` and every
   catalogued surface paints Thai, with Thailand's numbers and dates (`12,408`, `03/10/2026 04:00`). Its
   glyphs need a Thai face (`Thai`); the phone's font filter names that script too.
-  Vietnamese joined them last (hundred-and-twelfth entry): `crates/ui/src/i18n/vi.tsv` answers the
-  same 754 routed keys, 175 shortcut-editor strings and eleven counts, so Settings → Language offers
+  Vietnamese joined them last (hundred-and-twelfth entry): `crates/ui/src/i18n/vi.tsv` answers
+  every routed key, plus the shortcut editor's 175 strings and its eleven counts, so Settings → Language offers
   `Tiếng Việt` and every catalogued surface paints Vietnamese, with Vietnam's numbers and dates
   (`12.408`, `1,4 MB`, `03/10/2026 04:00`). It is Latin script, so no new face is needed and the
   phone's filter already names `Latn` — the six languages the design names are all shipped now.
@@ -770,9 +770,12 @@ re-checks its own contrast pairs after applying.
   vendored face drawing its words. The frames then showed which canvas chrome was still English;
   `N shown`, the header's counts and sort value, the filter strip's chips and the header's two
   scope chips (`All Photos`, `{n} active`) have since become catalogue rows, and the sidebar's
-  `+ New collection` button with them, so the remaining open canvas chrome is the top bar's own words
-  `Moved` and `Rename keyword` are the two dialog titles still English by omission, and a bin row's
-  summary and mode are the engine's own sentences rather than the shell's.
+  `+ New collection` button with them. The top bar's `Local library` line followed, with both
+  read-only sentences — the label and the hover naming the other window that holds the lock — and the
+  keyword editor followed too: its title, the sentence about the tag, the merge warning, both buttons
+  and both toasts are rows. What is still English on the canvas is the `Moved` receipt: its title,
+  the sentence under it, its `and {n} more` line and its two buttons are literals at the call site. A
+  bin row's summary and mode are the engine's own sentences rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

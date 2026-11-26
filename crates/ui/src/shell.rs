@@ -1877,7 +1877,7 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                     ui.add_space(6.0);
                     ui.label(RichText::new("Sortlens").size(14.0).strong());
                     ui.add_space(8.0);
-                    ui.label(RichText::new("Local library").size(12.0).color(t.text_muted));
+                    ui.label(RichText::new(tl!("Local library")).size(12.0).color(t.text_muted));
                 }
                 if engine.read_only() {
                     // Say it once, at the top: a library another window is writing cannot be changed
@@ -1890,16 +1890,18 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
                             ui,
                             t,
                             crate::icons::Icon::Warning,
-                            "Read-only · another window has this library",
+                            tl!("Read-only · another window has this library"),
                             false,
                         );
                     } else {
                         ui.label(
-                            RichText::new("Read-only · another window has this library")
+                            RichText::new(tl!("Read-only · another window has this library"))
                                 .size(10.5)
                                 .color(t.reject),
                         )
-                        .on_hover_text("Close the other Sortlens window to edit here. Everything stays readable meanwhile.");
+                        .on_hover_text(tl!(
+                            "Close the other Sortlens window to edit here. Everything stays readable meanwhile."
+                        ));
                     }
                 }
 
@@ -10586,16 +10588,19 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
     let mut text = typing;
     let mut open = true;
     let mut commit = false;
-    dialog_window("Rename keyword")
+    dialog_window(tl!("Rename keyword"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(320.0)
         .show(ui.ctx(), |ui| {
             ui.label(
-                RichText::new(format!("#{from} appears on every photo it was added to."))
-                    .size(11.0)
-                    .color(t.text_muted),
+                RichText::new(crate::i18n::fmt(
+                    "#{tag} appears on every photo it was added to.",
+                    &[("tag", &from)],
+                ))
+                .size(11.0)
+                .color(t.text_muted),
             );
             ui.add_space(6.0);
             let field = ui.add(TextEdit::singleline(&mut text).desired_width(f32::INFINITY));
@@ -10609,7 +10614,7 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
                 .any(|(tag, _)| tag == text.trim().to_lowercase() && tag != from);
             if exists {
                 ui.label(
-                    RichText::new("That keyword already exists; the two will be merged.")
+                    RichText::new(tl!("That keyword already exists; the two will be merged."))
                         .size(10.5)
                         .color(t.accent),
                 );
@@ -10617,10 +10622,13 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let usable = !text.trim().is_empty() && text.trim() != from;
-                if ui.add_enabled(usable, Button::new(RichText::new("Rename").size(12.0))).clicked() {
+                if ui
+                    .add_enabled(usable, Button::new(RichText::new(tl!("Rename")).size(12.0)))
+                    .clicked()
+                {
                     commit = true;
                 }
-                if ui.button(RichText::new("Cancel").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Cancel")).size(12.0)).clicked() {
                     state.tag_edit = None;
                 }
             });
@@ -10628,12 +10636,15 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
     if commit {
         match engine.rename_tag(&from, &text) {
             Ok(count) if count > 0 => {
-                state.notice(format!("Renamed #{from} on {count} photo(s)"));
+                state.notice(crate::i18n::fmt(
+                    "Renamed #{tag} on {n} photo(s)",
+                    &[("tag", &from), ("n", &format_count(count as u64))],
+                ));
                 state.tag_filters.retain(|tag| tag != &from);
                 state.tag_edit = None;
             }
             Ok(_) => {
-                state.notice(format!("#{from} is not used by any photo"));
+                state.notice(crate::i18n::fmt("#{tag} is not used by any photo", &[("tag", &from)]));
                 state.tag_edit = None;
             }
             Err(error) => state.notice_problem(error.to_string()),
@@ -12775,6 +12786,127 @@ mod tests {
         let arabic = paint(&ctx, &mut state, &mut engine);
         assert!(arabic.iter().any(|text| text == "المحذوفة حديثًا"), "{arabic:?}");
         assert!(arabic.iter().any(|text| text == "لم يُحذف شيء بعد."), "{arabic:?}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The top bar's library line and its read-only sentences speak the interface language (SL-L07):
+    /// the chrome is a catalogue row rather than a bet that every reader reads English. English is
+    /// pinned character for character, which is why no baseline moved.
+    #[test]
+    fn the_top_bar_names_the_library_in_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-topbar-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open a library");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let screen = vec2(1440.0, 900.0);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+
+        let english = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(label_at(&english, "Local library").is_some(), "the bar names the library it shows");
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(
+            label_at(&japanese, "ローカルライブラリ").is_some(),
+            "the bar's line is the catalogue's"
+        );
+        assert!(
+            label_at(&japanese, "Local library").is_none(),
+            "a Japanese interface leaves no English subtitle behind"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert!(label_at(&arabic, "مكتبة محلية").is_some(), "and Arabic says it in Arabic");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The keyword editor speaks the interface language (SL-L07): its title, the sentence about the
+    /// tag, both buttons and the two toasts are catalogue rows, so a Japanese interface does not
+    /// rename in English. English is pinned character for character.
+    #[test]
+    fn the_keyword_editor_speaks_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-tag-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.tag_edit = Some(("cat".to_owned(), "cat".to_owned()));
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine| {
+            let input = || egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                ..egui::RawInput::default()
+            };
+            // A window measures itself on its first frame and paints from the second: the warm run
+            // is what a real frame's next frame already has.
+            let mut warm = ctx.run_ui(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    tag_edit_dialog(ui, state, &tokens, engine);
+                });
+            });
+            warm.textures_delta.clear();
+            let mut out = ctx.run_ui(input(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    tag_edit_dialog(ui, state, &tokens, engine);
+                });
+            });
+            out.textures_delta.clear();
+            fn walk(shape: &egui::Shape, sink: &mut Vec<String>) {
+                match shape {
+                    egui::Shape::Text(text) => sink.push(text.galley.text().to_owned()),
+                    egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, sink)),
+                    _ => {}
+                }
+            }
+            let mut sink = Vec::new();
+            for clipped in &out.shapes {
+                walk(&clipped.shape, &mut sink);
+            }
+            sink
+        };
+
+        let english = paint(&ctx, &mut state, &mut engine);
+        assert!(english.iter().any(|text| text == "Rename keyword"), "{english:?}");
+        assert!(
+            english.iter().any(|text| text.contains("appears on every photo it was added to.")),
+            "{english:?}"
+        );
+        assert!(english.iter().any(|text| text == "Rename"), "{english:?}");
+        assert!(english.iter().any(|text| text == "Cancel"), "{english:?}");
+        assert!(state.tag_edit.is_some(), "painting the editor does not commit the rename");
+        assert!(engine.tag_vocabulary().is_empty(), "and nothing is renamed by being shown");
+
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = paint(&ctx, &mut state, &mut engine);
+        assert!(japanese.iter().any(|text| text == "キーワード名を変更"), "{japanese:?}");
+        assert!(
+            japanese.iter().any(|text| text.contains("追加されたすべての写真")),
+            "the sentence is the catalogue's: {japanese:?}"
+        );
+        assert!(japanese.iter().any(|text| text == "名前を変更"), "{japanese:?}");
+        assert!(japanese.iter().any(|text| text == "キャンセル"), "{japanese:?}");
+        assert!(
+            !japanese
+                .iter()
+                .any(|text| text == "Rename keyword" || text.contains("appears on every photo")),
+            "the editor leaves no English behind: {japanese:?}"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = paint(&ctx, &mut state, &mut engine);
+        assert!(arabic.iter().any(|text| text == "إعادة تسمية الكلمة المفتاحية"), "{arabic:?}");
+        assert!(
+            arabic.iter().any(|text| text.contains("على كل صورة")),
+            "the tag travels as a placeholder into an Arabic sentence: {arabic:?}"
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

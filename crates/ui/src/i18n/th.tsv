@@ -833,3 +833,11 @@
 	+ New collection	+ คอลเลกชันใหม่
 	{n} active	{n} ใช้งานอยู่
 	Clear every filter	ล้างตัวกรองทั้งหมด
+	Local library	ไลบรารีในเครื่อง
+	Read-only · another window has this library	อ่านอย่างเดียว · หน้าต่างอื่นเปิดไลบรารีนี้อยู่
+	Close the other Sortlens window to edit here. Everything stays readable meanwhile.	ปิดหน้าต่าง Sortlens อีกบานเพื่อแก้ไขที่นี่ ระหว่างนี้อ่านได้ทุกอย่าง
+	Rename keyword	เปลี่ยนชื่อคีย์เวิร์ด
+	#{tag} appears on every photo it was added to.	#{tag} ปรากฏบนทุกภาพที่ถูกเพิ่มไว้
+	That keyword already exists; the two will be merged.	มีคีย์เวิร์ดนั้นอยู่แล้ว ทั้งสองจะถูกรวมเข้าด้วยกัน
+	Renamed #{tag} on {n} photo(s)	เปลี่ยนชื่อ #{tag} บน {n} ภาพแล้ว
+	#{tag} is not used by any photo	ไม่มีภาพใดใช้ #{tag}

@@ -1047,9 +1047,10 @@ and none of M9 is closed until the remaining rows are ticked.
   `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
-  Open: the canvas chrome the RTL frames still paint in English — the top bar's own words (`Local
-  library`, the search field's `Search photos or Ctrl+K` hint, the read-only sentence) and the bottom
-  bar's `No Selection` — which the row's earlier entries call the unrouted surfaces.
+  Open: the canvas chrome the RTL frames still paint in English — the `Moved` receipt (its title, the
+  sentence under it, its `and {n} more` line and its two buttons), the search field's `Search photos or
+  Ctrl+K` hint and the bottom bar's `No selection` — which the row's earlier entries call the unrouted
+  surfaces.
   The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
   `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
   mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
@@ -1079,6 +1080,14 @@ and none of M9 is closed until the remaining rows are ticked.
   source chip's `{source} keywords` template — are catalogue rows in all six languages, so an Arabic
   canvas names its filters in Arabic instead of English. The source value itself (`Manual`, `AI`,
   `XMP`) stays the crate's recorded data word, the same one the filter JSON carries.
+  The top bar's own words followed (hundred-and-twenty-sixth entry): `Local library` and both
+  read-only sentences — the narrow bar's glyph label and the wide bar's line, plus the hover that names
+  the other window holding the lock — and the keyword editor's title, tag sentence, merge warning, both
+  buttons and both toasts are catalogue rows in all six languages, so a Japanese bar reads
+  `ローカルライブラリ` and an Arabic one renames keywords in Arabic. A test paints the whole shell at
+  1440×900 in English, Japanese and Arabic and requires `Local library` absent under `ja` and `ar`;
+  a `run_ui` paint of the editor pins English character for character and requires Japanese to leave
+  no English behind.
   The canvas chrome's last three words followed (hundred-and-twenty-fifth entry): the header's
   `All Photos` reset chip, its `{n} active` filter badge and the sidebar's `+ New collection` button
   are catalogue rows in all six languages, and the badge's `Clear every filter` hover with them — so
