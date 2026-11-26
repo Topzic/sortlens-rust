@@ -646,6 +646,13 @@ the context menu share. `the_keyword_notices_speak_the_interface_language` delet
 two-photo keyword under Arabic, requires the toast and the bell's painted history to be the
 catalogue's sentence, and asks Japanese for both removal rows.
 
+The selection receipts take it over the action and the count: `selected_notice` words ⌘A's
+`Selected {n} photo` / `Selected {n} photos` and `softest_notice` words the cut's
+`Selected the {n} softest`, the counts through `format_count`. The key's whole body and the cut
+button's click are `select_all_in_view` and `select_softest`, so neither can build its own
+sentence; `the_selection_notices_speak_the_interface_language` runs both over a real library under
+Arabic and requires the toast and the bell's painted history to agree with the catalogue.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

@@ -1004,8 +1004,8 @@ and none of M9 is closed until the remaining rows are ticked.
   `Softest {percent}% · scores {low} to {high}`, the review's own words (`Nothing is scored yet`, the tie and
   cut sentences), `Select {n} photo(s)` and its hover are catalogue rows and templates, and the counts, the
   percentage and the two scores go through `format::count`/`format::decimal`, so an Arabic review reads
-  `الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠` and `تحديد ١ صورة`. What stays English on that view is its notices
-  (`Measured … photo(s)`, `Selected the … softest`) and the slider's assistive name, which the row does not
+  `الأضعف ١٠% · الدرجات من ٠٫٥٠ إلى ٤٫٥٠` and `تحديد ١ صورة`. What stays English on that view is its
+  `Measured … photo(s)` notices and the slider's assistive name, which the row does not
   count as painted chrome.
   The For You view followed (hundred-and-fourth entry): its title, its hint and its empty state are rows,
   and the `N card(s): …` headline, a card's heading and its detail line are worded from `sortlens-memories`'
@@ -1205,13 +1205,23 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_culling_notices_speak_the_interface_language` drives `open_cull` and `activate_view(Similar)`
   under Arabic and requires the toast and the bell's painted history to be the catalogue's sentence
   with its own digits.
+  The selection receipts followed (hundred-and-forty-third entry): ⌘A's `Selected {total} photos` and
+  Soft Focus' cut button's `Selected the {} softest` were `format!` literals, so an Arabic ⌘A read an
+  English frame around Latin digits while the bottom bar beside it already said `{n} selected` from a
+  row. `select_all_in_view` (the key's whole body) and `select_softest` (the cut's click) are now the
+  only wording: `selected_notice` has one photo and several as two rows and `softest_notice` fills the
+  cut's count through `format_count`, so an Arabic ⌘A reads `حُدّدت ٣ صور` and the cut reads
+  `حُدّد أضعف ٢ صورة` where they read English with Latin digits.
+  `the_selection_notices_speak_the_interface_language` drives both functions over a real three-photo
+  library under Arabic and requires the toast and the bell's painted history to be the catalogue's
+  sentence with its own digits, then asks Japanese for its own counter.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: four remaining `state.notice(format!(…))` sites — selection,
-  a new collection, the sharpness pass's stopped line and the softest photographs — plus the two
+  went through `tl!`/`i18n::fmt`: two remaining `state.notice(format!(…))` sites — a new collection
+  and the sharpness pass's stopped line — plus the two
   `Measured … photo(s)` sentences worded one line above that pass's notice (indexing
   went in the hundred-and-thirty-eighth entry, rating in the hundred-and-thirty-ninth, the flag
-  match in the hundred-and-fortieth, tagging in the hundred-and-forty-first and culling in the
-  hundred-and-forty-second), dozens of `on_hover_text`/accessibility
+  match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the
+  hundred-and-forty-second and selection in the hundred-and-forty-third), dozens of `on_hover_text`/accessibility
   names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.

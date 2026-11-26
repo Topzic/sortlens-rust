@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-third) — the selection receipts speak the interface language, their counts in the reader's digits
+
+- **Why this came up.** The hundred-and-forty-second entry's Next named the selection family. ⌘A's
+  inline handler built `Selected {total} photos` and Soft Focus' cut button built
+  `Selected the {} softest`, both with `format!` — an English frame around Latin digits under an
+  interface whose bottom bar already said `{n} selected` from a catalogue row. So one selection
+  action worded itself two ways depending on whether you pressed ⌘A or clicked the cut.
+- **What is routed.** `select_all_in_view` is now ⌘A's whole body (extracted from the key handler)
+  and `select_softest` is the cut button's click, while `selected_notice` and `softest_notice` are
+  the only wording: one photograph and several are two rows, the counts filled through
+  `format_count`, so an Arabic ⌘A reads `حُدّدت ٣ صور` and the cut reads `حُدّد أضعف ٢ صورة`.
+  English keeps its shapes except the one-photo ⌘A receipt, which now says `Selected 1 photo`
+  rather than the old `Selected 1 photos`. Three rows per catalogue, six catalogues.
+- **Tests.** `the_selection_notices_speak_the_interface_language` pins the English shapes, then on a
+  real three-photo library under Arabic drives `select_all_in_view` (⌘A's own function) and requires
+  the toast to be the helper with `٣` and no English word, drives `select_softest` for two of them
+  and requires the receipt's own `٢` and the Library view, paints the bell and requires the history
+  to be that same sentence, and asks Japanese for `3 枚`/`2 枚`. It fails on the old literals: the
+  Arabic assertions meet English with Latin digits, and the catalogue audit has no row for the new
+  keys. It owns its own library folder (`sortlens-ui-selection-notice-i18n`).
+- **Docs.** ROADMAP's SL-L07 row records the family and re-counts what is left (two
+  `state.notice(format!(…))` sites — a new collection and the sharpness pass's stopped line — plus
+  the two `Measured … photo(s)` sentences), and the Soft Focus paragraph no longer claims its cut
+  receipt is English. UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name the two functions and
+  the test. SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite — 249
+  `sortlens-ui` tests — `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`,
+  `docs`, `templates`, `workflows`); `cargo xtask screenshots` 30 passed, 1 ignored (network), no
+  baseline moved — no committed scene selects a photograph, and the English paint is unchanged;
+  `cargo xtask snapshot` exit 0 and `cargo xtask deny` (advisories, bans, licenses, sources) exit
+  0. `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and no phone code changed;
+  there is no `cargo xtask wasm` in this workspace. No release workflow was dispatched: source,
+  catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs`, the six `crates/ui/src/i18n/*.tsv` (three rows each),
+  `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that matters, though no committed scene selects a photograph). Then the
+  last two `state.notice(format!(…))` sites in `shell.rs`: a new collection (`Created {name}`) and
+  the sharpness pass's stopped line, plus its `Measured … photo(s)` pair. SL-L07 stays unticked;
+  its row lists what the audit still finds. No release run is in flight.
 ## 2026-11-26 (hundred-and-forty-second) — the culling receipts speak the interface language, their counts in the reader's digits
 
 - **Why this came up.** The hundred-and-forty-first entry's Next named the culling family. Two

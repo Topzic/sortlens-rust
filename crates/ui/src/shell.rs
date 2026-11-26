@@ -3018,6 +3018,34 @@ fn selection_count_text(count: usize) -> String {
     }
 }
 
+/// ⌘A's whole body: tick everything the filters show, and say so in the interface language (SL-L07).
+///
+/// The key handler used to build `Selected {total} photos` with a `format!`, so an Arabic ⌘A read
+/// an English frame around Latin digits while the bottom bar beside it already said `{n} selected`
+/// from the catalogue. One function is now the only wording, with the count a placeholder and one
+/// photo and several two rows — a language that words the noun differently for one receives both.
+fn select_all_in_view(state: &mut UiState, engine: &Engine) {
+    let order: Vec<PhotoId> = engine
+        .page(&state.filter(), state.sort, 0, MAX_RANGE)
+        .photos
+        .iter()
+        .map(|photo| photo.id)
+        .collect();
+    let total = order.len();
+    state.selection.all(&order);
+    state.notice(selected_notice(total));
+}
+
+/// The ⌘A receipt in the interface language: one photo is its own row, because English says
+/// "photo" there and a language may word the whole sentence differently for a single frame.
+fn selected_notice(total: usize) -> String {
+    let n = format_count(total as u64);
+    match total {
+        1 => crate::i18n::fmt("Selected {n} photo", &[("n", &n)]),
+        _ => crate::i18n::fmt("Selected {n} photos", &[("n", &n)]),
+    }
+}
+
 /// Rate the selection, saying what happened the way the keyboard does.
 fn rate_selection(state: &mut UiState, engine: &mut Engine, stars: u8) {
     let targets = state.selection.ids();
@@ -4844,15 +4872,7 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     // ⌘A selects everything in view and Escape drops the selection. Both work with nothing selected, which
     // is why they come before the primary check: ⌘A on an empty selection is how you start.
     if ui.input(|input| input.modifiers.command && input.key_pressed(Key::A)) {
-        let order: Vec<PhotoId> = engine
-            .page(&state.filter(), state.sort, 0, MAX_RANGE)
-            .photos
-            .iter()
-            .map(|photo| photo.id)
-            .collect();
-        let total = order.len();
-        state.selection.all(&order);
-        state.notice(format!("Selected {total} photos"));
+        select_all_in_view(state, engine);
         return;
     }
     if !state.view.is_detail()
@@ -8869,6 +8889,23 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
     }
 }
 
+/// Tick the softest slice and say so in the interface language (SL-L07).
+///
+/// The cut's button built `Selected the {n} softest` with a `format!`, so an Arabic click read an
+/// English frame around Latin digits. The count is the slice's own length through `format_count`,
+/// which is also the number the button promised, so the receipt cannot disagree with it.
+fn select_softest(state: &mut UiState, below: &[PhotoId]) {
+    state.selection.select_many(below);
+    state.view = View::Library;
+    state.notice(softest_notice(below.len()));
+}
+
+/// The Soft Focus receipt in the interface language: the cut's count is a placeholder, the way
+/// the button's "Select {n} photo(s)" already filled its own.
+fn softest_notice(count: usize) -> String {
+    crate::i18n::fmt("Selected the {n} softest", &[("n", &format_count(count as u64))])
+}
+
 /// Soft Focus: the sharpness review as its own destination rather than the last thing you scroll to.
 ///
 /// The pass lands here, not on a timer: this is the view that asked for it, and a pass that finished while not
@@ -9019,9 +9056,7 @@ fn sharpness_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut 
             .on_hover_text(tl!("Ticks them in the library, where you can look before you act"))
             .clicked()
         {
-            state.selection.select_many(&review.below);
-            state.view = View::Library;
-            state.notice(format!("Selected the {} softest", review.count()));
+            select_softest(state, &review.below);
         }
     } else if review.separable {
         ui.label(RichText::new(tl!("Nothing at the cut")).size(10.5).color(t.text_faint));
@@ -20162,6 +20197,107 @@ mod tests {
         assert!(cull.contains("3 枚") && !cull.contains("photos"), "{cull}");
         let hash = hashing_notice(3);
         assert!(hash.contains("3 件") && !hash.contains("previews"), "{hash}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The selection receipts speak the interface language (SL-L07).
+    ///
+    /// Two literals built the words a selection leaves: `Selected {total} photos` on ⌘A's own
+    /// path and `Selected the {} softest` on Soft Focus' cut button. Both read English with
+    /// Latin digits under an interface the catalogues had already translated. `select_all_in_view`
+    /// and `select_softest` now word them from catalogue rows — one photograph its own row, the
+    /// counts placeholders through `format_count` — and the keyboard, the button and the bell
+    /// history cannot disagree again.
+    #[test]
+    fn the_selection_notices_speak_the_interface_language() {
+        // Its own folder: a shared path lets a parallel test delete this library mid-run.
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-selection-notice-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-selection-notice-i18n");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [50 * index as u8, 70, 150], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 3, "the fixture scans its three photographs");
+
+        // English: one photograph is its own row, and several keep the shape the shell painted.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(selected_notice(1), "Selected 1 photo");
+        assert_eq!(selected_notice(3), "Selected 3 photos");
+        assert_eq!(softest_notice(2), "Selected the 2 softest");
+
+        // Arabic, through ⌘A's own function: its receipt is Arabic with Arabic-Indic digits and no
+        // English frame left behind, and it ticks everything the filters show.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        select_all_in_view(&mut state, &engine);
+        assert_eq!(state.selection.ids().len(), 3, "⌘A ticks everything the filters show");
+        let selected = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("selecting everything leaves a receipt");
+        assert_eq!(selected, selected_notice(3), "the key and the helper word one sentence");
+        assert!(
+            selected.contains('٣') && !selected.contains("Selected") && !selected.contains("photos"),
+            "the count is the reader's digits under its own words: {selected}"
+        );
+
+        // Soft Focus' cut, through the button's own function: the receipt's count is the slice it
+        // ticked, so the sentence cannot disagree with the button that promised it.
+        let softest: Vec<PhotoId> = state.selection.ids().into_iter().take(2).collect();
+        select_softest(&mut state, &softest);
+        assert_eq!(state.view, View::Library, "the cut lands in the library");
+        let cut = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("the cut leaves a receipt");
+        assert_eq!(cut, softest_notice(2), "the button and the receipt word one sentence");
+        assert!(
+            cut.contains('٢') && !cut.contains("Selected") && !cut.contains("softest"),
+            "the count is the reader's digits under its own words: {cut}"
+        );
+
+        // The painted history is that same sentence: the toast and the bell cannot word it apart.
+        state.bell_open = true;
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint(&ctx, &mut state);
+        let frame = paint(&ctx, &mut state);
+        assert!(label_at(&frame, &cut).is_some(), "the history paints the catalogue's sentence");
+
+        // Japanese words both counts with its own counter.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let select_all = selected_notice(3);
+        assert!(select_all.contains("3 枚") && !select_all.contains("photos"), "{select_all}");
+        let soft = softest_notice(2);
+        assert!(soft.contains("2 枚") && !soft.contains("softest"), "{soft}");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

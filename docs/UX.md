@@ -830,6 +830,10 @@ re-checks its own contrast pairs after applying.
   rows and templates, the count in the reader's digits, so an Arabic delete reads
   `أُزيل #backlit من ٢ صور — تراجع واحد يعيده` where it read
   `#backlit taken off 2 photo(s) — one undo brings it back`.
+  The selection receipts followed (hundred-and-forty-third entry): ⌘A's words and Soft Focus' cut
+  receipt are rows too — one photograph its own — with the counts in the reader's digits, so an
+  Arabic ⌘A reads `حُدّدت ٣ صور` and the cut reads `حُدّد أضعف ٢ صورة` where they read
+  `Selected 3 photos` and `Selected the 2 softest`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

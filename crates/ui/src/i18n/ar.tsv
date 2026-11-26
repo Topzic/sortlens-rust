@@ -965,3 +965,6 @@
 	#{tag} taken off {n} photo — one undo brings it back	أُزيل #{tag} من {n} صورة — تراجع واحد يعيده
 	#{tag} taken off {n} photos — one undo brings it back	أُزيل #{tag} من {n} صور — تراجع واحد يعيده
 	Added keyword {name}	أُضيفت الكلمة المفتاحية {name}
+	Selected {n} photo	حُدّدت {n} صورة
+	Selected {n} photos	حُدّدت {n} صور
+	Selected the {n} softest	حُدّد أضعف {n} صورة

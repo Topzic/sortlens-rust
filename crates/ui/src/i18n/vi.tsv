@@ -964,3 +964,6 @@
 	#{tag} taken off {n} photo — one undo brings it back	Đã gỡ #{tag} khỏi {n} ảnh — một lần hoàn tác sẽ đưa nó trở lại
 	#{tag} taken off {n} photos — one undo brings it back	Đã gỡ #{tag} khỏi {n} ảnh — một lần hoàn tác sẽ đưa nó trở lại
 	Added keyword {name}	Đã thêm từ khóa {name}
+	Selected {n} photo	Đã chọn {n} ảnh
+	Selected {n} photos	Đã chọn {n} ảnh
+	Selected the {n} softest	Đã chọn {n} ảnh mềm nhất

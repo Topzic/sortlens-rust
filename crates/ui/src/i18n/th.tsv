@@ -966,3 +966,6 @@
 	#{tag} taken off {n} photo — one undo brings it back	เอา #{tag} ออกจาก {n} ภาพแล้ว — เลิกทำครั้งเดียวก็คืนกลับ
 	#{tag} taken off {n} photos — one undo brings it back	เอา #{tag} ออกจาก {n} ภาพแล้ว — เลิกทำครั้งเดียวก็คืนกลับ
 	Added keyword {name}	เพิ่มคำค้น {name} แล้ว
+	Selected {n} photo	เลือกรูป {n} รูปแล้ว
+	Selected {n} photos	เลือกรูป {n} รูปแล้ว
+	Selected the {n} softest	เลือก {n} รูปที่นุ่มที่สุดแล้ว

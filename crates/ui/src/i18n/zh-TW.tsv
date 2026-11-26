@@ -964,3 +964,6 @@
 	#{tag} taken off {n} photo — one undo brings it back	已從 {n} 張相片移除 #{tag} — 一次復原即可恢復
 	#{tag} taken off {n} photos — one undo brings it back	已從 {n} 張相片移除 #{tag} — 一次復原即可恢復
 	Added keyword {name}	已新增關鍵字 {name}
+	Selected {n} photo	已選取 {n} 張照片
+	Selected {n} photos	已選取 {n} 張照片
+	Selected the {n} softest	已選取最柔和的 {n} 張照片
