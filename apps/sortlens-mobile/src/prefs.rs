@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use craft_settings::{LoadReport, Settings, SettingsStore};
 use serde::{Deserialize, Serialize};
 use sortlens_engine::Sort;
-use sortlens_ui::{Action, Density, GridMode, Motion, ThemeKind, UiState};
+use sortlens_ui::{Action, Density, GridMode, Motion, ThemeKind, UiState, i18n};
 
 /// The whole settings document: the desktop's two sections, cut down to the phone's own choices.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -111,7 +111,7 @@ pub fn open(data_dir: &Path) -> (SettingsStore<PhonePrefs>, LoadReport) {
 pub fn notice(report: &LoadReport) -> Option<&'static str> {
     report
         .has_problems()
-        .then_some("Settings could not be read in full; defaults are in use")
+        .then_some(i18n::tr("Settings could not be read in full; defaults are in use"))
 }
 
 impl PhonePrefs {

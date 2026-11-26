@@ -7803,6 +7803,60 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   English, and the desktop's source-reading audit cannot see them — one surface per tick, each with a
   paint test. No release run is in flight.
 
+## 2026-11-26 (hundred-and-thirty-fourth) — the phone host's own notices speak the interface language
+
+- **Why it came up.** The hundred-and-thirty-third entry's Next named the phone host in
+  `apps/sortlens-mobile` as SL-L07's remaining open part, because the shell's catalogue audit reads only
+  `crates/ui`'s sources and cannot see another crate's prose. The `CI` run for `98b5136`
+  (`45786942689`) had every completed job green at the tick's first step (the Windows leg was still
+  running; its conclusion is read next tick), so this is a roadmap slice, not a repair.
+- **What was English.** `lib.rs` built twenty notices with `format!` and string literals — the
+  library-open failure, both folder lines, the removed-photos line, the suggestion pass's start and
+  finished lines, both tag toasts, undo-move, the pairing, testing, forget, send and cancel lines, the
+  phone-only fallback, and both pairing answers — and `prefs::notice` handed back a `&'static`
+  English sentence. A phone in Japanese therefore read the shell in Japanese over a host line in
+  English.
+- **What is routed.** Every one of those notices goes through `sortlens_ui::i18n`: literals through
+  `tr`, sentences with values through `fmt`, and every count through `i18n::count`, so the digits
+  are the reader's. Ten of the twenty-one keys are new rows in all six catalogues (60 rows):
+  `No photo folders on this device are readable yet`, `Pairing with the desktop…`,
+  `Testing {host}:{port}…`, `The desktop is forgotten; pairing again needs a fresh code`,
+  `Nothing to send: the chosen photos have no readable files`,
+  `Sending {n} photo(s) to the desktop…`, `Stopping the send…`,
+  `That is not available on the phone yet`, `Paired with the desktop as {device}` and
+  `Pairing failed: {reason}`. The other eleven already had rows — the desktop's host paints the same
+  events — and the phone now asks the same lookup rather than retyping English. `Removed` keeps the
+  desktop's `Removed {n} photos from {folder}` template, so the two hosts cannot word one removal
+  differently.
+- **Tests.** `the_hosts_words_have_a_row_in_every_catalogue` reads `lib.rs` and `prefs.rs` back,
+  collects every `i18n::tr(` literal and `i18n::fmt(` template, requires all twenty-one listed keys to
+  be among them, and fails if any has no row in `ar`, `ja`, `ko`, `th`, `vi` or `zh-TW` —
+  the listing the shell's audit cannot take. `the_hosts_notices_read_the_interface_language` pins
+  `Pairing failed: denied` in English and requires the Arabic send line to carry `٣` and
+  `سطح المكتب` with no `photo` left behind. Both fail on the pre-slice source: neither route exists
+  there.
+- **What stays English.** `send.rs`'s own sentences — `sentence`'s run summary, `remove_from_phone`'s
+  coda and notice, `poll_test`'s two answers and the two thread-start failures — and the engine's
+  `error.to_string()`, which the host appends unchanged by design.
+- **Visual verification.** None expected and none taken: no baseline paints a phone notice, no shell
+  source changed, and the catalogues are data. `cargo xtask screenshots` was not run for that reason;
+  the last run against identical shell sources was green (hundred-and-thirty-third entry). There is no
+  `cargo xtask wasm` in this workspace, and no phone code changed that `cargo xtask mobile` would
+  compile.
+- **Gates.** `cargo fmt --all`; `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole suite
+  including the catalogue audit and the two new mobile tests, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), then `cargo xtask
+  snapshot` and `cargo xtask deny` exit 0. No release workflow was dispatched: host source, catalogue
+  rows and docs, no build or release surface.
+- **Files.** `apps/sortlens-mobile/src/lib.rs` (the routes and the two tests),
+  `apps/sortlens-mobile/src/prefs.rs` (the settings notice), `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv`
+  (ten rows each), `docs/ROADMAP.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read the `CI` runs for `98b5136` and this commit with one `gh run view` each
+  (`screenshots` is the job that can disagree with this machine). Then `apps/sortlens-mobile/src/send.rs`'s
+  own sentences — the run summary, the removal coda and its notice, the connection test's two answers and
+  the two thread-start failures — with the same source-reading listing extended to `send.rs`. No release
+  run is in flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7811,11 +7865,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirty-third entry).** Read that commit's `CI` run with one
-`gh run view` — `screenshots` is the job that matters. Then SL-L07's remaining open part as
-`docs/FEATURES.md` states it: the phone host's own notices in `apps/sortlens-mobile` (`lib.rs`,
-`prefs.rs`, `send.rs`), which the desktop's source-reading audit cannot reach — one surface per tick,
-each with its own source-reading test and catalogue rows. No release run is in flight.
+**Next tick (after the hundred-and-thirty-fourth entry).** Read the `CI` runs for `98b5136`
+(`45786942689`) and for this commit with one `gh run view` each — `screenshots` is the job that
+matters. Then SL-L07's remaining open part: `apps/sortlens-mobile/src/send.rs`'s own sentences — the
+run summary (`sentence`), the removal coda and its notice (`remove_from_phone`), the connection
+test's two answers (`poll_test`) and the two thread-start failures — which the desktop's
+source-reading audit cannot reach. Extend the phone's listing to `send.rs` in the same commit, with
+catalogue rows in all six languages. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

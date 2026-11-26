@@ -909,3 +909,13 @@
 	{n} min ago	قبل {n} دقيقة
 	{n} h ago	قبل {n} ساعة
 	{n} days ago	قبل {n} يوم
+	No photo folders on this device are readable yet	لا توجد مجلدات صور قابلة للقراءة على هذا الجهاز بعد
+	Pairing with the desktop…	جارٍ الاقتران بسطح المكتب…
+	Testing {host}:{port}…	جارٍ اختبار {host}:{port}…
+	The desktop is forgotten; pairing again needs a fresh code	تم نسيان سطح المكتب؛ يلزم رمز جديد للاقتران مرة أخرى
+	Nothing to send: the chosen photos have no readable files	لا شيء لإرساله: الصور المختارة ليس لها ملفات قابلة للقراءة
+	Sending {n} photo(s) to the desktop…	جارٍ إرسال {n} صورة إلى سطح المكتب…
+	Stopping the send…	جارٍ إيقاف الإرسال…
+	That is not available on the phone yet	هذا غير متاح على الهاتف بعد
+	Paired with the desktop as {device}	تم الاقتران بسطح المكتب باسم {device}
+	Pairing failed: {reason}	فشل الاقتران: {reason}

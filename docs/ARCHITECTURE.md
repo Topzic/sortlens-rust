@@ -611,6 +611,16 @@ sync server's start, stop and revoke lines, and both sidecar toggles — and
 `the_hosts_library_notices_read_the_interface_language` pins the English count and the Arabic
 failure frame and restored toast with its Arabic-Indic digit.
 
+The phone host, `apps/sortlens-mobile`, takes the same seam for its own words: the settings repair
+line in `prefs.rs`, and in `lib.rs` the library-open failure, both folder lines, the removed-photos
+notice, the suggestion pass's start and finished lines, both tag toasts, undo-move, the pairing,
+testing, forget, send and cancel lines, the phone-only fallback and both pairing answers. Counts go
+through `i18n::count`, so an Arabic phone writes its own digits inside a template it also words. The
+phone's listing reads `lib.rs` and `prefs.rs` (`the_hosts_words_have_a_row_in_every_catalogue`), and
+`the_hosts_notices_read_the_interface_language` pins the English frame and the Arabic template. The
+`send.rs` sentences the shell paints as the run's summary and the removal coda are still the crate's
+English; the engine's own `error.to_string()` is appended unchanged there and here.
+
 A colour label is one worded piece: `colour_word` reads the `Red`…`Purple` rows, and every
 surface that paints one goes through it — the filter chip's word and its spoken name, the folder
 and collection `Colour` menus, the inspector's Label row and Tags tab, Library insights' label

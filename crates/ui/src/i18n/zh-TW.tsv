@@ -908,3 +908,13 @@
 	{n} min ago	{n} 分鐘前
 	{n} h ago	{n} 小時前
 	{n} days ago	{n} 天前
+	No photo folders on this device are readable yet	這部裝置上還沒有可讀取的相片資料夾
+	Pairing with the desktop…	正在與桌面電腦配對…
+	Testing {host}:{port}…	正在測試 {host}:{port}…
+	The desktop is forgotten; pairing again needs a fresh code	已忘記桌面電腦；再次配對需要新的代碼
+	Nothing to send: the chosen photos have no readable files	沒有可傳送的內容：所選相片沒有可讀取的檔案
+	Sending {n} photo(s) to the desktop…	正在將 {n} 張相片傳送到桌面電腦…
+	Stopping the send…	正在停止傳送…
+	That is not available on the phone yet	這在手機上尚無法使用
+	Paired with the desktop as {device}	已以 {device} 的身分與桌面電腦配對
+	Pairing failed: {reason}	配對失敗：{reason}

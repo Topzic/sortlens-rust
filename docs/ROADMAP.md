@@ -1142,6 +1142,19 @@ and none of M9 is closed until the remaining rows are ticked.
   over `الآن · بقي على القرص`. The engine's own error and `Op` description sentences stay the engine's
   English by design, because the shell re-words every one it paints, and a host notice forwarding
   `error.to_string()` shows those words rather than a catalogue miss.
+  The phone host's notices followed (hundred-and-thirty-fourth entry): `apps/sortlens-mobile`'s own
+  words — the settings-repair line, the library-open failure, both folder lines (`Indexing {folder}…`,
+  `Rescanning {folder}…`), `Removed {n} photos from {folder}`, the suggestion pass's start and finished
+  lines, both tag toasts, `Put {n} photo(s) back`, the pairing, testing, forget, send and cancel lines,
+  the phone-only fallback and both pairing answers — go through `i18n::tr`/`i18n::fmt` with counts
+  through `i18n::count`, so an Arabic phone reads `جارٍ إرسال ٣ صورة إلى سطح المكتب…` where it read
+  English. Because the shell's audit cannot read an `apps/` crate, the phone carries its own listing:
+  `the_hosts_words_have_a_row_in_every_catalogue` reads `lib.rs` and `prefs.rs` back, collects every
+  routed key and requires a row in all six catalogues, and
+  `the_hosts_notices_read_the_interface_language` proves the English, the Arabic count and noun. What
+  is still English in this crate is `send.rs`'s own sentences — the run summary, the removal coda and
+  its notice, and the connection test's two answers — and the engine's `error.to_string()` words the
+  host appends unchanged.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

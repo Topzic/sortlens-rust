@@ -908,3 +908,13 @@
 	{n} min ago	{n} phút trước
 	{n} h ago	{n} giờ trước
 	{n} days ago	{n} ngày trước
+	No photo folders on this device are readable yet	Chưa có thư mục ảnh nào đọc được trên thiết bị này
+	Pairing with the desktop…	Đang ghép nối với máy tính…
+	Testing {host}:{port}…	Đang kiểm tra {host}:{port}…
+	The desktop is forgotten; pairing again needs a fresh code	Đã quên máy tính; ghép nối lại cần mã mới
+	Nothing to send: the chosen photos have no readable files	Không có gì để gửi: ảnh đã chọn không có tệp đọc được
+	Sending {n} photo(s) to the desktop…	Đang gửi {n} ảnh đến máy tính…
+	Stopping the send…	Đang dừng việc gửi…
+	That is not available on the phone yet	Tính năng đó chưa có trên điện thoại
+	Paired with the desktop as {device}	Đã ghép nối với máy tính với tên {device}
+	Pairing failed: {reason}	Ghép nối thất bại: {reason}

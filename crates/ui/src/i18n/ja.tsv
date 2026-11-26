@@ -909,3 +909,13 @@
 	{n} min ago	{n} 分前
 	{n} h ago	{n} 時間前
 	{n} days ago	{n} 日前
+	No photo folders on this device are readable yet	この端末で読み取れる写真フォルダーはまだありません
+	Pairing with the desktop…	デスクトップとペアリングしています…
+	Testing {host}:{port}…	{host}:{port} をテストしています…
+	The desktop is forgotten; pairing again needs a fresh code	デスクトップを忘れました。再度ペアリングするには新しいコードが必要です
+	Nothing to send: the chosen photos have no readable files	送信するものがありません。選択した写真に読み取れるファイルがありません
+	Sending {n} photo(s) to the desktop…	{n} 枚の写真をデスクトップに送信しています…
+	Stopping the send…	送信を停止しています…
+	That is not available on the phone yet	それはスマートフォンではまだ利用できません
+	Paired with the desktop as {device}	デスクトップと {device} としてペアリングしました
+	Pairing failed: {reason}	ペアリングに失敗しました: {reason}

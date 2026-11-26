@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use craft_settings::store::SettingsStore;
 use sortlens_engine::Engine;
-use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme};
+use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme, i18n};
 
 use crate::prefs::PhonePrefs;
 use crate::send::DesktopLink;
@@ -56,7 +56,10 @@ impl App {
         let engine = match Engine::open(places::library_dir(&data_dir)) {
             Ok(engine) => engine,
             Err(error) => {
-                ui.notice(format!("The library could not be opened: {error}"));
+                ui.notice(i18n::fmt(
+                    "The library could not be opened: {error}",
+                    &[("error", &error.to_string())],
+                ));
                 Engine::new()
             }
         };
@@ -75,13 +78,16 @@ impl App {
     fn add_device_photos(&mut self) {
         let roots = places::photo_roots();
         if roots.is_empty() {
-            self.ui.notice("No photo folders on this device are readable yet");
+            self.ui.notice(i18n::tr("No photo folders on this device are readable yet"));
             return;
         }
         for root in roots {
             let text = root.to_string_lossy().to_string();
             match self.engine.begin_scan(text.clone()) {
-                Ok(()) => self.ui.notice(format!("Indexing {}…", places::folder_name(&text))),
+                Ok(()) => {
+                    let folder = places::folder_name(&text);
+                    self.ui.notice(i18n::fmt("Indexing {folder}…", &[("folder", &folder)]));
+                }
                 Err(error) => self.ui.notice(error.to_string()),
             }
         }
@@ -106,25 +112,34 @@ impl App {
             Action::Notice(text) => self.ui.notice(text),
             Action::PickFolder => self.add_device_photos(),
             Action::Rescan(root) => match self.engine.begin_scan(root.clone()) {
-                Ok(()) => self.ui.notice(format!("Rescanning {}…", places::folder_name(&root))),
+                Ok(()) => {
+                    let folder = places::folder_name(&root);
+                    self.ui.notice(i18n::fmt("Rescanning {folder}…", &[("folder", &folder)]));
+                }
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::RemoveRoot(root) => match self.engine.remove_root(&root) {
-                Ok(count) => self
-                    .ui
-                    .notice(format!("Removed {count} photos from {}", places::folder_name(&root))),
+                Ok(count) => {
+                    let n = i18n::count(count as u64);
+                    let folder = places::folder_name(&root);
+                    self.ui
+                        .notice(i18n::fmt("Removed {n} photos from {folder}", &[("n", &n), ("folder", &folder)]));
+                }
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::StartSuggest => match self.engine.begin_batch_suggest() {
-                Ok(0) => self.ui.notice("Nothing to suggest: the library is empty"),
-                Ok(count) => self.ui.notice(format!("Looking at {count} photo(s)…")),
+                Ok(0) => self.ui.notice(i18n::tr("Nothing to suggest: the library is empty")),
+                Ok(count) => {
+                    let n = i18n::count(count as u64);
+                    self.ui.notice(i18n::fmt("Looking at {n} photo(s)…", &[("n", &n)]));
+                }
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::CancelSuggest => self.engine.cancel_batch(),
             Action::ClearSuggest => self.engine.clear_batch(),
             Action::AcceptSuggestion(id, tag) => match self.engine.accept_suggestion(id, &tag) {
-                Ok(true) => self.ui.notice(format!("Tagged “{tag}”")),
-                Ok(false) => self.ui.notice(format!("Already tagged “{tag}”")),
+                Ok(true) => self.ui.notice(i18n::fmt("Tagged “{tag}”", &[("tag", &tag)])),
+                Ok(false) => self.ui.notice(i18n::fmt("Already tagged “{tag}”", &[("tag", &tag)])),
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::SetPack(name, on) => {
@@ -135,39 +150,45 @@ impl App {
             Action::UndoMove(id) => match self.engine.undo_move(id) {
                 Ok(count) => {
                     self.ui.move_receipt = None;
-                    self.ui.notice(format!("Put {count} photo(s) back"));
+                    let n = i18n::count(count as u64);
+                    self.ui.notice(i18n::fmt("Put {n} photo(s) back", &[("n", &n)]));
                 }
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::SendPair { host, port, code } => {
                 self.link.pair(&host, port, &code);
-                self.ui.notice("Pairing with the desktop…");
+                self.ui.notice(i18n::tr("Pairing with the desktop…"));
             }
             Action::SendTest { host, port } => {
                 self.link.test(&host, port);
-                self.ui.notice(format!("Testing {host}:{port}…"));
+                let port = port.to_string();
+                self.ui
+                    .notice(i18n::fmt("Testing {host}:{port}…", &[("host", &host), ("port", &port)]));
             }
             Action::SendForget => {
                 self.link.forget();
                 self.save_link();
-                self.ui.notice("The desktop is forgotten; pairing again needs a fresh code");
+                self.ui
+                    .notice(i18n::tr("The desktop is forgotten; pairing again needs a fresh code"));
             }
             Action::SendToDesktop(ids, remove) => {
                 let items = send::items_for(&ids, &self.engine, remove);
                 if items.is_empty() {
-                    self.ui.notice("Nothing to send: the chosen photos have no readable files");
+                    self.ui
+                        .notice(i18n::tr("Nothing to send: the chosen photos have no readable files"));
                 } else {
-                    self.ui.notice(format!("Sending {} photo(s) to the desktop…", items.len()));
+                    let n = i18n::count(items.len() as u64);
+                    self.ui.notice(i18n::fmt("Sending {n} photo(s) to the desktop…", &[("n", &n)]));
                     self.link.send(items);
                 }
             }
             Action::SendCancel => {
                 self.link.cancel();
-                self.ui.notice("Stopping the send…");
+                self.ui.notice(i18n::tr("Stopping the send…"));
             }
             // The desktop's file dialogs, its sync server and its settings file have no phone
             // counterpart yet; each is named so a tap is never silent.
-            _ => self.ui.notice("That is not available on the phone yet"),
+            _ => self.ui.notice(i18n::tr("That is not available on the phone yet")),
         }
     }
 }
@@ -182,7 +203,8 @@ impl eframe::App for App {
             ctx.request_repaint_after(deadline.saturating_duration_since(std::time::Instant::now()));
         }
         if let Some(count) = self.engine.poll_batch() {
-            self.ui.notice(format!("{count} photo(s) have something to suggest"));
+            let n = i18n::count(count as u64);
+            self.ui.notice(i18n::fmt("{n} photo(s) have something to suggest", &[("n", &n)]));
             ctx.request_repaint();
         }
         if self.engine.batch_progress().is_some() {
@@ -224,9 +246,10 @@ impl App {
             match answer {
                 Ok((_, device)) => {
                     self.save_link();
-                    self.ui.notice(format!("Paired with the desktop as {device}"));
+                    self.ui
+                        .notice(i18n::fmt("Paired with the desktop as {device}", &[("device", &device)]));
                 }
-                Err(reason) => self.ui.notice(format!("Pairing failed: {reason}")),
+                Err(reason) => self.ui.notice(i18n::fmt("Pairing failed: {reason}", &[("reason", &reason)])),
             }
             ctx.request_repaint();
         }
@@ -257,4 +280,102 @@ impl App {
 /// The windowing system could not start.
 pub fn run(options: eframe::NativeOptions, data_dir: PathBuf) -> eframe::Result {
     eframe::run_native("Sortlens", options, Box::new(move |cc| Ok(Box::new(App::new(cc, data_dir)))))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use sortlens_ui::i18n;
+
+    /// Every route the phone host's own words take, read out of the files themselves: `i18n::tr(`
+    /// literals and `i18n::fmt(` templates in `lib.rs` and in `prefs.rs`. The shell's catalogue
+    /// audit in `crates/ui` cannot read this crate, so the phone carries its own listing — a key
+    /// routed here with no row is a notice that quietly stays English, which is the debt SL-L07
+    /// exists to pay.
+    fn routed_keys() -> Vec<String> {
+        let mut keys = Vec::new();
+        // A route's literal may sit on the next line, so the whitespace after the parenthesis is
+        // skipped before the opening quote is required.
+        // Split here rather than on a literal marker, so these two lines do not list themselves.
+        let markers = [["i18n", "::tr("].concat(), ["i18n", "::fmt("].concat()];
+        for source in [include_str!("lib.rs"), include_str!("prefs.rs")] {
+            for marker in &markers {
+                for part in source.split(marker.as_str()).skip(1) {
+                    if let Some(rest) = part.trim_start().strip_prefix('"')
+                        && let Some(end) = rest.find('"')
+                    {
+                        keys.push(rest[..end].to_owned());
+                    }
+                }
+            }
+        }
+        keys
+    }
+
+    /// The phone's routes are listed here and every one has a row in all six catalogues.
+    #[test]
+    fn the_hosts_words_have_a_row_in_every_catalogue() {
+        let keys = routed_keys();
+        for key in [
+            "Settings could not be read in full; defaults are in use",
+            "The library could not be opened: {error}",
+            "No photo folders on this device are readable yet",
+            "Indexing {folder}…",
+            "Rescanning {folder}…",
+            "Removed {n} photos from {folder}",
+            "Nothing to suggest: the library is empty",
+            "Looking at {n} photo(s)…",
+            "Tagged “{tag}”",
+            "Already tagged “{tag}”",
+            "Put {n} photo(s) back",
+            "Pairing with the desktop…",
+            "Testing {host}:{port}…",
+            "The desktop is forgotten; pairing again needs a fresh code",
+            "Nothing to send: the chosen photos have no readable files",
+            "Sending {n} photo(s) to the desktop…",
+            "Stopping the send…",
+            "That is not available on the phone yet",
+            "{n} photo(s) have something to suggest",
+            "Paired with the desktop as {device}",
+            "Pairing failed: {reason}",
+        ] {
+            assert!(keys.iter().any(|seen| seen == key), "the listing lost {key:?}");
+        }
+        assert!(
+            keys.len() >= 21,
+            "only {} routes found; the audit is not reading the sources",
+            keys.len()
+        );
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = i18n::from_code(code).expect("an offered interface language");
+            for key in &keys {
+                assert_ne!(i18n::I18N.t(lang, key), key, "{code} has no row for the phone host's {key:?}");
+            }
+        }
+    }
+
+    /// The phone's pairing and send notices read the interface language, and a count keeps the
+    /// reader's own digits: the same rows the desktop's host paints, reached from a crate its
+    /// catalogue audit cannot read.
+    #[test]
+    fn the_hosts_notices_read_the_interface_language() {
+        let english = i18n::from_code("en").expect("English");
+        let arabic = i18n::from_code("ar").expect("Arabic");
+        i18n::set_current(english);
+        assert_eq!(
+            i18n::fmt("Pairing failed: {reason}", &[("reason", "denied")]),
+            "Pairing failed: denied"
+        );
+        assert_eq!(
+            i18n::tr("That is not available on the phone yet"),
+            "That is not available on the phone yet"
+        );
+        i18n::set_current(arabic);
+        let sent = i18n::fmt("Sending {n} photo(s) to the desktop…", &[("n", &i18n::count(3))]);
+        assert!(sent.contains('٣'), "the count is in Arabic-Indic digits: {sent}");
+        assert!(sent.contains("سطح المكتب"), "the noun is Arabic: {sent}");
+        assert!(!sent.contains("photo"), "no English noun is left: {sent}");
+        assert_ne!(i18n::tr("Stopping the send…"), "Stopping the send…");
+        i18n::set_current(english);
+    }
 }

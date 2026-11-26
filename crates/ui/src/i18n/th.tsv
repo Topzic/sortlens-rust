@@ -910,3 +910,13 @@
 	{n} min ago	{n} นาทีที่แล้ว
 	{n} h ago	{n} ชั่วโมงที่แล้ว
 	{n} days ago	{n} วันที่แล้ว
+	No photo folders on this device are readable yet	ยังไม่มีโฟลเดอร์รูปภาพที่อ่านได้บนอุปกรณ์นี้
+	Pairing with the desktop…	กำลังจับคู่กับเดสก์ท็อป…
+	Testing {host}:{port}…	กำลังทดสอบ {host}:{port}…
+	The desktop is forgotten; pairing again needs a fresh code	ลืมเดสก์ท็อปแล้ว การจับคู่อีกครั้งต้องใช้รหัสใหม่
+	Nothing to send: the chosen photos have no readable files	ไม่มีอะไรจะส่ง รูปภาพที่เลือกไม่มีไฟล์ที่อ่านได้
+	Sending {n} photo(s) to the desktop…	กำลังส่งรูปภาพ {n} รูปไปยังเดสก์ท็อป…
+	Stopping the send…	กำลังหยุดการส่ง…
+	That is not available on the phone yet	ยังใช้บนโทรศัพท์ไม่ได้
+	Paired with the desktop as {device}	จับคู่กับเดสก์ท็อปในชื่อ {device} แล้ว
+	Pairing failed: {reason}	จับคู่ไม่สำเร็จ: {reason}
