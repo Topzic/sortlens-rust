@@ -11668,7 +11668,7 @@ fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     ui.add_space(8.0);
     if server.devices.is_empty() {
         ui.label(
-            RichText::new("No devices are paired yet; pairing starts from the code above.")
+            RichText::new(tl!("No devices are paired yet; pairing starts from the code above."))
                 .size(11.0)
                 .color(t.text_faint),
         );
@@ -11838,7 +11838,7 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
 fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
     let packs = engine.packs();
     if packs.is_empty() {
-        ui.label(RichText::new("No packs installed.").size(10.5).color(t.text_faint));
+        ui.label(RichText::new(tl!("No packs installed.")).size(10.5).color(t.text_faint));
         ui.label(
             RichText::new("Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.")
                 .size(10.5)
@@ -21844,6 +21844,69 @@ mod tests {
             "painting the Arabic gates leaves both switches off"
         );
         assert!(actions_cell.borrow().is_empty(), "painting the Arabic switches changes nothing");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The empty states speak the interface language (SL-L07): Settings → Sync & devices with no
+    /// paired device, and the keyword packs row with no pack installed. Both hints are catalogue
+    /// rows, so an Arabic owner reads why the section is empty in Arabic, and a paint acts on
+    /// nothing.
+    #[test]
+    fn the_empty_states_speak_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-empty-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine = Engine::open(&dir).expect("open");
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let actions = std::cell::RefCell::new(Vec::<Action>::new());
+        let sync_frame = |state: &mut UiState| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    sync_section(ui, state, &tokens, &mut actions.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let packs_frame = || {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    keyword_packs(ui, &tokens, &engine, &mut actions.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // English keeps the shapes both sections painted before the hints were routed.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_painted(
+            &painted_texts(&sync_frame(&mut state)),
+            &["No devices are paired yet; pairing starts from the code above."],
+        );
+        assert_painted(&painted_texts(&packs_frame()), &["No packs installed."]);
+        assert!(actions.borrow().is_empty(), "painting the English empty states changes nothing");
+
+        // Arabic: each hint is the catalogue's sentence, and neither English hint survives.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let sync = painted_texts(&sync_frame(&mut state));
+        assert_painted(&sync, &["لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه."]);
+        assert!(
+            !sync
+                .iter()
+                .any(|text| text == "No devices are paired yet; pairing starts from the code above."),
+            "the sync hint is not English: {sync:?}"
+        );
+        let packs = painted_texts(&packs_frame());
+        assert_painted(&packs, &["لا حزم مثبّتة."]);
+        assert!(
+            !packs.iter().any(|text| text == "No packs installed."),
+            "the packs hint is not English: {packs:?}"
+        );
+        assert!(actions.borrow().is_empty(), "painting the Arabic empty states changes nothing");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

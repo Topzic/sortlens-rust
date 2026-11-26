@@ -857,6 +857,9 @@ re-checks its own contrast pairs after applying.
   `Reduced motion` and the AI and updates gates `Allow downloading models (network)` and
   `Check for updates (network)` are rows, so an Arabic owner reads `الحركة المخفّفة` and both
   consent lines in their own language.
+  The empty states followed (hundred-and-forty-ninth entry): the Sync & devices line for a library
+  with no paired device and the keyword packs row's `No packs installed.` are rows, so an Arabic
+  Settings reads `لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.` where it read English.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

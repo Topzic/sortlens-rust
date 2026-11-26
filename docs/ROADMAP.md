@@ -1262,9 +1262,15 @@ and none of M9 is closed until the remaining rows are ticked.
   `الحركة المخفّفة`, `السماح بتنزيل النماذج (شبكة)` and `التحقق من التحديثات (شبكة)`, and
   `the_settings_checkboxes_speak_the_interface_language` paints the real dialog and the row under
   English and Arabic, requiring no English label to survive either.
+  The empty states followed (hundred-and-forty-ninth entry): the Sync & devices line for a library
+  with no paired device and the keyword packs row's `No packs installed.` are rows, so an Arabic
+  Settings reads `لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.` where it read English, and
+  `the_empty_states_speak_the_interface_language` paints both real sections under English and Arabic.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names and two
-  empty-state hints — no production `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
+  went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names, and the keyword packs empty
+  state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
+  lists where.`, which names a menu path no catalogue row covers yet) — no production
+  `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
   entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the
   hundred-and-forty-second and selection in the hundred-and-forty-third). The row stays unticked until the

@@ -693,6 +693,11 @@ and `Check for updates (network)` are `tl!` keys. `the_settings_checkboxes_speak
 paints the real dialog and that row under English and Arabic, requiring no English label to survive
 and both consent switches still off.
 
+The empty states take it too: Settings → Sync & devices' `No devices are paired yet; pairing starts
+from the code above.` and `keyword_packs`' `No packs installed.` are `tl!` keys, so
+`the_empty_states_speak_the_interface_language` paints both real sections under English and Arabic
+and requires no English hint to survive either.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

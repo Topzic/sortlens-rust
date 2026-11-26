@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-ninth) — the empty states speak the interface language
+
+- **Why this came up.** The hundred-and-forty-eighth entry's Next named the two empty-state hints. A
+  library with no paired device still painted `No devices are paired yet; pairing starts from the code
+  above.` in English inside Settings → Sync & devices, and a library with no keyword pack painted
+  `No packs installed.` under an Arabic heading, so the two screens that explain an empty section
+  explained it in the wrong language.
+- **What is routed.** One row per hint, 12 in all: `sync_section`'s no-device sentence and
+  `keyword_packs`' no-pack sentence are `tl!` keys, and English keeps every shape it painted. The
+  packs row's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
+  lists where.`) stays English on purpose: it names a menu path no catalogue row covers yet, and
+  translating the sentence while the menu keeps its English name would send a reader to a label that
+  is not on screen.
+- **Tests.** `the_empty_states_speak_the_interface_language` paints the real `sync_section` and
+  `keyword_packs` under English, pinning both sentences, then under Arabic requires
+  `لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.` and `لا حزم مثبّتة.`, requires neither
+  English hint to survive, and requires both paints to leave the actions list empty. It fails on the
+  pre-slice source: the Arabic lookups would return the English literals.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the audit's remaining list to the
+  `on_hover_text` names and the packs instruction; UX.md's i18n paragraph and ARCHITECTURE.md §8.4
+  name the test. SL-L07 stays unticked.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` green;
+  `cargo test -p sortlens-ui the_empty_states_speak_the_interface_language` 1 passed (254 filtered
+  out); `cargo xtask ci` exit 0 after `cargo fmt --all` (fmt, workspace clippy, the whole suite and
+  the post-suite checks); `cargo xtask snapshot` 5 passed; `cargo xtask deny` advisories, bans,
+  licenses and sources ok; `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline
+  moved — no committed scene paints either empty state and the English paint is unchanged. No release
+  workflow was dispatched — source, catalogue rows, tests and docs, no build or release surface.
+  `crates/ui` changed, so `cargo xtask mobile` is CI's job: this machine has no Android NDK or Xcode.
+- **Files.** `crates/ui/src/shell.rs` (the two routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (one row each for the two keys), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the Settings → Sync & devices section's remaining sentences — `Serving on 127.0.0.1:{port}`,
+  `Pairing code  {code}`, `The code lives ten minutes; a fresh one is printed here when it does.`,
+  `Starting the server…`, `The library is not being served.`, the loopback and `--bind lan` lines,
+  and the four hover names — through `tl!`/`i18n::fmt` with a paint test under Arabic. SL-L07 stays
+  unticked until the source audit proves every painted literal is a catalogue row. No release run is
+  in flight.
+
 ## 2026-11-26 (hundred-and-forty-eighth) — the Settings switches speak the interface language
 
 - **Why this came up.** The hundred-and-forty-seventh entry's Next named the three Settings
