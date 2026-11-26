@@ -1020,3 +1020,12 @@
 	Runs sortlens-server beside this app against the open library	Chạy sortlens-server bên cạnh ứng dụng này trên thư viện đang mở
 	The device's token is removed from the library's token file	Mã thông báo của thiết bị bị xoá khỏi tệp mã thông báo của thư viện
 	Stop the server first: a running server holds its own token store and would bring the row back	Hãy dừng máy chủ trước: máy chủ đang chạy giữ kho mã thông báo riêng và sẽ khôi phục dòng
+	Stop the run before forgetting the desktop it is sending to	Dừng lượt gửi trước khi quên máy tính đang nhận
+	The stored token is dropped; pairing again needs a fresh code	Mã thông báo đã lưu sẽ bị xoá; ghép đôi lại cần mã mới
+	Asks the desktop at that address whether it is there, before a code is spent on it	Hỏi máy tính ở địa chỉ đó xem nó có ở đó không, trước khi dùng mã vào việc này
+	Trades the code for a scoped token; the code itself is never stored	Đổi mã lấy mã thông báo có phạm vi; bản thân mã không bao giờ được lưu
+	The photograph it is on finishes or stays a server-side partial; the rest are not attempted	Ảnh đang gửi sẽ hoàn tất hoặc nằm lại thành phần dở trên máy chủ; phần còn lại không được thử
+	Pair with the desktop first	Hãy ghép đôi với máy tính trước
+	Choose photographs to send first	Hãy chọn ảnh để gửi trước
+	A run is already in flight; stop it before queuing another	Đang có một lượt gửi chạy; dừng nó trước khi xếp thêm lượt khác
+	Sends over the resumable upload, one photograph at a time	Gửi qua bản tải lên có thể tiếp tục, từng ảnh một

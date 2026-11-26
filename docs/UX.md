@@ -869,6 +869,10 @@ re-checks its own contrast pairs after applying.
   searchable`, the backup and restore buttons' two sentences, the shortcut editor's, the suggestion
   pass's and the model stop and remove names are seven rows in all six languages, so the control
   under the pointer explains itself in the reader's language.
+  The phone link's own hover names followed (hundred-and-fifty-second entry): the Send-to-desktop
+  section's nine hovers — both states of the forget button, the connection test, the pair button,
+  the stop button and the send button's four states — are rows, so a phone in Arabic explains
+  pairing, the wait and the stop in Arabic rather than in English.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

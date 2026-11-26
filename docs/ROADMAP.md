@@ -1281,10 +1281,18 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_settings_tree_hovers_speak_the_interface_language` reads `shell.rs` back to prove each call
   site routes through `tl!` — a hover never paints, so a literal there is invisible to any frame —
   then requires the Arabic row for all seven through `i18n::tr`.
+  The phone link's hover names followed (hundred-and-fifty-second entry): `send_section`'s nine
+  `on_hover_text` literals are `tl!` rows in all six languages — the forget button's two states, the
+  connection test, the pair button, the stop button and the send button's four branch sentences — so
+  an Arabic phone link explains pairing, the run and its own stop in Arabic. The send button's four
+  names were one `hover` variable holding a literal, which a source audit cannot read as a route;
+  each branch now calls `on_hover_text(tl!(…))` itself.
+  `the_phone_links_hovers_speak_the_interface_language` reads `shell.rs` back and requires all nine
+  sites to route, then requires English to answer each key unchanged and Arabic all nine rows.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: thirteen more `on_hover_text` sites over twelve sentences (the app
-  mark, the canvas's export pair, the cull help and fit names, the destination strip, the phone
-  link's four and the keyword menu's), and the keyword packs empty
+  went through `tl!`/`i18n::fmt`: eight more `on_hover_text` sites over seven sentences (the app
+  mark, the canvas's export pair, the cull help and fit names, the destination strip, and the
+  keyword menu's two `Switch between most used and A–Z`), and the keyword packs empty
   state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
   lists where.`, which names a menu path no catalogue row covers yet) — no production
   `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth

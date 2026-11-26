@@ -1021,3 +1021,12 @@
 	Runs sortlens-server beside this app against the open library	開いているライブラリに対して、このアプリの隣で sortlens-server を実行します
 	The device's token is removed from the library's token file	デバイスのトークンをライブラリのトークンファイルから削除します
 	Stop the server first: a running server holds its own token store and would bring the row back	先にサーバーを停止してください。稼働中のサーバーは独自のトークンストアを保持しており、行が復活します
+	Stop the run before forgetting the desktop it is sending to	送信中の実行を止めてから、送信先のデスクトップを忘れてください
+	The stored token is dropped; pairing again needs a fresh code	保存されたトークンは破棄されます。もう一度ペアリングするには新しいコードが必要です
+	Asks the desktop at that address whether it is there, before a code is spent on it	そのアドレスのデスクトップに到達できるかを、コードを使う前に確かめます
+	Trades the code for a scoped token; the code itself is never stored	コードを範囲限定のトークンと交換します。コード自体は保存されません
+	The photograph it is on finishes or stays a server-side partial; the rest are not attempted	送信中の写真は完了するか、サーバー側の部分データとして残ります。残りは試行されません
+	Pair with the desktop first	先にデスクトップとペアリングしてください
+	Choose photographs to send first	先に送る写真を選んでください
+	A run is already in flight; stop it before queuing another	すでに送信が進行中です。停止してから次を予約してください
+	Sends over the resumable upload, one photograph at a time	再開可能なアップロードで、1 枚ずつ送信します

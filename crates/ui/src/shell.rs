@@ -11742,9 +11742,9 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
         );
         let forget = ui.add_enabled(!send.sending, Button::new(RichText::new(tl!("Forget this desktop")).size(12.0)));
         let forget = if send.sending {
-            forget.on_hover_text("Stop the run before forgetting the desktop it is sending to")
+            forget.on_hover_text(tl!("Stop the run before forgetting the desktop it is sending to"))
         } else {
-            forget.on_hover_text("The stored token is dropped; pairing again needs a fresh code")
+            forget.on_hover_text(tl!("The stored token is dropped; pairing again needs a fresh code"))
         };
         if forget.clicked() {
             actions.push(Action::SendForget);
@@ -11772,7 +11772,9 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
                 address_ready && !send.checking,
                 Button::new(RichText::new(tl!("Test connection")).size(12.0)),
             )
-            .on_hover_text("Asks the desktop at that address whether it is there, before a code is spent on it");
+            .on_hover_text(tl!(
+                "Asks the desktop at that address whether it is there, before a code is spent on it"
+            ));
         if address_ready && !send.checking && test.clicked() {
             actions.push(Action::SendTest {
                 host: state.send_host.trim().to_owned(),
@@ -11795,7 +11797,7 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
         let ready = address_ready && !state.send_code.trim().is_empty();
         let pair = ui
             .add_enabled(ready, Button::new(RichText::new(tl!("Pair")).size(12.0)))
-            .on_hover_text("Trades the code for a scoped token; the code itself is never stored");
+            .on_hover_text(tl!("Trades the code for a scoped token; the code itself is never stored"));
         if ready && pair.clicked() {
             actions.push(Action::SendPair {
                 host: state.send_host.trim().to_owned(),
@@ -11812,7 +11814,9 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
         ui.label(RichText::new(progress).size(12.0));
         if ui
             .button(RichText::new(tl!("Stop sending")).size(12.0))
-            .on_hover_text("The photograph it is on finishes or stays a server-side partial; the rest are not attempted")
+            .on_hover_text(tl!(
+                "The photograph it is on finishes or stays a server-side partial; the rest are not attempted"
+            ))
             .clicked()
         {
             actions.push(Action::SendCancel);
@@ -11829,16 +11833,15 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     };
     let enabled = send.paired && chosen > 0 && !send.sending;
     let send_button = ui.add_enabled(enabled, Button::new(RichText::new(label).size(12.0)));
-    let hover = if !send.paired {
-        "Pair with the desktop first"
+    let send_button = if !send.paired {
+        send_button.on_hover_text(tl!("Pair with the desktop first"))
     } else if chosen == 0 {
-        "Choose photographs to send first"
+        send_button.on_hover_text(tl!("Choose photographs to send first"))
     } else if send.sending {
-        "A run is already in flight; stop it before queuing another"
+        send_button.on_hover_text(tl!("A run is already in flight; stop it before queuing another"))
     } else {
-        "Sends over the resumable upload, one photograph at a time"
+        send_button.on_hover_text(tl!("Sends over the resumable upload, one photograph at a time"))
     };
-    let send_button = send_button.on_hover_text(hover);
     if enabled && send_button.clicked() {
         actions.push(Action::SendToDesktop(state.selection.ids(), state.send_remove));
     }
@@ -22101,6 +22104,74 @@ mod tests {
             (
                 "Delete the file from the model store; you can install it again later",
                 "يحذف الملف من مخزن النماذج؛ يمكنك تثبيته مجددًا لاحقًا",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in HOVERS {
+            assert!(
+                source.contains(&format!("on_hover_text(tl!(\"{english}\"))")),
+                "the hover {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("on_hover_text(\"{english}\")")),
+                "the hover {english:?} also paints a bare literal"
+            );
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), arabic, "the hover row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The Send-to-desktop section's hover names are catalogue rows, in every language the picker
+    /// offers.
+    ///
+    /// A hover paints nothing in a frame, so the catalogue is the witness here too: each name
+    /// resolves to the reader's own row, and the source read back proves the call site routes
+    /// through `tl!` rather than carrying the literal. The four names on the send button are
+    /// branches of one widget, so each branch's own call is what has to route — a variable holding
+    /// a literal would satisfy a paint test and fail a reader in Arabic just the same.
+    #[test]
+    fn the_phone_links_hovers_speak_the_interface_language() {
+        // One row per name the Send-to-desktop section hangs on a control.
+        const HOVERS: [(&str, &str); 9] = [
+            (
+                "Stop the run before forgetting the desktop it is sending to",
+                "أوقف الإرسال قبل نسيان سطح المكتب الذي يُرسَل إليه",
+            ),
+            (
+                "The stored token is dropped; pairing again needs a fresh code",
+                "يُسقَط الرمز المخزَّن؛ ويحتاج الاقتران مجددًا إلى رمز جديد",
+            ),
+            (
+                "Asks the desktop at that address whether it is there, before a code is spent on it",
+                "يسأل سطح المكتب على ذلك العنوان إن كان هناك، قبل إنفاق رمز عليه",
+            ),
+            (
+                "Trades the code for a scoped token; the code itself is never stored",
+                "يستبدل رمز الاقتران برمز محدود النطاق؛ أما رمز الاقتران نفسه فلا يُخزَّن أبدًا",
+            ),
+            (
+                "The photograph it is on finishes or stays a server-side partial; the rest are not attempted",
+                "الصورة الجارية تكتمل أو تبقى جزءًا ناقصًا على الخادم؛ والباقي لا يُجرَّب",
+            ),
+            ("Pair with the desktop first", "اقترن بسطح المكتب أولًا"),
+            ("Choose photographs to send first", "اختر الصور التي ستُرسَل أولًا"),
+            (
+                "A run is already in flight; stop it before queuing another",
+                "هناك إرسال جارٍ بالفعل؛ أوقفه قبل إدراج آخر",
+            ),
+            (
+                "Sends over the resumable upload, one photograph at a time",
+                "يرسل عبر الرفع القابل للاستئناف، صورة واحدة في كل مرة",
             ),
         ];
         // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at

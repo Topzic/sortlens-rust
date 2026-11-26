@@ -1020,3 +1020,12 @@
 	Runs sortlens-server beside this app against the open library	針對已開啟的圖庫，在這個應用程式旁執行 sortlens-server
 	The device's token is removed from the library's token file	裝置的權杖會從圖庫的權杖檔案中移除
 	Stop the server first: a running server holds its own token store and would bring the row back	請先停止伺服器：執行中的伺服器保有自己的權杖存放區，會讓這一列回來
+	Stop the run before forgetting the desktop it is sending to	忘記這台電腦前，先停止正在進行的傳送
+	The stored token is dropped; pairing again needs a fresh code	已儲存的權杖會被丟棄；再次配對需要新的代碼
+	Asks the desktop at that address whether it is there, before a code is spent on it	先問那個位址上的電腦在不在，再花費代碼
+	Trades the code for a scoped token; the code itself is never stored	用代碼換取有範圍限制的權杖；代碼本身永不儲存
+	The photograph it is on finishes or stays a server-side partial; the rest are not attempted	正在傳送的那張相片會完成，或留在伺服器上成為部分檔案；其餘不會嘗試
+	Pair with the desktop first	請先與電腦配對
+	Choose photographs to send first	請先選擇要傳送的相片
+	A run is already in flight; stop it before queuing another	已有傳送正在進行；請先停止再排入下一批
+	Sends over the resumable upload, one photograph at a time	透過可續傳的上傳逐張傳送相片

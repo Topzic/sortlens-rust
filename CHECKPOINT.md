@@ -1,5 +1,57 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-second) — the phone link's hover names speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-first entry's Next named the phone link's five
+  remaining hover names. Reading `send_section` found nine literals, not five: the forget button's
+  two states, the connection test, the pair button and the stop button were five `on_hover_text(…)`
+  calls, and the send button's four sentences lived in a single `hover` variable — a literal no
+  source audit can read as a route at all, so an Arabic phone link explained pairing and its own
+  stop in English.
+- **What is routed.** Nine rows per catalogue, 54 in all: `Stop the run before forgetting the desktop
+  it is sending to`, `The stored token is dropped; pairing again needs a fresh code`, `Asks the
+  desktop at that address whether it is there, before a code is spent on it`, `Trades the code for a
+  scoped token; the code itself is never stored`, `The photograph it is on finishes or stays a
+  server-side partial; the rest are not attempted`, `Pair with the desktop first`, `Choose
+  photographs to send first`, `A run is already in flight; stop it before queuing another` and
+  `Sends over the resumable upload, one photograph at a time` are `tl!` keys in the six catalogues,
+  and every call site hands the lookup's string to `on_hover_text`. The send button's one variable
+  became four branch calls, so each state's sentence is its own routed site. English keeps every
+  word it painted.
+- **Tests.** `the_phone_links_hovers_speak_the_interface_language` reads `shell.rs` back with each
+  line's indentation trimmed — so a `tl!` rustfmt wrapped at the margin still reads as one call —
+  and requires each of the nine sites to be `on_hover_text(tl!("…"))` with no bare-literal twin;
+  then it requires English to answer each key unchanged and Arabic to answer all nine translated
+  rows through `i18n::tr`. It fails on the pre-slice source at the first wiring assertion (all nine
+  were literals, four of them behind one variable) and would fail at the Arabic lookups if the rows
+  were added without the route. The catalogue audit `catalogs_load_and_routed_keys_have_rows` now
+  reads the nine keys too and requires their rows in all six languages.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the audit's remaining list to the
+  eight `on_hover_text` sites over seven sentences (the app mark, the canvas's export pair, the cull
+  help and fit names, the destination strip, and the keyword menu's two `Switch between most used
+  and A–Z`) and the packs instruction; UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name the test
+  and why the send button's four branches had to become calls. SL-L07 stays unticked.
+- **Verified.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings`
+  exit 0; `cargo test -p sortlens-ui hovers_speak_the_interface_language` 2 passed (256 filtered
+  out) — the new test beside the Settings tree's; `cargo test -p sortlens-ui
+  catalogs_load_and_routed_keys_have_rows` 1 passed (257 filtered out); `cargo xtask ci` exit 0
+  (fmt, workspace clippy, the whole suite, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`); `cargo xtask snapshot` 5 passed;
+  `cargo xtask deny` advisories, bans, licenses and sources ok; `cargo xtask screenshots` 30 passed, 1
+  ignored (network), and no baseline moved — no committed scene rests a pointer on a hover, and the
+  English paint is unchanged. There is no `cargo xtask wasm`
+  in this workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job: this machine has no
+  Android NDK and no Xcode, which is what leaves the device-side leg unverified here. No release
+  workflow was dispatched — source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the nine routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (nine rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the canvas's own three hover names — the app mark's `Sortlens`, and the export control's
+  `Export the selection…` and `Select a photo to export` — through `tl!`, with the same
+  source-readback and Arabic lookup test. SL-L07 stays unticked until the source audit proves every
+  painted literal is a catalogue row. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-first) — the Settings tree's hover names speak the interface language
 
 - **Why this came up.** The hundred-and-fiftieth entry's Next named the Settings tree's seven

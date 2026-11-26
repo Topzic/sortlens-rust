@@ -1022,3 +1022,12 @@
 	Runs sortlens-server beside this app against the open library	เรียก sortlens-server ทำงานเคียงข้างแอปนี้กับไลบรารีที่เปิดอยู่
 	The device's token is removed from the library's token file	โทเค็นของอุปกรณ์จะถูกนำออกจากไฟล์โทเค็นของไลบรารี
 	Stop the server first: a running server holds its own token store and would bring the row back	หยุดเซิร์ฟเวอร์ก่อน เซิร์ฟเวอร์ที่ทำงานอยู่ถือที่เก็บโทเค็นของตัวเองและจะทำให้แถวกลับมา
+	Stop the run before forgetting the desktop it is sending to	หยุดการส่งที่กำลังทำอยู่ก่อนลืมเดสก์ท็อปที่ส่งไป
+	The stored token is dropped; pairing again needs a fresh code	โทเคนที่เก็บไว้จะถูกลบ การจับคู่อีกครั้งต้องใช้รหัสใหม่
+	Asks the desktop at that address whether it is there, before a code is spent on it	ถามเดสก์ท็อปที่อยู่นั้นว่าอยู่ที่นั่นหรือไม่ ก่อนใช้รหัสไปกับมัน
+	Trades the code for a scoped token; the code itself is never stored	แลกรหัสเป็นโทเคนแบบจำกัดขอบเขต ตัวรหัสเองจะไม่ถูกเก็บ
+	The photograph it is on finishes or stays a server-side partial; the rest are not attempted	รูปที่กำลังส่งจะเสร็จหรือค้างเป็นไฟล์บางส่วนฝั่งเซิร์ฟเวอร์ ส่วนที่เหลือจะไม่ถูกพยายาม
+	Pair with the desktop first	จับคู่กับเดสก์ท็อปก่อน
+	Choose photographs to send first	เลือกรูปที่จะส่งก่อน
+	A run is already in flight; stop it before queuing another	มีการส่งกำลังทำงานอยู่แล้ว หยุดก่อนเข้าคิวอีกรอบ
+	Sends over the resumable upload, one photograph at a time	ส่งผ่านการอัปโหลดที่ต่อได้ รูปทีละรูป

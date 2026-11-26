@@ -1021,3 +1021,12 @@
 	Runs sortlens-server beside this app against the open library	يشغّل sortlens-server إلى جانب هذا التطبيق على المكتبة المفتوحة
 	The device's token is removed from the library's token file	يُزال رمز الجهاز من ملف رموز المكتبة
 	Stop the server first: a running server holds its own token store and would bring the row back	أوقف الخادم أولًا: الخادم العامل يحتفظ بمخزن رموزه الخاص وسيُعيد الصف
+	Stop the run before forgetting the desktop it is sending to	أوقف الإرسال قبل نسيان سطح المكتب الذي يُرسَل إليه
+	The stored token is dropped; pairing again needs a fresh code	يُسقَط الرمز المخزَّن؛ ويحتاج الاقتران مجددًا إلى رمز جديد
+	Asks the desktop at that address whether it is there, before a code is spent on it	يسأل سطح المكتب على ذلك العنوان إن كان هناك، قبل إنفاق رمز عليه
+	Trades the code for a scoped token; the code itself is never stored	يستبدل رمز الاقتران برمز محدود النطاق؛ أما رمز الاقتران نفسه فلا يُخزَّن أبدًا
+	The photograph it is on finishes or stays a server-side partial; the rest are not attempted	الصورة الجارية تكتمل أو تبقى جزءًا ناقصًا على الخادم؛ والباقي لا يُجرَّب
+	Pair with the desktop first	اقترن بسطح المكتب أولًا
+	Choose photographs to send first	اختر الصور التي ستُرسَل أولًا
+	A run is already in flight; stop it before queuing another	هناك إرسال جارٍ بالفعل؛ أوقفه قبل إدراج آخر
+	Sends over the resumable upload, one photograph at a time	يرسل عبر الرفع القابل للاستئناف، صورة واحدة في كل مرة

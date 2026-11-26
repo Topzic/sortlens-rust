@@ -713,6 +713,13 @@ are seven `tl!` keys in all six catalogues. A hover never paints, so no frame ca
 so a `tl!` rustfmt wrapped at the margin still reads as one call) and requires every site to be
 `on_hover_text(tl!(…))`, then asks `i18n::tr` for the Arabic row of each one.
 
+The phone link takes the same route (hundred-and-fifty-second entry): `send_section`'s nine hover
+names — both states of the forget button, the connection test, the pair button, the stop button and
+the four branches of the send button — are `tl!` keys. The send button's four used to be one `hover`
+variable holding a literal, which no source audit can read as a route; each branch now calls
+`on_hover_text(tl!(…))` itself, and `the_phone_links_hovers_speak_the_interface_language` reads
+them back the way the Settings test does.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with
