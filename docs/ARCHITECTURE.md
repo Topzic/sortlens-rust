@@ -663,6 +663,14 @@ says so in the same sentence. `the_sharpness_and_collection_notices_speak_the_in
 runs a real two-photo pass and creates a real collection under Arabic, requires the counted digits,
 and pins the English shapes the shell painted before.
 
+The sidebar's folder rows take it over the row, its tooltip and its menu: `folder_row_count` owns
+the away decision (only `Some(false)` is evidence) and writes the count through `i18n::count`,
+`folder_mount_hint` words both mount lines and `folder_pin_label` the pin row, while `folder_menu`
+is the one function the row's right-click paints — the menu a test paints is the menu a person
+sees. `the_folder_rows_and_their_menu_speak_the_interface_language` paints the empty sidebar and
+that menu under Arabic, and the volume test calls the same decision instead of copying its match
+arms.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

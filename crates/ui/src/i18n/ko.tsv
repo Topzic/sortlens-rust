@@ -972,3 +972,11 @@
 	Measured {n} photo(s)	{n}장을 측정함
 	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	{n}장을 측정함. {unjudged}장은 판정할 수 없어 점수를 매기지 않았습니다
 	Sharpness pass stopped after {n} photo(s)	선명도 측정이 {n}장에서 중단되었습니다
+	No folders yet. Add one to index a shoot.	폴더가 아직 없습니다. 하나를 추가하여 촬영을 색인하세요.
+	{n} · away	{n} · 연결 안 됨
+	Not mounted: {mount} is not there right now	연결되지 않음: {mount}이(가) 지금 없습니다
+	Not mounted	연결되지 않음
+	Add to favourites	즐겨찾기에 추가
+	Remove from favourites	즐겨찾기에서 제거
+	Rescan	다시 검사
+	Remove from library	라이브러리에서 제거

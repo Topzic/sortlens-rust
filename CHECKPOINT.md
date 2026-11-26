@@ -1,5 +1,48 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-fifth) — the folder rows and their menu speak the interface language
+
+- **Why this came up.** The hundred-and-forty-fourth entry's Next named the folder rows and their
+  context menu. `folders_section` still painted English: the empty hint `No folders yet. Add one to
+  index a shoot.`, the away count built with `format!` so an Arabic sidebar's unplugged drive read
+  `12 · away` in Latin digits beside an Arabic grid, both `Not mounted` lines, the two pin labels and
+  the menu's `Rescan`/`Remove from library`.
+- **What is routed.** Eight rows per catalogue, 48 in all. `folder_row_count` owns the away decision
+  (only `Some(false)` is evidence) and spells its count through `i18n::count`; `folder_mount_hint`
+  words both mount lines; `folder_pin_label` words the pin row; and `folder_menu` is the row's whole
+  context menu, moved out of the closure so a test can paint it without a mouse. English keeps every
+  shape: `12 · away`, `Not mounted`, `Not mounted: D:\Shoots is not there right now`,
+  `Add to favourites`, `Rescan`, `Remove from library`.
+- **Tests.** `the_folder_rows_and_their_menu_speak_the_interface_language` pins the English shapes,
+  then under Arabic requires the away row to carry `١٢` and its own word with no Latin digit, the
+  tooltip to frame the mount in Arabic, and paints the empty sidebar (the catalogue's hint and no
+  `No folders yet`) and the real menu (Arabic pin/rescan/remove labels, no English ones, a
+  favourite's own row, and no action from a mere paint).
+  `a_root_on_a_missing_volume_is_marked_away_and_an_unknown_volume_is_not` now calls
+  `folder_row_count` instead of copying its match arms, so the decision the test proves is the one
+  the sidebar makes.
+- **Docs.** ROADMAP's SL-L07 row records the family and re-counts what is left (the collection menu's
+  `{n} collections` label and its pin labels, plus the hover/accessibility names). UX.md's i18n
+  paragraph and ARCHITECTURE.md §8.4 name the helpers and the test. SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` ran every step — fmt, workspace clippy and the whole suite (251
+  `sortlens-ui` tests, the catalogue audit among them) to its doc-tests — and the ten checks after
+  the suite (layers, roots, assets, fonts, version, attribution, a11y, docs, templates, workflows)
+  were re-run one by one, each exit 0; the background pipeline itself reported exit 1 through
+  PowerShell's NativeCommandError on the font warning, the artefact earlier entries record.
+  `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — no committed scene
+  paints the empty folder hint or a folder menu, and the English paint is unchanged;
+  `cargo xtask snapshot` 5 passed; `cargo xtask deny` (advisories, bans, licenses, sources) exit 0.
+  `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and no phone code changed; there
+  is no `cargo xtask wasm` in this workspace. No release workflow was dispatched: source, catalogue
+  rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the four helpers, the rewired rows and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (eight rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the collection rows' context menu in `crates/ui/src/shell.rs`'s `collections_section`: its
+  `{n} collections` label, both pin labels and its delete row, with the collection headers' counts
+  through `format_count`. SL-L07 stays unticked; its row lists what the audit still finds. No
+  release run is in flight.
 ## 2026-11-26 (hundred-and-forty-fourth) — the pass's receipts and a new collection speak the interface language
 
 - **Why this came up.** The hundred-and-forty-third entry's Next named the last two
@@ -8340,14 +8383,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-forty-fourth entry).** Read this commit's `CI` run with one
-`gh run view` — `screenshots` is the job that matters, though no committed scene leaves a pass
-receipt or creates a collection and the English paint is unchanged. Then the folder rows and their
-context menu in `crates/ui/src/shell.rs`'s `folders_section`: `No folders yet. Add one to index a
-shoot.`, `{count} · away`, both `Not mounted` lines, `Add to favourites`/`Remove from favourites`,
-`Rescan` and `Remove from library`, with the row's count through `format_count`. SL-L07 stays
-unticked; its row lists what the audit still finds (the hover/accessibility names and the dialog
-literals now that no production `format!` notice is left). No release run is in flight.
+**Next tick (after the hundred-and-forty-fifth entry).** Read this commit's `CI` run with one
+`gh run view` — no committed scene paints a folder menu and the English paint is unchanged, so no
+baseline should have moved. Then the collection rows' context menu in `crates/ui/src/shell.rs`'s
+`collections_section`: its `{n} collections` label, both pin labels and its delete row, with the
+collection headers' counts through `format_count`. SL-L07 stays unticked; its row lists what the
+audit still finds (the hover/accessibility names and the collection menu's literals, now that the
+folder rows are done). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

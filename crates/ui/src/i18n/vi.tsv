@@ -972,3 +972,11 @@
 	Measured {n} photo(s)	Đã đo {n} ảnh
 	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	Đã đo {n} ảnh; không thể xét {unjudged} ảnh nên để nguyên chưa chấm
 	Sharpness pass stopped after {n} photo(s)	Lượt đo độ nét dừng sau {n} ảnh
+	No folders yet. Add one to index a shoot.	Chưa có thư mục nào. Thêm một thư mục để lập chỉ mục cho buổi chụp.
+	{n} · away	{n} · ngoại tuyến
+	Not mounted: {mount} is not there right now	Chưa gắn kết: {mount} hiện không ở đó
+	Not mounted	Chưa gắn kết
+	Add to favourites	Thêm vào mục yêu thích
+	Remove from favourites	Bỏ khỏi mục yêu thích
+	Rescan	Quét lại
+	Remove from library	Bỏ khỏi thư viện

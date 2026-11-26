@@ -973,3 +973,11 @@
 	Measured {n} photo(s)	قِيست {n} صورة
 	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	قِيست {n} صورة؛ تعذّر فرز {unjudged} وبقيت بلا تقييم
 	Sharpness pass stopped after {n} photo(s)	توقّف قياس الحِدّة بعد {n} صورة
+	No folders yet. Add one to index a shoot.	لا توجد مجلدات بعد. أضف مجلدًا لفهرسة جلسة تصوير.
+	{n} · away	{n} · غائب
+	Not mounted: {mount} is not there right now	غير مُثبَّت: {mount} غير موجود الآن
+	Not mounted	غير مُثبَّت
+	Add to favourites	أضف إلى المفضلة
+	Remove from favourites	أزل من المفضلة
+	Rescan	إعادة الفحص
+	Remove from library	أزل من المكتبة

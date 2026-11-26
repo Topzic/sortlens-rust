@@ -1225,9 +1225,19 @@ and none of M9 is closed until the remaining rows are ticked.
   instead of an English frame around Latin ones.
   `the_sharpness_and_collection_notices_speak_the_interface_language` runs a real two-photo pass and
   creates a real collection under Arabic and requires the digits.
+  The folder rows and their menu followed (hundred-and-forty-fifth entry): the empty hint
+  `No folders yet. Add one to index a shoot.`, the away count `{n} · away`, the mount tooltip's
+  `Not mounted: {mount} is not there right now` and `Not mounted`, both pin labels, `Rescan` and
+  `Remove from library` are rows and a template; `folder_row_count` decides the away branch (only
+  `Some(false)` is evidence) and writes the reader's digits, and `folder_menu` is the one function
+  the row's right-click paints, so the menu a test paints is the menu a person sees. An Arabic
+  sidebar's unplugged drive reads `١٢ · غائب` where it read `12 · away`.
+  `the_folder_rows_and_their_menu_speak_the_interface_language` paints the empty sidebar and the
+  real menu under Arabic, and the volume test now calls the production decision instead of a copy
+  of its match arms.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
   went through `tl!`/`i18n::fmt`: dozens of `on_hover_text`/accessibility names, and dialog literals
-  such as `No folders yet`, `Remove from library` and the collection menu — no production
+  such as the collection menu's `{n} collections` label and its two pin labels — no production
   `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
   entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the

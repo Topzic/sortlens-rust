@@ -3117,6 +3117,85 @@ fn folder_scope(mark: &sortlens_engine::FolderMark, library_sort: Sort) -> (Sort
     (sort, mark.search.clone().unwrap_or_default())
 }
 
+/// A folder row's count column: the photographs it holds, or that count worded as away when the
+/// volume is not mounted, and whether the row should say why.
+///
+/// Only `Some(false)` is evidence: a platform that cannot answer must not be drawn as if the drive
+/// were away. The count is the interface language's digits in both branches, so an Arabic away row
+/// does not fall back to Latin ones.
+fn folder_row_count(mounted: Option<bool>, count: usize) -> (String, bool) {
+    match mounted {
+        Some(false) => {
+            let digits = crate::i18n::count(count as u64);
+            (crate::i18n::fmt("{n} · away", &[("n", &digits)]), true)
+        }
+        _ => (format_count(count as u64), false),
+    }
+}
+
+/// A folder row's hover explanation when its volume answered that it is not there.
+fn folder_mount_hint(mount: Option<&str>) -> String {
+    match mount {
+        Some(mount) => crate::i18n::fmt("Not mounted: {mount} is not there right now", &[("mount", mount)]),
+        None => tl!("Not mounted").to_owned(),
+    }
+}
+
+/// The pin row of a folder's context menu.
+fn folder_pin_label(favourite: bool) -> &'static str {
+    if favourite {
+        tl!("Remove from favourites")
+    } else {
+        tl!("Add to favourites")
+    }
+}
+
+/// A folder row's context menu: pin, colour, rescan and remove.
+///
+/// One function rather than a closure so a test can paint the menu without a mouse, and so the words
+/// and the handlers that answer them stay in the same place.
+fn folder_menu(
+    ui: &mut Ui,
+    root: &str,
+    mark: &sortlens_engine::FolderMark,
+    remark: &mut Option<(String, sortlens_engine::FolderMark)>,
+    actions: &mut Vec<Action>,
+) {
+    if ui.button(folder_pin_label(mark.favourite)).clicked() {
+        *remark = Some((
+            root.to_owned(),
+            sortlens_engine::FolderMark {
+                favourite: !mark.favourite,
+                ..mark.clone()
+            },
+        ));
+        ui.close();
+    }
+    ui.menu_button(tl!("Colour"), |ui| {
+        let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
+        if ui.button(tl!("None")).clicked() {
+            chosen = Some(None);
+        }
+        for label in sortlens_core::ColorLabel::ALL {
+            if ui.button(colour_word(label)).clicked() {
+                chosen = Some(Some(label));
+            }
+        }
+        if let Some(colour) = chosen {
+            *remark = Some((root.to_owned(), sortlens_engine::FolderMark { colour, ..mark.clone() }));
+            ui.close();
+        }
+    });
+    if ui.button(tl!("Rescan")).clicked() {
+        actions.push(Action::Rescan(root.to_owned()));
+        ui.close();
+    }
+    if ui.button(tl!("Remove from library")).clicked() {
+        actions.push(Action::RemoveRoot(root.to_owned()));
+        ui.close();
+    }
+}
+
 /// The folder list: one row per root, with its volume state, pin and colour.
 ///
 /// Its own function because the sidebar had grown past the point where one closure could hold every section and
@@ -3132,7 +3211,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     // one missing volume, and the sidebar says so beside the folder instead of after scrolling.
     let volumes = engine.root_volumes();
     if volumes.is_empty() {
-        hint(ui, t, "No folders yet. Add one to index a shoot.");
+        hint(ui, t, tl!("No folders yet. Add one to index a shoot."));
     }
     // Marks are read once per frame rather than per row: the sidebar draws every root, and a key lookup
     // per row would be one string normalisation per row per frame.
@@ -3142,12 +3221,9 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
         let root = volume.root.clone();
         let count = volume.photos;
         let selected = state.root.as_deref() == Some(root.as_str());
-        let (count_text, offline) = match volume.mounted {
-            // Only `Some(false)` is evidence: a platform that cannot answer must not be drawn as if
-            // the drive were away.
-            Some(false) => (format!("{count} · away"), true),
-            _ => (format_count(count as u64), false),
-        };
+        // Only `Some(false)` is evidence: a platform that cannot answer must not be drawn as if
+        // the drive were away. The decision lives in `folder_row_count` so its test can reach it.
+        let (count_text, offline) = folder_row_count(volume.mounted, count);
         let key = sortlens_engine::folder_key(&root);
         let mark = marks.get(&key).cloned().unwrap_or_default();
         let name = format!("{}{}", if mark.favourite { "★ " } else { "" }, folder_name(&root));
@@ -3159,10 +3235,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
             ui.painter().circle_filled(dot, 3.0, t.label(colour));
         }
         if offline {
-            response.clone().on_hover_text(match &volume.mount {
-                Some(mount) => format!("Not mounted: {mount} is not there right now"),
-                None => "Not mounted".to_string(),
-            });
+            response.clone().on_hover_text(folder_mount_hint(volume.mount.as_deref()));
         }
         if response.clicked() {
             if state.root.as_deref() != Some(root.as_str()) {
@@ -3175,46 +3248,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
             state.sort = sort;
             state.search = search;
         }
-        response.context_menu(|ui| {
-            let pin_label = if mark.favourite {
-                "Remove from favourites"
-            } else {
-                "Add to favourites"
-            };
-            if ui.button(pin_label).clicked() {
-                remark = Some((
-                    root.clone(),
-                    sortlens_engine::FolderMark {
-                        favourite: !mark.favourite,
-                        ..mark.clone()
-                    },
-                ));
-                ui.close();
-            }
-            ui.menu_button(tl!("Colour"), |ui| {
-                let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
-                if ui.button(tl!("None")).clicked() {
-                    chosen = Some(None);
-                }
-                for label in sortlens_core::ColorLabel::ALL {
-                    if ui.button(colour_word(label)).clicked() {
-                        chosen = Some(Some(label));
-                    }
-                }
-                if let Some(colour) = chosen {
-                    remark = Some((root.clone(), sortlens_engine::FolderMark { colour, ..mark.clone() }));
-                    ui.close();
-                }
-            });
-            if ui.button("Rescan").clicked() {
-                actions.push(Action::Rescan(root.clone()));
-                ui.close();
-            }
-            if ui.button("Remove from library").clicked() {
-                actions.push(Action::RemoveRoot(root.clone()));
-                ui.close();
-            }
-        });
+        response.context_menu(|ui| folder_menu(ui, &root, &mark, &mut remark, actions));
     }
     if let Some((path, mark)) = remark {
         match engine.set_folder_mark(&path, mark.clone()) {
@@ -17703,10 +17737,8 @@ mod tests {
     /// their library vanished.
     #[test]
     fn a_root_on_a_missing_volume_is_marked_away_and_an_unknown_volume_is_not() {
-        let mounted = |state: Option<bool>| match state {
-            Some(false) => ("12 · away".to_string(), true),
-            _ => (format_count(12), false),
-        };
+        // The production decision, not a copy: the branch this machine cannot reach is still exercised.
+        let mounted = |state: Option<bool>| folder_row_count(state, 12);
         assert_eq!(mounted(Some(false)), ("12 · away".to_string(), true));
         assert_eq!(mounted(Some(true)), ("12".to_string(), false));
         assert_eq!(mounted(None), ("12".to_string(), false), "an unknown volume is not an absent one");
@@ -17741,6 +17773,102 @@ mod tests {
         });
         output.textures_delta.clear();
         assert!(actions.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The folder rows and their menu speak the interface language (SL-L07).
+    ///
+    /// The folder list was the last English on the sidebar's own rows: the empty hint, the away
+    /// count, the mount tooltip, both pin labels, `Rescan` and `Remove from library` were literals.
+    /// Every one is a catalogue row now, the away count through the reader's digits, and this test
+    /// paints the real empty hint and the real menu — the function the row's right-click calls —
+    /// rather than a copy of their words.
+    #[test]
+    fn the_folder_rows_and_their_menu_speak_the_interface_language() {
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(folder_row_count(Some(false), 12), ("12 · away".to_string(), true));
+        assert_eq!(folder_row_count(Some(true), 12), ("12".to_string(), false));
+        assert_eq!(folder_mount_hint(None), "Not mounted");
+        assert_eq!(
+            folder_mount_hint(Some("D:\\Shoots")),
+            "Not mounted: D:\\Shoots is not there right now"
+        );
+        assert_eq!(folder_pin_label(false), "Add to favourites");
+        assert_eq!(folder_pin_label(true), "Remove from favourites");
+
+        // Arabic: the away row writes the reader's digits and its own word, the tooltip its own frame.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let (away, offline) = folder_row_count(Some(false), 12);
+        assert!(offline, "an absent volume is still marked away");
+        assert!(
+            away.contains('١') && away.contains('٢') && !away.contains("away"),
+            "the away row is the catalogue's sentence with the reader's digits: {away}"
+        );
+        assert!(!away.contains('1') && !away.contains('2'), "no Latin digit is left in it: {away}");
+        let missing = folder_mount_hint(Some("D:\\Shoots"));
+        assert!(
+            missing.contains("غير") && missing.contains("D:\\Shoots") && !missing.contains("Not mounted"),
+            "the tooltip frames the mount in Arabic: {missing}"
+        );
+        assert_ne!(folder_mount_hint(None), "Not mounted");
+        assert_ne!(folder_pin_label(false), "Add to favourites");
+
+        let ctx = egui::Context::default();
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-folder-rows-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        let output = paint_shell(&ctx, vec2(1440.0, 900.0), &mut state, &mut engine, &mut thumbs, &mut actions);
+        let painted = painted_texts(&output);
+        assert!(
+            painted.iter().any(|text| text.contains("لا توجد مجلدات")),
+            "the empty sidebar paints the catalogue's sentence: {painted:?}"
+        );
+        assert!(
+            !painted.iter().any(|text| text.contains("No folders yet")),
+            "and the English hint is gone: {painted:?}"
+        );
+
+        // The menu the row opens: the same function paints both the pin and the two actions.
+        let menu_ctx = egui::Context::default();
+        let mark = sortlens_engine::FolderMark::default();
+        let mut remark = None;
+        let mut menu_actions: Vec<Action> = Vec::new();
+        let mut menu = menu_ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                folder_menu(ui, "/photos", &mark, &mut remark, &mut menu_actions);
+            });
+        });
+        let texts = painted_texts(&menu);
+        menu.textures_delta.clear();
+        assert_painted(&texts, &["أضف إلى المفضلة", "إعادة الفحص", "أزل من المكتبة"]);
+        assert!(
+            !texts.iter().any(|text| text == "Rescan" || text == "Remove from library"),
+            "no English menu row is left: {texts:?}"
+        );
+        assert!(menu_actions.is_empty(), "painting a menu is not a click");
+
+        let pinned = sortlens_engine::FolderMark {
+            favourite: true,
+            ..sortlens_engine::FolderMark::default()
+        };
+        let mut pinned_remark = None;
+        let mut pinned_menu = menu_ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                folder_menu(ui, "/photos", &pinned, &mut pinned_remark, &mut menu_actions);
+            });
+        });
+        let pinned_texts = painted_texts(&pinned_menu);
+        pinned_menu.textures_delta.clear();
+        assert!(
+            pinned_texts.iter().any(|text| text == "أزل من المفضلة"),
+            "a favourite folder offers its own row: {pinned_texts:?}"
+        );
+        assert!(pinned_remark.is_none(), "a painted menu writes nothing");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

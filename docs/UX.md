@@ -839,6 +839,10 @@ re-checks its own contrast pairs after applying.
   collection is named `Collection {n}` and announced by `Created {name}` from the catalogue, so an
   Arabic library's first collection is `مجموعة ١` and its toast reads Arabic instead of an English
   frame around Latin ones.
+  The folder rows followed (hundred-and-forty-fifth entry): the empty hint, the away count, both
+  `Not mounted` lines, both pin labels, `Rescan` and `Remove from library` are rows, the away count
+  in the reader's digits, so an Arabic sidebar's unplugged drive reads `١٢ · غائب` where it read
+  `12 · away`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

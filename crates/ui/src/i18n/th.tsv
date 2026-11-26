@@ -974,3 +974,11 @@
 	Measured {n} photo(s)	วัดแล้ว {n} รูป
 	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	วัดแล้ว {n} รูป; ตัดสิน {unjudged} รูปไม่ได้และปล่อยไว้โดยไม่ให้คะแนน
 	Sharpness pass stopped after {n} photo(s)	การวัดความคมชัดหยุดที่ {n} รูป
+	No folders yet. Add one to index a shoot.	ยังไม่มีโฟลเดอร์ เพิ่มโฟลเดอร์เพื่อจัดทำดัชนีชุดภาพ
+	{n} · away	{n} · ออฟไลน์
+	Not mounted: {mount} is not there right now	ไม่ได้ต่ออยู่: ไม่พบ {mount} ในขณะนี้
+	Not mounted	ไม่ได้ต่ออยู่
+	Add to favourites	เพิ่มในรายการโปรด
+	Remove from favourites	นำออกจากรายการโปรด
+	Rescan	สแกนใหม่
+	Remove from library	นำออกจากคลังภาพ

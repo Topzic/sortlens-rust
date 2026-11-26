@@ -972,3 +972,11 @@
 	Measured {n} photo(s)	已測量 {n} 張
 	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	已測量 {n} 張；{unjudged} 張無法評判，維持未評分
 	Sharpness pass stopped after {n} photo(s)	銳利度測量在 {n} 張後停止
+	No folders yet. Add one to index a shoot.	尚無資料夾。新增一個資料夾來為拍攝建立索引。
+	{n} · away	{n} · 已離線
+	Not mounted: {mount} is not there right now	未掛載：{mount} 目前不在
+	Not mounted	未掛載
+	Add to favourites	加入最愛
+	Remove from favourites	移出最愛
+	Rescan	重新掃描
+	Remove from library	從圖庫移除
