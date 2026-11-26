@@ -1,5 +1,44 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventieth) — the Insights breakdown names what it could not count in the reader's language
+
+- **Why it came up.** The hundred-and-sixty-ninth entry's Next named the Insights breakdown's
+  `{extra} with no …` remainder line as the next surface. The `CI` run for `cc75a32`
+  (`45894117739`) was still in progress at STEP 1b, not red, so this was a roadmap slice.
+- **What shipped.** The line under a breakdown is the template `{n} with no {noun}` in all six
+  catalogues, and `breakdown` is handed the singular the interface language uses (`camera`,
+  `lens`, `keyword` — two new rows per catalogue; `camera` already had a row) instead of making
+  one by lowercasing the English heading and trimming its trailing `s`. That stem only knows
+  English: an Arabic, Japanese or Thai heading has no trailing `s` to trim, so those pages put a
+  plural noun under a singular count. The count is `format_count`, so an Arabic page now reads
+  `٣ بلا كاميرا` where it read `3 with no camera`; English keeps the sentence it always painted
+  for a count under a thousand (a larger count now groups, as every other count on the page does).
+- **The test.** `the_insights_remainder_line_speaks_the_interface_language` reads `shell.rs` back
+  (its patterns are built at run time — `["{n} with", " no {noun}"].concat()` — because a literal
+  in the test would match itself in the file the test reads), requires the template, rejects the old
+  `format!` twin and the `trim_end_matches('s')` stem, and asserts all three paint sites hand
+  `breakdown` the catalogue's noun rather than the heading. It walks the template and the three
+  nouns through all six catalogues, holds English's three renderings byte for byte, and asserts
+  Arabic's `٣ بلا كاميرا` and Japanese's `レンズのない項目が3件` with no English left. **Proved to
+  bite:** with `breakdown_remainder` reverted to `format!("{extra} with no camera")` it fails with
+  "the shell does not route the remainder line".
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean;
+  the new test and `catalogs_load_and_routed_keys_have_rows` passed; then `cargo xtask ci`
+  completed, `cargo xtask snapshot` passed, `cargo xtask deny` ok, and `cargo xtask screenshots`
+  30 passed and 1 ignored (network) with no baseline moved. `cargo xtask mobile` cannot run here (no
+  Android NDK, no Xcode), so CI's two mobile legs are the proof — this slice touched `crates/ui`. No
+  release workflow was dispatched: source, catalogue rows, tests and docs, no build or release
+  surface.
+- **Docs.** ROADMAP's SL-L07 row records this surface, its test and its bite proof, and names the
+  keyword-pack row's `{}: {problem}` and `{} keyword(s) · {}` as the next surface; the row stays
+  unticked. No prose in `docs/UX.md`, `docs/ARCHITECTURE.md` or `README.md` quotes the line, so
+  none was contradicted.
+- **Files.** `crates/ui/src/shell.rs` (the helper, the three call sites, the new test), the six
+  `crates/ui/src/i18n/*.tsv` (three rows each), `docs/ROADMAP.md` and this file.
+- **Next.** The keyword-pack row's `{}: {problem}` and `{} keyword(s) · {}`, then the two chart
+  hovers (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`). SL-L07 stays unticked until the
+  whole-source audit proves every painted literal is a catalogue row. No release run in flight.
+
 ## 2026-11-26 (hundred-and-sixty-eighth) — the canvas's progress lines and star hover speak the interface language, and the sweep found the rest
 ## 2026-11-26 (hundred-and-sixty-ninth) — the appearance and grid words, their four hovers and the Settings radios speak the interface language
 

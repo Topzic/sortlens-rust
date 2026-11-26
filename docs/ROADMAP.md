@@ -1453,10 +1453,23 @@ and none of M9 is closed until the remaining rows are ticked.
   time are invisible to `i18n.rs`'s audit), then holds English byte for byte and Arabic's
   `منتصف الليل`, `واسع` and `مضبوط` with its two grid hovers. With the Settings radio reverted to
   `kind.label()` it fails with `left: 1, right: 2`.
+  The Insights breakdown's remainder line followed (hundred-and-seventieth entry): the line under a
+  breakdown is the template `{n} with no {noun}`, and the breakdown is handed the singular from the
+  catalogue (`camera`, `lens`, `keyword`; `camera` already had a row) instead of making one by
+  lowercasing the English heading and trimming its trailing `s` — a trick that leaves an Arabic,
+  Japanese or Thai noun plural, because none of them marks a plural that way. The count goes through
+  `format_count`, so an Arabic page reads `٣ بلا كاميرا` where it read `3 with no camera`, and
+  English is the sentence the page always painted for a count under a thousand.
+  `the_insights_remainder_line_speaks_the_interface_language` reads `shell.rs` back (its patterns
+  are built at run time, because the test lives in the file it reads), requires the template, rejects
+  the old `format!` twin and the `trim_end_matches('s')` stem, checks all three paint sites pass
+  the catalogue's noun, walks the template and the three nouns through all six catalogues, then holds
+  English's three renderings, Arabic's `٣ بلا كاميرا` and Japanese's `レンズのない項目が3件`. With
+  the helper reverted to `format!("{extra} with no camera")` it fails with "the shell does not route
+  the remainder line".
   The sweep also found what is still painted English, surface by surface, for later ticks: the
-  Insights breakdown's `{extra} with no …` remainder line; the keyword-pack row's
-  `{}: {problem}` and `{} keyword(s) · {}`; and the two chart hovers (`{} — {}{share}`,
-  `{label}: {} of {} ({:.1}%)`). The next surface is the Insights breakdown's remainder line.
+  keyword-pack row's `{}: {problem}` and `{} keyword(s) · {}`; and the two chart hovers
+  (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`). The next surface is the keyword-pack row.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

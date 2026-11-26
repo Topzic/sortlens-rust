@@ -667,6 +667,9 @@
 	Timeline	タイムライン
 	No capture dates yet	撮影日の記録はまだありません
 	{n} with no capture date	撮影日なし: {n}
+	{n} with no {noun}	{noun}のない項目が{n}件
+	lens	レンズ
+	keyword	キーワード
 	Months	月別
 	Nothing dated yet	日付のある写真はまだありません
 	Busiest month	最も多い月

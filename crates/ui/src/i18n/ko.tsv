@@ -667,6 +667,9 @@
 	Timeline	타임라인
 	No capture dates yet	아직 촬영 날짜가 없습니다
 	{n} with no capture date	촬영 날짜 없음 {n}장
+	{n} with no {noun}	{noun} 없는 항목 {n}개
+	lens	렌즈
+	keyword	키워드
 	Months	월
 	Nothing dated yet	아직 날짜가 있는 항목이 없습니다
 	Busiest month	가장 바쁜 달

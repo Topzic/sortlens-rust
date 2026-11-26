@@ -667,6 +667,9 @@
 	Timeline	الخط الزمني
 	No capture dates yet	لا تواريخ التقاط بعد
 	{n} with no capture date	{n} بلا تاريخ التقاط
+	{n} with no {noun}	{n} بلا {noun}
+	lens	عدسة
+	keyword	كلمة مفتاحية
 	Months	الأشهر
 	Nothing dated yet	لا صور مؤرَّخة بعد
 	Busiest month	أكثر شهر

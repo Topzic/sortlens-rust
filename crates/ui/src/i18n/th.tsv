@@ -702,6 +702,9 @@
 	Timeline	ไทม์ไลน์
 	No capture dates yet	ยังไม่มีวันที่ถ่าย
 	{n} with no capture date	{n} รูปไม่มีวันที่ถ่าย
+	{n} with no {noun}	{n} รายการที่ไม่มี{noun}
+	lens	เลนส์
+	keyword	คำค้น
 	Months	เดือน
 	Nothing dated yet	ยังไม่มีอะไรมีวันที่
 	Busiest month	เดือนที่คึกคักที่สุด

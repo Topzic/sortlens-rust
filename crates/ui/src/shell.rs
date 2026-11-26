@@ -9010,11 +9010,11 @@ fn insights_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engi
             });
             ui.vertical(|ui| {
                 ui.set_width(column);
-                breakdown(ui, t, tl!("Cameras"), &insights.cameras, insights.unknown_camera);
+                breakdown(ui, t, tl!("Cameras"), tl!("camera"), &insights.cameras, insights.unknown_camera);
                 ui.add_space(12.0);
-                breakdown(ui, t, tl!("Lenses"), &insights.lenses, 0);
+                breakdown(ui, t, tl!("Lenses"), tl!("lens"), &insights.lenses, 0);
                 ui.add_space(12.0);
-                breakdown(ui, t, tl!("Keywords"), &insights.keywords, 0);
+                breakdown(ui, t, tl!("Keywords"), tl!("keyword"), &insights.keywords, 0);
             });
             ui.vertical(|ui| {
                 ui.set_width(column);
@@ -9330,7 +9330,11 @@ fn bar_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usize) {
 }
 
 /// A titled list of the most common values, scaled to the largest.
-fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::InsightRow], extra: usize) {
+///
+/// `noun` is the singular of `title` in the interface language, passed in rather than derived
+/// from the title: trimming an English plural does not make an Arabic, Japanese or Thai word
+/// singular, and the count under the list is the reader's sentence.
+fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, noun: &str, rows: &[sortlens_engine::InsightRow], extra: usize) {
     ui.label(RichText::new(title).size(12.0).strong());
     if rows.is_empty() {
         ui.label(RichText::new(tl!("Nothing recorded yet")).size(11.0).color(t.text_faint));
@@ -9341,12 +9345,15 @@ fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::Insi
         bar_row(ui, t, &row.name, row.count, peak);
     }
     if extra > 0 {
-        ui.label(
-            RichText::new(format!("{extra} with no {}", title.to_lowercase().trim_end_matches('s')))
-                .size(10.5)
-                .color(t.text_faint),
-        );
+        ui.label(RichText::new(breakdown_remainder(extra, noun)).size(10.5).color(t.text_faint));
     }
+}
+
+/// The line under a breakdown that counts what it could not name (SL-L07): the count and the noun
+/// are the interface language's, so an Arabic page reads `٣ بلا كاميرا` where it read English.
+fn breakdown_remainder(extra: usize, noun: &str) -> String {
+    let digits = format_count(extra as u64);
+    crate::i18n::fmt("{n} with no {noun}", &[("n", &digits), ("noun", noun)])
 }
 
 /// Store the current search against whatever scope is open, so reopening it resumes there.
@@ -13355,6 +13362,71 @@ mod tests {
             layout.contains("تخطيط الشبكة") && layout.contains("مربّع"),
             "the layout hover is Arabic: {layout:?}"
         );
+        crate::i18n::set_current(previous);
+    }
+
+    /// The Insights breakdown's remainder line speaks the interface language (SL-L07).
+    ///
+    /// The line under a breakdown used to be an English `format!` over `{extra} with no {singular}`,
+    /// and it made the singular by lowercasing the English heading and trimming a trailing `s`: a
+    /// trick that leaves an Arabic, Japanese or Thai heading plural, because none of them marks a
+    /// plural that way. The line is a template now, the singular is a catalogue row passed by the
+    /// paint site, and the count is the reader's digits.
+    #[test]
+    fn the_insights_remainder_line_speaks_the_interface_language() {
+        // Built at run time, because the test lives in the file it reads back: a literal here would
+        // match itself and the guard could never fire.
+        let template = ["{n} with", " no {noun}"].concat();
+        let bare = ["format!(\"{extra}", " with no {}", ", title.to_lowercase()"].concat();
+        let trimmed = ["title.to_lowercase().", "trim_end_matches('s')"].concat();
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect::<Vec<_>>().join("\n");
+        assert!(source.contains(&template), "the shell does not route the remainder line");
+        assert!(!source.contains(&bare), "the shell still formats the remainder line in English");
+        assert!(
+            !source.contains(&trimmed),
+            "the shell still singularises an English heading by trimming"
+        );
+        // The paint site hands the breakdown the catalogue's singular, not the heading.
+        let squeezed: String = source.split_whitespace().collect();
+        for site in [
+            ["breakdown(ui,t,tl!(\"Cameras\"),", "tl!(\"camera\")"].concat(),
+            ["breakdown(ui,t,tl!(\"Lenses\"),", "tl!(\"lens\")"].concat(),
+            ["breakdown(ui,t,tl!(\"Keywords\"),", "tl!(\"keyword\")"].concat(),
+        ] {
+            assert!(squeezed.contains(&site), "a breakdown still passes its heading as the noun: {site}");
+        }
+
+        // The template and the three singulars are rows in each language the picker offers.
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).expect("the picker offers it");
+            for key in [template.as_str(), "camera", "lens", "keyword"] {
+                assert!(crate::i18n::I18N.get(lang, "", key).is_some(), "{code} has no row for {key:?}");
+            }
+        }
+
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        // English is the sentence the page always painted.
+        assert_eq!(breakdown_remainder(3, tl!("camera")), "3 with no camera");
+        assert_eq!(breakdown_remainder(1, tl!("lens")), "1 with no lens");
+        assert_eq!(breakdown_remainder(12, tl!("keyword")), "12 with no keyword");
+
+        // Arabic: its own digits and its own noun, with no English left in the line.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = breakdown_remainder(3, tl!("camera"));
+        assert!(
+            arabic.contains('٣') && arabic.contains("كاميرا") && !arabic.contains("with no") && !arabic.contains("camera"),
+            "the remainder line is Arabic: {arabic:?}"
+        );
+
+        // Japanese: a singular borrowed from the catalogue, not an English stem.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = breakdown_remainder(3, tl!("lens"));
+        assert!(
+            japanese.contains('3') && japanese.contains("レンズ") && japanese.contains('件') && !japanese.contains("with no"),
+            "the remainder line is Japanese: {japanese:?}"
+        );
+
         crate::i18n::set_current(previous);
     }
 
