@@ -1467,9 +1467,19 @@ and none of M9 is closed until the remaining rows are ticked.
   English's three renderings, Arabic's `٣ بلا كاميرا` and Japanese's `レンズのない項目が3件`. With
   the helper reverted to `format!("{extra} with no camera")` it fails with "the shell does not route
   the remainder line".
-  The sweep also found what is still painted English, surface by surface, for later ticks: the
-  keyword-pack row's `{}: {problem}` and `{} keyword(s) · {}`; and the two chart hovers
-  (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`). The next surface is the keyword-pack row.
+  The keyword-pack rows followed (hundred-and-seventy-first entry): a pack file that cannot be read
+  paints `{file}: {problem}` and a readable pack paints `{n} keyword(s) · {licence}`, both through
+  `i18n::fmt` — the path, the parser's reason and the licence stay values, and the count is
+  `format_count`, so a Japanese row separates the file from its reason with a full-width colon (`：`)
+  and an Arabic one writes `٣ كلمة مفتاحية · CC0-1.0` where it read `3 keyword(s) · CC0-1.0`.
+  `the_keyword_pack_rows_speak_the_interface_language` reads `shell.rs` back (its patterns are built at
+  run time, because the test lives in the file it reads), requires both templates, rejects both bare
+  `format!` twins, asks for a row in each of the six catalogues, holds English byte for byte, and
+  asserts Arabic's count and Japanese's `キーワード 12 件` and full-width colon. With
+  `pack_summary_line` reverted to `format!` it fails with "the shell still formats the pack summary
+  line in English".
+  The sweep also found what is still painted English, surface by surface, for later ticks: the two
+  chart hovers (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`). The next surface is those hovers.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-first) — the keyword-pack rows speak the interface language
+
+- **Why it came up.** The hundred-and-seventieth entry's Next named the keyword-pack row's
+  `{}: {problem}` and `{} keyword(s) · {}` as the next surface. The `CI` run for `b104093`
+  (`45896460017`) was still in progress at STEP 1b, not red, so this was a roadmap slice rather than
+  a repair.
+- **What shipped.** The two rows under a pack file are `i18n::fmt` templates now:
+  `{file}: {problem}` for a file that cannot be read and `{n} keyword(s) · {licence}` for a
+  readable one. The path, the parser's reason and the licence stay values (the reason is the engine's
+  English by design, like every engine error the host appends), and the count goes through
+  `format_count`, so English is byte-identical — `bad.json: not JSON` and
+  `3 keyword(s) · CC0-1.0` — a Japanese row separates the file from its reason with a full-width
+  colon (`bad.json：not JSON`), and an Arabic row writes `٣ كلمة مفتاحية · CC0-1.0`. Two new rows
+  per catalogue (12), beside the `{n} keyword(s)` row the applied-batch toast already owned.
+- **The test.** `the_keyword_pack_rows_speak_the_interface_language` reads `shell.rs` back — its
+  patterns are built at run time, because the test lives in the file it reads — requires both
+  templates, rejects the two bare `format!` twins (by prefix, so a helper reverted inside its own
+  body is caught as well as a reverted paint site), asks for a row in each of the six catalogues,
+  holds English byte for byte, and asserts Arabic's `٣` and `كلمة` with no `keyword` left and
+  Japanese's `キーワード 12 件` and full-width colon. **Proved to bite:** with both helpers reverted
+  to `format!` it fails with "the shell does not route the pack problem line".
+- **What the sweep still names.** The two chart hovers (`{} — {}{share}`,
+  `{label}: {} of {} ({:.1}%)`) are the surfaces left for later ticks.
+- **Visual verification.** `cargo xtask screenshots` — 30 passed, 1 ignored (network), no baseline
+  moved, which is the expected answer: English is byte-identical, and the pack row only paints in
+  Organise ▸ Keyword Packs and Settings → AI, which no committed scene opens with a pack in it.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean;
+  the new test and `catalogs_load_and_routed_keys_have_rows` passed (and the bite proof above); then
+  `cargo xtask ci` with every step ok (fmt, workspace clippy, the whole suite, `layers`, `roots`,
+  `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`),
+  `cargo xtask snapshot` 5 passed, `cargo xtask deny` advisories, bans, licenses and sources ok,
+  and `cargo xtask screenshots` 30 passed and 1 ignored. `cargo xtask mobile` cannot run here (no
+  Android NDK, no Xcode), so CI's two mobile legs are the proof — this slice touched `crates/ui`. No
+  release workflow was dispatched: source, catalogue rows, tests and docs, no build or release
+  surface.
+- **Docs.** ROADMAP's SL-L07 row records this surface, its test and its bite proof, and names the two
+  chart hovers as the next surface; the row stays unticked until the whole-source audit proves every
+  painted literal is a catalogue row. `docs/UX.md` and `docs/ARCHITECTURE.md` gained the pack rows'
+  paragraph in the same commit.
+- **Files.** `crates/ui/src/shell.rs` (two helpers, the two paint sites, the new test), the six
+  `crates/ui/src/i18n/*.tsv` (two rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** The two chart hovers (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`) through the same
+  seam with a source-readback and Arabic lookup test. SL-L07 stays unticked; its row lists what the
+  audit still finds. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-seventieth) — the Insights breakdown names what it could not count in the reader's language
 
 - **Why it came up.** The hundred-and-sixty-ninth entry's Next named the Insights breakdown's

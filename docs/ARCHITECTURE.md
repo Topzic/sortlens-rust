@@ -698,6 +698,15 @@ from the code above.` and `keyword_packs`' `No packs installed.` are `tl!` keys,
 `the_empty_states_speak_the_interface_language` paints both real sections under English and Arabic
 and requires no English hint to survive either.
 
+The pack rows themselves take the seam: a file that cannot be read paints the `{file}: {problem}`
+template and a readable pack paints `{n} keyword(s) · {licence}`, with the path, the parser's reason
+and the licence passed as values and the count through `format_count`. A language owns the words and
+the punctuation around them — Japanese and Traditional Chinese write a full-width colon between the
+file and its reason, and an Arabic count is Arabic-Indic.
+`the_keyword_pack_rows_speak_the_interface_language` reads `shell.rs` back for both templates,
+rejects each bare `format!` twin, requires a row in all six catalogues, and holds English byte for
+byte beside Arabic's and Japanese's renderings.
+
 The serving half of the same dialog takes it as well: `Serving on 127.0.0.1:{port}` and
 `Pairing code  {code}` are `i18n::fmt` templates whose port and code are passed through
 `craft_i18n::ltr` — they are values a person reads and types back, and an RTL sentence must not

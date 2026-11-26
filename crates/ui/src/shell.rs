@@ -11935,6 +11935,24 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     ui.add_space(8.0);
 }
 
+/// A pack file's problem line, in the reader's punctuation (SL-L07).
+///
+/// The path and the parser's own message are values, not sentences; what a catalogue decides is the
+/// separator a language puts between them (Japanese and Traditional Chinese write a full-width colon).
+/// The reason stays the engine's English by design, the same as every other engine error the host appends.
+fn pack_problem_line(file: &str, problem: &str) -> String {
+    crate::i18n::fmt("{file}: {problem}", &[("file", file), ("problem", problem)])
+}
+
+/// A readable pack's count and licence, worded by the catalogue (SL-L07).
+///
+/// The count is the reader's digits and the licence is the pack author's own identifier, so a translator
+/// is handed both as placeholders and only decides the words and punctuation around them.
+fn pack_summary_line(keywords: usize, licence: &str) -> String {
+    let digits = format_count(keywords as u64);
+    crate::i18n::fmt("{n} keyword(s) · {licence}", &[("n", &digits), ("licence", licence)])
+}
+
 /// The keyword packs found in the library, each with a switch.
 ///
 /// A pack is a file someone wrote; this row shows how many keywords it can propose and the licence those
@@ -11956,7 +11974,7 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
     for pack in packs {
         match &pack.problem {
             Some(problem) => {
-                ui.label(RichText::new(format!("{}: {problem}", pack.file)).size(10.5).color(t.reject));
+                ui.label(RichText::new(pack_problem_line(&pack.file, problem)).size(10.5).color(t.reject));
             }
             None => {
                 let mut on = pack.enabled;
@@ -11966,7 +11984,7 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
                 }
                 response.on_hover_text(pack.licence.clone());
                 ui.label(
-                    RichText::new(format!("{} keyword(s) · {}", pack.keywords, pack.licence))
+                    RichText::new(pack_summary_line(pack.keywords, &pack.licence))
                         .size(10.0)
                         .color(t.text_faint),
                 );
@@ -13425,6 +13443,68 @@ mod tests {
         assert!(
             japanese.contains('3') && japanese.contains("レンズ") && japanese.contains('件') && !japanese.contains("with no"),
             "the remainder line is Japanese: {japanese:?}"
+        );
+
+        crate::i18n::set_current(previous);
+    }
+
+    /// The keyword-pack rows are catalogue rows rather than English formatted in place (SL-L07).
+    ///
+    /// A pack that cannot be read shows its file and the parser's own reason; a readable one shows its
+    /// count and the licence its words come under. The reason and the licence are values, so what a
+    /// catalogue decides is the words and punctuation around them — and the count is the reader's digits.
+    #[test]
+    fn the_keyword_pack_rows_speak_the_interface_language() {
+        // Built at run time, because the test lives in the file it reads back: a literal here would
+        // match itself and the guard could never fire.
+        let problem_template = ["{file}: ", "{problem}"].concat();
+        let bare_problem = ["format!(\"{}: ", "{problem}\""].concat();
+        let summary_template = ["{n} keyword(s) · ", "{licence}"].concat();
+        let bare_summary = ["format!(\"{} keyword(s) · ", "{}"].concat();
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect::<Vec<_>>().join("\n");
+        assert!(source.contains(&problem_template), "the shell does not route the pack problem line");
+        assert!(
+            !source.contains(&bare_problem),
+            "the shell still formats the pack problem line in English"
+        );
+        assert!(source.contains(&summary_template), "the shell does not route the pack summary line");
+        assert!(
+            !source.contains(&bare_summary),
+            "the shell still formats the pack summary line in English"
+        );
+
+        // Both templates are rows in every language the picker offers.
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).expect("the picker offers it");
+            for key in [problem_template.as_str(), summary_template.as_str()] {
+                assert!(crate::i18n::I18N.get(lang, "", key).is_some(), "{code} has no row for {key:?}");
+            }
+        }
+
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(pack_problem_line("bad.json", "not JSON"), "bad.json: not JSON");
+        assert_eq!(pack_summary_line(3, "CC0-1.0"), "3 keyword(s) · CC0-1.0");
+
+        // Arabic: the count is Arabic-Indic and the sentence is the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let summary = pack_summary_line(3, "CC0-1.0");
+        assert!(
+            summary.contains('٣') && summary.contains("كلمة") && summary.contains("CC0-1.0") && !summary.contains("keyword"),
+            "the pack summary is Arabic: {summary:?}"
+        );
+
+        // Japanese: a full-width colon between the file and the reason, and its own count words.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let problem = pack_problem_line("bad.json", "not JSON");
+        assert!(
+            problem.contains('：') && problem.contains("bad.json") && !problem.contains(": "),
+            "the pack problem line is Japanese: {problem:?}"
+        );
+        let japanese = pack_summary_line(12, "CC-BY-4.0");
+        assert!(
+            japanese.contains("キーワード") && japanese.contains("12") && japanese.contains('件'),
+            "the pack summary is Japanese: {japanese:?}"
         );
 
         crate::i18n::set_current(previous);

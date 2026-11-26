@@ -1112,3 +1112,5 @@
 	Thumbnail size: {size}	サムネイルの大きさ: {size}
 	Grid density: {size}	グリッドの密度: {size}
 	Grid layout: {layout}	グリッド配置: {layout}
+	{file}: {problem}	{file}：{problem}
+	{n} keyword(s) · {licence}	キーワード {n} 件 · {licence}

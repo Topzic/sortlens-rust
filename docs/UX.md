@@ -892,6 +892,11 @@ re-checks its own contrast pairs after applying.
   The instruction names the menu path `Organise ▸ Keyword Packs`, and that path stays ASCII in all
   six catalogues because the menus paint their own English labels — a translated path would name
   words the reader cannot find on screen.
+  The pack rows followed (hundred-and-seventy-first entry): the line under a pack file that cannot be
+  read and the count-and-licence line under a readable one are `fmt` templates —
+  `{file}: {problem}` and `{n} keyword(s) · {licence}` — so a Japanese row puts a full-width colon
+  between the file and its reason and an Arabic row writes `٣ كلمة مفتاحية · CC0-1.0` where it wrote
+  English digits and words.
   Settings → AI models and → Updates followed (hundred-and-fifty-seventh entry): the model panel's
   digest sentence, its `Stop`/`Install`/`Remove` buttons, `Download from the pinned release ·
   {summary}`, the `Removed · {size} reclaimed` receipt and the store note are rows and templates,

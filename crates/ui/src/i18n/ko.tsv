@@ -1111,3 +1111,5 @@
 	Thumbnail size: {size}	썸네일 크기: {size}
 	Grid density: {size}	그리드 밀도: {size}
 	Grid layout: {layout}	그리드 배치: {layout}
+	{file}: {problem}	{file}: {problem}
+	{n} keyword(s) · {licence}	키워드 {n}개 · {licence}

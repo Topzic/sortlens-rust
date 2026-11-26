@@ -1111,3 +1111,5 @@
 	Thumbnail size: {size}	Cỡ ảnh thu nhỏ: {size}
 	Grid density: {size}	Mật độ lưới: {size}
 	Grid layout: {layout}	Bố cục lưới: {layout}
+	{file}: {problem}	{file}: {problem}
+	{n} keyword(s) · {licence}	{n} từ khóa · {licence}

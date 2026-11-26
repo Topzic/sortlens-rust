@@ -1113,3 +1113,5 @@
 	Thumbnail size: {size}	ขนาดภาพย่อ: {size}
 	Grid density: {size}	ความหนาแน่นของตาราง: {size}
 	Grid layout: {layout}	เลย์เอาต์ตาราง: {layout}
+	{file}: {problem}	{file}: {problem}
+	{n} keyword(s) · {licence}	{n} คำค้น · {licence}

@@ -1111,3 +1111,5 @@
 	Thumbnail size: {size}	縮圖大小：{size}
 	Grid density: {size}	網格密度：{size}
 	Grid layout: {layout}	格狀配置：{layout}
+	{file}: {problem}	{file}：{problem}
+	{n} keyword(s) · {licence}	{n} 個關鍵字 · {licence}

@@ -1112,3 +1112,5 @@
 	Thumbnail size: {size}	حجم المصغّرات: {size}
 	Grid density: {size}	كثافة الشبكة: {size}
 	Grid layout: {layout}	تخطيط الشبكة: {layout}
+	{file}: {problem}	{file}: {problem}
+	{n} keyword(s) · {licence}	{n} كلمة مفتاحية · {licence}
