@@ -2341,14 +2341,20 @@ fn appearance_button(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut
             }
         }
         ui.separator();
-        let mut reduced = state.motion == Motion::Reduced;
-        if ui.checkbox(&mut reduced, "Reduced motion").changed() {
-            let motion = if reduced { Motion::Reduced } else { Motion::Full };
-            state.motion = motion;
-            actions.push(Action::SetMotion(motion));
-            ui.close();
-        }
+        appearance_motion_row(ui, state, actions);
     });
+}
+
+/// The Appearance menu's reduced-motion row, split out of the context menu so a test can paint it
+/// without a mouse: its label is a catalogue row, and painting it must not move anything.
+fn appearance_motion_row(ui: &mut Ui, state: &mut UiState, actions: &mut Vec<Action>) {
+    let mut reduced = state.motion == Motion::Reduced;
+    if ui.checkbox(&mut reduced, tl!("Reduced motion")).changed() {
+        let motion = if reduced { Motion::Reduced } else { Motion::Full };
+        state.motion = motion;
+        actions.push(Action::SetMotion(motion));
+        ui.close();
+    }
 }
 
 /// A command the ⌘K palette can run.
@@ -11471,7 +11477,7 @@ fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
 fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("AI models (local)")).size(11.0).color(t.text_muted));
     let mut consent = engine.models_consent();
-    let response = ui.checkbox(&mut consent, "Allow downloading models (network)");
+    let response = ui.checkbox(&mut consent, tl!("Allow downloading models (network)"));
     if response.changed() {
         engine.set_models_consent(consent);
         actions.push(Action::SetModelConsent(consent));
@@ -11573,7 +11579,7 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
 fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("Updates")).size(11.0).color(t.text_muted));
     let mut consent = engine.update_consent();
-    if ui.checkbox(&mut consent, "Check for updates (network)").changed() {
+    if ui.checkbox(&mut consent, tl!("Check for updates (network)")).changed() {
         engine.set_update_consent(consent);
         actions.push(Action::SetUpdateConsent(consent));
     }
@@ -21764,6 +21770,82 @@ mod tests {
                 if text.galley.text() == "Check now")),
             "the button is gone with the consent"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Settings checkboxes speak the interface language (SL-L07): the Appearance menu's
+    /// `Reduced motion` and the AI and update gates. Each is a catalogue row, so an Arabic owner
+    /// reads the switch they are throwing in their own language, and a paint throws nothing.
+    #[test]
+    fn the_settings_checkboxes_speak_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-settings-words-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine_cell = std::cell::RefCell::new(Engine::open(&dir).expect("open"));
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.settings_open = true;
+        let actions_cell = std::cell::RefCell::new(Vec::<Action>::new());
+        let settings_frame = |state: &mut UiState| {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 1600.0))),
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    settings_dialog(ui, state, &tokens, &mut engine_cell.borrow_mut(), &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let motion_frame = |state: &mut UiState| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    appearance_motion_row(ui, state, &mut actions_cell.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // English keeps the shapes the dialog painted before the labels were routed.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for _ in 0..4 {
+            let _ = settings_frame(&mut state);
+        }
+        let english = painted_texts(&settings_frame(&mut state));
+        assert_painted(&english, &["Allow downloading models (network)", "Check for updates (network)"]);
+        assert_painted(&painted_texts(&motion_frame(&mut state)), &["Reduced motion"]);
+        assert!(actions_cell.borrow().is_empty(), "painting the English switches changes nothing");
+
+        // Arabic: the three switches are the catalogue's words, and no English label survives either
+        // the dialog or the Appearance row.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        // The window is keyed by its title, which the language just changed, so it is new to egui
+        // and needs one frame to measure before the frame the claims are read from.
+        let _warm = settings_frame(&mut state);
+        let arabic = painted_texts(&settings_frame(&mut state));
+        assert_painted(&arabic, &["السماح بتنزيل النماذج (شبكة)", "التحقق من التحديثات (شبكة)"]);
+        assert!(
+            !arabic
+                .iter()
+                .any(|text| text == "Allow downloading models (network)" || text == "Check for updates (network)"),
+            "no English gate is left: {arabic:?}"
+        );
+        let motion = painted_texts(&motion_frame(&mut state));
+        assert_painted(&motion, &["الحركة المخفّفة"]);
+        assert!(
+            !motion.iter().any(|text| text == "Reduced motion"),
+            "the Appearance row is not English: {motion:?}"
+        );
+        assert!(
+            !engine_cell.borrow().models_consent() && !engine_cell.borrow().update_consent(),
+            "painting the Arabic gates leaves both switches off"
+        );
+        assert!(actions_cell.borrow().is_empty(), "painting the Arabic switches changes nothing");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

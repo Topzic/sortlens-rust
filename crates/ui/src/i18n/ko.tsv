@@ -997,3 +997,6 @@
 	Delete everywhere	모든 사진에서 삭제
 	Take the keyword off every photo; one undo brings it back	모든 사진에서 키워드를 뺍니다. 한 번의 실행 취소로 되돌립니다
 	also written as {aliases}	다른 표기: {aliases}
+	Reduced motion	동작 줄이기
+	Allow downloading models (network)	모델 다운로드 허용(네트워크)
+	Check for updates (network)	업데이트 확인(네트워크)

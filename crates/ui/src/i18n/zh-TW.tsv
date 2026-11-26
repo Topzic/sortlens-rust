@@ -997,3 +997,6 @@
 	Delete everywhere	從所有照片刪除
 	Take the keyword off every photo; one undo brings it back	從每張照片移除這個關鍵字；復原一次即可恢復
 	also written as {aliases}	另寫作 {aliases}
+	Reduced motion	減少動態效果
+	Allow downloading models (network)	允許下載模型（網路）
+	Check for updates (network)	檢查更新（網路）

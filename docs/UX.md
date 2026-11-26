@@ -853,6 +853,10 @@ re-checks its own contrast pairs after applying.
   picker `No collections yet`, and a keyword's `Rename or merge…` and `Delete everywhere` rows
   with their hover sentences and the aliases hover are catalogue rows, so an Arabic right-click reads
   `إظهار في المجلد` and `احذف في كل مكان` where it read English.
+  The Settings switches followed (hundred-and-forty-eighth entry): the Appearance menu's
+  `Reduced motion` and the AI and updates gates `Allow downloading models (network)` and
+  `Check for updates (network)` are rows, so an Arabic owner reads `الحركة المخفّفة` and both
+  consent lines in their own language.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

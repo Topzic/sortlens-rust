@@ -687,6 +687,12 @@ sentences. Each writes into a `PhotoMenuActions` or `KeywordMenuActions` struct 
 so `the_photo_and_keyword_menus_speak_the_interface_language` can paint the real menus under
 English and Arabic without exporting, opening or deleting anything.
 
+The Settings switches take the same seam: `appearance_motion_row` is the one function the Appearance
+menu paints for `Reduced motion`, and the AI and update gates' `Allow downloading models (network)`
+and `Check for updates (network)` are `tl!` keys. `the_settings_checkboxes_speak_the_interface_language`
+paints the real dialog and that row under English and Arabic, requiring no English label to survive
+and both consent switches still off.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

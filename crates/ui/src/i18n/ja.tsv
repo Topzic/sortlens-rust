@@ -998,3 +998,6 @@
 	Delete everywhere	すべての写真から削除
 	Take the keyword off every photo; one undo brings it back	すべての写真からキーワードを外します。元に戻す操作は 1 回です
 	also written as {aliases}	別名: {aliases}
+	Reduced motion	モーションを減らす
+	Allow downloading models (network)	モデルのダウンロードを許可（ネットワーク）
+	Check for updates (network)	アップデートを確認（ネットワーク）

@@ -1,5 +1,45 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-eighth) — the Settings switches speak the interface language
+
+- **Why this came up.** The hundred-and-forty-seventh entry's Next named the three Settings
+  checkboxes. `appearance_button`'s context menu still painted `Reduced motion` as a literal, and
+  `ai_models_section`/`updates_section` painted `Allow downloading models (network)` and `Check for
+  updates (network)` as literals, so an Arabic Settings asked its owner to throw the one network gate
+  in English.
+- **What is routed.** Three rows per catalogue, 18 in all. `appearance_motion_row` is now the
+  Appearance menu's whole reduced-motion row, split out of the context-menu closure so a test can
+  paint the switch a person sees, and the two consent gates call `tl!` in place. English keeps every
+  shape it painted.
+- **Tests.** `the_settings_checkboxes_speak_the_interface_language` paints the real Settings dialog
+  (AI and updates sections included) and the real `appearance_motion_row` under English, pinning the
+  three English labels, then under Arabic requires `الحركة المخفّفة`,
+  `السماح بتنزيل النماذج (شبكة)` and `التحقق من التحديثات (شبكة)`, requires no English label to
+  survive either paint, and requires both consents still off and no action taken. The window is keyed
+  by its translated title, so the test warms it one frame after the language switch before reading the
+  claims.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows what the audit still finds to the
+  remaining `on_hover_text` names and two empty-state hints; UX.md's i18n bullet and ARCHITECTURE.md
+  §8.4 name the helper and the test. SL-L07 stays unticked.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` green;
+  `cargo test -p sortlens-ui the_settings_checkboxes_speak_the_interface_language` 1 passed (253
+  filtered out) and the catalogue audit `catalogs_load_and_routed_keys_have_rows` 1 passed;
+  `cargo xtask ci` ran fmt, workspace clippy, the whole suite and all ten post-suite checks (layers,
+  roots, assets, fonts, version, attribution, a11y, docs, templates, workflows), each ok;
+  `cargo xtask snapshot` 5 passed; `cargo xtask deny` advisories, bans, licenses and sources ok;
+  `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — the English paint is
+  unchanged. No release workflow was dispatched — source, catalogue rows and docs, no build or release
+  surface. `crates/ui` changed, so `cargo xtask mobile` is CI's job: this machine has no Android NDK
+  or Xcode.
+- **Files.** `crates/ui/src/shell.rs` (the helper, both gates, the new test), the six
+  `crates/ui/src/i18n/*.tsv` (three rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the two empty-state hints — `sync_section`'s `No devices are paired yet; pairing starts from
+  the code above.` and `keyword_packs`'s `No packs installed.` — through `tl!`, with a paint test
+  under Arabic; the remaining `on_hover_text` names follow a family per tick. SL-L07 stays unticked
+  until the source audit proves every painted literal is a catalogue row. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-forty-seventh) — the photo and keyword context menus speak the interface language
 
 - **Why this came up.** The hundred-and-forty-sixth entry's Next named the inspector's action buttons.
@@ -8473,13 +8513,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-forty-seventh entry).** Read this commit's `CI` run with one
-`gh run view` — no committed scene paints a context menu and the English paint is unchanged, so no
-baseline should have moved. Then the Settings checkboxes in `crates/ui/src/shell.rs`: `Reduced
-motion`, `Allow downloading models (network)` and `Check for updates (network)`, through `tl!`,
-with a paint test that chooses Arabic and requires the Arabic rows with no English left. SL-L07
-stays unticked; its row lists what the audit still finds (the empty-state hints and the rest of the
-`on_hover_text` names). No release run is in flight.
+**Next tick (after the hundred-and-forty-eighth entry).** Read this commit's `CI` run with one
+`gh run view` — no committed scene paints the Settings switches and the English paint is unchanged,
+so no baseline should have moved. Then the two empty-state hints in `crates/ui/src/shell.rs`:
+`sync_section`'s `No devices are paired yet; pairing starts from the code above.` and
+`keyword_packs`'s `No packs installed.`, through `tl!`, with a paint test that chooses Arabic and
+requires the Arabic rows with no English left. SL-L07 stays unticked; its row lists what the audit
+still finds (the rest of the `on_hover_text` names). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

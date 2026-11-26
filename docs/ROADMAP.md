@@ -1255,9 +1255,15 @@ and none of M9 is closed until the remaining rows are ticked.
   `إظهار في المجلد` beside `أضف إلى مجموعة`, and a keyword menu reads `احذف في كل مكان`.
   `the_photo_and_keyword_menus_speak_the_interface_language` paints the real menus and the empty
   picker under English and Arabic and requires no English row to survive.
+  The Settings switches followed (hundred-and-forty-eighth entry): `Reduced motion` in the Appearance
+  menu, and `Allow downloading models (network)` and `Check for updates (network)` in the AI and
+  updates sections, are rows in all six languages; `appearance_motion_row` is the function the menu
+  paints, so the switch a test paints is the switch a person sees. An Arabic Settings reads
+  `الحركة المخفّفة`, `السماح بتنزيل النماذج (شبكة)` and `التحقق من التحديثات (شبكة)`, and
+  `the_settings_checkboxes_speak_the_interface_language` paints the real dialog and the row under
+  English and Arabic, requiring no English label to survive either.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names, the Settings checkboxes
-  `Reduced motion`, `Allow downloading models (network)` and `Check for updates (network)`, and two
+  went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names and two
   empty-state hints — no production `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
   entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the
