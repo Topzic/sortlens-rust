@@ -7265,6 +7265,15 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   in progress when this tick read it; the run before it, `45664188618` on `5685d9b`, was green and is
   what says the lavapipe set is whole. No release run is in flight.
 
+## 2026-11-26 (seventy-eighth) — the trunk's screenshot gate goes green by adopting the frames the failing run itself uploaded
+
+- **Why this came up.** `CI` on `main` had been red since `25412ce` (rivers, lakes and borders on the Places map) — four runs, because the loop had been reading release runs and never this one. The run on `9485f66` (`45757388716`) named four jobs: `ci` on all three legs, and `screenshots`. The `ci` legs were one `cargo fmt` diff in `crates/ui/src/shell.rs` (`shown_centre`, a call the formatter wanted split), and `44e3e40` carries that fix: its three `ci` legs are green. What was left red was `screenshots`.
+- **Why it was red, exactly.** `25412ce` repainted the reference `places-charcoal`/`places-paper` baselines but not their `lavapipe/` twins, and `44e3e40` repainted the reference `rtl-library-*` frames for the routed header chips and could not paint the lavapipe set either — this machine has no Mesa adapter, so that paint exists only on the runner. The run on HEAD (`45759603628`, job `139706240234`) failed on exactly those four frames and uploaded them as its `screenshot-set` artifact, which is the hand-over the seventy-fifth entry built the gate to make.
+- **The ritual is a command, not four renames.** `gh run download 45759603628 -n screenshot-set -D .ci-shots`, then `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots` — the `--adopt` path already in `xtask`, which refuses to run without a set name (so one machine's paint cannot land in the committed defaults) and copies each `<scene>.new.png` to `<set>/<scene>.png`. Four frames adopted.
+- **Read, not just copied.** The two Places frames carry the rivers, lakes and borders `25412ce` added and the `Map: Natural Earth (public domain)` credit line; the two RTL frames are the same Arabic library as their reference frames — the same chips, the same `١٢ صور`, the same right-hand sidebar — differing only in text rasterisation, which is the whole reason a set exists. The comparison stays byte for byte: a set is either painted by that adapter or absent, so this commit records a paint; it does not loosen a test.
+- **Verified.** `cargo xtask ci` green (exit code read from a log file), `cargo xtask snapshot` green, `cargo xtask deny` green. `cargo test -p sortlens-ui --features screenshots --test screenshots places_paints_in_both_themes` compares the *reference* set against this machine's paint and differs by 615 and 712 pixels; the diff image was read, and the difference is the `⌘K` hint's glyph and the credit line's text antialiasing, not layout, so the reference frames stay as the reference machine painted them while the lavapipe set is the runner's own paint. No release workflow was dispatched: four PNGs and this entry, no build or release surface.
+- **Next.** Read this commit's `CI` run with one `gh run view` — it is the first run since `8123392` that can be green on all five gates if the adopted paint is whole. Then SL-L07's last English: the top bar's `Local library` and the read-only sentence with its hover, then the `Moved` and `Rename keyword` dialog titles (`+ New collection` is routed now, so the sidebar half of that row is done).
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7273,12 +7282,12 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the seventy-seventh entry).** Continue SL-L07's open canvas chrome, smallest first:
-the top bar's `Local library` and the read-only sentence with its hover, then `New collection` in the
-sidebar, then the `Moved` and `Rename keyword` dialog titles. The filter strip's chips and the header's
-counts and sort value are routed already (seventy-third to seventy-sixth entries). Read the `CI` run
-`45667132463` for `62fb266` with one `gh run view` first: it was in progress when this tick ended, and
-the run before it was green. No release run is in flight.
+**Next tick (after the seventy-eighth entry).** Read the `CI` run for the baseline commit with ONE
+`gh run view` — four runs had been red, and this commit is the first that can be green. Then finish
+SL-L07's open canvas chrome: the top bar's `Local library` and the read-only sentence with its hover,
+then the `Moved` and `Rename keyword` dialog titles (`+ New collection` and the header chips are routed
+already; the filter strip's chips, the counts and the sort value before them). No release run is in
+flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
