@@ -958,8 +958,9 @@ and none of M9 is closed until the remaining rows are ticked.
   rejects…`, `Move picks…`, `Export picks…`, `Back`, the session's counts line, the empty state's
   sentence and start button, the keyboard hint, the keyword field's hint and both keyword toasts are
   catalogue rows, and the position and count sentences are templates — so a Japanese cull session
-  reads `3 中 1` with `採用  P`, and an Arabic one writes `١ من ٣`. What is still English on that screen
-  is what assistive technology speaks (`crate::a11y`), which the row does not count as painted chrome.
+  reads `3 中 1` with `採用  P`, and an Arabic one writes `١ من ٣`. What was then still English on
+  that screen was what assistive technology speaks (`crate::a11y`), which the row does not count as
+  painted chrome; that sink was routed too (hundred-and-seventy-fifth entry).
   The Similar view's chrome followed (ninety-sixth entry): `Find similar photos`, `Hashing…`, the progress
   line, `Match`, the strictness and palette sliders, the leftover/delete/clear row, both empty-state lines, the
   group headers and every select-all hover are catalogue rows, and their counts are templates — so a Japanese
@@ -1520,10 +1521,16 @@ The widget sweep followed (hundred-and-seventy-third entry):
   silently, and holds Japanese's four tag/group renderings and English byte for byte. **Proved to
   bite:** with `Undid the last change` reverted to `state.notice("Undid the last change")` it fails
   naming that literal.
-  What the sweeps still do not read is the spoken sink — `crate::a11y`'s `decision_sentence`,
-  `photo_summary` and label sentences, which an assistive reader speaks rather than paints, and the
-  host app's own words in `apps/sortlens`. That is the next slice; SL-L07 stays unticked until the
-  whole-source audit covers every sink.
+  The spoken sink followed (hundred-and-seventy-fifth entry): `crate::a11y`'s four spoken sentences —
+  the decision words, the cull status, the decision line and `describe_photo`'s facts — are
+  `tl!`/`fmt` rows, the counts go through `format::count` and the label's colour through the
+  sidebar's own `colour_word`, so an Arabic screen reader hears `صورة ٣ من ١٢، منتقاة` and
+  `٤ نجوم` where it heard English. Fourteen rows per catalogue; the catalogue audit reads
+  `a11y.rs` now, and `the_spoken_sentences_speak_the_interface_language` reads the painted half
+  back and holds English byte for byte, Arabic's digits and Japanese's word order — **proved to
+  bite:** with `picked` reverted to a bare literal it fails naming that row.
+  What the sweeps still do not read is the host app's own words in `apps/sortlens`. That is the
+  next slice; SL-L07 stays unticked until the whole-source audit covers every sink.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -1134,3 +1134,17 @@
 	No similar groups found	Không tìm thấy nhóm ảnh tương tự
 	Found 1 similar group	Đã tìm thấy 1 nhóm ảnh tương tự
 	Found {n} similar groups	Đã tìm thấy {n} nhóm ảnh tương tự
+	picked	đã chọn
+	rejected	đã loại
+	deferred	đã hoãn
+	cleared	đã xoá
+	No photos to cull	Không có ảnh để duyệt
+	Photo {position} of {total}	Ảnh {position} / {total}
+	Photo {position} of {total}, {word}	Ảnh {position} / {total}, {word}
+	{word}, {n} photo left	{word}, còn {n} ảnh
+	{word}, {n} photos left	{word}, còn {n} ảnh
+	Decision cleared, {n} photo left	Đã xoá quyết định, còn {n} ảnh
+	Decision cleared, {n} photos left	Đã xoá quyết định, còn {n} ảnh
+	{n} star	{n} sao
+	{n} stars	{n} sao
+	file missing	thiếu tệp

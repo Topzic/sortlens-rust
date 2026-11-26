@@ -1056,7 +1056,10 @@ the same spec the engine reports on.
 ## Accessibility: what is claimed and what is checked
 
 Announcements are visible polite live regions (`a11y::live_line`), not invisible AccessKit-only text, so the
-status a screen reader hears is the status everyone can see.
+status a screen reader hears is the status everyone can see. Every spoken sentence — the decision words,
+the cull status, the line after a decision and `describe_photo`'s facts — is a catalogue row whose counts
+are written in the reader's digits, so an Arabic window is read `صورة ٣ من ١٢، منتقاة`, not an English
+sentence with Arabic numbers in it.
 
 Every region the app paints itself — grid cells, the detail preview, the lookahead strip, cull thumbnails,
 similar clusters, memory cards and sidebar rows — registers a name: `a11y::describe_photo` says the file

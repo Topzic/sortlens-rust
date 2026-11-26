@@ -1136,3 +1136,17 @@
 	No similar groups found	ไม่พบกลุ่มที่คล้ายกัน
 	Found 1 similar group	พบกลุ่มที่คล้ายกัน 1 กลุ่ม
 	Found {n} similar groups	พบกลุ่มที่คล้ายกัน {n} กลุ่ม
+	picked	เลือกแล้ว
+	rejected	ปฏิเสธแล้ว
+	deferred	เลื่อนไว้
+	cleared	ล้างแล้ว
+	No photos to cull	ไม่มีภาพให้คัด
+	Photo {position} of {total}	ภาพที่ {position} จาก {total}
+	Photo {position} of {total}, {word}	ภาพที่ {position} จาก {total}, {word}
+	{word}, {n} photo left	{word} เหลืออีก {n} ภาพ
+	{word}, {n} photos left	{word} เหลืออีก {n} ภาพ
+	Decision cleared, {n} photo left	ล้างการตัดสินแล้ว เหลืออีก {n} ภาพ
+	Decision cleared, {n} photos left	ล้างการตัดสินแล้ว เหลืออีก {n} ภาพ
+	{n} star	{n} ดาว
+	{n} stars	{n} ดาว
+	file missing	ไม่พบไฟล์

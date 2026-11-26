@@ -10,36 +10,62 @@ use egui::{Color32, RichText, Ui};
 
 use sortlens_engine::Decision;
 
+use crate::i18n::{self, tl};
+
 /// What a decision is called when spoken.
-pub const fn decision_word(decision: Decision) -> &'static str {
+///
+/// The word is a catalogue row like any painted label: a screen reader is a reader, and an Arabic
+/// window that announced "picked" in English would be two interfaces in one frame.
+pub fn decision_word(decision: Decision) -> String {
     match decision {
-        Decision::Pick => "picked",
-        Decision::Reject => "rejected",
-        Decision::Deferred => "deferred",
-        Decision::Unjudged => "cleared",
+        Decision::Pick => tl!("picked"),
+        Decision::Reject => tl!("rejected"),
+        Decision::Deferred => tl!("deferred"),
+        Decision::Unjudged => tl!("cleared"),
     }
+    .to_string()
 }
 
 /// The cull status line: where you are and what the photo carries.
 ///
-/// `position` is one-based. An empty queue says so rather than "0 of 0".
+/// `position` is one-based. An empty queue says so rather than "0 of 0". The numbers are the
+/// reader's digits and the sentence is the reader's row, so a Japanese status reads
+/// `12枚中3枚目、採用` where it read `Photo 3 of 12, picked`.
 pub fn cull_status(position: usize, total: usize, decision: Decision) -> String {
     if total == 0 {
-        return "No photos to cull".to_string();
+        return tl!("No photos to cull").to_string();
     }
-    let decided = match decision {
-        Decision::Unjudged => String::new(),
-        other => format!(", {}", decision_word(other)),
-    };
-    format!("Photo {position} of {total}{decided}")
+    let position = i18n::count(position as u64);
+    let total = i18n::count(total as u64);
+    match decision {
+        Decision::Unjudged => crate::i18n::fmt("Photo {position} of {total}", &[("position", &position), ("total", &total)]),
+        other => crate::i18n::fmt(
+            "Photo {position} of {total}, {word}",
+            &[("position", &position), ("total", &total), ("word", &decision_word(other))],
+        ),
+    }
 }
 
 /// One line of spoken feedback after a cull decision.
+///
+/// One photo and several are two English rows, the way the rest of the shell words a count, so a
+/// language is not forced through English's singular and plural; the decision's own word stays the
+/// value the row places, capitalized for English's sentence position (the other five catalogues
+/// have no case, so a capital there is the translator's word unchanged).
 pub fn decision_sentence(decision: Decision, remaining: usize) -> String {
-    let noun = if remaining == 1 { "photo" } else { "photos" };
-    match decision {
-        Decision::Unjudged => format!("Decision cleared, {remaining} {noun} left"),
-        other => format!("{}, {remaining} {noun} left", capitalize(decision_word(other))),
+    let n = i18n::count(remaining as u64);
+    if decision == Decision::Unjudged {
+        return if remaining == 1 {
+            crate::i18n::fmt("Decision cleared, {n} photo left", &[("n", &n)])
+        } else {
+            crate::i18n::fmt("Decision cleared, {n} photos left", &[("n", &n)])
+        };
+    }
+    let word = capitalize(&decision_word(decision));
+    if remaining == 1 {
+        crate::i18n::fmt("{word}, {n} photo left", &[("word", &word), ("n", &n)])
+    } else {
+        crate::i18n::fmt("{word}, {n} photos left", &[("word", &word), ("n", &n)])
     }
 }
 
@@ -100,19 +126,23 @@ pub fn name_field(ui: &egui::Ui, response: &egui::Response, label: &str) {
 pub fn describe_photo(photo: &sortlens_engine::Photo) -> String {
     let mut parts = vec![photo.name.clone()];
     if photo.rating > 0 {
-        let noun = if photo.rating == 1 { "star" } else { "stars" };
-        parts.push(format!("{} {noun}", photo.rating));
+        let n = i18n::count(u64::from(photo.rating));
+        parts.push(if photo.rating == 1 {
+            crate::i18n::fmt("{n} star", &[("n", &n)])
+        } else {
+            crate::i18n::fmt("{n} stars", &[("n", &n)])
+        });
     }
     match photo.flag {
-        sortlens_core::Flag::Pick => parts.push("pick".to_string()),
-        sortlens_core::Flag::Reject => parts.push("reject".to_string()),
+        sortlens_core::Flag::Pick => parts.push(tl!("pick").to_string()),
+        sortlens_core::Flag::Reject => parts.push(tl!("reject").to_string()),
         sortlens_core::Flag::None => {}
     }
     if let Some(label) = photo.label {
-        parts.push(format!("{label:?} label"));
+        parts.push(crate::i18n::fmt("{colour} label", &[("colour", &crate::shell::colour_word(label))]));
     }
     if photo.missing {
-        parts.push("file missing".to_string());
+        parts.push(tl!("file missing").to_string());
     }
     if !photo.duration_label().is_empty() {
         parts.push(photo.duration_label());
@@ -272,6 +302,89 @@ mod tests {
             rev: 0,
             added: None,
         }
+    }
+
+    /// The spoken sentences are catalogue rows, in every language the picker offers.
+    ///
+    /// A screen reader is a reader: an Arabic window that announced "picked" in English would be
+    /// two interfaces in one frame. The painted half of this file is read back to prove each
+    /// sentence routes through `tl!` or `fmt` instead of carrying the literal, and the catalogue
+    /// is the witness that every row a translator was handed is there. English is held byte for
+    /// byte (routing a sentence must not reword the screen), Arabic for the reader's own digits and
+    /// no English left behind, and Japanese for its own word order.
+    #[test]
+    fn the_spoken_sentences_speak_the_interface_language() {
+        // The module's route markers, built from pieces so this test's own source does not read as
+        // a route the catalogue audit would have to find a row for.
+        let markers = [concat!("t", "l!("), concat!("f", "m", "t(")];
+        // Every English key the spoken sinks use, with the Arabic row it must resolve to.
+        const ROWS: [(&str, &str); 14] = [
+            ("picked", "منتقاة"),
+            ("rejected", "مرفوضة"),
+            ("deferred", "مؤجلة"),
+            ("cleared", "ممسوحة"),
+            ("No photos to cull", "لا صور للفرز"),
+            ("Photo {position} of {total}", "صورة {position} من {total}"),
+            ("Photo {position} of {total}, {word}", "صورة {position} من {total}، {word}"),
+            ("{word}, {n} photo left", "{word}، بقيت {n} صورة واحدة"),
+            ("{word}, {n} photos left", "{word}، بقيت {n} صور"),
+            ("Decision cleared, {n} photo left", "أُزيل القرار، بقيت {n} صورة واحدة"),
+            ("Decision cleared, {n} photos left", "أُزيل القرار، بقيت {n} صور"),
+            ("{n} star", "{n} نجمة"),
+            ("{n} stars", "{n} نجوم"),
+            ("file missing", "الملف مفقود"),
+        ];
+        // The source with each line's own indentation trimmed away, so a wrapped call still reads
+        // as one call; the test module is cut off so the assertion is about the sinks, not itself.
+        let source: String = include_str!("a11y.rs").lines().map(str::trim).collect();
+        let paint = source.split("#[cfg(test)]").next().unwrap_or(&source);
+        for (english, _) in ROWS {
+            let routed = markers.iter().any(|marker| paint.contains(&format!("{marker}\"{english}\"")));
+            assert!(routed, "the spoken row {english:?} is not routed through the catalogues");
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in ROWS {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it speaks");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in ROWS {
+            assert_eq!(crate::i18n::tr(english), arabic, "the spoken row for {english:?} is Arabic");
+        }
+        // The sentences themselves: the reader's digits, no English word left behind, and the
+        // decision's own row where English puts a capitalized word.
+        let status = cull_status(3, 12, Decision::Pick);
+        assert!(status.contains("صورة") && status.contains("٣") && status.contains("١٢"), "{status}");
+        assert!(!status.contains("Photo") && !status.contains("picked"), "{status}");
+        let one = decision_sentence(Decision::Pick, 1);
+        assert!(one.contains("منتقاة") && one.contains("١") && !one.contains("photo"), "{one}");
+        let several = decision_sentence(Decision::Reject, 4);
+        assert!(
+            several.contains("مرفوضة") && several.contains("٤") && !several.contains("Rejected"),
+            "{several}"
+        );
+        let cleared = decision_sentence(Decision::Unjudged, 2);
+        assert!(cleared.contains("أُزيل القرار") && cleared.contains("٢"), "{cleared}");
+        assert!(!cleared.contains("Decision"), "{cleared}");
+        let mut photo = test_photo("DSC_0001.jpg");
+        photo.rating = 4;
+        photo.flag = sortlens_core::Flag::Pick;
+        photo.label = Some(sortlens_core::ColorLabel::Green);
+        photo.missing = true;
+        let spoken = describe_photo(&photo);
+        assert!(spoken.contains("٤") && spoken.contains("نجوم"), "{spoken}");
+        assert!(spoken.contains("مختارة") && spoken.contains("أخضر"), "{spoken}");
+        assert!(spoken.contains("الملف مفقود"), "{spoken}");
+        assert!(
+            !spoken.contains("stars") && !spoken.contains("label") && !spoken.contains("Green"),
+            "{spoken}"
+        );
+        assert!(!spoken.contains("file missing"), "{spoken}");
+        // Japanese writes its own count and word order, not an English sentence reordered by eye.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = cull_status(3, 12, Decision::Deferred);
+        assert!(japanese.contains("枚中3枚目") && japanese.contains("保留"), "{japanese}");
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     #[test]

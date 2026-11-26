@@ -9798,6 +9798,56 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   command…`, `No command matches`, its `Up/Down choose · Enter run · Esc photo search` hint and the
   field's accessible name, through the same seam with the key caps as the platform spells them.
 
+## 2026-11-26 (hundred-and-seventy-fifth) — the spoken sentences speak the interface language
+
+- **Why this came up.** The last entry's Next named three hover literals in `crates/ui/src/shell.rs`;
+  reading the crate showed them already routed in this tree — three `on_hover_text(tl!(…))` sites
+  with `the_destination_strip_and_keyword_order_hovers_speak_the_interface_language` holding them —
+  so that instruction was stale. `docs/ROADMAP.md`'s SL-L07 audit prose names the next sink itself:
+  the spoken sentences in `crate::a11y`, which an assistive reader speaks rather than paints. The
+  `CI` run for `dbe08f6` (`45905226638`) was still running at STEP 1b with no conclusion — not red.
+- **What is routed.** `crates/ui/src/a11y.rs`: the four decision words (`picked`, `rejected`,
+  `deferred`, `cleared`), `cull_status`'s two sentences (`Photo {position} of {total}` and the same
+  with `, {word}`), `decision_sentence`'s four (`{word}, {n} photo(s) left` and
+  `Decision cleared, {n} photo(s) left`), `No photos to cull`, and `describe_photo`'s facts —
+  `{n} star`/`{n} stars`, `pick`/`reject` (rows the sidebar already owned), `{colour} label` and
+  `file missing`. Fourteen new rows per catalogue, 84 in all. Counts go through `i18n::count`, so an
+  Arabic status reads `صورة ٣ من ١٢، منتقاة`; `colour_word` in `shell.rs` is `pub(crate)` now, so the
+  sidebar and the screen reader cannot name one colour two ways. English is byte-identical: the
+  existing a11y tests that pin `Photo 3 of 12, picked`, `Picked, 1 photo left` and the photo
+  description pass untouched.
+- **Test.** `the_spoken_sentences_speak_the_interface_language` reads `a11y.rs`'s painted half back,
+  requires all fourteen keys to sit behind `tl!`/`fmt`, holds English byte for byte, then walks the
+  sentences in Arabic (`٣`/`١٢`, `٤ نجوم`, `أخضر`, `الملف مفقود`, no English residue) and Japanese
+  (`12枚中3枚目` with `保留`). **Proved to bite:** with `picked` reverted to a bare literal it fails
+  with `the spoken row "picked" is not routed through the catalogues`.
+- **Audit.** `crate::i18n`'s `catalogs_load_and_routed_keys_have_rows` reads `a11y.rs` too now, so a
+  spoken template with no row fails the gate instead of quietly speaking English.
+- **What was not verified.** No screen reader and no device: the sentences are held by their pure
+  functions and the catalogue, not by an assistive client. The duration label inside
+  `describe_photo` is still the engine's `1:12` value — a value, not a word, and the engine owns it.
+  `apps/sortlens`'s own words are untouched.
+- **Docs.** `docs/ROADMAP.md`'s SL-L07 row records the routed sink and keeps the row unticked; the
+  cull-screen sentence that said a11y was still English points at this entry. `docs/UX.md`'s
+  accessibility paragraph says the spoken sentences are catalogue rows in the reader's digits.
+- **Gates.** `cargo fmt --all`; `cargo test -p sortlens-ui a11y` (7 passed) and `... i18n` (4 passed);
+  `cargo xtask ci` green (fmt, workspace clippy, the whole suite, layers, roots, assets, fonts,
+  version, attribution, a11y, docs, templates, workflows); `cargo xtask snapshot` (5 passed),
+  `cargo xtask deny` (advisories, bans, licenses, sources) and `cargo xtask screenshots` (30 passed,
+  1 ignored) all green with no baseline moved. `crates/ui` changed, so the phone gate applies:
+  `cargo xtask mobile` cannot run on this machine (no Android NDK, no Xcode) and CI's mobile jobs
+  are the proof. No release workflow dispatched — source, catalogue rows and docs, no build or
+  release surface.
+- **Files.** `crates/ui/src/a11y.rs` (the routes and the new test),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (fourteen rows each), `crates/ui/src/i18n.rs`
+  (the audit reads `a11y.rs`), `crates/ui/src/shell.rs` (`colour_word` is `pub(crate)`),
+  `docs/ROADMAP.md`, `docs/UX.md` and this file.
+- **Next.** The command palette's own chrome: `Type a command…`, `No command matches`, the
+  `Up/Down choose · Enter run · Esc photo search` hint and the field's accessible name, through the
+  same seam, with a paint test in English and Arabic. After that the host app's own words in
+  `apps/sortlens` — the audit's last named sink. SL-L07 stays unticked until a whole-source audit
+  proves every painted literal is a catalogue row.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -9806,14 +9856,14 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-fifty-fourth entry).** Read this commit's `CI` run with one
-`gh run view` — no committed scene paints a hover and the English paint is unchanged, so no
-baseline should have moved. Then the last three hover literals in `crates/ui/src/shell.rs`: the
-destination strip's `Every destination. The row returns when the window is wide enough.` and the
-keyword menu's two `Switch between most used and A–Z`, through `tl!`, with the same
-source-readback and Arabic lookup test. SL-L07 stays unticked; its row lists what the audit still
-finds (those three sites and the packs instruction), and the whole-source sweep that could tick it
-comes after them. No release run is in flight.
+**Next tick (after the hundred-and-seventy-fifth entry).** Read this commit's `CI` run with one
+`gh run view` — no baseline moved here and the English paint is unchanged. Then the command
+palette's own chrome in `crates/ui/src/shell.rs`: `Type a command…`, `No command matches`, the
+`Up/Down choose · Enter run · Esc photo search` hint and the field's accessible name, through
+`tl!`/`fmt`, with a paint test in English and Arabic (the palette field's name is already set by
+`a11y::name_field`, so its sentence is the hint's row). After that, `apps/sortlens`'s own words —
+the last sink the audit names. SL-L07 stays unticked; the whole-source sweep that could tick it
+comes after both. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

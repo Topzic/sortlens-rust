@@ -1134,3 +1134,17 @@
 	No similar groups found	비슷한 그룹을 찾지 못했습니다
 	Found 1 similar group	비슷한 그룹 1개를 찾았습니다
 	Found {n} similar groups	비슷한 그룹 {n}개를 찾았습니다
+	picked	선택
+	rejected	제외
+	deferred	보류
+	cleared	해제
+	No photos to cull	선별할 사진이 없습니다
+	Photo {position} of {total}	{total}장 중 {position}장
+	Photo {position} of {total}, {word}	{total}장 중 {position}장, {word}
+	{word}, {n} photo left	{word}, {n}장 남음
+	{word}, {n} photos left	{word}, {n}장 남음
+	Decision cleared, {n} photo left	판정 해제, {n}장 남음
+	Decision cleared, {n} photos left	판정 해제, {n}장 남음
+	{n} star	별 {n}개
+	{n} stars	별 {n}개
+	file missing	파일 없음

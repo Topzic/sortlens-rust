@@ -10887,7 +10887,10 @@ fn history_photos(count: usize) -> String {
 }
 
 /// A colour label's name, worded in the interface language.
-fn colour_word(colour: ColorLabel) -> String {
+///
+/// The a11y module announces a photo's label with this same word, so a screen reader and the
+/// sidebar cannot call one colour by two names.
+pub(crate) fn colour_word(colour: ColorLabel) -> String {
     match colour {
         ColorLabel::Red => tl!("Red"),
         ColorLabel::Yellow => tl!("Yellow"),

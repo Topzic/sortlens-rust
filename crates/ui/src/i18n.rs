@@ -207,6 +207,7 @@ mod tests {
             include_str!("theme.rs"),
             include_str!("sharpness.rs"),
             include_str!("charts.rs"),
+            include_str!("a11y.rs"),
         ];
         let mut keys: Vec<String> = Vec::new();
         for source in sources {

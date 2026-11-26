@@ -1135,3 +1135,17 @@
 	No similar groups found	لم تُعثر على مجموعات مشابهة
 	Found 1 similar group	عُثر على مجموعة مشابهة واحدة
 	Found {n} similar groups	عُثر على {n} مجموعات مشابهة
+	picked	منتقاة
+	rejected	مرفوضة
+	deferred	مؤجلة
+	cleared	ممسوحة
+	No photos to cull	لا صور للفرز
+	Photo {position} of {total}	صورة {position} من {total}
+	Photo {position} of {total}, {word}	صورة {position} من {total}، {word}
+	{word}, {n} photo left	{word}، بقيت {n} صورة واحدة
+	{word}, {n} photos left	{word}، بقيت {n} صور
+	Decision cleared, {n} photo left	أُزيل القرار، بقيت {n} صورة واحدة
+	Decision cleared, {n} photos left	أُزيل القرار، بقيت {n} صور
+	{n} star	{n} نجمة
+	{n} stars	{n} نجوم
+	file missing	الملف مفقود

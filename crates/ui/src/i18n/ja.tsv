@@ -1135,3 +1135,17 @@
 	No similar groups found	似ているグループは見つかりませんでした
 	Found 1 similar group	似ているグループが1件見つかりました
 	Found {n} similar groups	似ているグループが{n}件見つかりました
+	picked	採用
+	rejected	却下
+	deferred	保留
+	cleared	解除
+	No photos to cull	選別する写真がありません
+	Photo {position} of {total}	{total}枚中{position}枚目
+	Photo {position} of {total}, {word}	{total}枚中{position}枚目、{word}
+	{word}, {n} photo left	{word}、残り{n}枚
+	{word}, {n} photos left	{word}、残り{n}枚
+	Decision cleared, {n} photo left	判断を解除、残り{n}枚
+	Decision cleared, {n} photos left	判断を解除、残り{n}枚
+	{n} star	{n}つ星
+	{n} stars	{n}つ星
+	file missing	ファイルが見つかりません
