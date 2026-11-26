@@ -1113,3 +1113,6 @@
 	Grid layout: {layout}	Bố cục lưới: {layout}
 	{file}: {problem}	{file}: {problem}
 	{n} keyword(s) · {licence}	{n} từ khóa · {licence}
+	{label} — {n}	{label}: {n}
+	{label} — {n} · {pct}%	{label}: {n} · {pct}%
+	{label}: {n} of {whole} ({pct}%)	{label}: {n} trên {whole} ({pct}%)

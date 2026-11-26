@@ -1021,7 +1021,9 @@ same library look different at different window sizes and makes two screenshots 
 - The axis maximum is a round number (1, 2 or 5 × a power of ten), so a reader can estimate a bar
   without hovering it.
 - Every column and row carries a hover tooltip with the exact count and share, because a chart you
-  cannot read a number off is decoration.
+  cannot read a number off is decoration. The labels, the counts and the percentage are values; the
+  words and the punctuation are catalogue rows and the numbers are the interface language's digits,
+  so a Japanese chart writes `画像：12 件中 3 件（25.0%）` and an Arabic one `٥٠٪`.
 
 ## The export dialog
 

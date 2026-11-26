@@ -1478,8 +1478,23 @@ and none of M9 is closed until the remaining rows are ticked.
   asserts Arabic's count and Japanese's `キーワード 12 件` and full-width colon. With
   `pack_summary_line` reverted to `format!` it fails with "the shell still formats the pack summary
   line in English".
-  The sweep also found what is still painted English, surface by surface, for later ticks: the two
-  chart hovers (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`). The next surface is those hovers.
+  The two chart hovers followed (hundred-and-seventy-second entry): a column's tooltip is
+  `{label} — {n} · {pct}%` — or `{label} — {n}` when nothing has a height — and a proportional row's is
+  `{label}: {n} of {whole} ({pct}%)`. The label, the counts and the percentage are values, the words,
+  the punctuation and the percent sign are the catalogue's, and the digits go through
+  `format::count`/`format::decimal` — so an Arabic chart reads `يونيو — ٤ · ٥٠٪` where it read English,
+  and Japanese writes its full-width colon in a column's hover. The rounding is `{:.0}`/`{:.1}`'s
+  ties-to-even, so a chart's number does not move by a point just because it is routed, and English
+  keeps the words it always painted.
+  `the_chart_hovers_speak_the_interface_language` reads `charts.rs` back (its patterns are built at
+  run time, because the test lives in the file it reads), requires the three templates, rejects both
+  bare `format!` twins, checks both paint sites, walks the templates through the six catalogues, then
+  holds English's four renderings, Arabic's `٣` and `١٥٫٨`, and Japanese's `画像：12 件中 3 件（25.0%）`.
+  With the column arm reverted to `format!` it fails with "the columns still format their hover in
+  English". The catalogue audit in `i18n.rs` reads `charts.rs` too now, so a template added there
+  without a row fails without a second list to keep in step.
+
+  No named family is left in this row: the next slice is the whole-source sweep that can tick it.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

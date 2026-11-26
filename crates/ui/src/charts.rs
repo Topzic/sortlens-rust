@@ -142,18 +142,51 @@ pub fn columns(ui: &mut Ui, t: &Tokens, columns: &[Column], height: f32) -> f32 
         // The tooltip carries the numbers: a chart you cannot read a value off is decoration.
         let hit = Rect::from_min_max(pos2(left, rect.top()), pos2(left + column_width, rect.bottom()));
         let response = ui.interact(hit, ui.scope_id().with(("column", index)), Sense::hover());
-        let share = if peak == 0 {
-            String::new()
-        } else {
-            format!(" · {:.0}%", column.value as f32 * 100.0 / peak as f32)
-        };
-        response.on_hover_text(format!(
-            "{} — {}{share}",
-            if column.label.is_empty() { "—" } else { &column.label },
-            sortlens_core::format_count(column.value as u64)
-        ));
+        let share = if peak == 0 { None } else { Some(column.value as f32 / peak as f32) };
+        response.on_hover_text(column_hover(&column.label, column.value, share));
     }
     height
+}
+
+/// One column's tooltip, worded by the catalogue (SL-L07).
+///
+/// The label, the count and the share are values; what a language decides is the punctuation
+/// between them and where the percent sign sits. The count and the percentage are the reader's
+/// digits, so an Arabic chart reads `٢ — ٤ · ٥٠٪` where it read `2 — 4 · 50%`.
+fn column_hover(label: &str, count: usize, share: Option<f32>) -> String {
+    // An unlabelled column still shows something before the separator. The dash stands in for a
+    // label rather than saying a word, so it is a value and not a row.
+    let label = if label.is_empty() { "—" } else { label };
+    let count = crate::format::count(count as u64);
+    match share {
+        Some(share) => {
+            // `{:.0}`'s ties-to-even, so a share that lands exactly on a half keeps the number
+            // the chart used to paint instead of moving it by a point.
+            let percent = (f64::from(share) * 100.0).round_ties_even();
+            crate::i18n::fmt(
+                "{label} — {n} · {pct}%",
+                &[("label", label), ("n", &count), ("pct", &crate::format::decimal(percent, 0))],
+            )
+        }
+        None => crate::i18n::fmt("{label} — {n}", &[("label", label), ("n", &count)]),
+    }
+}
+
+/// One proportional row's tooltip: its label, its count, the whole and its share (SL-L07).
+///
+/// The share keeps `{:.1}`'s rounding — one decimal, ties to even — so a language only decides
+/// the sentence and the percent sign, never the number the bar was drawn for.
+fn share_hover(label: &str, count: usize, whole: usize, share: f32) -> String {
+    let percent = (f64::from(share) * 1000.0).round_ties_even() / 10.0;
+    crate::i18n::fmt(
+        "{label}: {n} of {whole} ({pct}%)",
+        &[
+            ("label", label),
+            ("n", &crate::format::count(count as u64)),
+            ("whole", &crate::format::count(whole as u64)),
+            ("pct", &crate::format::decimal(percent, 1)),
+        ],
+    )
 }
 
 /// How wide one column has to be: enough for the widest label, and never under the minimum.
@@ -227,12 +260,7 @@ pub fn share_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usiz
         FontId::proportional(10.5),
         t.text_faint,
     );
-    response.on_hover_text(format!(
-        "{label}: {} of {} ({:.1}%)",
-        sortlens_core::format_count(count as u64),
-        sortlens_core::format_count(whole as u64),
-        share * 100.0
-    ));
+    response.on_hover_text(share_hover(label, count, whole, share));
 }
 
 /// A share in 0–1, refusing to divide by nothing.
@@ -390,5 +418,80 @@ mod tests {
         assert!(!plain.highlight);
         assert!(peak.highlight);
         assert_eq!(plain.value, 12);
+    }
+
+    /// The two chart hovers are catalogue rows rather than English formatted in place (SL-L07).
+    ///
+    /// A column's tooltip is its label, its count and its share of the tallest column; a
+    /// proportional row's is its label, its count, the whole and its share. The labels and the
+    /// numbers are values, so what a language decides is the punctuation around them — and the
+    /// count and the percentage are the reader's own digits.
+    #[test]
+    fn the_chart_hovers_speak_the_interface_language() {
+        // Built at run time, because the test lives in the file it reads: a literal here would
+        // match itself and the guard could never fire.
+        let column_template = ["{label} — {n} · ", "{pct}%"].concat();
+        let plain_template = ["{label} — ", "{n}"].concat();
+        let row_template = ["{label}: {n} of {whole} ", "({pct}%)"].concat();
+        let bare_column = ["{} — {}{", "share}"].concat();
+        let bare_row = ["{label}: {} of {} ", "({:.1}%)"].concat();
+        let source: String = include_str!("charts.rs").lines().map(str::trim).collect::<Vec<_>>().join("\n");
+        assert!(source.contains(&column_template), "the columns still format their hover in English");
+        assert!(
+            source.contains(&plain_template),
+            "the column hover has no row for a chart with no peak"
+        );
+        assert!(source.contains(&row_template), "the share row still formats its hover in English");
+        assert!(!source.contains(&bare_column), "the columns paint a bare format! again");
+        assert!(!source.contains(&bare_row), "the share row paints a bare format! again");
+        // Both paint sites ask the helper, so a chart cannot get the words and hand-format its numbers.
+        assert!(
+            source.contains("column_hover(&column.label, column.value, share)"),
+            "the columns do not paint the routed hover"
+        );
+        assert!(
+            source.contains("share_hover(label, count, whole, share)"),
+            "the share row does not paint the routed hover"
+        );
+
+        // Every template is a row in every language the picker offers.
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).expect("the picker offers it");
+            for key in [column_template.as_str(), plain_template.as_str(), row_template.as_str()] {
+                assert!(crate::i18n::I18N.get(lang, "", key).is_some(), "{code} has no row for {key:?}");
+            }
+        }
+
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(column_hover("J", 3, Some(0.5)), "J — 3 · 50%");
+        assert_eq!(column_hover("J", 3, None), "J — 3");
+        assert_eq!(column_hover("", 4, Some(1.0)), "— — 4 · 100%");
+        assert_eq!(share_hover("Images", 3, 19, 3.0 / 19.0), "Images: 3 of 19 (15.8%)");
+
+        // Arabic: its own digits on the counts and on the percentage, its own percent sign, and the
+        // catalogue's own words.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = column_hover("يونيو", 4, Some(0.5));
+        assert!(
+            arabic.contains('٤') && arabic.contains("٥٠") && arabic.contains('٪') && !arabic.contains('4'),
+            "the column hover is Arabic: {arabic:?}"
+        );
+        let arabic_row = share_hover("صور", 3, 19, 3.0 / 19.0);
+        assert!(
+            arabic_row.contains('٣') && arabic_row.contains("١٩") && arabic_row.contains("١٥٫٨") && !arabic_row.contains("15.8"),
+            "the share hover is Arabic: {arabic_row:?}"
+        );
+
+        // Japanese: a full-width colon and its own count words around the same three numbers.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let japanese = column_hover("6月", 12, Some(0.25));
+        assert!(
+            japanese.contains('：') && japanese.contains("12") && japanese.contains("25%") && !japanese.contains('—'),
+            "the column hover is Japanese: {japanese:?}"
+        );
+        assert_eq!(share_hover("画像", 3, 12, 0.25), "画像：12 件中 3 件（25.0%）");
+
+        crate::i18n::set_current(previous);
     }
 }

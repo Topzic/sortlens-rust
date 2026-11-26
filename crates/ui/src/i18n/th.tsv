@@ -1115,3 +1115,6 @@
 	Grid layout: {layout}	เลย์เอาต์ตาราง: {layout}
 	{file}: {problem}	{file}: {problem}
 	{n} keyword(s) · {licence}	{n} คำค้น · {licence}
+	{label} — {n}	{label}: {n}
+	{label} — {n} · {pct}%	{label}: {n} · {pct}%
+	{label}: {n} of {whole} ({pct}%)	{label}: {n} จาก {whole} ({pct}%)

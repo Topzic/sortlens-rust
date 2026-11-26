@@ -200,8 +200,14 @@ mod tests {
         // The English source text the routes are called with, read straight out of the module that
         // routes them — the same audit craft font-manager runs on its own panel. Both routes are
         // read: a literal (`tl!`) and a sentence with placeholders (`fmt`), because a template whose
-        // row is missing shows English just as quietly as a missing label does.
-        let sources = [include_str!("shell.rs"), include_str!("theme.rs"), include_str!("sharpness.rs")];
+        // row is missing shows English just as quietly as a missing label does. The chart painters
+        // live in `charts.rs`, so their two hover templates are read too.
+        let sources = [
+            include_str!("shell.rs"),
+            include_str!("theme.rs"),
+            include_str!("sharpness.rs"),
+            include_str!("charts.rs"),
+        ];
         let mut keys: Vec<String> = Vec::new();
         for source in sources {
             for marker in ["tl!(", "crate::i18n::fmt("] {

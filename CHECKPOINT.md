@@ -1,5 +1,50 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-second) — the chart hovers speak the interface language
+
+- **Why it came up.** The hundred-and-seventy-first entry's Next named the two chart hovers
+  (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`) as the next surface. `CI` for `10598af`
+  (`45898377527`) was green at STEP 1b, so this was a roadmap slice rather than a repair.
+- **What shipped.** A column's hover is `{label} — {n} · {pct}%` (or `{label} — {n}` when nothing
+  has a height) and a proportional row's is `{label}: {n} of {whole} ({pct}%)`, all three through
+  `i18n::fmt`. The label, the counts and the percentage stay values; the digits go through
+  `crate::format::count`/`decimal`, so an Arabic chart reads `يونيو — ٤ · ٥٠٪` where it read
+  `June — 4 · 50%`, and the percent sign is the catalogue's own (Arabic `٪`). The rounding keeps
+  `{:.0}`/`{:.1}`'s ties-to-even, so routing a chart does not move its number by a point, and
+  English is byte-identical (`J — 3 · 50%`, `Images: 3 of 19 (15.8%)`). Three new rows per
+  catalogue (18); `i18n.rs`'s catalogue audit now reads `charts.rs` as well, so a hover template
+  added there without a row fails without a second list to keep in step.
+- **The test.** `the_chart_hovers_speak_the_interface_language` reads `charts.rs` back — its
+  patterns are built at run time, because the test lives in the file it reads — requires the three
+  templates, rejects both bare `format!` twins, checks that both paint sites call the helpers, asks
+  for each row in each of the six catalogues, then holds English's four renderings, Arabic's `٣`,
+  `١٩`, `١٥٫٨` and `٪`, and Japanese's full-width colon with `画像：12 件中 3 件（25.0%）`. **Proved to
+  bite:** with the column arm reverted to `format!("{} — {}{share}", label, count)` it fails with
+  "the columns still format their hover in English".
+- **Visual verification.** `cargo xtask screenshots` — 30 passed, 1 ignored (network), no baseline
+  moved, which is the expected answer: a tooltip paints only under the pointer and no committed
+  scene hovers a chart, so the run proves the painters still drive rather than that a pixel changed.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean;
+  the new test and its bite proof; then `cargo xtask ci` with every step ok (fmt, workspace clippy,
+  the whole suite, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`,
+  `templates`, `workflows`) — exit 0 on the run whose log recorded every step (the first invocation's
+  shell reported 1 with no failing step in its tail, so it was rerun with the log captured);
+  `cargo xtask snapshot` 5 passed; `cargo xtask deny` exit 0; and `cargo xtask screenshots` as above.
+  `cargo xtask mobile` cannot run here (no Android NDK, no Xcode), so CI's two mobile legs are the
+  proof — this slice touched `crates/ui`. No release workflow was dispatched: source, catalogue rows,
+  tests and docs, no build or release surface.
+- **Docs.** ROADMAP's SL-L07 row records this surface, its test and its bite proof, and says no
+  named family is left — the next slice is the whole-source audit that can tick the row, which
+  stays unticked until every painted literal is a catalogue row. `docs/UX.md`'s Charts section now
+  says the hover words and the digits are the interface language's.
+- **Files.** `crates/ui/src/charts.rs` (two helpers, both paint sites, the new test),
+  `crates/ui/src/i18n.rs` (the audit's source list), the six `crates/ui/src/i18n/*.tsv` (three rows
+  each), `docs/ROADMAP.md`, `docs/UX.md` and this file.
+- **Next.** The whole-source audit that can tick SL-L07: sweep every painted literal in
+  `crates/ui/src` — not only the `tl!`/`fmt` routes this row's slices converted — against the six
+  catalogues and the row's recorded exceptions (symbols, key caps, the product name, the map credit,
+  assistive names), and tick the row only if every one is a row or a named exception. No release
+  run is in flight.
 ## 2026-11-26 (hundred-and-seventy-first) — the keyword-pack rows speak the interface language
 
 - **Why it came up.** The hundred-and-seventieth entry's Next named the keyword-pack row's

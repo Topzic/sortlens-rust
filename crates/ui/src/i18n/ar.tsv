@@ -1114,3 +1114,6 @@
 	Grid layout: {layout}	تخطيط الشبكة: {layout}
 	{file}: {problem}	{file}: {problem}
 	{n} keyword(s) · {licence}	{n} كلمة مفتاحية · {licence}
+	{label} — {n}	{label} — {n}
+	{label} — {n} · {pct}%	{label} — {n} · {pct}٪
+	{label}: {n} of {whole} ({pct}%)	{label}: {n} من {whole} ({pct}٪)

@@ -1113,3 +1113,6 @@
 	Grid layout: {layout}	그리드 배치: {layout}
 	{file}: {problem}	{file}: {problem}
 	{n} keyword(s) · {licence}	키워드 {n}개 · {licence}
+	{label} — {n}	{label}: {n}
+	{label} — {n} · {pct}%	{label}: {n} · {pct}%
+	{label}: {n} of {whole} ({pct}%)	{label}: {whole}개 중 {n}개 ({pct}%)

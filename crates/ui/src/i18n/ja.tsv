@@ -1114,3 +1114,6 @@
 	Grid layout: {layout}	グリッド配置: {layout}
 	{file}: {problem}	{file}：{problem}
 	{n} keyword(s) · {licence}	キーワード {n} 件 · {licence}
+	{label} — {n}	{label}：{n}
+	{label} — {n} · {pct}%	{label}：{n} · {pct}%
+	{label}: {n} of {whole} ({pct}%)	{label}：{whole} 件中 {n} 件（{pct}%）
