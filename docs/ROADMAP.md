@@ -1411,14 +1411,22 @@ and none of M9 is closed until the remaining rows are ticked.
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining family:
-  - the shortcut editor's command names (`crates/ui/src/keymap.rs`): the `Bindable` labels it builds
-    from the registry — `New Collection…`, `Pick or Reject`, `Set Rating`, `Colour Label`,
-    `Add Keyword…`, `Apply Last Keyword` and `Cull Decision` — have no row in any of the six
-    catalogues yet.
+  - the shortcut editor's command names (`crates/ui/src/keymap.rs`): the hundred-and-sixty-sixth
+    entry assumed the `Bindable` labels come from the registry. They do not. `catalog()` hands the
+    dialog the table's own action, the dialog looks every command label up through
+    `CatalogText::command` (`I18N.t(lang, b.label)`), and the window title and the set-format label
+    are keys its own `Text::ui` lookup answers, so a Japanese editor paints translated rows today.
+    The seven registry names (`New Collection…`, `Pick or Reject`, `Set Rating`, `Colour Label`,
+    `Add Keyword…`, `Apply Last Keyword`, `Cull Decision`) belong to the CLI's `shortcuts` verb, a
+    terminal listing; nothing in `crates/ui` paints them, and the editor's two flag rows must stay
+    distinct ("Flag as picked" / "Flag as rejected") where the registry has one label for both.
+    `every_keymap_word_answers_every_catalogue` (hundred-and-sixty-seventh entry) now walks every
+    table action and section, and every row the editor builds, against the six catalogues — the
+    keys the `tl!`-reading audit in `i18n.rs` cannot see.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
-  catalogue row or a recorded exception, which the next ticks take one family at a time — the
-  shortcut editor's command names are next.
+  catalogue row or a recorded exception. No named family is left: the next slice is the
+  whole-source sweep that can tick the row, one painted surface at a time.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

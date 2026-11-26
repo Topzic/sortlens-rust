@@ -619,6 +619,50 @@ mod tests {
         }
     }
 
+    /// Every word the shortcut surfaces paint answers a catalogue row: the overlay's sections and
+    /// actions, and the editor's catalog rows and read-only fixed rows, which the dialog looks up
+    /// through `CatalogText` at paint time. Those keys never stand inside a `tl!` call, so the
+    /// source-reading audit in `i18n.rs` cannot see them: a binding added without its six rows
+    /// would paint English in a Japanese window and nothing else would fail.
+    #[test]
+    fn every_keymap_word_answers_every_catalogue() {
+        let mut keys: Vec<&str> = Vec::new();
+        for row in BINDINGS {
+            keys.push(row.action);
+            keys.push(row.context.label());
+        }
+        keys.sort_unstable();
+        keys.dedup();
+        assert!(
+            keys.len() > 30,
+            "only {} keymap words found; the listing is not reading the table",
+            keys.len()
+        );
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
+            let missing: Vec<&&str> = keys.iter().filter(|key| crate::i18n::I18N.get(lang, "", key).is_none()).collect();
+            assert!(missing.is_empty(), "{code} is missing {} keymap rows: {missing:#?}", missing.len());
+        }
+        // The editor paints the table's own words: every `Bindable` label is an action the overlay
+        // already routes, and every group is a section the overlay already routes, so the two
+        // surfaces cannot drift apart by one being translated and the other not.
+        for entry in catalog() {
+            assert!(
+                BINDINGS.iter().any(|row| row.action == entry.label),
+                "{}'s editor label {:?} is not a table action",
+                entry.command.key(),
+                entry.label
+            );
+            for part in entry.paths.iter().flatten() {
+                assert!(
+                    BINDINGS.iter().any(|row| row.context.label() == part),
+                    "{}'s editor section {part:?} is not a table section",
+                    entry.command.key()
+                );
+            }
+        }
+    }
+
     // ---- The runtime half ----
 
     /// The catalog is exactly the single-chord command rows of the table, under factory bindings,

@@ -1,5 +1,42 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-seventh) — the shortcut editor's rows were already translated, and a test now says so
+
+- **Why it came up.** The hundred-and-sixty-sixth entry's Next named the shortcut editor's command
+  names as SL-L07's last family, quoting seven strings out of `crates/engine/src/command.rs`. The
+  `CI` run for `d8ddcdf` (`45887443341`) was still in progress at STEP 1b, not red, so this was a
+  roadmap slice.
+- **What the source actually says.** The family was already routed, and the bullet was a misreading.
+  `keymap::catalog()` hands `craft_keymap::Bindable` the table's own action, not the registry's
+  label, and the dialog paints it through `CatalogText::command` (`I18N.t(lang, b.label)`); its
+  sections come from `Context::label`, which the overlay routes the same way. The window title
+  (`Keyboard shortcuts`) and the set format (`craft-keymap set`) are keys the dialog answers from
+  its own `Text::ui` lookup, and both have rows in all six catalogues. The seven quoted names are
+  the CLI's `shortcuts` verb — a terminal listing built from the registry — and nothing in
+  `crates/ui` paints them. The editor also *must* keep the table's wording: the registry has one
+  `Pick or Reject` for the two flag rows, which would collapse "Flag as picked" and "Flag as
+  rejected" into one label.
+- **What shipped.** `every_keymap_word_answers_every_catalogue` walks every `BINDINGS` action and
+  section (36 unique words) against all six catalogues — keys that never stand inside a `tl!` call,
+  so the source-reading audit in `i18n.rs` cannot see them — then walks `catalog()`'s rows and
+  holds each editor label to a table action and each editor section to a table section, so the help
+  overlay and the editor cannot drift into being translated one at a time. **Proved to bite:** with
+  the Arabic `Flag as picked` row deleted it panics with `ar is missing 1 keymap rows`.
+- **Not changed.** No paint code: this slice adds the guard the family was missing. Nothing was
+  rewired, so no baseline could move.
+- **Docs.** ROADMAP's SL-L07 row replaces the false bullet with what the sources say, records that no
+  named family is left, and names the whole-source sweep as the next slice; the row stays unticked.
+- **Gates.** `cargo fmt --all`; `cargo test -p sortlens-ui --lib -- every_keymap_word_answers_every_catalogue`
+  1 passed (and the bite proof above); then `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole
+  suite including the new test and the catalogue audit, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot`
+  5 passed, `cargo xtask deny` advisories, bans, licenses and sources ok. `cargo xtask screenshots`
+  was not run: only the test module changed, no paint path, so no baseline could move. `cargo xtask
+  mobile` cannot run here (no Android NDK, no Xcode); CI's two mobile legs are the proof.
+- **Next.** The whole-source sweep that can tick SL-L07: read `crates/ui/src` surface by surface
+  (the dialogs, the panes, the hover names, the notices) and list every painted literal that is not
+  a catalogue row or a recorded exception. No release run in flight, no baseline to regenerate.
+
 ## 2026-11-26 (hundred-and-sixty-sixth) — the command palette's rows speak the interface language
 
 - **Why this came up.** The hundred-and-sixty-fifth entry's Next named the command table's own labels
