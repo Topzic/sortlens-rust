@@ -11861,7 +11861,7 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     let label = if send.sending {
         tl!("Sending…").to_owned()
     } else {
-        format!("{} ({})", tl!("Send the selection"), chosen)
+        crate::i18n::fmt("Send the selection ({count})", &[("count", &crate::i18n::count(chosen as u64))])
     };
     let enabled = send.paired && chosen > 0 && !send.sending;
     let send_button = ui.add_enabled(enabled, Button::new(RichText::new(label).size(12.0)));
@@ -22748,6 +22748,52 @@ mod tests {
         for (english, arabic, _) in LINES {
             assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
         }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The phone link's Send button counts the selection in the interface language.
+    ///
+    /// `send_section` paints `Send the selection ({count})`: a template whose value is
+    /// `i18n::count` of the selection, so an Arabic window reads the sentence and the count in
+    /// Arabic. Before this slice the sentence was a `tl!` row and the count came from a bare
+    /// `format!`, so the number stayed in Latin digits whatever language the reader chose.
+    #[test]
+    fn the_send_button_counts_the_selection_in_the_interface_language() {
+        // The wiring itself: the label is one `fmt` template with the count as its value, and the
+        // bare `format!` that joined the routed sentence to an unlocalised number is gone.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        assert!(
+            source.contains("crate::i18n::fmt(\"Send the selection ({count})\""),
+            "the send button's label is not a template"
+        );
+        assert!(
+            !source.contains("format!(\"{} ({})\", tl!(\"Send the selection\")"),
+            "the send button still joins a routed sentence to a bare count"
+        );
+        // English keeps the words and the Latin digits the button paints today.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let two = crate::i18n::count(2);
+        assert_eq!(
+            crate::i18n::fmt("Send the selection ({count})", &[("count", &two)]),
+            "Send the selection (2)"
+        );
+        assert_eq!(
+            crate::i18n::tr("Send the selection ({count})"),
+            "Send the selection ({count})",
+            "English keeps the key it painted"
+        );
+        // Arabic answers the row and the count is the language's own digit, not the Latin one.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let two = crate::i18n::count(2);
+        assert_eq!(two, "٢", "Arabic writes its own digit for a count");
+        let label = crate::i18n::fmt("Send the selection ({count})", &[("count", &two)]);
+        assert!(label.contains("٢"), "the send button's count is Arabic: {label:?}");
+        assert!(!label.contains('2'), "the send button still counts in Latin digits: {label:?}");
+        assert_eq!(
+            crate::i18n::tr("Send the selection ({count})"),
+            "إرسال المحدد ({count})",
+            "the row for the Send button is Arabic"
+        );
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 

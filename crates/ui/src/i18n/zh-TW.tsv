@@ -54,6 +54,7 @@
 	Test connection	測試連線
 	Stop sending	停止傳送
 	Send the selection	傳送選取項目
+	Send the selection ({count})	傳送選取項目 ({count})
 	Remove from this phone once the desktop holds them	電腦收到後就從這支手機移除
 	Sending…	傳送中…
 	Welcome to Sortlens	歡迎使用 Sortlens

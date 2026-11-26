@@ -1379,19 +1379,23 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_phone_links_pair_and_sending_lines_speak_the_interface_language` reads `shell.rs` back,
   requires all six sites to route with no bare-literal or bare-`format!` twin, then renders each
   template to hold the English a person reads today, then English unchanged and the Arabic rows.
+  The phone link's Send button followed (hundred-and-sixty-fourth entry): `Send the selection
+  ({count})` is one `fmt` template whose value is `i18n::count` of the selection, so the button
+  counts in the reader's own digits instead of joining a routed sentence to a bare `format!`
+  number. `the_send_button_counts_the_selection_in_the_interface_language` reads `shell.rs` back,
+  requires the template and rejects the old `format!` twin, then English unchanged, and Arabic's
+  row with `٢` where English writes `2`.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining families:
   - the tag chip's hover in that editor (`TagSource::explanation()` and the `· click to remove`
     suffix), which is a `sortlens-core` sentence with no piece yet;
-  - the phone link's send button label, `Send the selection ({n})`, which `send_section` still
-    builds with `format!` around a routed piece and an unlocalised count;
   - the command table's own labels (`crates/engine/src/command.rs`), which the menus paint.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
-  catalogue row or a recorded exception, which the next ticks take one family at a time — the phone
-  link's send button label is next.
+  catalogue row or a recorded exception, which the next ticks take one family at a time — the tag
+  chip's hover is next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -1,5 +1,54 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-fourth) — the phone link's Send button counts the selection in the interface language
+
+- **Why this came up.** The hundred-and-sixty-third entry's Next named the Send button's own
+  `Send the selection ({n})`: `crates/ui/src/shell.rs`'s `send_section` built it as
+  `format!("{} ({})", tl!("Send the selection"), chosen)`, so the sentence was a row and the count
+  was not — an Arabic window read the Arabic words beside a Latin digit. The `CI` run for `754ff6c`
+  (`45880430125`) was in progress at STEP 1b, not red, so this is a roadmap slice.
+- **What is routed.** The label is now one `crate::i18n::fmt` template,
+  `Send the selection ({count})`, whose only value is `crate::i18n::count(chosen)`. Six new rows
+  (one per catalogue) carry it, each keeping the `{count}` placeholder: `إرسال المحدد ({count})`
+  in Arabic, `選択を送信 ({count})`, `선택 항목 보내기 ({count})`, `ส่งรายการที่เลือก ({count})`,
+  `Gửi phần đã chọn ({count})` and `傳送選取項目 ({count})`. The English paint is byte-identical —
+  `Send the selection (0)`, `(2)` — so no baseline moves. The old `Send the selection` row stays:
+  a translator may still have been handed it, and a stale row costs nothing.
+- **Tests.** `the_send_button_counts_the_selection_in_the_interface_language` reads `shell.rs`
+  back, requires the `fmt` template and rejects the old
+  `format!("{} ({})", tl!("Send the selection")` twin. It renders English to hold
+  `Send the selection (2)`, then switches to Arabic and asserts `i18n::count(2)` is `٢`, the
+  rendered label carries `٢` and no ASCII `2`, and the row answers `إرسال المحدد ({count})`.
+  Proved to bite: restoring the pre-slice `format!` fails it with `the send button still joins a
+  routed sentence to a bare count`. The catalogue audit reads the new key too, so any of the six
+  catalogues losing its row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, drops its bullet from the sweep's remaining
+  list and names the tag chip's hover as next; the row stays unticked. UX.md's i18n paragraph and
+  ARCHITECTURE.md §8.4 record the route and the digit.
+- **Visual verification.** `cargo xtask screenshots` was run because `crates/ui` changed: 30
+  passed, 1 ignored (network), and `git status` showed no baseline moved, which is the proof the
+  English paint did not shift.
+- **Gates.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0; `cargo test -p
+  sortlens-ui --lib -- the_send_button_counts_the_selection_in_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice `format!`, quoted above); then `cargo fmt --all`; `cargo xtask ci` exit 0 (fmt,
+  workspace clippy, the whole suite including the catalogue audit, `layers`, `roots`, `assets`,
+  `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask
+  snapshot` 5 passed, `cargo xtask deny` exit 0, and `cargo xtask screenshots` 30 passed and 1
+  ignored (network) with no baseline moved. `crates/ui` changed, so `cargo xtask mobile` is CI's
+  job — this machine has no Android NDK and no Xcode, which leaves the device-side leg unverified
+  here. No release workflow was dispatched: source, catalogue rows, tests and docs, no build or
+  release surface.
+- **Files.** `crates/ui/src/shell.rs` (the route and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (one row each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next
+  family on the row: the tag chip's hover in the keymap editor — `TagSource::explanation()` and the
+  `· click to remove` suffix, which need a piece in `sortlens-core` before the catalogue can answer
+  them — with the same source-readback and Arabic lookup test. SL-L07 stays unticked. No release run
+  is in flight.
+
 ## 2026-11-26 (hundred-and-sixty-third) — the phone link's pair, sending and remove sentences speak the interface language
 
 - **Why this came up.** The hundred-and-sixty-second entry's Next named the phone link's pair and

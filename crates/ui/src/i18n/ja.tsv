@@ -54,6 +54,7 @@
 	Test connection	接続テスト
 	Stop sending	送信を停止
 	Send the selection	選択を送信
+	Send the selection ({count})	選択を送信 ({count})
 	Remove from this phone once the desktop holds them	デスクトップが受け取ったらこの端末から削除
 	Sending…	送信中…
 	Welcome to Sortlens	Sortlens へようこそ

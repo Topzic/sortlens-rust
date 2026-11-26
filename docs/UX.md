@@ -923,6 +923,9 @@ re-checks its own contrast pairs after applying.
   reusing the row the phone's own sentence already had — so every step of a pairing and a run reads in
   the reader's language, with the counts in its own digits and the host, the photograph's name and the
   run's place as values.
+  The phone link's Send button followed (hundred-and-sixty-fourth entry): its label is
+  `Send the selection ({count})` with the selection's count from `i18n::count`, so the number beside
+  it is written in the reader's language rather than Latin digits.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
