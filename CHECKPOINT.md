@@ -1,5 +1,55 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-fourth) — the cull screen's help and fit names speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-third entry's Next named the cull screen's two hover
+  names. `bottom_bar` painted the `?` button's `Every shortcut in this mode  ?` and the zoom chip's
+  `Fit the photograph to the window, or show it at 1:1  Z` as bare `on_hover_text` literals, so an
+  Arabic window explained its own help key and its zoom chip in English. The `CI` run for `a6319e2`
+  (`45856680453`) was still in progress at STEP 1b, not red, so this is a roadmap slice.
+- **What is routed.** Two rows per catalogue, 12 in all: `Every shortcut in this mode  ?` and
+  `Fit the photograph to the window, or show it at 1:1  Z` are `tl!` keys at the help button's hover
+  and at the zoom chip's. English keeps every word, the double space before the key cap included.
+- **The cap is a key.** Both names end on the key a person presses, so `?` and `Z` stay ASCII in all
+  six catalogues while the sentence around them is the reader's — the same rule the Detail view's
+  `Fit  Z` and `1:1  Z` rows already follow. An Arabic cull screen reads `كل اختصار في هذا الوضع  ?`
+  and `لائم الصورة مع النافذة، أو اعرضها بالحجم الأصلي  Z`.
+- **Tests.** `the_cull_s_hover_names_speak_the_interface_language` reads `shell.rs` back with each
+  line's indentation trimmed, so a `tl!` rustfmt wrapped at the margin still reads as one call, and
+  requires both sites to be `on_hover_text(tl!("…"))` with no bare-literal twin; then English must
+  answer each key unchanged and Arabic the translator's row. It fails on the pre-slice source at the
+  first wiring assertion, and would fail at the Arabic lookups if the rows were added without the
+  route. The catalogue audit now reads the two keys too, so any of the six catalogues losing a row
+  fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the audit's remaining list to three
+  `on_hover_text` sites over two sentences (the destination strip's one, and the keyword menu's two
+  `Switch between most used and A–Z`) plus the packs instruction. UX.md's i18n paragraph and
+  ARCHITECTURE.md §8.4 record the route and why the key cap stays ASCII. SL-L07 stays unticked.
+- **Visual verification.** None expected: no committed scene rests a pointer on a hover and the
+  English paint is unchanged, so no baseline should move. `cargo xtask screenshots` was run because
+  `crates/ui` changed.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui -- the_cull_s_hover_names_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed; then `cargo xtask ci` exit 0 (fmt, workspace
+  clippy, the whole suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5
+  passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and
+  `cargo xtask screenshots` 30 passed and 1 ignored (network) with no baseline moved. There is no
+  `cargo xtask wasm` in this workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job —
+  this machine has no Android NDK and no Xcode, which leaves the device-side leg unverified here.
+  No release workflow was dispatched: source, catalogue rows, tests and docs, no build or release
+  surface.
+- **Files.** `crates/ui/src/shell.rs` (the two routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (two rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline moved here). Then the last three
+  hover literals in `crates/ui/src/shell.rs` — the destination strip's `Every destination. The row
+  returns when the window is wide enough.` and the keyword menu's two `Switch between most used and
+  A–Z` — through `tl!`, with the same source-readback and Arabic lookup test. SL-L07 stays unticked;
+  after that the row's audit list is the keyword packs empty state's second line and then the
+  whole-source sweep that can tick it. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-third) — the top bar's mark and the export control speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-second entry's Next named the app mark's `Sortlens` and
@@ -8760,13 +8810,14 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-fifty-third entry).** Read this commit's `CI` run with one
+**Next tick (after the hundred-and-fifty-fourth entry).** Read this commit's `CI` run with one
 `gh run view` — no committed scene paints a hover and the English paint is unchanged, so no
-baseline should have moved. Then the cull screen's two hover names in `crates/ui/src/shell.rs`:
-`Every shortcut in this mode  ?` and `Fit the photograph to the window, or show it at 1:1  Z`,
-through `tl!`, with the same source-readback and Arabic lookup test. SL-L07 stays unticked; its row
-lists what the audit still finds (the destination strip, the keyword menu's two names and the packs
-instruction). No release run is in flight.
+baseline should have moved. Then the last three hover literals in `crates/ui/src/shell.rs`: the
+destination strip's `Every destination. The row returns when the window is wide enough.` and the
+keyword menu's two `Switch between most used and A–Z`, through `tl!`, with the same
+source-readback and Arabic lookup test. SL-L07 stays unticked; its row lists what the audit still
+finds (those three sites and the packs instruction), and the whole-source sweep that could tick it
+comes after them. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

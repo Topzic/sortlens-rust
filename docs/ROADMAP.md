@@ -1297,9 +1297,16 @@ and none of M9 is closed until the remaining rows are ticked.
   rather than whether it differs from the English, which is what lets a name carry a row at all.
   `the_app_mark_and_export_hovers_speak_the_interface_language` reads `shell.rs` back, requires all
   three sites to route, then English unchanged and the Arabic rows.
+  The cull screen's help and fit names followed (hundred-and-fifty-fourth entry): `Every shortcut in
+  this mode  ?` and `Fit the photograph to the window, or show it at 1:1  Z` are `tl!` rows in all
+  six languages, so an Arabic cull screen explains its `?` and its zoom chip in Arabic. The key cap
+  at the end of each name stays ASCII — a key is what a person presses, whatever language the
+  sentence around it is written in — which is the same rule the Detail view's `Fit  Z` row follows.
+  `the_cull_s_hover_names_speak_the_interface_language` reads `shell.rs` back, requires both sites
+  to route, then English unchanged and the Arabic rows.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: five more `on_hover_text` sites over four sentences (the cull
-  help and fit names, the destination strip, and the
+  went through `tl!`/`i18n::fmt`: three more `on_hover_text` sites over two sentences (the
+  destination strip's `Every destination. The row returns when the window is wide enough.`, and the
   keyword menu's two `Switch between most used and A–Z`), and the keyword packs empty
   state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
   lists where.`, which names a menu path no catalogue row covers yet) — no production

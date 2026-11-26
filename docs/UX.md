@@ -878,6 +878,10 @@ re-checks its own contrast pairs after applying.
   the reason a disabled export cannot run read in the reader's language. The name is a name: its
   six rows keep the spelling, and the catalogue audit now counts a row by its presence rather than
   by its difference from the English.
+  The cull screen's own hover names followed (hundred-and-fifty-fourth entry): its `?` help
+  (`Every shortcut in this mode  ?`) and its zoom chip (`Fit the photograph to the window, or show
+  it at 1:1  Z`) are rows, so an Arabic cull screen explains both in Arabic while the key cap that
+  ends each name stays the ASCII key a person presses.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

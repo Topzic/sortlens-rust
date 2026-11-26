@@ -727,6 +727,12 @@ way. Because the product's name is the same word in every language, the routed-k
 whether a row exists (`I18n::get`) rather than whether its translation differs from the English
 key; a name that keeps its spelling still has a row a translator was handed.
 
+The cull screen's help and fit names take the same route (hundred-and-fifty-fourth entry): `Every
+shortcut in this mode  ?` and `Fit the photograph to the window, or show it at 1:1  Z` are `tl!`
+keys, and `the_cull_s_hover_names_speak_the_interface_language` reads both sites back the same way.
+The trailing `?`/`Z` is the key cap, not prose: it stays ASCII in every language, as the Detail
+view's `Fit  Z` row already does.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

@@ -2790,7 +2790,7 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                             .stroke(Stroke::NONE),
                     );
                     crate::a11y::label_widget(ui, &help, egui::Role::Button, "Keyboard shortcuts", false);
-                    if help.on_hover_text("Every shortcut in this mode  ?").clicked() {
+                    if help.on_hover_text(tl!("Every shortcut in this mode  ?")).clicked() {
                         state.shortcuts_open = true;
                         state.shortcut_query.clear();
                     }
@@ -2802,7 +2802,7 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                     if state.view.is_detail() {
                         let zoom = if state.detail_zoom { "1:1" } else { "Fit" };
                         if chip(ui, t, None, zoom, state.detail_zoom)
-                            .on_hover_text("Fit the photograph to the window, or show it at 1:1  Z")
+                            .on_hover_text(tl!("Fit the photograph to the window, or show it at 1:1  Z"))
                             .clicked()
                         {
                             state.detail_zoom = !state.detail_zoom;
@@ -22213,6 +22213,48 @@ mod tests {
             ("Sortlens", "Sortlens"),
             ("Export the selection…", "تصدير التحديد…"),
             ("Select a photo to export", "اختر صورة لتصديرها"),
+        ];
+        // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in HOVERS {
+            assert!(
+                source.contains(&format!("on_hover_text(tl!(\"{english}\"))")),
+                "the hover {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("on_hover_text(\"{english}\")")),
+                "the hover {english:?} also paints a bare literal"
+            );
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), arabic, "the hover row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The cull screen's help and fit names are catalogue rows, in every language the picker
+    /// offers.
+    ///
+    /// A hover never paints in a frame, so the catalogue is the witness: each name resolves to the
+    /// reader's own row, and the source read back proves the call site routes through `tl!` instead
+    /// of carrying the literal. The key cap is the last thing either name says, and it stays ASCII
+    /// — a key is what a person presses, in whichever language the sentence around it is written.
+    #[test]
+    fn the_cull_s_hover_names_speak_the_interface_language() {
+        // One row per name the cull screen hangs on its help and fit controls.
+        const HOVERS: [(&str, &str); 2] = [
+            ("Every shortcut in this mode  ?", "كل اختصار في هذا الوضع  ?"),
+            (
+                "Fit the photograph to the window, or show it at 1:1  Z",
+                "لائم الصورة مع النافذة، أو اعرضها بالحجم الأصلي  Z",
+            ),
         ];
         // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
         // the margin still reads as one call: the wiring is the claim, not the line break.
