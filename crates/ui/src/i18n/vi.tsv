@@ -1059,3 +1059,8 @@
 	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	Điểm đánh giá, nhãn, từ khóa và quyết định tuyển chọn được ghi vào tệp .xmp cạnh mỗi ảnh.
 	Photos are never copied, so a backup holds the index and the review state, not pixels.	Ảnh không bao giờ được sao chép, nên bản sao lưu chứa chỉ mục và trạng thái duyệt, không chứa điểm ảnh.
 	Suggest keywords for the library…	Đề xuất từ khóa cho thư viện…
+	Type the address the desktop's Sync & devices screen shows, and the code it prints.	Nhập địa chỉ mà màn hình Đồng bộ & thiết bị của máy tính hiển thị, và mã mà nó in ra.
+	Paired with {host}:{port}	Đã ghép nối với {host}:{port}
+	Sending {name} — {done} of {total} finished	Đang gửi {name} — xong {done} trên {total}
+	Sending… {done} of {total} finished	Đang gửi… xong {done} trên {total}
+	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	Xoá sẽ đưa một ảnh đã xác minh vào thùng rác của điện thoại này khi máy tính đã giữ các byte; Giữ sẽ để nguyên. Tệp mà danh mục không còn khớp sẽ bị từ chối, không bị xoá.

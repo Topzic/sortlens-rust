@@ -852,6 +852,14 @@ way (hundred-and-sixty-second entry): both notes and `Suggest keywords for the l
 calls, and `the_settings_notes_and_suggest_keywords_button_speak_the_interface_language` reads
 `shell.rs` back for all three, so one that falls back to a bare literal fails rather than painting
 English.
+The phone link's pair, test, sending and remove sentences are routed the same way
+(hundred-and-sixty-third entry): `Paired with {host}:{port}`, `Testing {host}:{port}…` and both
+`Sending…` progress lines are `crate::i18n::fmt` templates, the address instruction and the remove
+note are `tl!` calls, and `the_phone_links_pair_and_sending_lines_speak_the_interface_language`
+reads `shell.rs` back for all six, then renders each template in English to hold the sentence a
+person reads today. The counts fill from `i18n::count`, so an Arabic run writes `٣ من ٥` where the
+English writes `3 of 5`; `Testing {host}:{port}…` reuses the row the phone's own sentence already
+had, and the other five are new rows in each of the six catalogues.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

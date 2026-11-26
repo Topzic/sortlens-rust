@@ -1,5 +1,59 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-third) — the phone link's pair, sending and remove sentences speak the interface language
+
+- **Why this came up.** The hundred-and-sixty-second entry's Next named the phone link's pair and
+  remove sentences: `Paired with {host}:{port}`, `Testing {host}:{port}…`, the two `Sending…`
+  progress lines and the note under the remove switch. The `CI` run for `4679dcb` (`45877954485`) was
+  in progress at STEP 1b, not red, so this is a roadmap slice. `crates/ui/src/shell.rs`'s
+  `send_section` painted five literals, and also the instruction above the address field — `Type the
+  address the desktop's Sync & devices screen shows, and the code it prints.` — which the Next did not
+  name though the same panel shows it, so this tick took it too.
+- **What is routed.** Five of the six sites are new rows in each of the six catalogues (30 rows);
+  `Testing {host}:{port}…` reuses a row the catalogues already had, which the audit itself pointed
+  out: the first draft was refused with `line 1065: defined twice (same context and source text)` in
+  all six files. The paired sentence and both progress lines are `crate::i18n::fmt` templates whose
+  host, photograph name and counts are values; the counts come from `crate::i18n::count`, so an Arabic
+  run writes `٣ من ٥` where English writes `3 of 5`. The address instruction and the remove note are
+  `tl!` calls. English keeps every word it painted.
+- **Tests.** `the_phone_links_pair_and_sending_lines_speak_the_interface_language` reads `shell.rs`
+  back with each line's indentation trimmed and the lines joined — the remove note is long enough that
+  rustfmt splits it inside `tl!` — requires all six routes, and rejects the five bare literals and
+  their `format!` twins. It then renders each template in English to hold the sentence a person reads
+  today (`Paired with 192.168.1.10:52114`, `Testing 192.168.1.10:52114…`, `Sending IMG_0009.jpg — 3 of
+  5 finished`, `Sending… 2 of 5 finished`), so a route that mangles a placeholder fails instead of
+  quietly painting empty braces. It was proved to bite: putting the paired label back to
+  `format!("Paired with {}:{}", …)` fails it with `the phone link still paints "format!(\"Paired
+  with"`. English then answers every key unchanged and Arabic the translator's row. The catalogue
+  audit reads the six keys too, so any of the six catalogues losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, drops the pair-and-remove bullet from the sweep's
+  remaining list, adds the next one — the Send button's own `Send the selection ({n})`, which
+  `send_section` still builds with `format!` around a routed piece and an unlocalised count — and names
+  it as next; the row stays unticked. UX.md's i18n paragraph and ARCHITECTURE.md §8.4 record the route
+  and the reused row.
+- **Visual verification.** None expected: no committed scene paints this panel in a non-English window
+  and the English paint is unchanged, so no baseline should move. `cargo xtask screenshots` was run
+  because `crates/ui` changed: 30 passed, 1 ignored (network), and `git status` showed no baseline
+  moved.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui --lib -- the_phone_links_pair_and_sending_lines_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice `format!`, quoted above); then `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole
+  suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`,
+  `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5 passed, `cargo xtask deny`
+  advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30 passed and 1 ignored
+  (network) with no baseline moved. There is no `cargo xtask wasm` in this workspace; `crates/ui`
+  changed, so `cargo xtask mobile` is CI's job — this machine has no Android NDK and no Xcode, which
+  leaves the device-side leg unverified here. No release workflow was dispatched: source, catalogue
+  rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the six routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (five rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next family
+  on the row: `send_section`'s Send button label, `Send the selection ({n})`, through `fmt` with
+  `i18n::count` and six new rows, with the same source-readback and Arabic lookup test. SL-L07 stays
+  unticked. No release run is in flight.
 ## 2026-11-26 (hundred-and-sixty-second) — the Settings library notes and the suggest-keywords button speak the interface language
 
 - **Why this came up.** The hundred-and-sixty-first entry's Next named Settings' sidecar and backup

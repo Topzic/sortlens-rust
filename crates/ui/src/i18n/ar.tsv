@@ -1060,3 +1060,8 @@
 	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	تُكتب التقييمات والملصقات والكلمات المفتاحية وقرار الفرز في ملف .xmp بجوار كل صورة.
 	Photos are never copied, so a backup holds the index and the review state, not pixels.	لا تُنسخ الصور أبدًا، لذا يحوي النسخ الاحتياطي الفهرس وحالة المراجعة، لا وحدات البكسل.
 	Suggest keywords for the library…	اقترح كلمات مفتاحية للمكتبة…
+	Type the address the desktop's Sync & devices screen shows, and the code it prints.	اكتب العنوان الذي تعرضه شاشة «المزامنة والأجهزة» على الحاسوب، والرمز الذي يطبعه.
+	Paired with {host}:{port}	مقترن بـ {host}:{port}
+	Sending {name} — {done} of {total} finished	جارٍ إرسال {name} — اكتمل {done} من {total}
+	Sending… {done} of {total} finished	جارٍ الإرسال… اكتمل {done} من {total}
+	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	«إزالة» ينقل صورة جرى التحقق منها إلى سلة مهملات هذا الهاتف بمجرد أن يحتفظ الحاسوب بالبايتات؛ «إبقاء» يتركها في مكانها. الملف الذي لم يعد الفهرس مطابقًا له يُرفض ولا يُحذف.

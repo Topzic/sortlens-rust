@@ -1060,3 +1060,8 @@
 	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	評価・ラベル・キーワード・選別の決定は、各写真の隣の .xmp ファイルに書き込まれます。
 	Photos are never copied, so a backup holds the index and the review state, not pixels.	写真はコピーされないため、バックアップには索引とレビュー状態が入り、画素は入りません。
 	Suggest keywords for the library…	ライブラリのキーワードを提案…
+	Type the address the desktop's Sync & devices screen shows, and the code it prints.	デスクトップの「同期とデバイス」画面に表示されるアドレスと、印刷されたコードを入力します。
+	Paired with {host}:{port}	{host}:{port} とペアリング済み
+	Sending {name} — {done} of {total} finished	{name} を送信中 — {total} 件中 {done} 件完了
+	Sending… {done} of {total} finished	送信中… {total} 件中 {done} 件完了
+	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	「削除」は、デスクトップがバイト列を保持した時点で検証済みの写真をこのスマートフォンのゴミ箱へ移します。「保持」はそのまま残します。カタログと一致しなくなったファイルは拒否され、削除されません。

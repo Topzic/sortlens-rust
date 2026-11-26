@@ -1059,3 +1059,8 @@
 	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	평가, 라벨, 키워드, 선별 결정은 각 사진 옆의 .xmp 파일에 기록됩니다.
 	Photos are never copied, so a backup holds the index and the review state, not pixels.	사진은 복사되지 않으므로 백업에는 색인과 검토 상태가 담기고 픽셀은 담기지 않습니다.
 	Suggest keywords for the library…	라이브러리 키워드 제안…
+	Type the address the desktop's Sync & devices screen shows, and the code it prints.	데스크톱의 동기화 및 기기 화면에 표시되는 주소와 인쇄된 코드를 입력하세요.
+	Paired with {host}:{port}	{host}:{port}에 연결됨
+	Sending {name} — {done} of {total} finished	{name} 보내는 중 — {total}개 중 {done}개 완료
+	Sending… {done} of {total} finished	보내는 중… {total}개 중 {done}개 완료
+	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	제거는 데스크톱이 바이트를 보관한 뒤 검증된 사진을 이 휴대폰의 휴지통으로 옮깁니다. 유지는 그대로 둡니다. 카탈로그가 더 이상 일치하지 않는 파일은 거부되며 삭제되지 않습니다.

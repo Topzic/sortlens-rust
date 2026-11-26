@@ -11747,9 +11747,12 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     let send = state.send.clone();
     if send.paired {
         ui.label(
-            RichText::new(format!("Paired with {}:{}", send.host, send.port))
-                .size(12.0)
-                .strong(),
+            RichText::new(crate::i18n::fmt(
+                "Paired with {host}:{port}",
+                &[("host", &send.host), ("port", &send.port.to_string())],
+            ))
+            .size(12.0)
+            .strong(),
         );
         let forget = ui.add_enabled(!send.sending, Button::new(RichText::new(tl!("Forget this desktop")).size(12.0)));
         let forget = if send.sending {
@@ -11762,9 +11765,11 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
         }
     } else {
         ui.label(
-            RichText::new("Type the address the desktop's Sync & devices screen shows, and the code it prints.")
-                .size(10.5)
-                .color(t.text_faint),
+            RichText::new(tl!(
+                "Type the address the desktop's Sync & devices screen shows, and the code it prints."
+            ))
+            .size(10.5)
+            .color(t.text_faint),
         );
         ui.horizontal(|ui| {
             ui.label(RichText::new(tl!("Desktop address")).size(11.0));
@@ -11794,9 +11799,12 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
         }
         if send.checking {
             ui.label(
-                RichText::new(format!("Testing {}:{}…", state.send_host.trim(), state.send_port.trim()))
-                    .size(11.0)
-                    .color(t.text_muted),
+                RichText::new(crate::i18n::fmt(
+                    "Testing {host}:{port}…",
+                    &[("host", state.send_host.trim()), ("port", state.send_port.trim())],
+                ))
+                .size(11.0)
+                .color(t.text_muted),
             );
         } else if let Some(sentence) = &send.check {
             ui.label(RichText::new(sentence.clone()).size(11.0).color(t.text_muted));
@@ -11819,8 +11827,21 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     }
     if send.sending {
         let progress = match (&send.current, send.total) {
-            (Some(name), total) if total > 0 => format!("Sending {} — {} of {} finished", name, send.done + 1, total),
-            _ => format!("Sending… {} of {} finished", send.done, send.total),
+            (Some(name), total) if total > 0 => crate::i18n::fmt(
+                "Sending {name} — {done} of {total} finished",
+                &[
+                    ("name", name),
+                    ("done", &crate::i18n::count(send.done as u64 + 1)),
+                    ("total", &crate::i18n::count(total as u64)),
+                ],
+            ),
+            _ => crate::i18n::fmt(
+                "Sending… {done} of {total} finished",
+                &[
+                    ("done", &crate::i18n::count(send.done as u64)),
+                    ("total", &crate::i18n::count(send.total as u64)),
+                ],
+            ),
         };
         ui.label(RichText::new(progress).size(12.0));
         if ui
@@ -11858,8 +11879,10 @@ fn send_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     }
     ui.checkbox(&mut state.send_remove, tl!("Remove from this phone once the desktop holds them"));
     ui.label(
-        RichText::new("Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.")
-            .size(10.5)
+        RichText::new(tl!(
+            "Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted."
+        ))
+        .size(10.5)
             .color(t.text_faint),
     );
     ui.add_space(8.0);
@@ -22620,6 +22643,104 @@ mod tests {
         // English is unchanged, and Arabic is the translator's row rather than the English
         // fallback: a route whose key no catalogue answers would paint English in an Arabic window.
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The phone link's pair, sending and remove sentences are catalogue rows, in every language
+    /// the picker offers.
+    ///
+    /// `send_section` is the phone's half of the desktop link: the address it asks a person to type,
+    /// the link it names once paired, the test that runs before a code is spent, the run's own place
+    /// and the sentence under the remove switch. A reader who chose Arabic should meet none of them
+    /// in English. Four of the six carry values, so they are templates, and the test renders each
+    /// one: the words English reads today must not move, and the placeholders must stay the values
+    /// the link holds.
+    #[test]
+    fn the_phone_links_pair_and_sending_lines_speak_the_interface_language() {
+        // One row per sentence, with the call that paints it: the assertion is the wiring, so a
+        // route reading a key but painting something else cannot pass. The routes carry their own
+        // `fmt`/`RichText` shape, because other panels name an address and a run too.
+        const LINES: [(&str, &str, &str); 6] = [
+            (
+                "Type the address the desktop's Sync & devices screen shows, and the code it prints.",
+                "اكتب العنوان الذي تعرضه شاشة «المزامنة والأجهزة» على الحاسوب، والرمز الذي يطبعه.",
+                "RichText::new(tl!(\"Type the address the desktop's Sync & devices screen shows, and the code it prints.\"))",
+            ),
+            (
+                "Paired with {host}:{port}",
+                "مقترن بـ {host}:{port}",
+                "crate::i18n::fmt(\"Paired with {host}:{port}\"",
+            ),
+            (
+                "Testing {host}:{port}…",
+                "جارٍ اختبار {host}:{port}…",
+                "crate::i18n::fmt(\"Testing {host}:{port}…\"",
+            ),
+            (
+                "Sending {name} — {done} of {total} finished",
+                "جارٍ إرسال {name} — اكتمل {done} من {total}",
+                "crate::i18n::fmt(\"Sending {name} — {done} of {total} finished\"",
+            ),
+            (
+                "Sending… {done} of {total} finished",
+                "جارٍ الإرسال… اكتمل {done} من {total}",
+                "crate::i18n::fmt(\"Sending… {done} of {total} finished\"",
+            ),
+            (
+                "Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.",
+                "«إزالة» ينقل صورة جرى التحقق منها إلى سلة مهملات هذا الهاتف بمجرد أن يحتفظ الحاسوب بالبايتات؛ «إبقاء» يتركها في مكانها. الملف الذي لم يعد الفهرس مطابقًا له يُرفض ولا يُحذف.",
+                "RichText::new(tl!(\"Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.\"))",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away and the lines joined, so a call
+        // rustfmt wrapped at the margin still reads as one call: the wiring is the claim, not the
+        // line break. The remove note is long enough that rustfmt splits it inside `tl!`.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _, route) in LINES {
+            assert!(source.contains(route), "the phone link's label {english:?} is still a literal");
+        }
+        // The bare literals and bare `format!`s are gone, not merely joined by a second routed call.
+        for literal in [
+            "format!(\"Paired with",
+            "format!(\"Testing",
+            "format!(\"Sending",
+            "RichText::new(\"Type the address",
+            "RichText::new(\"Remove sends",
+        ] {
+            assert!(!source.contains(literal), "the phone link still paints {literal:?}");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        // The English a person reads today, sentence by sentence: each template fills to the words
+        // the literal painted, so a route that mangles its placeholders fails here.
+        let done = crate::i18n::count(3);
+        let total = crate::i18n::count(5);
+        assert_eq!(
+            crate::i18n::fmt("Paired with {host}:{port}", &[("host", "192.168.1.10"), ("port", "52114")]),
+            "Paired with 192.168.1.10:52114"
+        );
+        assert_eq!(
+            crate::i18n::fmt("Testing {host}:{port}…", &[("host", "192.168.1.10"), ("port", "52114")]),
+            "Testing 192.168.1.10:52114…"
+        );
+        assert_eq!(
+            crate::i18n::fmt(
+                "Sending {name} — {done} of {total} finished",
+                &[("name", "IMG_0009.jpg"), ("done", &done), ("total", &total)],
+            ),
+            "Sending IMG_0009.jpg — 3 of 5 finished"
+        );
+        let two = crate::i18n::count(2);
+        assert_eq!(
+            crate::i18n::fmt("Sending… {done} of {total} finished", &[("done", &two), ("total", &total)]),
+            "Sending… 2 of 5 finished"
+        );
         for (english, _, _) in LINES {
             assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
         }

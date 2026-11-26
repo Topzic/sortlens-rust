@@ -1059,3 +1059,8 @@
 	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	評分、標籤、關鍵字與篩選決定會寫入每張相片旁的 .xmp 檔案。
 	Photos are never copied, so a backup holds the index and the review state, not pixels.	相片從不被複製，因此備份保存的是索引與檢視狀態，而不是像素。
 	Suggest keywords for the library…	為圖庫建議關鍵字…
+	Type the address the desktop's Sync & devices screen shows, and the code it prints.	輸入桌面「同步與裝置」畫面顯示的位址，以及它列印出的代碼。
+	Paired with {host}:{port}	已與 {host}:{port} 配對
+	Sending {name} — {done} of {total} finished	正在傳送 {name} — 已完成 {done}/{total}
+	Sending… {done} of {total} finished	正在傳送… 已完成 {done}/{total}
+	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	「移除」會在桌面取得位元組後，把已驗證的相片移到這支手機的垃圾桶；「保留」則不動它。目錄已不再相符的檔案會被拒絕，不會被刪除。

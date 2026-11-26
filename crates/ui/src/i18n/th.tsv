@@ -1061,3 +1061,8 @@
 	Ratings, labels, keywords and the cull decision go into a .xmp file next to each photo.	คะแนน ป้าย คำค้น และการตัดสินใจคัดเลือกจะถูกเขียนลงไฟล์ .xmp ข้างแต่ละภาพ
 	Photos are never copied, so a backup holds the index and the review state, not pixels.	รูปภาพจะไม่ถูกคัดลอก ดังนั้นการสำรองข้อมูลจึงเก็บดัชนีและสถานะการตรวจทาน ไม่ใช่พิกเซล
 	Suggest keywords for the library…	เสนอคำค้นสำหรับคลังภาพ…
+	Type the address the desktop's Sync & devices screen shows, and the code it prints.	พิมพ์ที่อยู่ที่หน้าจอซิงก์และอุปกรณ์ของเดสก์ท็อปแสดง และรหัสที่พิมพ์ออกมา
+	Paired with {host}:{port}	จับคู่กับ {host}:{port} แล้ว
+	Sending {name} — {done} of {total} finished	กำลังส่ง {name} — เสร็จแล้ว {done} จาก {total}
+	Sending… {done} of {total} finished	กำลังส่ง… เสร็จแล้ว {done} จาก {total}
+	Remove sends a verified photo to this phone's trash once the desktop holds the bytes; Keep leaves it where it is. A file the catalog no longer matches is refused, not deleted.	การนำออกจะย้ายรูปที่ตรวจสอบแล้วไปยังถังขยะของโทรศัพท์นี้เมื่อเดสก์ท็อปเก็บไบต์ครบแล้ว ส่วนการเก็บไว้จะปล่อยไว้ที่เดิม ไฟล์ที่แคตตาล็อกไม่ตรงแล้วจะถูกปฏิเสธ ไม่ถูกลบ

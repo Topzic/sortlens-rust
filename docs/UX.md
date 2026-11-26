@@ -917,6 +917,12 @@ re-checks its own contrast pairs after applying.
   entry): the sentence under the sidecar switch, the sentence under the backup buttons and
   `Suggest keywords for the library…` are rows, so what a sidecar holds, that a backup is not a copy
   of the photos and the button that starts the suggestion flow are the reader's language.
+  The phone link's pair, sending and remove sentences followed (hundred-and-sixty-third entry): the
+  address instruction, `Paired with {host}:{port}`, `Testing {host}:{port}…`, both sending progress
+  lines and the note under the remove switch are rows and templates — `Testing {host}:{port}…`
+  reusing the row the phone's own sentence already had — so every step of a pairing and a run reads in
+  the reader's language, with the counts in its own digits and the host, the photograph's name and the
+  run's place as values.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
