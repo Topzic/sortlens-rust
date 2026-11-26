@@ -1118,3 +1118,5 @@
 	{label} — {n}	{label}: {n}
 	{label} — {n} · {pct}%	{label}: {n} · {pct}%
 	{label}: {n} of {whole} ({pct}%)	{label}: {n} จาก {whole} ({pct}%)
+	{zoom}× · Z to fit	{zoom}× · Z พอดีจอ
+	{seconds}s	{seconds} วิ

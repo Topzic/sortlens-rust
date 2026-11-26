@@ -3745,7 +3745,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                                 };
                                 ui.label(RichText::new(tl!(job.status.label())).size(10.0).color(colour));
                                 ui.label(
-                                    RichText::new(format!("{:.1}s", job.elapsed().as_secs_f64()))
+                                    RichText::new(elapsed_seconds(job.elapsed().as_secs_f64()))
                                         .size(10.0)
                                         .color(t.text_faint),
                                 );
@@ -5935,6 +5935,21 @@ fn default_collection_name(next: usize) -> String {
     crate::i18n::fmt("Collection {n}", &[("n", &format_count(next as u64))])
 }
 
+/// The cull view's zoom badge (SL-L07).
+///
+/// The factor is a number in the reader's digits; the words around it, and the multiplication
+/// sign, are the catalogue's row — so an Arabic badge reads `٢٫٠× · Z للاحتواء` rather than English,
+/// and Japanese writes its own `倍`.
+fn cull_zoom_badge(zoom: f32) -> String {
+    crate::i18n::fmt("{zoom}× · Z to fit", &[("zoom", &crate::format::decimal(f64::from(zoom), 1))])
+}
+
+/// A running job's elapsed time (SL-L07): the number in the reader's digits, the unit in their
+/// language, so a Japanese job reads `1.4秒` where it read `1.4s`.
+fn elapsed_seconds(seconds: f64) -> String {
+    crate::i18n::fmt("{seconds}s", &[("seconds", &crate::format::decimal(seconds, 1))])
+}
+
 /// The receipt a new collection leaves (SL-L07).
 ///
 /// The name is a placeholder rather than a translated word: the row says "created", the name is
@@ -7249,7 +7264,7 @@ fn cull_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, 
                 painter.text(
                     area.right_top() + vec2(-10.0, 10.0),
                     Align2::RIGHT_TOP,
-                    format!("{:.1}× · Z to fit", state.cull_view.zoom),
+                    cull_zoom_badge(state.cull_view.zoom),
                     t.font(10.5),
                     t.text_muted,
                 );
@@ -27141,5 +27156,213 @@ mod tests {
             text_rect(&output, "Sent 4 photos").is_some(),
             "the finished run's own sentence is painted"
         );
+    }
+
+    /// Every word a widget paints is a catalogue row or a named exception (SL-L07).
+    ///
+    /// The row's earlier slices route one family at a time and the catalogue audit in `i18n.rs`
+    /// asks for the rows those routes use. A call that never asked the catalogues is invisible to
+    /// that audit and paints English in every language: `RichText::new("Sortlens")` is a name, but
+    /// `painter.text(.., format!("{:.1}× · Z to fit", ..))` was chrome. This sweep goes the other
+    /// way round. It reads every paint call in the crate's painted sources, takes the literal the
+    /// call hands the widget (directly, or from its `format!`), strips the placeholders and holds
+    /// every remaining word against the six catalogues. Two things may stay: a word every
+    /// catalogue answers, and a `NAMED_EXCEPTIONS` entry with the reason it is not chrome. The
+    /// exceptions are checked for staleness too, so an entry cannot outlive the paint site it
+    /// explained. What a notice or an assistive name says is a different sink and not this sweep.
+    #[test]
+    fn every_word_the_widgets_paint_is_a_catalogue_row() {
+        let mut painted: Vec<String> = Vec::new();
+        for source in [
+            include_str!("shell.rs"),
+            include_str!("theme.rs"),
+            include_str!("sharpness.rs"),
+            include_str!("charts.rs"),
+            include_str!("places.rs"),
+        ] {
+            painted.extend(painted_literals(&without_test_modules(source)));
+        }
+        painted.sort();
+        painted.dedup();
+        assert!(
+            painted.iter().any(|word| word == "Sortlens"),
+            "the sweep found no painted words at all, so it is not reading the paint calls"
+        );
+        let mut missing = Vec::new();
+        for word in &painted {
+            if NAMED_EXCEPTIONS.iter().any(|(exception, _)| exception == word) {
+                continue;
+            }
+            for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+                let lang = crate::i18n::I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
+                if crate::i18n::I18N.get(lang, "", word).is_none() {
+                    missing.push(format!("{code}: {word}"));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "the widgets paint {} words no catalogue answers: {missing:#?}",
+            missing.len()
+        );
+        for (word, reason) in NAMED_EXCEPTIONS {
+            assert!(
+                painted.iter().any(|painted| painted == word),
+                "the sweep no longer paints {word:?}, so its exception ({reason}) is stale"
+            );
+        }
+        // The two routes this slice added answer in the reader's language, not in English.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        assert_eq!(cull_zoom_badge(2.0), "2.0倍 · Zで全体表示");
+        assert_eq!(elapsed_seconds(1.5), "1.5秒");
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(cull_zoom_badge(2.0), "2.0× · Z to fit");
+        assert_eq!(elapsed_seconds(1.5), "1.5s");
+    }
+
+    /// What may paint beside the catalogues: a symbol, a key cap, a value the engine owns, the
+    /// product's name. Every entry carries the reason, and the audit above fails when one goes
+    /// stale.
+    const NAMED_EXCEPTIONS: &[(&str, &str)] = &[(
+        "Sortlens",
+        "the product's name, which every catalogue spells the same and a translator is not asked to change",
+    )];
+
+    /// The same source with its top-level `#[cfg(test)]` modules cut out: a fixture's own English
+    /// is not painted chrome, and the widgets this sweep reads live outside those modules.
+    fn without_test_modules(source: &str) -> String {
+        let mut out = String::with_capacity(source.len());
+        let mut skipping = false;
+        for line in source.lines() {
+            if !skipping && line.starts_with("#[cfg(test)]") {
+                skipping = true;
+                continue;
+            }
+            if skipping {
+                if line == "}" {
+                    skipping = false;
+                }
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        out
+    }
+
+    /// The literals a paint call hands its widget, with the placeholders stripped: the words a
+    /// catalogue has to answer. A call whose argument is a value, a `tl!` or a helper paints no
+    /// literal of its own and is skipped — the routed keys are `i18n.rs`'s audit.
+    fn painted_literals(source: &str) -> Vec<String> {
+        const CALLS: &[&str] = &[
+            "RichText::new(",
+            "Label::new(",
+            "Button::new(",
+            "ui.button(",
+            "ui.heading(",
+            "ui.selectable_label(",
+            "ui.checkbox(",
+            "ui.small(",
+            "ui.strong(",
+            "ui.monospace(",
+            "ui.weak(",
+            "ui.hyperlink(",
+            "Window::new(",
+            "painter().text(",
+            "painter.text(",
+            ".hover(",
+            "on_hover_text(",
+            ".tooltip(",
+            ".prefix(",
+            ".suffix(",
+            ".hint_text(",
+        ];
+        let mut words = Vec::new();
+        for call in CALLS {
+            let mut cursor = 0;
+            while let Some(found) = source[cursor..].find(call) {
+                let argument = cursor + found + call.len() - 1;
+                words.extend(painted_words(call_argument(source, argument)));
+                cursor = argument + 1;
+            }
+        }
+        words
+    }
+
+    /// The argument of a call whose `(` is at `open`, cut at its matching `)` and skipping over
+    /// quoted strings so a bracket inside a literal does not end the call early.
+    fn call_argument(source: &str, open: usize) -> &str {
+        let bytes = source.as_bytes();
+        let mut depth = 0usize;
+        let mut quoted = false;
+        let mut escaped = false;
+        for (offset, byte) in bytes[open..].iter().enumerate() {
+            if quoted {
+                if escaped {
+                    escaped = false;
+                } else if *byte == b'\\' {
+                    escaped = true;
+                } else if *byte == b'"' {
+                    quoted = false;
+                }
+                continue;
+            }
+            match *byte {
+                b'"' => quoted = true,
+                b'(' => depth += 1,
+                b')' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return &source[open + 1..open + offset];
+                    }
+                }
+                _ => {}
+            }
+        }
+        ""
+    }
+
+    /// The literals a call feeds its widget: a bare string as an argument, and every `format!`
+    /// inside the call — a painter takes its text as the third argument, so a sweep that read only
+    /// the first would miss the cull badge. The placeholders are dropped before the words are
+    /// counted, so a literal that is only punctuation (a multiplication sign, a path separator, a
+    /// key cap beside a value) paints no word of its own and is not a candidate.
+    fn painted_words(argument: &str) -> Vec<String> {
+        let mut literals = Vec::new();
+        if let Some(literal) = leading_literal(argument) {
+            literals.push(literal);
+        }
+        let mut cursor = 0;
+        while let Some(found) = argument[cursor..].find("format!(") {
+            let after = cursor + found + "format!(".len();
+            if let Some(literal) = leading_literal(&argument[after..]) {
+                literals.push(literal);
+            }
+            cursor = after;
+        }
+        literals.into_iter().filter(|literal| words_outside_placeholders(literal)).collect()
+    }
+
+    /// The literal an argument starts with, if it starts with one at all: a value, a `tl!` or a
+    /// helper call has no literal of its own.
+    fn leading_literal(argument: &str) -> Option<String> {
+        let rest = argument.trim_start().strip_prefix('"')?;
+        let end = rest.find('"')?;
+        Some(rest[..end].to_owned())
+    }
+
+    /// Whether a literal spells anything once its placeholders are dropped.
+    fn words_outside_placeholders(literal: &str) -> bool {
+        let mut words = String::with_capacity(literal.len());
+        let mut depth = 0usize;
+        for ch in literal.chars() {
+            match ch {
+                '{' => depth += 1,
+                '}' => depth = depth.saturating_sub(1),
+                _ if depth == 0 => words.push(ch),
+                _ => {}
+            }
+        }
+        words.chars().any(|ch| ch.is_ascii_alphabetic())
     }
 }

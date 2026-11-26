@@ -1494,7 +1494,23 @@ and none of M9 is closed until the remaining rows are ticked.
   English". The catalogue audit in `i18n.rs` reads `charts.rs` too now, so a template added there
   without a row fails without a second list to keep in step.
 
-  No named family is left in this row: the next slice is the whole-source sweep that can tick it.
+The widget sweep followed (hundred-and-seventy-third entry):
+  `every_word_the_widgets_paint_is_a_catalogue_row` reads the crate's painted sources back, cuts their
+  top-level `#[cfg(test)]` modules, and for every call in its list — `RichText::new`, `Button::new`,
+  `ui.button`, `painter().text`, the hovers, the suffixes — takes the literal the call feeds the widget
+  (bare, or inside a `format!`), strips the placeholders and holds every remaining word against the six
+  catalogues; a word no catalogue answers fails naming the language and the word, and every entry in
+  `NAMED_EXCEPTIONS` (today only the product's name, `Sortlens`) must still be painted or it fails as
+  stale. It caught two English surfaces the routed-key audit could not see, both rows now: a job's
+  elapsed time `{seconds}s` and the cull view's zoom badge `{zoom}× · Z to fit`, with both numbers
+  through `format::decimal` — so a Japanese job reads `1.4秒` and an Arabic badge `٢٫٠× · Z للاحتواء`
+  where they read `1.4s` and `2.0× · Z to fit`. **Proved to bite:** with the badge reverted to
+  `format!("{:.1}× · Z to fit", …)` it fails naming that literal.
+  What the sweep does not read is the notice sink — `state.notice("Nothing to undo")`, `"Pick a photo
+  first"`, `"Compare needs two photos…"`, `"Added to collection"`, `"Every photo already has a current
+  score"` and a dozen more beside the keyword toasts' `format!` twins on both tag paths — none of which
+  are paint calls, and the assistive sentences in `crate::a11y`, which the row already counts as spoken
+  rather than painted. That inventory is the next slice; SL-L07 stays unticked until it is routed.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

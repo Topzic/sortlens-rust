@@ -1116,3 +1116,5 @@
 	{label} — {n}	{label}：{n}
 	{label} — {n} · {pct}%	{label}：{n} · {pct}%
 	{label}: {n} of {whole} ({pct}%)	{label}：{n}／{whole}（{pct}%）
+	{zoom}× · Z to fit	{zoom}倍 · Z 顯示全圖
+	{seconds}s	{seconds} 秒

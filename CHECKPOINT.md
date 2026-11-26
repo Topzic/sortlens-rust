@@ -1,5 +1,64 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-third) — the sweep that reads every word a widget paints
+
+- **Why it came up.** The hundred-and-seventy-second entry's Next named the whole-source audit that
+  can tick SL-L07. The `CI` run for `16f7679` (`45900729530`) was still in progress at STEP 1b
+  (an empty conclusion, not red), so this was a roadmap slice rather than a repair.
+- **What shipped.** `every_word_the_widgets_paint_is_a_catalogue_row` is the sweep the row asked
+  for, in the shape that can actually bite: it reads the crate's painted sources back
+  (`shell.rs`, `theme.rs`, `sharpness.rs`, `charts.rs`, `places.rs`), cuts their top-level
+  `#[cfg(test)]` modules, walks every call in a stated list (`RichText::new`, `Label::new`,
+  `Button::new`, `ui.button`, `ui.heading`, `ui.selectable_label`, `ui.checkbox`, the small/strong/
+  monospace/weak/hyperlink helpers, `Window::new`, both `painter.text` forms, `.hover`,
+  `on_hover_text`, `.tooltip`, `.prefix`, `.suffix`, `.hint_text`), and takes the literals the call
+  hands its widget — a bare one, and every `format!` inside the call, because a painter's text is
+  its third argument. Placeholders are dropped before the words are counted, so a literal that is
+  only punctuation (a multiplication sign, a path separator, a key cap beside a value) is not
+  chrome; every remaining word must be a row in all six catalogues or a `NAMED_EXCEPTIONS` entry
+  with its reason. The exceptions are checked for staleness too, so one cannot outlive its paint
+  site. It caught the two English surfaces the routed-key audit in `i18n.rs` could not see, and both
+  are rows now: a job's elapsed time `{seconds}s` and the cull view's zoom badge
+  `{zoom}× · Z to fit`, with both numbers through `format::decimal` — so a Japanese job reads
+  `1.4秒` and an Arabic badge `٢٫٠× · Z للاحتواء` where they read `1.4s` and `2.0× · Z to fit`.
+  Two new rows per catalogue (12). `NAMED_EXCEPTIONS` holds one entry, the product's name.
+- **The test.** The sweep is its own test: it asserts it found words at all (so a broken reader
+  cannot pass silently), names the language and the word for every gap, and fails a stale
+  exception. It also holds the two new routes' output — Japanese `2.0倍` and `1.5秒`, English
+  byte-identical to what the `format!` twins painted. **Proved to bite, twice:** the first version
+  read only each call's *first* argument, and reverting the badge to
+  `format!("{:.1}× · Z to fit", …)` left the test green — the audit itself was the bug, because
+  `painter.text`'s text is the third argument. Once the sweep read every `format!` in the call, the
+  same revert fails with `the widgets paint 6 words no catalogue answers: ["ar: {:.1}× · Z to fit",
+  …]`. That is the proof to keep: the gate is only worth its list of calls if it reads all of their
+  arguments.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean; the
+  sweep and `catalogs_load_and_routed_keys_have_rows` green (and the bite proof above); then
+  `cargo xtask ci` with every step ok (fmt, workspace clippy, the whole suite, `layers`, `roots`,
+  `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`) — exit 0;
+  `cargo xtask snapshot` 5 passed; `cargo xtask deny` advisories, bans, licenses and sources ok;
+  `cargo xtask screenshots` 30 passed and 1 ignored (network), no baseline moved — the expected
+  answer, because English keeps its bytes and no committed scene holds a running job's clock or a
+  zoomed cull view. `cargo xtask mobile` cannot run here (no Android NDK, no Xcode), so CI's two
+  mobile legs are the proof — this slice touched `crates/ui`. No release workflow was dispatched:
+  source, catalogue rows, tests and docs, no build or release surface.
+- **Docs.** ROADMAP's SL-L07 row records the sweep, the two rows and the bite proof, and names the
+  notice sink as what is left before the row can be ticked; `docs/UX.md`'s Activity paragraph now
+  says the elapsed time and the cull badge are rows over `format::decimal`.
+- **Files.** `crates/ui/src/shell.rs` (two helpers, both paint sites, the sweep and its helpers), the
+  six `crates/ui/src/i18n/*.tsv` (two rows each), `docs/ROADMAP.md`, `docs/UX.md` and this file.
+- **Next.** The notice sink, which the sweep deliberately does not read: `state.notice(...)`'s own
+  English — `"Added to collection"`, `"Add a folder before rescanning"`, `"Redid the last undone
+  change"`, `"Nothing to redo"`, `"Undid the last change"`, `"Nothing to undo"`, `"Nothing staged:
+  start a cull session and reject something first"`, `"Compare needs two photos: select one with a
+  neighbour in view"`, `"Pick a photo first"`, `"Nothing to compare with"`, `"Every photo already has
+  a current score"` — the `format!` twins around the keyword toasts on both tag paths (`"Already
+  tagged “{tag}”"`, `"All {n} already tagged “{tag}”"`, `"Tagged “{tag}”"`, `"Tagged “{tag}” on {n}
+  photos"`) and the similar-groups notices (`"No similar groups found"`, `"Found 1 similar group"`,
+  `"Found {n} similar groups"`), then extend the sweep to that sink so the next untrouted notice fails.
+  SL-L07 stays unticked. No release run is in flight.
+
+
 ## 2026-11-26 (hundred-and-seventy-second) — the chart hovers speak the interface language
 
 - **Why it came up.** The hundred-and-seventy-first entry's Next named the two chart hovers

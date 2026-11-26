@@ -1117,3 +1117,5 @@
 	{label} — {n}	{label} — {n}
 	{label} — {n} · {pct}%	{label} — {n} · {pct}٪
 	{label}: {n} of {whole} ({pct}%)	{label}: {n} من {whole} ({pct}٪)
+	{zoom}× · Z to fit	{zoom}× · Z للاحتواء
+	{seconds}s	{seconds} ث

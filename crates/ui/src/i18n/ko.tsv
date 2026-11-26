@@ -1116,3 +1116,5 @@
 	{label} — {n}	{label}: {n}
 	{label} — {n} · {pct}%	{label}: {n} · {pct}%
 	{label}: {n} of {whole} ({pct}%)	{label}: {whole}개 중 {n}개 ({pct}%)
+	{zoom}× · Z to fit	{zoom}배 · Z 전체 보기
+	{seconds}s	{seconds}초

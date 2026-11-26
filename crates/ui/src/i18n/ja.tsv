@@ -1117,3 +1117,5 @@
 	{label} — {n}	{label}：{n}
 	{label} — {n} · {pct}%	{label}：{n} · {pct}%
 	{label}: {n} of {whole} ({pct}%)	{label}：{whole} 件中 {n} 件（{pct}%）
+	{zoom}× · Z to fit	{zoom}倍 · Zで全体表示
+	{seconds}s	{seconds}秒

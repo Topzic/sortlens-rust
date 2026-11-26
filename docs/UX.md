@@ -731,7 +731,9 @@ re-checks its own contrast pairs after applying.
   title, headings, notes, count lines and all forty-four action rows) joined them the same day.
   The Activity tab joined them last: each job's kind and state are catalogue words, its detail line
   is worded from `sortlens-engine`'s own `JobDetail` with both counters as placeholders, and the
-  empty hint and stats rows are catalogued. The Suggestions panel took the same route: its source
+  empty hint and stats rows are catalogued. A job's elapsed time is `format::decimal` beside a
+  `{seconds}s` row, and the cull view's zoom badge is `{zoom}× · Z to fit`, so a Japanese job reads
+  `1.4秒` and an Arabic badge `٢٫٠× · Z للاحتواء` where they read `1.4s` and `2.0× · Z to fit`. The Suggestions panel took the same route: its source
   words (`detector`, `camera`, `pack`, `caption`), family headings and confidence are `sortlens-ai`'s
   `SuggestionLine` worded through the catalogues, so the right-panel tab, the inspector's Suggested
   row and the whole-library `Suggested keywords` dialog all read in the chosen language. The cull
