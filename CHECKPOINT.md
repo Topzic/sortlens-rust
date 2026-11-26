@@ -1,5 +1,52 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixtieth) — the folder tree's way up and the scan row's stop speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-ninth entry's Next named the folder tree's `Up one
+  level` and the scan row's `Cancel`. The `CI` run for `691115a` (`45871383514`) was still in
+  progress at STEP 1b, not red, so this is a roadmap slice. `crates/ui/src/shell.rs` painted two
+  literals: the button that walks back up a library's subfolders, and the only button that stops an
+  index pass from the Activity tab. An Arabic window offered both in English.
+- **What is routed.** Both sites are `RichText::new(tl!(…))` inside their own `Button`:
+  `Button::new(RichText::new(tl!("Up one level")).size(10.5))` in the folder tree and
+  `ui.button(RichText::new(tl!("Cancel")).size(10.5))` on a running job's row. `Cancel` reuses the
+  row the dialogs already own; `Up one level` is one new row in each of the six catalogues (6 rows).
+  English keeps every word it painted.
+- **Tests.** `the_folder_tree_and_scan_row_buttons_speak_the_interface_language` reads `shell.rs`
+  back with each line's indentation trimmed, so a call rustfmt wrapped at the margin still reads as
+  one call; it requires both buttons to route with no bare-literal twin — the scan row's route
+  carries its own `.size(10.5)`, because a dozen dialogs also say `Cancel` — then English must
+  answer every key unchanged and Arabic the translator's row. It was proved to bite: putting the
+  tree's button back to a literal fails it with `the button "Up one level" is still a literal`. The
+  catalogue audit reads the new key too, so any of the six catalogues losing its row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, drops the pair from the sweep's remaining list
+  and names the insights breakdown's `Nothing recorded yet` and the map chip's `OpenFreeMap ·
+  online` as next; the row stays unticked. UX.md's i18n paragraph and ARCHITECTURE.md §8.4 record
+  the route and why the scan row's assertion carries its size.
+- **Visual verification.** None expected: no committed scene opens a non-English window on the
+  folder tree, and none paints a job row in a running state, so no baseline should move.
+  `cargo xtask screenshots` was run because `crates/ui` changed: 30 passed, 1 ignored (network), and
+  `git status` showed no baseline moved.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui -- the_folder_tree_and_scan_row_buttons_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice literal, quoted above); then `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole
+  suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5 passed,
+  `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30
+  passed and 1 ignored (network) with no baseline moved. There is no `cargo xtask wasm` in this
+  workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job — this machine has no Android
+  NDK and no Xcode, which leaves the device-side leg unverified here. No release workflow was
+  dispatched: source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the two routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (one row each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next
+  family on the row: the insights breakdown's `Nothing recorded yet` and the map chip's
+  `OpenFreeMap · online`, through `tl!`, with the same source-readback and Arabic lookup test.
+  SL-L07 stays unticked. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-ninth) — the keyword and collections hints speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-eighth entry's Next named the filter strip's hint and the

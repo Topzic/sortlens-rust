@@ -3725,7 +3725,7 @@ fn right_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine
                         });
                         ui.label(RichText::new(job_detail(job)).size(10.5).color(t.text_muted));
                         if job.status.is_running() {
-                            if ui.button(RichText::new("Cancel").size(10.5)).clicked() {
+                            if ui.button(RichText::new(tl!("Cancel")).size(10.5)).clicked() {
                                 engine.cancel_scan();
                             }
                         } else if let Some(error) = &job.error {
@@ -6596,7 +6596,10 @@ fn breadcrumbs(ui: &mut Ui, t: &Tokens, state: &mut UiState) {
         }
         if !at_root {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.add(Button::new(RichText::new("Up one level").size(10.5)).frame(false)).clicked() {
+                if ui
+                    .add(Button::new(RichText::new(tl!("Up one level")).size(10.5)).frame(false))
+                    .clicked()
+                {
                     target = Some(parent_prefix(&state.folder));
                 }
             });
@@ -22468,6 +22471,49 @@ mod tests {
         }
         // English is unchanged, and Arabic is the translator's row rather than the English
         // fallback: a route whose key no catalogue answers would paint English in an Arabic window.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The folder tree's `Up one level` and the scan row's `Cancel` are catalogue rows, in every
+    /// language the picker offers.
+    ///
+    /// The folder tree is the only way back up a library's subfolders, and the Activity tab's scan
+    /// row is the only way to stop an index pass from the shell, so a reader who chose Arabic should
+    /// be able to read both. `Cancel` is a row the dialogs already own; `Up one level` is new in
+    /// each of the six catalogues.
+    #[test]
+    fn the_folder_tree_and_scan_row_buttons_speak_the_interface_language() {
+        // One row per button, with the call that paints it: the assertion is the wiring, so a route
+        // reading a key but painting something else cannot pass. The scan row's route carries
+        // `.size(10.5)` because `Cancel` is painted by a dozen dialogs too — this is the job row's
+        // own button, not every button that says Cancel.
+        const LINES: [(&str, &str, &str); 2] = [
+            ("Up one level", "مستوى أعلى", "Button::new(RichText::new(tl!(\"Up one level\"))"),
+            ("Cancel", "إلغاء", "ui.button(RichText::new(tl!(\"Cancel\")).size(10.5))"),
+        ];
+        // The source with each line's own indentation trimmed away, so a call rustfmt wrapped at the
+        // margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _, route) in LINES {
+            assert!(source.contains(route), "the button {english:?} is still a literal");
+        }
+        // The bare literals are gone, not merely joined by a second routed call.
+        for literal in [
+            "Button::new(RichText::new(\"Up one level\")",
+            "ui.button(RichText::new(\"Cancel\").size(10.5))",
+        ] {
+            assert!(!source.contains(literal), "a button still paints {literal:?}");
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback:
+        // a route whose key no catalogue answers would paint English in an Arabic window.
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         for (english, _, _) in LINES {
             assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");

@@ -1347,21 +1347,27 @@ and none of M9 is closed until the remaining rows are ticked.
   empty lists are the reader's.
   `the_filter_strip_and_collections_hints_speak_the_interface_language` reads `shell.rs` back,
   requires both sites to route with no bare-literal twin, then English unchanged and the Arabic rows.
+  The folder tree's `Up one level` and the scan row's `Cancel` followed (hundred-and-sixtieth entry):
+  the tree is the only way back up a library's subfolders and the Activity tab's scan row the only way
+  to stop an index pass from the shell, so both are `tl!` rows — `Cancel` reuses the row the dialogs
+  already own and `Up one level` is new in each of the six catalogues.
+  `the_folder_tree_and_scan_row_buttons_speak_the_interface_language` reads `shell.rs` back, requires
+  both buttons to route with no bare-literal twin (the scan row's route carries its own `.size(10.5)`,
+  because a dozen dialogs also say `Cancel`), then English unchanged and the Arabic rows.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining families:
   - the tag chip's hover in that editor (`TagSource::explanation()` and the `· click to remove`
     suffix), which is a `sortlens-core` sentence with no piece yet;
-  - the folder tree's `Up one level`, the scan row's `Cancel`, the insights breakdown's
-    `Nothing recorded yet`, and the map chip's `OpenFreeMap · online`;
+  - the insights breakdown's `Nothing recorded yet` and the map chip's `OpenFreeMap · online`;
   - Settings' sidecar and backup notes, `Suggest keywords for the library…`, and the phone link's
     pair and remove sentences;
   - the command table's own labels (`crates/engine/src/command.rs`), which the menus paint.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
   catalogue row or a recorded exception, which the next ticks take one family at a time — the
-  folder tree's `Up one level` and the scan row's `Cancel` are next.
+  insights breakdown's `Nothing recorded yet` and the map chip's `OpenFreeMap · online` are next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and
