@@ -860,6 +860,14 @@
 	The library could not be opened: {error}	Không mở được thư viện: {error}
 	Import a shortcut set	Nhập bộ phím tắt
 	Export a shortcut set	Xuất bộ phím tắt
+	Alerts	Thông báo
+	Alerts, {n} unread	Thông báo, {n} chưa đọc
+	What has happened recently	Chuyện gì vừa xảy ra
+	Nothing has happened yet	Chưa có gì xảy ra
+	{n}s	{n} giây
+	{n}m	{n} phút
+	{n}h	{n} giờ
+	{n}d	{n} ngày
 	The server is already running	Máy chủ đang chạy sẵn rồi
 	Stop the server before revoking a device	Dừng máy chủ trước khi thu hồi một thiết bị
 	That device is not paired any more	Thiết bị đó không còn được ghép nối nữa

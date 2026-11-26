@@ -836,14 +836,18 @@ const NARROW_BELOW: f32 = 600.0;
 const SEARCH_FIELD_NARROW: f32 = 140.0;
 
 /// "just now", "4m", "2h", "3d" — the age of a notice, at the precision someone would say it out loud.
+///
+/// The unit is a catalogue row and the digits are the reader's, so an Arabic popover reads `١ د`
+/// where it read `1m` (SL-L07).
 pub fn notice_age(seconds: u64) -> String {
-    match seconds {
-        0..=9 => "just now".to_string(),
-        10..=59 => format!("{seconds}s"),
-        60..=3599 => format!("{}m", seconds / 60),
-        3_600..=86_399 => format!("{}h", seconds / 3_600),
-        _ => format!("{}d", seconds / 86_400),
-    }
+    let (value, unit) = match seconds {
+        0..=9 => return tl!("just now").to_string(),
+        10..=59 => (seconds, "{n}s"),
+        60..=3_599 => (seconds / 60, "{n}m"),
+        3_600..=86_399 => (seconds / 3_600, "{n}h"),
+        _ => (seconds / 86_400, "{n}d"),
+    };
+    crate::i18n::fmt(unit, &[("n", &crate::i18n::count(value))])
 }
 
 /// The last catalog audit, kept as the pieces its sentences are joined from: a dialog that
@@ -1643,9 +1647,9 @@ fn bell_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
             .stroke(Stroke::NONE),
     );
     let spoken = if unread > 0 {
-        format!("Alerts, {unread} unread")
+        crate::i18n::fmt("Alerts, {n} unread", &[("n", &format_count(unread as u64))])
     } else {
-        "Alerts".to_string()
+        tl!("Alerts").to_string()
     };
     crate::a11y::label_widget(ui, &response, egui::Role::Button, &spoken, state.bell_open);
     // The count is painted onto the button's own rectangle rather than laid out beside it: a count
@@ -1653,7 +1657,7 @@ fn bell_button(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
     if unread > 0 {
         paint_badge(ui, &response, unread, colour, t.font(9.5));
     }
-    if response.on_hover_text("What has happened recently").clicked() {
+    if response.on_hover_text(tl!("What has happened recently")).clicked() {
         state.bell_open = !state.bell_open;
         if state.bell_open {
             state.mark_notices_read();
@@ -1669,7 +1673,7 @@ fn paint_badge(ui: &Ui, response: &egui::Response, count: usize, colour: Color32
     ui.painter().text(
         response.rect.right_center() + vec2(-2.0, -7.0),
         Align2::RIGHT_CENTER,
-        count.to_string(),
+        format_count(count as u64),
         font,
         colour,
     );
@@ -1681,7 +1685,7 @@ fn paint_badge(ui: &Ui, response: &egui::Response, count: usize, colour: Color32
 /// total: a number that only goes up is a number people stop looking at.
 fn bell_popover(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
     let mut open = state.bell_open;
-    egui::Window::new("Alerts")
+    egui::Window::new(tl!("Alerts"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -1689,7 +1693,7 @@ fn bell_popover(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
         .anchor(Align2::RIGHT_TOP, vec2(-16.0, 52.0))
         .show(ui.ctx(), |ui| {
             if state.notices.is_empty() {
-                ui.label(RichText::new("Nothing has happened yet").size(11.5).color(t.text_muted));
+                ui.label(RichText::new(tl!("Nothing has happened yet")).size(11.5).color(t.text_muted));
                 return;
             }
             egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
@@ -1708,7 +1712,7 @@ fn bell_popover(ui: &mut Ui, state: &mut UiState, t: &Tokens) {
                 }
             });
             ui.separator();
-            if ui.button(RichText::new("Clear").size(11.5)).clicked() {
+            if ui.button(RichText::new(tl!("Clear")).size(11.5)).clicked() {
                 state.clear_notices();
             }
         });
@@ -19542,6 +19546,99 @@ mod tests {
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The bell's history speaks the interface language (SL-L07).
+    ///
+    /// Its title, the empty line and the clear action were literals, and the age column was `1m`
+    /// wherever the interface was set: a Japanese shell read its own notifications in English. The
+    /// title, the empty sentence and Clear are catalogue rows, and the age's unit is a row with the
+    /// reader's digits, so an Arabic popover reads `تنبيهات` over `١ د`.
+    #[test]
+    fn the_notices_panel_speaks_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.bell_open = true;
+        state.notices.push_back(Notice {
+            text: "Indexed 2 photos".to_string(),
+            kind: NoticeKind::Info,
+            at: std::time::Instant::now() - std::time::Duration::from_secs(60),
+            read: true,
+        });
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+
+        // English, the words the panel has always painted.
+        let _ = paint(&ctx, &mut state);
+        let english = paint(&ctx, &mut state);
+        assert!(label_at(&english, "Alerts").is_some(), "the title paints");
+        assert!(label_at(&english, "Clear").is_some(), "and the clear action");
+        assert!(label_at(&english, "1m").is_some(), "and the age");
+        assert_eq!(notice_age(60), "1m");
+
+        // Arabic: the title, Clear and the age are the catalogue's, in its own digits.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let _ = paint(&ctx, &mut state);
+        let arabic = paint(&ctx, &mut state);
+        assert!(label_at(&arabic, "تنبيهات").is_some(), "the title is the catalogue's");
+        assert!(label_at(&arabic, "مسح").is_some(), "and the clear action");
+        assert!(label_at(&arabic, "Alerts").is_none(), "no English title behind it");
+        assert!(label_at(&arabic, "Clear").is_none(), "no English clear behind it");
+        let age = notice_age(60);
+        assert!(age.contains('١') && age.contains('د') && !age.contains('m'), "{age}");
+
+        // The badge over the bell is a count too, so it is painted in the reader's digits.
+        let mut badge_state = UiState::new(ThemeKind::Midnight, 0.0);
+        badge_state.notice("Indexed 2 photos");
+        let paint_bell = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_button(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint_bell(&ctx, &mut badge_state);
+        let arabic_badge = paint_bell(&ctx, &mut badge_state);
+        assert!(label_at(&arabic_badge, "١").is_some(), "the unread count is the reader's digits");
+        assert!(label_at(&arabic_badge, "1").is_none(), "and not the machine's");
+
+        // Japanese: the empty line is a row too, so a quiet bell is not English.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        state.clear_notices();
+        let _ = paint(&ctx, &mut state);
+        let japanese = paint(&ctx, &mut state);
+        assert!(
+            label_at(&japanese, "まだ何もありません").is_some(),
+            "the empty line is the catalogue's"
+        );
+        assert!(
+            label_at(&japanese, "Nothing has happened yet").is_none(),
+            "with no English behind it"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// The quit guard speaks the interface language, from the engine's own pieces (SL-L07).

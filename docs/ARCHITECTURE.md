@@ -596,6 +596,13 @@ callers print — stays as it was. The title, the sentence under it, `and {n} mo
 are `tl!`/`i18n::fmt` keys, and `the_move_receipt_speaks_the_interface_language` makes one real
 move of one indexed photo and paints the dialog in English, Japanese and Arabic.
 
+The notices panel takes the same seam: its window title, hover, empty sentence and `Clear` action
+are `tl!` rows, `bell_button` words the unread count it speaks through `Alerts, {n} unread`, and
+`notice_age` fills `{n}s`/`{n}m`/`{n}h`/`{n}d` (or `just now`) with `i18n::count` — the same digits
+`paint_badge` now writes for the bell and the Filter chip. `the_notices_panel_speaks_the_interface_language`
+paints the popover and the bell in English, Arabic and Japanese and requires the Arabic age and
+badge to carry `١` and no English title or `Clear` behind them.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

@@ -935,3 +935,11 @@
 	No answer from {host}:{port}: {reason}	{host}:{port} 沒有回應：{reason}
 	the pairing thread could not start: {error}	無法啟動配對執行緒：{error}
 	the test thread could not start: {error}	無法啟動測試執行緒：{error}
+	Alerts	通知
+	Alerts, {n} unread	通知，{n} 則未讀
+	What has happened recently	最近發生的事
+	Nothing has happened yet	目前還沒有任何動靜
+	{n}s	{n} 秒
+	{n}m	{n} 分
+	{n}h	{n} 小時
+	{n}d	{n} 天

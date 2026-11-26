@@ -866,6 +866,14 @@
 	Wrote “{name}”	“{name}”을(를) 기록했습니다
 	Back up the Sortlens library	Sortlens 라이브러리 백업
 	Sortlens backup	Sortlens 백업
+	Alerts	알림
+	Alerts, {n} unread	알림, 읽지 않음 {n}개
+	What has happened recently	최근 소식
+	Nothing has happened yet	아직 아무 일도 없습니다
+	{n}s	{n}초
+	{n}m	{n}분
+	{n}h	{n}시간
+	{n}d	{n}일
 	The server is already running	서버가 이미 실행 중입니다
 	Stop the server before revoking a device	기기의 연결을 해제하려면 먼저 서버를 중지하세요
 	That device is not paired any more	해당 기기는 더 이상 연결되어 있지 않습니다

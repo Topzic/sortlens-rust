@@ -803,6 +803,9 @@ re-checks its own contrast pairs after applying.
   bin reads `写真 2 枚` over `たった今 · ディスクに保持` where it read `2 photos` over `just now · tag` —
   the engine's English and a mode id no screen ever names. The age label they share with the change viewer
   is routed with them, so its ages are rows and Arabic writes `٢ صورة` over `الآن · بقي على القرص`.
+  The notices panel followed (hundred-and-thirty-sixth entry): the bell's window title, its hover,
+  the empty line and `Clear` are rows, and an age is the reader's digits in the language's own unit
+  (`١ د` where it read `1m`) — the unread badge over the bell paints those digits too.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

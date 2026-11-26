@@ -1161,6 +1161,17 @@ and none of M9 is closed until the remaining rows are ticked.
   differs, because `; {error}` is a separator and a placeholder a language may legitimately word the
   same way. What stays English in this crate is the engine's `error.to_string()` words the host
   appends unchanged.
+  The notices panel followed (hundred-and-thirty-sixth entry): the bell's window title, its hover,
+  the empty line and `Clear` are rows, `Alerts, {n} unread` words the count the bell speaks, and
+  `notice_age` fills `{n}s`/`{n}m`/`{n}h`/`{n}d` (or `just now`) with `i18n::count`, so an Arabic
+  popover reads `١ د` where it read `1m`; the painted badge over the bell and the Filter chip writes
+  those digits too. **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted
+  English that never went through `tl!`/`i18n::fmt`: the ~40 `state.notice(format!(…))` messages
+  (indexing, rating, tagging, culling, selection, errors), the palette's `No command matches` and
+  `Type a command…` hint, dozens of `on_hover_text`/accessibility names, and dialog literals such as
+  `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
+  source-reading audit can prove a painted literal is a row rather than only a row being present for
+  every literal that already routed.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

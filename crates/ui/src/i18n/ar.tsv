@@ -749,6 +749,14 @@
 	Soft Focus	تركيز ناعم
 	A relative cut, never a verdict	قطع نسبي، لا حكم
 	The server is already running	الخادم يعمل بالفعل
+	Alerts	تنبيهات
+	Alerts, {n} unread	تنبيهات، {n} غير مقروء
+	What has happened recently	ما حدث مؤخرًا
+	Nothing has happened yet	لم يحدث شيء بعد
+	{n}s	{n} ث
+	{n}m	{n} د
+	{n}h	{n} س
+	{n}d	{n} ي
 	Stop the server before revoking a device	أوقف الخادم قبل إلغاء اقتران جهاز
 	That device is not paired any more	لم يعد ذلك الجهاز مقترنًا
 	Could not find this app: {error}	تعذّر العثور على هذا التطبيق: {error}

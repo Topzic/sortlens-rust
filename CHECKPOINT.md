@@ -7914,6 +7914,56 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   row, and tick `docs/ROADMAP.md`'s i18n row in the same commit if the audit finds none. No release run is
   in flight.
 
+## 2026-11-26 (hundred-and-thirty-sixth) — the notices panel speaks the interface language
+
+- **Why this came up.** The hundred-and-thirty-fifth entry's Next named the shell-and-phone audit and the
+  close of SL-L07. The `CI` run for `2e2ca01` (`45792067207`) was still running at STEP 1b, not red, so
+  this is a roadmap slice. The audit found the bell's own surfaces in `crates/ui/src/shell.rs` still
+  painted from literals: the history window titled itself `Alerts`, its hover said `What has happened
+  recently`, a quiet history said `Nothing has happened yet`, the action was `Clear`, the age column
+  wrote `1m`/`2h`/`3d` from `format!`, the bell spoke `Alerts, {n} unread`, and `paint_badge` wrote
+  the unread count with `count.to_string()` — Latin digits in an Arabic window.
+- **What is routed.** Eight keys per catalogue (48 rows): `Alerts`, `Alerts, {n} unread`,
+  `What has happened recently`, `Nothing has happened yet`, and the four age units `{n}s`, `{n}m`,
+  `{n}h`, `{n}d`. `Clear` and `just now` reuse rows the filter strip and the rejects bin already own.
+  `notice_age` picks the unit row and fills it through `i18n::count`, so English stays byte-identical
+  (`10s`, `1m`, `1h`, `1d`, `just now`) and an Arabic popover reads `١ د`. `paint_badge` now writes
+  `format_count`, so the bell's badge — and the Filter chip's, which shares it — paints the reader's digits.
+  The bell's accessible unread count goes through `i18n::fmt`, so a screen reader hears the language too.
+- **Tests.** `the_notices_panel_speaks_the_interface_language` paints `bell_popover` at 700×500 and the
+  bell in English, Arabic and Japanese: English must paint `Alerts`, `Clear` and `1m`; Arabic must paint
+  `تنبيهات` and `مسح` with neither English behind it, and its 60-second age must carry `١` and `د` and no
+  `m`; Japanese must paint `まだ何もありません` for a cleared history and no `Nothing has happened yet`;
+  and the Arabic unread badge must paint `١` and not `1`. It fails on the pre-slice source in every one of
+  those assertions.
+- **What the audit also found, named not fixed.** `crates/ui/src/shell.rs` still paints English that never
+  went through the seam — the ~40 `state.notice(format!(…))` messages, the command palette's `No command
+  matches` and `Type a command…`, dozens of `on_hover_text` and accessibility names, and dialog literals
+  (`No folders yet`, `Remove from library`, the collection menu). `docs/ROADMAP.md`'s SL-L07 row records
+  them and stays unticked; this slice is the bell, not the claim that the shell is finished.
+- **Visual verification.** `cargo xtask screenshots` moved two baselines, `rtl-library-charcoal` and
+  `rtl-library-paper`, by five pixels each: the Filter chip's badge now paints `١` where it painted
+  `1`. Both were rewritten with `--update` and read back — the mirrored sidebar, the rail, the grid,
+  the header and the bottom bar are unchanged, and none of the other 27 scenes moved.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings`;
+  `cargo test -p sortlens-ui notice` (4 passed, the new paint test among them); `cargo xtask ci` with
+  every step ok (fmt, workspace clippy, the whole suite including the catalogue audit, `layers`,
+  `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`)
+  — PowerShell reported the pipeline as exit 1 only because it turns the cargo build's stderr font
+  warning into a NativeCommandError, the same artefact a bare `cargo clippy` shows while printing
+  `Finished`; `cargo xtask snapshot` (5 passed), `cargo xtask deny` (advisories, bans, licenses,
+  sources) and `cargo xtask screenshots` (29 passed, 1 ignored) all green. There is no
+  `cargo xtask wasm` in this workspace; no phone code changed, and `cargo xtask mobile` needs the
+  Android NDK and Xcode this machine does not have. No release workflow was dispatched: source,
+  catalogue rows, baselines and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the routes, `notice_age` and `paint_badge`, the new test),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (eight rows each), `docs/UX.md`,
+  `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view` (`screenshots` is the job that
+  matters, because two baselines moved here). Then the command palette's own chrome: `Type a
+  command…`, `No command matches`, its `Up/Down choose · Enter run · Esc photo search` hint and the
+  field's accessible name, through the same seam with the key caps as the platform spells them.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7922,13 +7972,15 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-thirty-fifth entry).** Read this commit's `CI` run with one
-`gh run view` — `screenshots` and the two `mobile` legs are the jobs that can disagree with this
-machine. Then close SL-L07: audit the phone crate and the shell for painted English that is not the
-engine's own error text, name anything still open in the row, and tick `docs/ROADMAP.md`'s i18n row
-in the same commit if the audit finds nothing — `apps/sortlens-mobile`'s `lib.rs`, `prefs.rs` and
-`send.rs` are now all catalogued, and `docs/FEATURES.md` has been reworded to say so. No release run
-is in flight.
+**Next tick (after the hundred-and-thirty-sixth entry).** Read this commit's `CI` run with one
+`gh run view` — `screenshots` is the job that matters, because the bell's badge now paints
+`format_count` digits and an Arabic frame that carries a badge could have moved. Then the command
+palette's own chrome in `crates/ui/src/shell.rs`: `Type a command…` (`TextEdit::hint_text`),
+`No command matches`, the `Up/Down choose · Enter run · Esc photo search` hint and the field's
+accessible name, through `tl!`/`i18n::fmt` with `⌘K`/`Ctrl+K` kept as the platform spells it. After
+that the shell's `state.notice(format!(…))` messages, one family per tick (indexing, rating,
+tagging, culling, selection). SL-L07 stays unticked; its row now lists what the audit found. No
+release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
