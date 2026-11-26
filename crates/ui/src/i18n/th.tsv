@@ -261,6 +261,11 @@
 	{n} file(s) could not be handled	จัดการไฟล์ {n} ไฟล์ไม่ได้
 	Put them back	คืนกลับ
 	Done	เสร็จสิ้น
+	Moved	ย้ายแล้ว
+	Ratings, labels and keywords travelled with the files.	คะแนน ป้ายกำกับ และคำค้นย้ายไปพร้อมไฟล์แล้ว
+	and {n} more	และอีก {n} รายการ
+	{n} photo moved to {folder}	ย้าย {n} รูปไปยัง {folder}
+	{n} photos moved to {folder}	ย้าย {n} รูปไปยัง {folder}
 	Restored the batch	คืนชุดแล้ว
 	Colour	สี
 	None	ไม่มี

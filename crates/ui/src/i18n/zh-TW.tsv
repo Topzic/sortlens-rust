@@ -261,6 +261,11 @@
 	{n} file(s) could not be handled	{n} 個檔案無法處理
 	Put them back	放回去
 	Done	完成
+	Moved	已移動
+	Ratings, labels and keywords travelled with the files.	評分、標籤與關鍵字已隨檔案一起移動。
+	and {n} more	還有 {n} 個
+	{n} photo moved to {folder}	已將 {n} 張相片移到 {folder}
+	{n} photos moved to {folder}	已將 {n} 張相片移到 {folder}
 	Restored the batch	已還原批次
 	Colour	顏色
 	None	無

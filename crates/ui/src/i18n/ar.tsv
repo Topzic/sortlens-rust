@@ -261,6 +261,11 @@
 	{n} file(s) could not be handled	تعذّرت معالجة {n} ملف
 	Put them back	أعِدها
 	Done	تم
+	Moved	نُقلت
+	Ratings, labels and keywords travelled with the files.	انتقلت التقييمات والملصقات والكلمات المفتاحية مع الملفات.
+	and {n} more	و{n} أخرى
+	{n} photo moved to {folder}	نُقلت {n} صورة إلى {folder}
+	{n} photos moved to {folder}	نُقلت {n} صورة إلى {folder}
 	Restored the batch	استُعيدت الدفعة
 	Colour	اللون
 	None	بلا

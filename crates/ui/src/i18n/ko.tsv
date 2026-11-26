@@ -261,6 +261,11 @@
 	{n} file(s) could not be handled	파일 {n}개를 처리하지 못했습니다
 	Put them back	되돌리기
 	Done	완료
+	Moved	이동함
+	Ratings, labels and keywords travelled with the files.	평가, 라벨, 키워드도 파일과 함께 이동했습니다.
+	and {n} more	외 {n}개
+	{n} photo moved to {folder}	{n}장의 사진을 {folder}(으)로 이동함
+	{n} photos moved to {folder}	{n}장의 사진을 {folder}(으)로 이동함
 	Restored the batch	묶음 복원됨
 	Colour	색
 	None	없음

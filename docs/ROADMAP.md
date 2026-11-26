@@ -1047,10 +1047,9 @@ and none of M9 is closed until the remaining rows are ticked.
   `03/10/2026 04:00`). Vietnamese is Latin script, so the shipped-language table names `Latn`
   (already required) and a phone build needs no new face; the picker/table test holds the two
   together. That is all six languages the design names.
-  Open: the canvas chrome the RTL frames still paint in English — the `Moved` receipt (its title, the
-  sentence under it, its `and {n} more` line and its two buttons), the search field's `Search photos or
-  Ctrl+K` hint and the bottom bar's `No selection` — which the row's earlier entries call the unrouted
-  surfaces.
+  (The paragraph here named the canvas chrome still in English; the search field's hint and the bottom
+  bar's count were routed by the hundred-and-twenty-seventh entry and the `Moved` receipt by the
+  hundred-and-twenty-eighth, both later in this row.)
   The sidebar's own heading row followed (hundred-and-seventeenth entry): right to left the
   `Keywords` heading and its sort toggle were painted on top of each other, because the heading's
   mirrored label took the whole row and the trailing layout then painted the toggle inside it. The
@@ -1106,6 +1105,14 @@ and none of M9 is closed until the remaining rows are ticked.
   `Ctrl+K`/`⌘K` as the platform spells it in every language. The bottom bar's `No selection` and
   `{n} selected` count — and the marquee's toast, which shares that template — are a row and a
   template over `format_count`, so an Arabic bar reads `لم يتم تحديد شيء` and `٢ محددة`.
+  The `Moved` receipt followed (hundred-and-twenty-eighth entry): its title, the sentence under it, its
+  `and {n} more` line and both buttons (`Put them back`, `Done`) are rows in all six languages, and
+  its headline is worded from the receipt's own count and folder rather than read from the engine's
+  English `headline()` — so an Arabic receipt reads `نُقلت ١ صورة إلى Rejects` and the count keeps
+  Arabic-Indic digits. A `run_ui` paint test makes one real move of one indexed photo and requires the
+  Japanese dialog to leave no English behind. What remains on this row is outside the shell: the host's
+  own notices and the native file-dialog titles in `apps/sortlens`, which the source-reading catalogue
+  audit cannot see.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

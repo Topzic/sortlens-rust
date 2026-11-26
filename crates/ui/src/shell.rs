@@ -10223,6 +10223,20 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
     state.health_open = open;
 }
 
+/// The Moved receipt's headline in the reader's language, from the receipt's own count and
+/// folder — the pieces its English `headline()` is joined from.
+fn move_receipt_headline(receipt: &sortlens_engine::moves::MoveReceipt) -> String {
+    let folder = sortlens_engine::moves::folder_name(&receipt.dest);
+    let count = format_count(receipt.len() as u64);
+    // "1 photo moved" and "3 photos moved" are two English rows a language may disagree about, so
+    // each is a template with the count in its placeholder.
+    if receipt.len() == 1 {
+        crate::i18n::fmt("{n} photo moved to {folder}", &[("n", &count), ("folder", &folder)])
+    } else {
+        crate::i18n::fmt("{n} photos moved to {folder}", &[("n", &count), ("folder", &folder)])
+    }
+}
+
 /// A move just happened: say where the files went, and offer the one thing a photographer wants
 /// next — putting them back.
 fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
@@ -10236,15 +10250,15 @@ fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &En
     let mut open = true;
     let mut put_back = false;
     let mut done = false;
-    dialog_window("Moved")
+    dialog_window(tl!("Moved"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(360.0)
         .show(ui.ctx(), |ui| {
-            ui.label(RichText::new(receipt.headline()).size(13.0).strong());
+            ui.label(RichText::new(move_receipt_headline(receipt)).size(13.0).strong());
             ui.label(
-                RichText::new("Ratings, labels and keywords travelled with the files.")
+                RichText::new(tl!("Ratings, labels and keywords travelled with the files."))
                     .size(10.5)
                     .color(t.text_muted),
             );
@@ -10258,17 +10272,20 @@ fn move_receipt_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &En
             }
             if receipt.items.len() > 4 {
                 ui.label(
-                    RichText::new(format!("and {} more", receipt.items.len() - 4))
-                        .size(10.0)
-                        .color(t.text_faint),
+                    RichText::new(crate::i18n::fmt(
+                        "and {n} more",
+                        &[("n", &format_count((receipt.items.len() - 4) as u64))],
+                    ))
+                    .size(10.0)
+                    .color(t.text_faint),
                 );
             }
             ui.add_space(10.0);
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("Put them back").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Put them back")).size(12.0)).clicked() {
                     put_back = true;
                 }
-                if ui.button(RichText::new("Done").size(12.0)).clicked() {
+                if ui.button(RichText::new(tl!("Done")).size(12.0)).clicked() {
                     done = true;
                 }
             });
@@ -19270,6 +19287,109 @@ mod tests {
         let _ = paint(&ctx, &mut state, &mut engine);
         let arabic_frame = paint(&ctx, &mut state, &mut engine);
         assert!(label_at(&arabic_frame, "تم تطبيق الدفعة").is_some(), "the title is the catalogue's");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The Moved receipt speaks the interface language, from the receipt's own count and folder
+    /// (SL-L07).
+    ///
+    /// Its title, headline, the sentence under it and the two buttons used to be English literals,
+    /// the headline read from the engine's English `headline()`; now each is a catalogue row and the
+    /// headline is worded from the receipt's own pieces, with the count in the region's digits.
+    #[test]
+    fn the_move_receipt_speaks_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-move-receipt-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-move-receipt-i18n");
+        let name = "IMG_0001.jpg";
+        std::fs::copy(fixture.jpeg(name, [30, 90, 140], 64, 48), root.join(name)).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 10).photos[0].id;
+        let dest = dir.join("moved");
+        assert_eq!(engine.move_picks(&dest.to_string_lossy(), &[id]).expect("move"), 1);
+        let receipt = engine.move_receipts().last().cloned().expect("a receipt");
+        // The engine's own English sentence is still the one it always was; the dialog words it from
+        // the pieces instead of reading it.
+        assert_eq!(receipt.headline(), "Moved 1 photo(s) to moved");
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.move_receipt = Some(receipt.id);
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &Engine| {
+            let mut actions = Vec::new();
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        move_receipt_dialog(ui, state, &tokens, engine, &mut actions);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            assert!(actions.is_empty(), "painting the receipt presses nothing");
+            out
+        };
+
+        // English, worded from the receipt's own pieces.
+        let _ = paint(&ctx, &mut state, &engine);
+        let english = paint(&ctx, &mut state, &engine);
+        assert!(label_at(&english, "Moved").is_some(), "the title paints");
+        assert!(label_at(&english, "1 photo moved to moved").is_some(), "and the headline");
+        assert!(
+            label_at(&english, "Ratings, labels and keywords travelled with the files.").is_some(),
+            "and the sentence under it"
+        );
+        assert!(label_at(&english, "Put them back").is_some(), "and the way back");
+        assert_eq!(move_receipt_headline(&receipt), "1 photo moved to moved");
+
+        // Japanese: the title, the headline and the buttons are the catalogue's.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let _ = paint(&ctx, &mut state, &engine);
+        let japanese = paint(&ctx, &mut state, &engine);
+        assert!(label_at(&japanese, "移動しました").is_some(), "the title is the catalogue's");
+        assert!(label_at(&japanese, "枚の写真を").is_some(), "and the headline");
+        assert!(label_at(&japanese, "元に戻す").is_some(), "and the buttons");
+        assert!(
+            label_at(&japanese, "1 photo moved to moved").is_none(),
+            "no English headline behind it"
+        );
+        assert!(label_at(&japanese, "Put them back").is_none(), "no English button behind it");
+        let japanese_headline = move_receipt_headline(&receipt);
+        assert!(
+            japanese_headline.contains("枚の写真を") && japanese_headline.contains("moved") && !japanese_headline.contains("photo"),
+            "{japanese_headline}"
+        );
+
+        // Arabic: the count is Arabic-Indic digits inside the Arabic sentence.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = move_receipt_headline(&receipt);
+        assert!(
+            arabic.contains('١') && arabic.contains("صورة") && arabic.contains("moved") && !arabic.contains("photo"),
+            "{arabic}"
+        );
+        let _ = paint(&ctx, &mut state, &engine);
+        let arabic_frame = paint(&ctx, &mut state, &engine);
+        assert!(label_at(&arabic_frame, "نُقلت").is_some(), "the title is the catalogue's");
+        assert!(label_at(&arabic_frame, "تم").is_some(), "and the Done button");
+
+        // A batch larger than the four listed names its remainder in the reader's language.
+        let more = crate::i18n::fmt("and {n} more", &[("n", &format_count(5))]);
+        assert!(more.contains("أخرى") && more.contains('٥'), "{more}");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

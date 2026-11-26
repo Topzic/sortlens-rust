@@ -581,6 +581,14 @@ placeholder; `receipt_headline` and `receipt_detail` are the wording helpers, an
 `the_batch_applied_receipt_speaks_the_interface_language` paints the dialog in all three
 languages.
 
+The Moved receipt is routed from `sortlens-engine`'s own pieces too, but it has no kind enum to hand
+over: `MoveReceipt` carries its count (`items.len()`) and its destination, so
+`move_receipt_headline` words those through `{n} photo moved to {folder}`/`{n} photos moved to
+{folder}` with `format_count`, while the engine's English `headline()` — the sentence its other
+callers print — stays as it was. The title, the sentence under it, `and {n} more` and both buttons
+are `tl!`/`i18n::fmt` keys, and `the_move_receipt_speaks_the_interface_language` makes one real
+move of one indexed photo and paints the dialog in English, Japanese and Arabic.
+
 A colour label is one worded piece: `colour_word` reads the `Red`…`Purple` rows, and every
 surface that paints one goes through it — the filter chip's word and its spoken name, the folder
 and collection `Colour` menus, the inspector's Label row and Tags tab, Library insights' label

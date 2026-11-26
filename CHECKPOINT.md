@@ -1,5 +1,53 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-twenty-ninth) — the `Moved` receipt speaks the interface language, and no English is left on the canvas
+
+- **Why this came up.** The hundred-and-twenty-eighth entry's Next named SL-L07's last English on the
+  canvas: the `Moved` receipt's title, the sentence under it, its `and {n} more` line and its two
+  buttons. The `CI` run for the newest commit, `45773031564` (`03148d3`), was in progress at the
+  tick's first step, not red, so this is a roadmap slice rather than a repair.
+- **What was English.** `move_receipt_dialog` built the window from the literal `"Moved"`, painted the
+  engine's English `MoveReceipt::headline()` (`"Moved 1 photo(s) to <folder>"`), the literal sentence
+  under it, `format!("and {} more", …)` and both buttons from literals, while every neighbouring
+  dialog already looked its words up. The engine's `headline()` stays: it is the sentence the record's
+  other callers print, and the test pins it.
+- **What is routed.** `move_receipt_headline` words the receipt's own pieces — `items.len()` and
+  `sortlens_engine::moves::folder_name(&receipt.dest)` — through `{n} photo moved to {folder}` /
+  `{n} photos moved to {folder}` with `format_count`, so an Arabic receipt reads `نُقلت ١ صورة إلى moved`.
+  The title, the sentence under it (`Ratings, labels and keywords travelled with the files.`),
+  `and {n} more` and both buttons (`Put them back`, `Done`) are `tl!`/`fmt` keys; the last two rows
+  already existed for the Batch applied receipt. Five new rows landed in each of the six catalogues
+  (30 rows): the two headline templates, the title, the sentence and `and {n} more`.
+- **The test makes one real move.** `the_move_receipt_speaks_the_interface_language` indexes one JPEG,
+  calls `Engine::move_picks` into `moved/`, sets `state.move_receipt` to that receipt and paints the
+  dialog through `Context::run_ui` in English, Japanese and Arabic. English must paint `Moved`,
+  `1 photo moved to moved`, the sentence and `Put them back`; Japanese must paint `移動しました`,
+  `枚の写真を`, `元に戻す` and leave `1 photo moved to moved` and `Put them back` absent; the Arabic
+  headline must carry `١` and `صورة` and no `photo`; and the `and {n} more` template must format to
+  `و٥ أخرى`. (The first `run_ui` frame after `set_current` paints no shapes — the same quirk the Batch
+  applied test works around — so both language switches paint twice.)
+- **Docs reconciled.** UX.md's "What is still English on the canvas is the `Moved` receipt" paragraph now
+  records the receipt as routed and leaves only the bin row's engine sentences as the exception;
+  ARCHITECTURE.md gains the paragraph naming `move_receipt_headline` and the paint test; ROADMAP.md's
+  stale "Open:" paragraph (which still named the search hint and the bottom bar's count as unrouted,
+  both shipped by the hundred-and-twenty-seventh entry) is corrected, this entry is recorded on the
+  SL-L07 row, and what remains on that row is stated instead: the host's own notices and native
+  file-dialog titles in `apps/sortlens`, which the source-reading catalogue audit cannot see.
+- **Verified.** The first `cargo xtask ci` failed only at `cargo fmt --check` (two `assert!` lines);
+  `cargo fmt --all` then `cargo xtask fmt` exit 0 and the full `cargo xtask ci` re-run exit 0 (fmt,
+  workspace clippy, the workspace suite including the catalogue audit, `layers`, `roots`, `assets`,
+  `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`); `cargo xtask
+  snapshot` (5 goldens), `cargo xtask deny` (advisories, bans, licenses, sources) and `cargo xtask
+  wasm` all exit 0. `cargo xtask screenshots` exit 0: 29 passed, 1 ignored, no baseline moved — the
+  receipt dialog is not one of the committed scenes, and `git status` shows no `.new.png`/`.diff.png`
+  left behind.
+- **Files.** `crates/ui/src/shell.rs` (routing, helper, test), `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv`
+  (five rows each), `docs/UX.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` and this file.
+- **Next.** Read this commit's `CI` run first with one `gh run view` (`screenshots` is the job that
+  matters; the paint change is in a dialog no frame paints). Then SL-L07's remaining scope, in order:
+  the host-level notices and the native file-dialog titles in `apps/sortlens` (`Pick a photo first`,
+  `Moving the picks into…`), which no catalogue reaches today. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-twenty-eighth) — the lavapipe set adopts the whole-row paint, and the adapter set is current again
 
 - **Why this came up.** The eighty-second entry — committed as `6bd6b53`, which is the newest commit but whose

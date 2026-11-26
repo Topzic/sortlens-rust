@@ -261,6 +261,11 @@
 	{n} file(s) could not be handled	{n} 件のファイルを処理できませんでした
 	Put them back	元に戻す
 	Done	完了
+	Moved	移動しました
+	Ratings, labels and keywords travelled with the files.	評価、ラベル、キーワードもファイルと一緒に移動しました。
+	and {n} more	ほか {n} 件
+	{n} photo moved to {folder}	{n} 枚の写真を {folder} へ移動しました
+	{n} photos moved to {folder}	{n} 枚の写真を {folder} へ移動しました
 	Restored the batch	バッチを復元しました
 	Colour	色
 	None	なし

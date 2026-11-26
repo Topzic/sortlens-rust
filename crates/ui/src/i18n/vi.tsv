@@ -261,6 +261,11 @@
 	{n} file(s) could not be handled	{n} tệp không xử lý được
 	Put them back	Đưa chúng trở lại
 	Done	Xong
+	Moved	Đã chuyển
+	Ratings, labels and keywords travelled with the files.	Điểm đánh giá, nhãn và từ khóa đã đi cùng các tệp.
+	and {n} more	và {n} mục nữa
+	{n} photo moved to {folder}	Đã chuyển {n} ảnh tới {folder}
+	{n} photos moved to {folder}	Đã chuyển {n} ảnh tới {folder}
 	Restored the batch	Đã khôi phục lô
 	Colour	Màu
 	None	Không có

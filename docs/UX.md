@@ -781,10 +781,12 @@ re-checks its own contrast pairs after applying.
   count followed (hundred-and-twenty-seventh entry): `Start Cull`, `Export Picks…`, the
   `Search photos or {keys}` hint with its two fallbacks and the `No selection`/`{n} selected` count
   are rows, so an Arabic bar reads `لم يتم تحديد شيء` and `٢ محددة` while the hint keeps
-  `Ctrl+K`/`⌘K` as the platform spells it. What is still English on the canvas is the `Moved` receipt:
-  its title,
-  the sentence under it, its `and {n} more` line and its two buttons are literals at the call site. A
-  bin row's summary and mode are the engine's own sentences rather than the shell's.
+  `Ctrl+K`/`⌘K` as the platform spells it. The `Moved` receipt followed (hundred-and-twenty-eighth
+  entry): its title, the sentence under it, its `and {n} more` line and both buttons (`Put them
+  back`, `Done`) are rows in all six languages, and its headline is worded from the receipt's own
+  count and folder, so an Arabic receipt reads `نُقلت ١ صورة إلى Rejects` where it read
+  `Moved 1 photo(s) to Rejects`. A bin row's summary and mode remain the engine's own sentences
+  rather than the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
