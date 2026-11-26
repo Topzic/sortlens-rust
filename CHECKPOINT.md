@@ -7321,6 +7321,39 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   next tick builds. Then the search field's `Search photos or Ctrl+K` hint and the bottom bar's
   `No selection`.
 
+## 2026-11-26 (eightieth) — the Arabic frames repaint for the bar that learned its own language, and the reference set's rot is named
+
+- **Why it was red.** `CI` on `d9df9d3` (run `45763073289`, job `139717404901`) failed
+  `the_arabic_interface_paints_right_to_left_in_both_themes`: `lavapipe/rtl-library-{charcoal,paper}`
+  differed by 182 and 183 pixels. The seventy-ninth entry routed `Local library` and skipped the
+  screenshot gate on the claim that English is byte-identical — true, and irrelevant: the two RTL frames
+  paint Arabic, and the bar's `Local library` is `مكتبة محلية` now. The diff image put every changed
+  pixel inside that one word; everything else in the 1440×900 frame was identical.
+- **Both sets, not just the red one.** The reference `rtl-library-*` frames were stale for the same
+  reason, and `CI` never compares them. The harness repainted them on this machine: `cargo test -p
+  sortlens-ui --features screenshots --test screenshots the_arabic_interface_paints_right_to_left_in_both_themes`
+  wrote `.new.png` files that differed from the reference by 191 and 182 pixels, again only in the
+  top-bar word; they were adopted and the same test then passed. The lavapipe pair came from the failing
+  run's own `screenshot-set` artifact through the seventy-fifth entry's ritual: `gh run download
+  45763073289 -n screenshot-set -D .ci-shots`, then `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask
+  screenshots --adopt .ci-shots` (`adopted 2 frame(s)`). All four frames were read before they were
+  committed, and the comparison stays byte for byte.
+- **The committed reference set is stale, and this tick names it rather than repainting it silently.**
+  `cargo xtask screenshots` on this machine after the fix passes the two rtl scenes and fails 23 others,
+  and not by antialiasing: `filters-charcoal`'s committed frame predates the sidebar's QUICK ACTIONS
+  block, and its FOLDERS/COLLECTIONS rows sit at heights the app left behind. `CI` only ever compares
+  the lavapipe set, so the reference set rots unseen, and the last two UI commits did not run the local
+  gate. Repainting 23 frames is a slice of its own — every frame has to be read — so it is the next
+  tick's first job, and the rtl scenes, the only reference frames this machine's paint authored, are the
+  only ones this commit moves.
+- **Verified.** The rtl test green against the adopted reference pair; `cargo xtask ci`, `cargo xtask
+  snapshot` and `cargo xtask deny` green. `cargo xtask screenshots` is red only on the 23 stale reference
+  frames described above, which this commit does not touch — its lavapipe half is the runner's job on
+  the next read. `cargo xtask mobile` cannot run here (no NDK, no Xcode); this slice changes no phone
+  code. No release workflow was dispatched: four PNGs and this entry, no build or release surface.
+- **Next.** Repaint the committed reference set and read every frame (the explicit plan is in the
+  section below), then SL-L07's `Moved` receipt. No release run is in flight.
+
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -7329,11 +7362,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the seventy-ninth entry).** Read the `CI` run for `e6152f1` and this commit's with
-one `gh run view` each — `e6152f1` was still in progress when this tick read it. Then finish SL-L07's
-canvas: the `Moved` receipt (title, the sentence under it, `and {n} more`, `Put them back` and `Done`)
-with a paint test that builds a real receipt — one indexed photo and one move — then the search field's
-`Search photos or Ctrl+K` hint and the bottom bar's `No selection`. No release run is in flight.
+**Next tick (after the eightieth entry).** Read this commit's `CI` run with one `gh run view`: the run
+for `d9df9d3` was red only in `screenshots`, and the eightieth entry is that fix, whose lavapipe half only
+the runner can prove. Then repaint the committed reference set, which is stale by more than this commit:
+`cargo test -p sortlens-ui --features screenshots --test screenshots` writes a `.new.png` for every scene
+that differs (23 of 29 when this was written), each one is read and compared as `filters-charcoal` was —
+the app's current sidebar, not the pre-Quick-Actions one — and the reference frame is adopted only when
+that read says the difference is the app and not the machine, until `cargo xtask screenshots` is green
+locally as well as on the runner. Then finish SL-L07's canvas: the `Moved` receipt (title, the sentence
+under it, `and {n} more`, `Put them back` and `Done`) with a paint test that builds a real receipt — one
+indexed photo and one move — then the search field's `Search photos or Ctrl+K` hint and the bottom bar's
+`No selection`. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
