@@ -671,6 +671,15 @@ sees. `the_folder_rows_and_their_menu_speak_the_interface_language` paints the e
 that menu under Arabic, and the volume test calls the same decision instead of copying its match
 arms.
 
+The collection rows take it over the same way: `collection_menu` is the row's whole context menu —
+the `{n} collections` batch label, the pin row (the same `folder_pin_label` words, because a
+favourite means the same thing in both lists), `Rename…`, `Delete collection` and
+`{n} collections` deleted as one row — while `collection_target_label`, `collection_delete_label`
+`collection_pin_notice`, `collection_delete_notice` and `collection_batch_hint` word the counts
+through `format_count`. `the_collection_rows_and_their_menu_speak_the_interface_language` paints
+the real two-row and one-row menus and the section's batch line under Arabic, and requires every
+count to be the reader's digits.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

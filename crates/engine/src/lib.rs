@@ -26,7 +26,7 @@ pub use sortlens_catalog::history::Entry as HistoryEntry;
 pub use sortlens_catalog::integrity::{Audit as CatalogAudit, AuditPart, Headline as AuditHeadline};
 pub use sortlens_catalog::op::Description;
 pub use sortlens_catalog::photo::now_epoch;
-pub use sortlens_catalog::{Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
+pub use sortlens_catalog::{Collection, Filter, Op, Page, Photo, Sort, Stats, SyncOutcome, TagMode, TagOrder};
 pub use sortlens_core::{ColorLabel, Error, Flag, MediaKind, PhotoId, Result, TagSource};
 pub use sortlens_cull::trash::{
     Destination as ApplyDestination, DetailPart as ApplyDetailPart, Receipt as ApplyReceipt, ReceiptHeadline as ApplyReceiptHeadline,

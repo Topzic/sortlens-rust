@@ -3141,7 +3141,8 @@ fn folder_mount_hint(mount: Option<&str>) -> String {
     }
 }
 
-/// The pin row of a folder's context menu.
+/// The pin row of a folder's or a collection's context menu: the same two words, because a
+/// favourite in one list means what it means in the other.
 fn folder_pin_label(favourite: bool) -> &'static str {
     if favourite {
         tl!("Remove from favourites")
@@ -9260,6 +9261,110 @@ fn remember_search(state: &mut UiState, engine: &mut Engine) {
     }
 }
 
+/// What a collection row's menu was asked to do: one slot per action, written only on a click.
+///
+/// The menu is a function rather than a closure so a test can paint it without a mouse, and so
+/// painting it cannot change a library: a slot stays empty until a real button is pressed.
+#[derive(Default)]
+struct CollectionMenuActions {
+    pin: Option<(Vec<sortlens_core::CollectionId>, bool)>,
+    recolour: Option<(Vec<sortlens_core::CollectionId>, Option<sortlens_core::ColorLabel>)>,
+    rename: Option<(sortlens_core::CollectionId, String)>,
+    delete: Option<Vec<sortlens_core::CollectionId>>,
+}
+
+/// How many collections a row's menu is about, said above its rows, in the reader's digits.
+fn collection_target_label(count: usize) -> String {
+    crate::i18n::fmt("{n} collections", &[("n", &format_count(count as u64))])
+}
+
+/// The delete row of a multi-row menu, its count in the reader's digits.
+fn collection_delete_label(count: usize) -> String {
+    crate::i18n::fmt("Delete {n} collections", &[("n", &format_count(count as u64))])
+}
+
+/// A pin action's receipt: one row, or the batch it acted on.
+fn collection_pin_notice(pinned: bool, count: usize) -> String {
+    let digits = format_count(count as u64);
+    match (pinned, count) {
+        (true, 1) => tl!("Pinned to the top").to_owned(),
+        (true, _) => crate::i18n::fmt("Pinned {n} collections to the top", &[("n", &digits)]),
+        (false, 1) => tl!("Unpinned").to_owned(),
+        (false, _) => crate::i18n::fmt("Unpinned {n} collections", &[("n", &digits)]),
+    }
+}
+
+/// A delete action's receipt: the sets go, the photographs stay where they are.
+fn collection_delete_notice(count: usize) -> String {
+    if count == 1 {
+        tl!("Collection deleted — the photos stay in the library").to_owned()
+    } else {
+        crate::i18n::fmt(
+            "{n} collections deleted — the photos stay in the library",
+            &[("n", &format_count(count as u64))],
+        )
+    }
+}
+
+/// The line under the list that says what a ticked batch will act on.
+fn collection_batch_hint(count: usize) -> String {
+    crate::i18n::fmt(
+        "{n} selected · ⌘-click to add, Shift-click for a run",
+        &[("n", &format_count(count as u64))],
+    )
+}
+
+/// A collection row's context menu: how many rows it is about, pin, colour, rename and delete.
+///
+/// One function rather than a closure so a test can paint the menu without a mouse, and so the
+/// words and the handlers that answer them stay in the same place.
+fn collection_menu(
+    ui: &mut Ui,
+    t: &Tokens,
+    collection: &sortlens_engine::Collection,
+    targets: &[sortlens_core::CollectionId],
+    actions: &mut CollectionMenuActions,
+) {
+    if targets.len() > 1 {
+        ui.label(RichText::new(collection_target_label(targets.len())).size(10.5).color(t.text_faint));
+    }
+    // The same two words a folder's pin row uses: a favourite in one list means what it means in
+    // the other, and one catalogue row serves both.
+    if ui.button(folder_pin_label(collection.favourite)).clicked() {
+        actions.pin = Some((targets.to_vec(), !collection.favourite));
+        ui.close();
+    }
+    ui.menu_button(tl!("Colour"), |ui| {
+        let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
+        if ui.button(tl!("None")).clicked() {
+            chosen = Some(None);
+        }
+        for label in sortlens_core::ColorLabel::ALL {
+            if ui.button(colour_word(label)).clicked() {
+                chosen = Some(Some(label));
+            }
+        }
+        if let Some(colour) = chosen {
+            actions.recolour = Some((targets.to_vec(), colour));
+            ui.close();
+        }
+    });
+    // Rename and delete stay single-collection: renaming four rows to one name would merge them.
+    if targets.len() == 1 {
+        if ui.button(tl!("Rename…")).clicked() {
+            actions.rename = Some((collection.id, collection.name.clone()));
+            ui.close();
+        }
+        if ui.button(tl!("Delete collection")).clicked() {
+            actions.delete = Some(vec![collection.id]);
+            ui.close();
+        }
+    } else if ui.button(collection_delete_label(targets.len())).clicked() {
+        actions.delete = Some(targets.to_vec());
+        ui.close();
+    }
+}
+
 /// Collections: favourites first, each with its colour, and the actions that change both.
 fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     if nav_section(ui, t, tl!("Collections"), state.sections.collections) {
@@ -9276,10 +9381,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     // A collection that was deleted elsewhere must not stay ticked.
     state.collection_selection.retain(&order);
 
-    let mut delete: Option<Vec<sortlens_core::CollectionId>> = None;
-    let mut rename = None;
-    let mut recolour: Option<(Vec<sortlens_core::CollectionId>, Option<sortlens_core::ColorLabel>)> = None;
-    let mut pin: Option<(Vec<sortlens_core::CollectionId>, bool)> = None;
+    let mut menu_actions = CollectionMenuActions::default();
     for collection in &collections {
         let filtered = state.collection_filter == Some(collection.id);
         let ticked = state.collection_selection.contains(collection.id);
@@ -9333,76 +9435,27 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
             }
         }
         row.context_menu(|ui| {
-            if targets.len() > 1 {
-                ui.label(
-                    RichText::new(format!("{} collections", targets.len()))
-                        .size(10.5)
-                        .color(t.text_faint),
-                );
-            }
-            let pin_label = if collection.favourite {
-                "Remove from favourites"
-            } else {
-                "Add to favourites"
-            };
-            if ui.button(pin_label).clicked() {
-                pin = Some((targets.clone(), !collection.favourite));
-                ui.close();
-            }
-            ui.menu_button(tl!("Colour"), |ui| {
-                let mut chosen: Option<Option<sortlens_core::ColorLabel>> = None;
-                if ui.button(tl!("None")).clicked() {
-                    chosen = Some(None);
-                }
-                for label in sortlens_core::ColorLabel::ALL {
-                    if ui.button(colour_word(label)).clicked() {
-                        chosen = Some(Some(label));
-                    }
-                }
-                if let Some(colour) = chosen {
-                    recolour = Some((targets.clone(), colour));
-                    ui.close();
-                }
-            });
-            // Rename and delete stay single-collection: renaming four rows to one name would merge them.
-            if targets.len() == 1 {
-                if ui.button("Rename…").clicked() {
-                    rename = Some((collection.id, collection.name.clone()));
-                    ui.close();
-                }
-                if ui.button("Delete collection").clicked() {
-                    delete = Some(vec![collection.id]);
-                    ui.close();
-                }
-            } else if ui.button(format!("Delete {} collections", targets.len())).clicked() {
-                delete = Some(targets.clone());
-                ui.close();
-            }
+            collection_menu(ui, t, collection, &targets, &mut menu_actions);
         });
     }
-    if let Some((ids, colour)) = recolour {
+    if let Some((ids, colour)) = menu_actions.recolour {
         let many = ids.len();
         match engine.set_collections_colour(&ids, colour) {
             Ok(_) => state.notice(collection_colour_notice(colour, many)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
-    if let Some((ids, favourite)) = pin {
+    if let Some((ids, favourite)) = menu_actions.pin {
         let many = ids.len();
         match engine.set_collections_favourite(&ids, favourite) {
-            Ok(_) => state.notice(match (favourite, many) {
-                (true, 1) => "Pinned to the top".to_string(),
-                (true, many) => format!("Pinned {many} collections to the top"),
-                (false, 1) => "Unpinned".to_string(),
-                (false, many) => format!("Unpinned {many} collections"),
-            }),
+            Ok(_) => state.notice(collection_pin_notice(favourite, many)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
-    if let Some((id, name)) = rename {
+    if let Some((id, name)) = menu_actions.rename {
         state.rename_target = Some((id, name));
     }
-    if let Some(ids) = delete {
+    if let Some(ids) = menu_actions.delete {
         let many = ids.len();
         match engine.delete_collections(&ids) {
             Ok(_) => {
@@ -9410,10 +9463,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
                     state.collection_filter = None;
                 }
                 state.collection_selection.clear();
-                state.notice(match many {
-                    1 => "Collection deleted — the photos stay in the library".to_string(),
-                    many => format!("{many} collections deleted — the photos stay in the library"),
-                });
+                state.notice(collection_delete_notice(many));
             }
             Err(error) => state.notice_problem(error.to_string()),
         }
@@ -9422,11 +9472,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     if state.collection_selection.len() > 1 {
         let count = state.collection_selection.len();
         ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(format!("{count} selected · ⌘-click to add, Shift-click for a run"))
-                    .size(10.0)
-                    .color(t.text_muted),
-            );
+            ui.label(RichText::new(collection_batch_hint(count)).size(10.0).color(t.text_muted));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
                     .add(Button::new(RichText::new("×").size(10.0)).fill(Color32::TRANSPARENT))
@@ -17867,6 +17913,140 @@ mod tests {
             "a favourite folder offers its own row: {pinned_texts:?}"
         );
         assert!(pinned_remark.is_none(), "a painted menu writes nothing");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The collection rows, their menu and their receipts speak the interface language (SL-L07).
+    ///
+    /// The family that was still English on the collections list: the batch label, the pin row,
+    /// `Rename…` and both delete rows, the line that says what a ticked batch will act on, and the
+    /// receipts a pin or a delete leaves. Every one is a catalogue row now, the counts through
+    /// `format_count`, and this test paints the real menu — the function the row's right-click
+    /// calls — and the real section, rather than a copy of their words.
+    #[test]
+    fn the_collection_rows_and_their_menu_speak_the_interface_language() {
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(collection_target_label(3), "3 collections");
+        assert_eq!(collection_delete_label(3), "Delete 3 collections");
+        assert_eq!(collection_pin_notice(true, 1), "Pinned to the top");
+        assert_eq!(collection_pin_notice(true, 3), "Pinned 3 collections to the top");
+        assert_eq!(collection_pin_notice(false, 1), "Unpinned");
+        assert_eq!(collection_pin_notice(false, 2), "Unpinned 2 collections");
+        assert_eq!(collection_delete_notice(1), "Collection deleted — the photos stay in the library");
+        assert_eq!(
+            collection_delete_notice(3),
+            "3 collections deleted — the photos stay in the library"
+        );
+        assert_eq!(collection_batch_hint(2), "2 selected · ⌘-click to add, Shift-click for a run");
+
+        // Arabic: every count is the reader's digits, and no English word survives any sentence.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let target = collection_target_label(3);
+        assert!(
+            target.contains("مجموعات") && target.contains('٣') && !target.contains("collections"),
+            "the batch label is the catalogue's own sentence: {target}"
+        );
+        let pinned = collection_pin_notice(true, 3);
+        assert!(
+            pinned.contains('٣') && pinned.contains("مجموعات") && !pinned.contains("Pinned"),
+            "the pin receipt is the catalogue's own sentence: {pinned}"
+        );
+        assert!(!collection_pin_notice(false, 1).contains("Unpinned"));
+        let deleted = collection_delete_notice(3);
+        assert!(
+            deleted.contains('٣') && deleted.contains("الصور") && !deleted.contains("collections"),
+            "the delete receipt is the catalogue's own sentence: {deleted}"
+        );
+        let hint = collection_batch_hint(2);
+        assert!(
+            hint.contains('٢') && hint.contains("⌘") && !hint.contains("Shift-click"),
+            "the batch line keeps its shortcuts and the reader's digits: {hint}"
+        );
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-collection-menu-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let mut engine = Engine::open(&dir).expect("open");
+        let first = engine.create_collection("Set one").expect("create");
+        let second = engine.create_collection("Set two").expect("create");
+        assert_eq!(engine.collections().len(), 2);
+        let collections = engine.collections();
+
+        // Two ticked rows: the menu is about both, and its delete row says how many.
+        let mut batch_actions = CollectionMenuActions::default();
+        let mut batch = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                collection_menu(ui, &tokens, &collections[0], &[first, second], &mut batch_actions);
+            });
+        });
+        let batch_texts = painted_texts(&batch);
+        batch.textures_delta.clear();
+        assert_painted(&batch_texts, &["أضف إلى المفضلة", "اللون"]);
+        assert!(
+            batch_texts.iter().any(|text| text.contains("مجموعات") && text.contains('٢')),
+            "the batch label counts the rows in the reader's digits: {batch_texts:?}"
+        );
+        assert!(
+            batch_texts.iter().any(|text| text.contains("حذف") && text.contains('٢')),
+            "the batch delete row is the catalogue's sentence: {batch_texts:?}"
+        );
+        assert!(
+            !batch_texts
+                .iter()
+                .any(|text| text.contains("Delete") || text.contains("Rename") || text.contains("collections")),
+            "no English menu row is left: {batch_texts:?}"
+        );
+        assert!(
+            batch_actions.pin.is_none() && batch_actions.delete.is_none() && batch_actions.rename.is_none(),
+            "painting a menu acts on nothing"
+        );
+
+        // One row: a rename and a single delete, and no batch label above them.
+        let mut single_actions = CollectionMenuActions::default();
+        let mut single = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                collection_menu(ui, &tokens, &collections[0], &[first], &mut single_actions);
+            });
+        });
+        let single_texts = painted_texts(&single);
+        single.textures_delta.clear();
+        assert_painted(&single_texts, &["إعادة تسمية…", "حذف المجموعة"]);
+        assert!(
+            !single_texts.iter().any(|text| text.contains("مجموعات")),
+            "a single row's menu has no batch label and no batch delete: {single_texts:?}"
+        );
+
+        // A favourite offers the opposite pin row, and the section's batch line is the catalogue's.
+        engine.set_collections_favourite(&[first], true).expect("pin");
+        let collections = engine.collections();
+        let mut pinned_actions = CollectionMenuActions::default();
+        let mut pinned_menu = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                collection_menu(ui, &tokens, &collections[0], &[first], &mut pinned_actions);
+            });
+        });
+        let pinned_texts = painted_texts(&pinned_menu);
+        pinned_menu.textures_delta.clear();
+        assert_painted(&pinned_texts, &["أزل من المفضلة"]);
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.collection_selection.replace(first);
+        state.collection_selection.toggle(second);
+        let mut sidebar = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                collections_section(ui, &tokens, &mut state, &mut engine);
+            });
+        });
+        let sidebar_texts = painted_texts(&sidebar);
+        sidebar.textures_delta.clear();
+        assert!(
+            sidebar_texts.iter().any(|text| text.contains("⌘") && text.contains('٢')),
+            "the batch line under the list is the catalogue's sentence: {sidebar_texts:?}"
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

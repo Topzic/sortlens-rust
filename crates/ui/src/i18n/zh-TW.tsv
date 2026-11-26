@@ -277,6 +277,15 @@
 	{n} collections are {colour}	{n} 個選集為{colour}
 	Collection colour cleared	已清除選集顏色
 	Colour cleared on {n} collections	已清除 {n} 個選集的顏色
+	{n} collections	{n} 個選集
+	Delete collection	刪除選集
+	Delete {n} collections	刪除 {n} 個選集
+	Pinned {n} collections to the top	已將 {n} 個選集釘選到最上方
+	Unpinned	已取消釘選
+	Unpinned {n} collections	已取消釘選 {n} 個選集
+	Collection deleted — the photos stay in the library	已刪除選集 — 照片仍留在圖庫
+	{n} collections deleted — the photos stay in the library	已刪除 {n} 個選集 — 照片仍留在圖庫
+	{n} selected · ⌘-click to add, Shift-click for a run	已選取 {n} 個 · ⌘ 點擊可新增、Shift 點擊可選取連續範圍
 	{colour} label	{colour}標籤
 	{colour} label on {n} photos	{n} 張照片上的{colour}標籤
 	Colour filter: {colour}	顏色篩選：{colour}

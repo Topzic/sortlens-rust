@@ -277,6 +277,15 @@
 	{n} collections are {colour}	{n} 件のコレクションは{colour}
 	Collection colour cleared	コレクションの色を解除しました
 	Colour cleared on {n} collections	{n} 件のコレクションの色を解除しました
+	{n} collections	{n} 件のコレクション
+	Delete collection	コレクションを削除
+	Delete {n} collections	コレクションを {n} 件削除
+	Pinned {n} collections to the top	{n} 件のコレクションを先頭に固定しました
+	Unpinned	固定を解除しました
+	Unpinned {n} collections	{n} 件のコレクションの固定を解除しました
+	Collection deleted — the photos stay in the library	コレクションを削除しました — 写真はライブラリに残ります
+	{n} collections deleted — the photos stay in the library	{n} 件のコレクションを削除しました — 写真はライブラリに残ります
+	{n} selected · ⌘-click to add, Shift-click for a run	{n} 件を選択中 · ⌘ クリックで追加、Shift クリックで範囲選択
 	{colour} label	{colour}ラベル
 	{colour} label on {n} photos	{n} 枚の写真に{colour}ラベル
 	Colour filter: {colour}	色フィルター: {colour}

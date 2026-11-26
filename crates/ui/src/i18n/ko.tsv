@@ -277,6 +277,15 @@
 	{n} collections are {colour}	컬렉션 {n}개가 {colour}
 	Collection colour cleared	컬렉션 색 지워짐
 	Colour cleared on {n} collections	컬렉션 {n}개의 색 지워짐
+	{n} collections	컬렉션 {n}개
+	Delete collection	컬렉션 삭제
+	Delete {n} collections	컬렉션 {n}개 삭제
+	Pinned {n} collections to the top	컬렉션 {n}개를 맨 위에 고정했습니다
+	Unpinned	고정을 해제했습니다
+	Unpinned {n} collections	컬렉션 {n}개의 고정을 해제했습니다
+	Collection deleted — the photos stay in the library	컬렉션을 삭제했습니다 — 사진은 라이브러리에 남습니다
+	{n} collections deleted — the photos stay in the library	컬렉션 {n}개를 삭제했습니다 — 사진은 라이브러리에 남습니다
+	{n} selected · ⌘-click to add, Shift-click for a run	{n}개 선택됨 · ⌘ 클릭으로 추가, Shift 클릭으로 연속 선택
 	{colour} label	{colour} 라벨
 	{colour} label on {n} photos	사진 {n}장의 {colour} 라벨
 	Colour filter: {colour}	색 필터: {colour}

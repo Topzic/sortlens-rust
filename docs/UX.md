@@ -843,6 +843,11 @@ re-checks its own contrast pairs after applying.
   `Not mounted` lines, both pin labels, `Rescan` and `Remove from library` are rows, the away count
   in the reader's digits, so an Arabic sidebar's unplugged drive reads `١٢ · غائب` where it read
   `12 · away`.
+  The collection rows followed (hundred-and-forty-sixth entry): the `{n} collections` batch label,
+  both pin labels, `Rename…`, `Delete collection` and `Delete {n} collections`, the batch line
+  `{n} selected · ⌘-click to add, Shift-click for a run`, and the pin and delete receipts are rows
+  and templates with the counts in the reader's digits, so an Arabic menu reads `٢ مجموعات` above
+  `حذف ٢ مجموعات`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

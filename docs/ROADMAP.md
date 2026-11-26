@@ -1235,10 +1235,22 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_folder_rows_and_their_menu_speak_the_interface_language` paints the empty sidebar and the
   real menu under Arabic, and the volume test now calls the production decision instead of a copy
   of its match arms.
+  The collection rows and their menu followed (hundred-and-forty-sixth entry): the batch
+  `{n} collections` label, `Add to favourites`/`Remove from favourites`, `Rename…`, `Delete
+  collection` and `Delete {n} collections`, the line that says what a ticked batch acts on
+  (`{n} selected · ⌘-click to add, Shift-click for a run`), and the receipts a pin or a delete
+  leaves (`Pinned to the top`, `Pinned {n} collections to the top`, `Unpinned`, `Unpinned {n}
+  collections`, `Collection deleted — the photos stay in the library`, `{n} collections deleted —
+  the photos stay in the library`) are rows and templates, every count through `format_count`, and
+  `collection_menu` is the one function the row's right-click paints. An Arabic menu reads
+  `٢ مجموعات` above `حذف ٢ مجموعات`, and the batch line keeps its shortcuts in the reader's digits.
+  `the_collection_rows_and_their_menu_speak_the_interface_language` paints the real two-row and
+  one-row menus and the real section under Arabic, and the helpers pin every English shape.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: dozens of `on_hover_text`/accessibility names, and dialog literals
-  such as the collection menu's `{n} collections` label and its two pin labels — no production
-  `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
+  went through `tl!`/`i18n::fmt`: twenty-three `on_hover_text` names, the Settings checkboxes
+  `Reduced motion`, `Allow downloading models (network)` and `Check for updates (network)`, the
+  inspector buttons `Rename or merge…`, `Export…`, `Show in folder` and `Open in default app`, two
+  empty-state hints — no production `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
   entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the
   hundred-and-forty-second and selection in the hundred-and-forty-third). The row stays unticked until the

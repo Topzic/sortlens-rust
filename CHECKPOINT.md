@@ -1,5 +1,52 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-sixth) — the collection rows and their menu speak the interface language
+
+- **Why this came up.** The hundred-and-forty-fifth entry's Next named the collection rows' context
+  menu. `collections_section` still painted English there: the batch label `{n} collections`, both pin
+  labels, `Rename…`, `Delete collection` and `Delete {n} collections`, the line under the list
+  (`{n} selected · ⌘-click to add, Shift-click for a run`), and the receipts a pin or a delete leaves
+  (`Pinned to the top`, `Pinned {n} collections to the top`, `Unpinned`, `Unpinned {n} collections`,
+  `Collection deleted — the photos stay in the library`, `{n} collections deleted — …`), every count
+  built with `format!`, so an Arabic sidebar counted its sets in Latin digits behind an English frame.
+- **What is routed.** Nine rows per catalogue, 54 in all. `collection_menu` is the row's whole context
+  menu, moved out of the closure so a test can paint it without a mouse; `collection_target_label`,
+  `collection_delete_label`, `collection_pin_notice`, `collection_delete_notice` and
+  `collection_batch_hint` word every sentence with its count through `format_count`, and the pin row
+  reuses `folder_pin_label`, because a favourite means the same thing in both lists. The menu writes
+  into a `CollectionMenuActions` struct, so painting it cannot change a library. `Rename…` and
+  `Pinned to the top` were already catalogue rows and are reused rather than duplicated.
+- **Tests.** `the_collection_rows_and_their_menu_speak_the_interface_language` pins every English
+  shape, then under Arabic requires `٣ مجموعات`, the pin and the delete receipts in the catalogue's
+  words with the reader's digits, and paints the real two-row menu (its batch label and
+  `حذف ٢ مجموعات`), a one-row menu (`إعادة تسمية…`, `حذف المجموعة`, no batch label), a favourite's
+  `أزل من المفضلة`, and the real section's batch line — asserting at each frame that no English row is
+  left and that painting acted on nothing. It fails on the pre-slice source: the helpers do not exist
+  and the catalogue audit has no row for any of the new keys.
+- **Docs.** ROADMAP's SL-L07 row records the family and re-counts what the audit still finds
+  (twenty-three `on_hover_text` names, the Settings checkboxes `Reduced motion` and the two network
+  consents, the inspector buttons `Rename or merge…`/`Export…`/`Show in folder`/`Open in default app`,
+  and two empty-state hints), UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name the helpers and the
+  test. SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 after `cargo fmt --all` — fmt, workspace clippy and the whole
+  suite (252 `sortlens-ui` tests, the catalogue audit among them) to its doc-tests — and the ten
+  checks after the suite (layers, roots, assets, fonts, version, attribution, a11y, docs, templates,
+  workflows) printed ok. `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved —
+  no committed scene opens a collection menu and the English paint is unchanged; `cargo xtask snapshot`
+  5 passed; `cargo xtask deny` (advisories, bans, licenses, sources) ok. The previous commit's `CI`
+  run (`45822524288`) was still in progress when this tick read it and its predecessor
+  (`45819670103`) concluded success. `cargo xtask mobile` cannot run here (no Android NDK, no Xcode)
+  and no phone code changed; there is no `cargo xtask wasm` in this workspace. No release workflow was
+  dispatched: source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the five helpers, `collection_menu`, the rewired rows and the new
+  test), `crates/engine/src/lib.rs` (`Collection` is re-exported, so the UI can name the type its
+  `collections()` returns), the six `crates/ui/src/i18n/*.tsv` (nine rows each), `docs/ROADMAP.md`,
+  `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the inspector's action buttons in `crates/ui/src/shell.rs`: `Rename or merge…`, `Export…`,
+  `Show in folder` and `Open in default app`, with their hover names, through `tl!`. SL-L07 stays
+  unticked; its row lists what the audit still finds after that (the Settings checkboxes, the two
+  empty-state hints and the rest of the `on_hover_text` names). No release run is in flight.
 ## 2026-11-26 (hundred-and-forty-fifth) — the folder rows and their menu speak the interface language
 
 - **Why this came up.** The hundred-and-forty-fourth entry's Next named the folder rows and their

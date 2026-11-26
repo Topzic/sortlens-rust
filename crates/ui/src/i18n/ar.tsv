@@ -277,6 +277,15 @@
 	{n} collections are {colour}	لون {n} مجموعات {colour}
 	Collection colour cleared	أُزيل لون المجموعة
 	Colour cleared on {n} collections	أُزيل اللون عن {n} مجموعات
+	{n} collections	{n} مجموعات
+	Delete collection	حذف المجموعة
+	Delete {n} collections	حذف {n} مجموعات
+	Pinned {n} collections to the top	ثُبّتت {n} مجموعات في الأعلى
+	Unpinned	أُزيل التثبيت
+	Unpinned {n} collections	أُزيل تثبيت {n} مجموعات
+	Collection deleted — the photos stay in the library	حُذفت المجموعة — تبقى الصور في المكتبة
+	{n} collections deleted — the photos stay in the library	حُذفت {n} مجموعات — تبقى الصور في المكتبة
+	{n} selected · ⌘-click to add, Shift-click for a run	حُدّدت {n} مجموعات · النقر مع ⌘ يضيف، والنقر مع Shift يأخذ النطاق
 	{colour} label	ملصق {colour}
 	{colour} label on {n} photos	ملصق {colour} على {n} صورة
 	Colour filter: {colour}	مرشّح اللون: {colour}

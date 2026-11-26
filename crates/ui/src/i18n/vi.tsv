@@ -277,6 +277,15 @@
 	{n} collections are {colour}	{n} bộ sưu tập là {colour}
 	Collection colour cleared	Đã xóa màu bộ sưu tập
 	Colour cleared on {n} collections	Đã xóa màu trên {n} bộ sưu tập
+	{n} collections	{n} bộ sưu tập
+	Delete collection	Xóa bộ sưu tập
+	Delete {n} collections	Xóa {n} bộ sưu tập
+	Pinned {n} collections to the top	Đã ghim {n} bộ sưu tập lên đầu
+	Unpinned	Đã bỏ ghim
+	Unpinned {n} collections	Đã bỏ ghim {n} bộ sưu tập
+	Collection deleted — the photos stay in the library	Đã xóa bộ sưu tập — ảnh vẫn ở trong thư viện
+	{n} collections deleted — the photos stay in the library	Đã xóa {n} bộ sưu tập — ảnh vẫn ở trong thư viện
+	{n} selected · ⌘-click to add, Shift-click for a run	Đã chọn {n} · ⌘-click để thêm, Shift-click để chọn dải
 	{colour} label	Nhãn {colour}
 	{colour} label on {n} photos	Nhãn {colour} trên {n} ảnh
 	Colour filter: {colour}	Bộ lọc màu: {colour}

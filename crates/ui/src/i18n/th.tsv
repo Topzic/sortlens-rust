@@ -277,6 +277,15 @@
 	{n} collections are {colour}	คอลเลกชัน {n} แห่งเป็น {colour}
 	Collection colour cleared	ล้างสีคอลเลกชันแล้ว
 	Colour cleared on {n} collections	ล้างสีบนคอลเลกชัน {n} แห่งแล้ว
+	{n} collections	คอลเลกชัน {n} รายการ
+	Delete collection	ลบคอลเลกชัน
+	Delete {n} collections	ลบคอลเลกชัน {n} รายการ
+	Pinned {n} collections to the top	ปักหมุดคอลเลกชัน {n} รายการไว้ด้านบนแล้ว
+	Unpinned	ยกเลิกการปักหมุดแล้ว
+	Unpinned {n} collections	ยกเลิกการปักหมุดคอลเลกชัน {n} รายการแล้ว
+	Collection deleted — the photos stay in the library	ลบคอลเลกชันแล้ว — รูปภาพยังอยู่ในคลัง
+	{n} collections deleted — the photos stay in the library	ลบคอลเลกชัน {n} รายการแล้ว — รูปภาพยังอยู่ในคลัง
+	{n} selected · ⌘-click to add, Shift-click for a run	เลือก {n} รายการ · ⌘-คลิกเพื่อเพิ่ม, Shift-คลิกเพื่อเลือกช่วง
 	{colour} label	ป้าย {colour}
 	{colour} label on {n} photos	ป้าย {colour} บน {n} รูป
 	Colour filter: {colour}	ตัวกรองสี: {colour}
