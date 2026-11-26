@@ -1094,3 +1094,17 @@
 	Indexing · {files} files · {folders} folders	建立索引中 · {files} 個檔案 · {folders} 個資料夾
 	Scanning · {files} files	掃描中 · {files} 個檔案
 	Rate {stars}★ — the same star again clears it	評為 {stars}★ — 再按同一顆星可清除
+	Charcoal	炭黑
+	Midnight	午夜
+	Silver	銀色
+	High Contrast	高對比
+	Comfortable	舒適
+	Roomy	寬敞
+	Square	方形
+	Justified	兩端對齊
+	Appearance, {theme}	外觀，{theme}
+	Appearance: {theme} — click to cycle, right-click for every theme and reduced motion	外觀：{theme} — 按一下可切換，按右鍵可查看所有主題與減少動態效果
+	Thumbnail size	縮圖大小
+	Thumbnail size: {size}	縮圖大小：{size}
+	Grid density: {size}	網格密度：{size}
+	Grid layout: {layout}	格狀配置：{layout}

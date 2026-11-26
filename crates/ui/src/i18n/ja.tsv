@@ -1095,3 +1095,17 @@
 	Indexing · {files} files · {folders} folders	インデックス作成中 · {files} ファイル · {folders} フォルダー
 	Scanning · {files} files	スキャン中 · {files} ファイル
 	Rate {stars}★ — the same star again clears it	{stars}★ を評価 — 同じ星をもう一度押すと解除
+	Charcoal	チャコール
+	Midnight	ミッドナイト
+	Silver	シルバー
+	High Contrast	ハイコントラスト
+	Comfortable	快適
+	Roomy	ゆったり
+	Square	正方形
+	Justified	ジャスティファイド
+	Appearance, {theme}	外観、{theme}
+	Appearance: {theme} — click to cycle, right-click for every theme and reduced motion	外観: {theme} — クリックで切り替え、右クリックで全テーマとモーションを減らす
+	Thumbnail size	サムネイルの大きさ
+	Thumbnail size: {size}	サムネイルの大きさ: {size}
+	Grid density: {size}	グリッドの密度: {size}
+	Grid layout: {layout}	グリッド配置: {layout}

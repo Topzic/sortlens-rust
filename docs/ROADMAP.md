@@ -1436,13 +1436,27 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_progress_lines_and_the_rating_hover_speak_the_interface_language` reads `shell.rs` back,
   requires each template and rejects the bare `format!` over the same sentence, then holds the
   English byte for byte and Arabic's own digits.
+  The appearance and grid words followed (hundred-and-sixty-ninth entry): the four hovers
+  (`Appearance: {theme} — click to cycle, right-click for every theme and reduced motion`,
+  `Thumbnail size: {size}`, `Grid density: {size}`, `Grid layout: {layout}`), the button's spoken
+  name `Appearance, {theme}` and the Settings slider's assistive `Thumbnail size` are `fmt`
+  templates and a row, and `theme_word`/`density_word`/`layout_word` key the catalogue with
+  `ThemeKind`/`Density`/`GridMode`'s own English labels, so the Appearance button, its spoken name,
+  its context menu, the Settings radios and the two grid chips cannot name a preset, a density or a
+  layout differently. `Charcoal`, `Midnight`, `Silver`, `High Contrast`, `Comfortable`, `Roomy`,
+  `Square` and `Justified` are new rows in each of the six catalogues, beside the `Paper`, `Compact`
+  and `Reduced motion` rows that were already there. Fourteen new rows per catalogue.
+  `the_appearance_and_grid_words_speak_the_interface_language` reads `shell.rs` back — building its
+  search patterns at run time, because the test lives in the file it reads — requires the six
+  templates and rejects each bare `format!` twin, checks both routed paint sites, walks every
+  `ThemeKind`, `Density` and `GridMode` value through all six catalogues (labels looked up at paint
+  time are invisible to `i18n.rs`'s audit), then holds English byte for byte and Arabic's
+  `منتصف الليل`, `واسع` and `مضبوط` with its two grid hovers. With the Settings radio reverted to
+  `kind.label()` it fails with `left: 1, right: 2`.
   The sweep also found what is still painted English, surface by surface, for later ticks: the
-  appearance, grid-density, grid-layout and thumbnail-size hovers with the theme, density and layout
-  words they name — those value words have no rows at all except `Paper`, `Compact` and
-  `Reduced motion`, so Settings' theme radios paint English today; the Insights breakdown's
-  `{extra} with no …` remainder line; the keyword-pack row's `{}: {problem}` and
-  `{} keyword(s) · {}`; and the two chart hovers (`{} — {}{share}`, `{label}: {} of {} ({:.1}%)`).
-  The next surface is the appearance and grid value words with their four hovers.
+  Insights breakdown's `{extra} with no …` remainder line; the keyword-pack row's
+  `{}: {problem}` and `{} keyword(s) · {}`; and the two chart hovers (`{} — {}{share}`,
+  `{label}: {} of {} ({:.1}%)`). The next surface is the Insights breakdown's remainder line.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

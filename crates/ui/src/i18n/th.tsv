@@ -1096,3 +1096,17 @@
 	Indexing · {files} files · {folders} folders	กำลังสร้างดัชนี · {files} ไฟล์ · {folders} โฟลเดอร์
 	Scanning · {files} files	กำลังสแกน · {files} ไฟล์
 	Rate {stars}★ — the same star again clears it	ให้คะแนน {stars}★ — ดาวเดิมอีกครั้งเพื่อล้างค่า
+	Charcoal	ถ่าน
+	Midnight	เที่ยงคืน
+	Silver	สีเงิน
+	High Contrast	คอนทราสต์สูง
+	Comfortable	สบาย
+	Roomy	กว้างขวาง
+	Square	สี่เหลี่ยม
+	Justified	ชิดขอบ
+	Appearance, {theme}	รูปลักษณ์, {theme}
+	Appearance: {theme} — click to cycle, right-click for every theme and reduced motion	รูปลักษณ์: {theme} — คลิกเพื่อสลับ คลิกขวาเพื่อเข้าถึงทุกธีมและการลดการเคลื่อนไหว
+	Thumbnail size	ขนาดภาพย่อ
+	Thumbnail size: {size}	ขนาดภาพย่อ: {size}
+	Grid density: {size}	ความหนาแน่นของตาราง: {size}
+	Grid layout: {layout}	เลย์เอาต์ตาราง: {layout}

@@ -1,6 +1,55 @@
 # Checkpoint
 
 ## 2026-11-26 (hundred-and-sixty-eighth) — the canvas's progress lines and star hover speak the interface language, and the sweep found the rest
+## 2026-11-26 (hundred-and-sixty-ninth) — the appearance and grid words, their four hovers and the Settings radios speak the interface language
+
+- **Why it came up.** The hundred-and-sixty-eighth entry's Next was this exact surface: the four
+  hovers, the value words they name and the Settings theme radios. The `CI` run for `78e4939`
+  (`45891726009`) was still in progress at STEP 1b, not red, so this was a roadmap slice.
+- **What shipped.** `theme_word`, `density_word` and `layout_word` key the catalogue with
+  `ThemeKind`/`Density`/`GridMode`'s own English `label()` — the persisted ids and the CLI stay
+  untouched — and seven paint sites now route through them or through `fmt`:
+  `Appearance: {theme} — click to cycle, right-click for every theme and reduced motion`,
+  the button's spoken `Appearance, {theme}`, the context menu's five preset rows, the Settings
+  radios (both from `theme_word`), `Thumbnail size: {size}` beside the slider's assistive
+  `Thumbnail size`, and the canvas header's `Grid density: {size}` and `Grid layout: {layout}`.
+  `Charcoal`, `Midnight`, `Silver`, `High Contrast`, `Comfortable`, `Roomy`, `Square` and
+  `Justified` are new rows in each of the six catalogues beside the `Paper`, `Compact` and
+  `Reduced motion` rows that were already there; fourteen new rows per catalogue. English is
+  byte-identical, so no baseline can move, and Arabic now reads `المظهر: منتصف الليل — …` and
+  `تخطيط الشبكة: مربّع` where it read English.
+- **The test.** `the_appearance_and_grid_words_speak_the_interface_language` reads `shell.rs`
+  back, requires the six templates, rejects each bare `format!` twin, and asserts exactly two
+  `theme_word(kind)` paint sites with no bare `kind.label()` left in the menu or the radios. Its
+  search literals are built at run time (`["theme_", "word(kind", ")"].concat()`), because a literal
+  in the test would match itself in the file the test reads — the first version of the guard passed
+  against its own revert for exactly that reason. It then walks every `ThemeKind`, `Density` and
+  `GridMode` value and all six templates through the six catalogues, holds English byte for byte,
+  and asserts Arabic's `منتصف الليل`, `واسع`, `مضبوط` and its two grid hovers. **Proved to bite:**
+  with the Settings radio reverted to `kind.label()` it fails with `left: 1, right: 2`.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean
+  (the first version tripped `cognitive_complexity` at 32/30, so the catalogue walk is a nested
+  helper now); the new test plus `catalogs_load_and_routed_keys_have_rows`,
+  `every_keymap_word_answers_every_catalogue` and the High Contrast radio test 4 passed; then
+  `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole suite, `layers`, `roots`, `assets`,
+  `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask
+  snapshot` 5 passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo
+  xtask screenshots` 30 passed and 1 ignored (network) with no baseline moved. `cargo xtask
+  mobile` cannot run here (no Android NDK, no Xcode), so CI's two mobile legs are the proof — this
+  slice touched `crates/ui`. No release workflow was dispatched: source, catalogue rows, tests and
+  docs, no build or release surface.
+- **Docs.** ROADMAP's SL-L07 row records this surface, its test and its bite proof, and names the
+  Insights breakdown's remainder line as the next surface; the row stays unticked. No prose in
+  `docs/UX.md`, `docs/ARCHITECTURE.md` or `README.md` quotes these hover words, so none was
+  contradicted.
+- **Files.** `crates/ui/src/shell.rs` (three helpers, seven routed sites, the new test), the six
+  `crates/ui/src/i18n/*.tsv` (fourteen rows each), `docs/ROADMAP.md` and this file.
+- **Next.** The Insights breakdown's `{extra} with no …` remainder line, then the keyword-pack row's
+  `{}: {problem}` and `{} keyword(s) · {}` and the two chart hovers (`{} — {}{share}`,
+  `{label}: {} of {} ({:.1}%)`). SL-L07 stays unticked until the whole-source audit proves every
+  painted literal is a catalogue row. No release run in flight.
+
+
 
 - **Why it came up.** The hundred-and-sixty-seventh entry's Next was the whole-source sweep that can
   tick SL-L07, one painted surface at a time. The `CI` run for `db83c96` (`45889523590`) was still

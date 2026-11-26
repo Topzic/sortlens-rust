@@ -1094,3 +1094,17 @@
 	Indexing · {files} files · {folders} folders	색인 중 · 파일 {files}개 · 폴더 {folders}개
 	Scanning · {files} files	검사 중 · 파일 {files}개
 	Rate {stars}★ — the same star again clears it	{stars}★ 평가 — 같은 별을 다시 누르면 해제됩니다
+	Charcoal	차콜
+	Midnight	미드나이트
+	Silver	실버
+	High Contrast	고대비
+	Comfortable	편안함
+	Roomy	넉넉함
+	Square	정사각형
+	Justified	양끝 정렬
+	Appearance, {theme}	모양, {theme}
+	Appearance: {theme} — click to cycle, right-click for every theme and reduced motion	모양: {theme} — 클릭하여 전환, 오른쪽 클릭으로 모든 테마와 동작 줄이기
+	Thumbnail size	썸네일 크기
+	Thumbnail size: {size}	썸네일 크기: {size}
+	Grid density: {size}	그리드 밀도: {size}
+	Grid layout: {layout}	그리드 배치: {layout}

@@ -227,6 +227,24 @@ fn sort_word(sort: Sort) -> &'static str {
     tl!(sort.label())
 }
 
+/// A theme preset's name in the reader's language (SL-L07). `ThemeKind::label` stays the English
+/// source of truth — the config and the CLI keep their own stable ids — and the catalogue row is
+/// looked up by it, so the Appearance button, its spoken name, its menu and the Settings radios
+/// cannot disagree about what a preset is called.
+fn theme_word(kind: ThemeKind) -> &'static str {
+    tl!(kind.label())
+}
+
+/// A grid density's name in the reader's language, keyed by `Density::label`.
+fn density_word(step: Density) -> &'static str {
+    tl!(step.label())
+}
+
+/// A grid layout's name in the reader's language, keyed by `GridMode::label`.
+fn layout_word(mode: GridMode) -> &'static str {
+    tl!(mode.label())
+}
+
 /// A confidence as a percentage in the reader's own digits.
 fn suggestion_percent(percent: f32) -> String {
     format!("{}%", format_count(percent.round() as u64))
@@ -2324,18 +2342,19 @@ fn appearance_button(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut
             .fill(Color32::TRANSPARENT)
             .stroke(Stroke::NONE),
     );
-    let spoken = format!("Appearance, {}", state.theme.label());
+    let theme = theme_word(state.theme);
+    let spoken = crate::i18n::fmt("Appearance, {theme}", &[("theme", theme)]);
     a11y::label_widget(ui, &response, egui::Role::Button, &spoken, false);
-    let response = response.on_hover_text(format!(
-        "Appearance: {} — click to cycle, right-click for every theme and reduced motion",
-        state.theme.label()
+    let response = response.on_hover_text(crate::i18n::fmt(
+        "Appearance: {theme} — click to cycle, right-click for every theme and reduced motion",
+        &[("theme", theme)],
     ));
     if response.clicked() {
         actions.push(Action::SetTheme(next_theme(state.theme)));
     }
     response.context_menu(|ui| {
         for kind in ThemeKind::ALL {
-            if ui.selectable_label(kind == state.theme, kind.label()).clicked() {
+            if ui.selectable_label(kind == state.theme, theme_word(kind)).clicked() {
                 actions.push(Action::SetTheme(kind));
                 ui.close();
             }
@@ -2821,7 +2840,7 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                                 .show_value(false)
                                 .trailing_fill(true),
                         );
-                        crate::a11y::label_widget(ui, &slider, egui::Role::Slider, "Thumbnail size", false);
+                        crate::a11y::label_widget(ui, &slider, egui::Role::Slider, tl!("Thumbnail size"), false);
                         if slider.changed() {
                             let density = Density::from_index(step);
                             if density != state.density {
@@ -2829,7 +2848,7 @@ fn bottom_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                                 actions.push(Action::SetDensity(density));
                             }
                         }
-                        slider.on_hover_text(format!("Thumbnail size: {}", state.density.label()));
+                        slider.on_hover_text(crate::i18n::fmt("Thumbnail size: {size}", &[("size", density_word(state.density))]));
                     }
                     if let Some(progress) = engine.scan_progress().filter(|_| engine.is_scanning()) {
                         ui.label(
@@ -4224,13 +4243,13 @@ fn canvas(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, thu
                     // How many photographs a row holds belongs beside the order they are in: density and
                     // layout decide what the grid shows as much as the sort does, and none of the three is
                     // a setting you leave the grid to change.
-                    let density = format!("Grid density: {}", state.density.label());
+                    let density = crate::i18n::fmt("Grid density: {size}", &[("size", density_word(state.density))]);
                     if glyph_button(ui, t, crate::icons::Icon::Density, &density, false).clicked() {
                         let next = state.density.next();
                         state.density = next;
                         actions.push(Action::SetDensity(next));
                     }
-                    let layout = format!("Grid layout: {}", state.grid_mode.label());
+                    let layout = crate::i18n::fmt("Grid layout: {layout}", &[("layout", layout_word(state.grid_mode))]);
                     if glyph_button(ui, t, state.grid_mode.icon(), &layout, false).clicked() {
                         let next = state.grid_mode.next();
                         state.grid_mode = next;
@@ -11385,7 +11404,7 @@ fn settings_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 fn settings_body(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("Appearance")).size(11.0).color(t.text_muted));
     for kind in ThemeKind::ALL {
-        if ui.radio(state.theme == kind, kind.label()).clicked() && state.theme != kind {
+        if ui.radio(state.theme == kind, theme_word(kind)).clicked() && state.theme != kind {
             actions.push(Action::SetTheme(kind));
         }
     }
@@ -13223,6 +13242,119 @@ mod tests {
         assert!(hover.contains("٤"), "the hover's star count is Arabic-Indic: {hover:?}");
         assert!(!hover.contains("clears"), "no English is left in the hover: {hover:?}");
 
+        crate::i18n::set_current(previous);
+    }
+
+    /// The Appearance button, its menu, its spoken name, the Settings radios and the two grid chips
+    /// name a preset, a density and a layout in the reader's language (SL-L07). The value words come
+    /// from `ThemeKind`/`Density`/`GridMode` rather than a literal, so `i18n.rs`'s source-reading
+    /// audit cannot see them; this walks every variant against all six catalogues, then holds
+    /// English byte for byte and Arabic's own words.
+    #[test]
+    fn the_appearance_and_grid_words_speak_the_interface_language() {
+        let templates = [
+            "Appearance, {theme}",
+            "Appearance: {theme} — click to cycle, right-click for every theme and reduced motion",
+            "Thumbnail size",
+            "Thumbnail size: {size}",
+            "Grid density: {size}",
+            "Grid layout: {layout}",
+        ];
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect::<Vec<_>>().join("\n");
+        // Whitespace squeezed out, so a rustfmt wrap cannot hide a call site from the audit.
+        let squeezed: String = source.split_whitespace().collect();
+        for template in templates {
+            assert!(source.contains(template), "the shell does not route {template:?}");
+        }
+        for bare in [
+            "format!(\"Appearance, {}\"",
+            "format!(\"Appearance: {}",
+            "format!(\"Thumbnail size: {}",
+            "format!(\"Grid density: {}",
+            "format!(\"Grid layout: {}",
+        ] {
+            assert!(!source.contains(bare), "a bare format! still paints {bare:?}");
+        }
+        // The radios and the menu look the word up rather than printing the enum's English label.
+        // The patterns are built at run time, because the test lives in the file it reads back: a
+        // literal here would match itself and the guard would never fire.
+        let routed = ["theme_", "word(kind", ")"].concat();
+        assert_eq!(
+            squeezed.matches(&routed).count(),
+            2,
+            "the theme menu and the Settings radios both route the preset word"
+        );
+        let radio_bare = ["ui.radio(state.theme == kind, ", "kind.", "label())"].concat();
+        assert!(!squeezed.contains(&radio_bare), "the Settings radios still paint kind.label()");
+        let menu_bare = ["ui.selectable_label(kind == state.theme, ", "kind.", "label())"].concat();
+        assert!(!squeezed.contains(&menu_bare), "the theme menu still paints kind.label()");
+
+        // Every value word and every sentence is a row in each language the picker offers.
+        fn has_a_row_in_every_catalogue(key: &str) {
+            for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+                let lang = crate::i18n::from_code(code).expect("the picker offers it");
+                assert!(crate::i18n::I18N.get(lang, "", key).is_some(), "{code} has no row for {key:?}");
+            }
+        }
+        for kind in ThemeKind::ALL {
+            has_a_row_in_every_catalogue(kind.label());
+        }
+        for step in Density::ALL {
+            has_a_row_in_every_catalogue(step.label());
+        }
+        for mode in GridMode::ALL {
+            has_a_row_in_every_catalogue(mode.label());
+        }
+        for template in templates {
+            has_a_row_in_every_catalogue(template);
+        }
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(theme_word(ThemeKind::HighContrast), "High Contrast");
+        assert_eq!(density_word(Density::Roomy), "Roomy");
+        assert_eq!(layout_word(GridMode::Justified), "Justified");
+        assert_eq!(
+            crate::i18n::fmt(templates[1], &[("theme", theme_word(ThemeKind::Midnight))]),
+            "Appearance: Midnight — click to cycle, right-click for every theme and reduced motion"
+        );
+        assert_eq!(
+            crate::i18n::fmt(templates[0], &[("theme", theme_word(ThemeKind::Charcoal))]),
+            "Appearance, Charcoal"
+        );
+        assert_eq!(
+            crate::i18n::fmt("Thumbnail size: {size}", &[("size", density_word(Density::Compact))]),
+            "Thumbnail size: Compact"
+        );
+        assert_eq!(
+            crate::i18n::fmt("Grid density: {size}", &[("size", density_word(Density::Comfortable))]),
+            "Grid density: Comfortable"
+        );
+        assert_eq!(
+            crate::i18n::fmt("Grid layout: {layout}", &[("layout", layout_word(GridMode::Square))]),
+            "Grid layout: Square"
+        );
+
+        // Arabic is the translator's row, not the English fallback: the sentence and the value in it.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        assert_eq!(theme_word(ThemeKind::Midnight), "منتصف الليل");
+        assert_eq!(density_word(Density::Roomy), "واسع");
+        assert_eq!(layout_word(GridMode::Justified), "مضبوط");
+        let hover = crate::i18n::fmt(templates[1], &[("theme", theme_word(ThemeKind::Midnight))]);
+        assert!(hover.contains("منتصف الليل"), "the hover names the preset in Arabic: {hover:?}");
+        assert!(
+            !hover.contains("click") && !hover.contains("Appearance"),
+            "no English is left in the hover: {hover:?}"
+        );
+        let density = crate::i18n::fmt("Grid density: {size}", &[("size", density_word(Density::Comfortable))]);
+        assert!(
+            density.contains("كثافة الشبكة") && density.contains("مريح"),
+            "the density hover is Arabic: {density:?}"
+        );
+        let layout = crate::i18n::fmt("Grid layout: {layout}", &[("layout", layout_word(GridMode::Square))]);
+        assert!(
+            layout.contains("تخطيط الشبكة") && layout.contains("مربّع"),
+            "the layout hover is Arabic: {layout:?}"
+        );
         crate::i18n::set_current(previous);
     }
 
