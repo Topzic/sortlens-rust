@@ -1322,14 +1322,32 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_keyword_packs_empty_state_speaks_the_interface_language` reads `shell.rs` back, requires both
   labels to be `RichText::new(tl!(…))` with no bare-literal twin, then English unchanged and the
   Arabic rows.
-  **Still open in this row.** The literal list the audit kept is empty: every painted English string
-  in `crates/ui/src/shell.rs` now goes through `tl!`/`i18n::fmt` — no production
-  `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
-  entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
-  match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the
-  hundred-and-forty-second and selection in the hundred-and-forty-third). The row stays unticked until the
-  source-reading audit can prove a painted literal is a row rather than only a row being present for
-  every literal that already routed.
+  The model and update panels followed (hundred-and-fifty-seventh entry): Settings → AI models'
+  digest sentence, its `Stop`/`Install`/`Remove` buttons, `Download from the pinned release ·
+  {summary}`, the `Removed · {size} reclaimed` receipt and the store note are rows and templates
+  in all six languages, as are Settings → Updates' one-request sentence, `Check now`,
+  `Checking…` and `Update check failed: {error}`. The values inside them — the model row's own
+  name and summary, the formatted size and the engine's error — stay as their owners worded them.
+  `the_model_and_update_settings_speak_the_interface_language` reads `shell.rs` back, requires
+  every one of the ten sites to route with no bare-literal or bare-`format!` twin, then English
+  unchanged and the Arabic rows.
+  **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
+  audit's old list and found that the paragraph here used to claim more than was true: the literal
+  list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
+  sweep's remaining families:
+  - the inspector's keyword editor (`Keywords`, `No keywords yet.`, `Add`, `Used elsewhere`) and
+    the right panel's `Keywords and collections for the selection appear here.`;
+  - the filter strip's `Select a photo, press K and type a keyword.` and the collections hint
+    `Collect photos into named sets without moving them.`;
+  - the folder tree's `Up one level`, the scan row's `Cancel`, the insights breakdown's
+    `Nothing recorded yet`, and the map chip's `OpenFreeMap · online`;
+  - Settings' sidecar and backup notes, `Suggest keywords for the library…`, and the phone link's
+    pair and remove sentences;
+  - the command table's own labels (`crates/engine/src/command.rs`), which the menus paint.
+  Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
+  assistive names stay deliberate exceptions. The row ticks only when every family above is a
+  catalogue row or a recorded exception, which the next ticks take one family at a time — the
+  inspector's keyword editor is next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

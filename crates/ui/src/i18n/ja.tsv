@@ -1038,3 +1038,13 @@
 	Sortlens	Sortlens
 	Every shortcut in this mode  ?	このモードのすべてのショートカット  ?
 	Fit the photograph to the window, or show it at 1:1  Z	写真をウィンドウに合わせるか、等倍で表示します  Z
+	Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.	モデルは使用前に固定の SHA-256 ダイジェストと照合されます。インストールするまで何もダウンロードされず、すべてのファイルはこのマシンに残ります。
+	Install	インストール
+	Remove	削除
+	Download from the pinned release · {summary}	固定リリースからダウンロード · {summary}
+	Removed · {size} reclaimed	削除しました · {size} を解放
+	Open a library to manage models — they are stored beside its catalog.	ライブラリを開くとモデルを管理できます — モデルはそのカタログの隣に保存されます。
+	One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.	プロジェクトの GitHub リリースへのリクエストは「確認」を押したときだけです。自動でダウンロードやインストールは行いません。
+	Check now	今すぐ確認
+	Checking…	確認中…
+	Update check failed: {error}	更新の確認に失敗しました: {error}

@@ -1,5 +1,62 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-seventh) — Settings' model and update panels speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-sixth entry's Next named the whole-source sweep SL-L07's
+  row asks for, and the sweep turned up painted prose the earlier literal-by-literal entries had not
+  reached. The `CI` run for `4b7edec` (`45864171880`) was still in progress at STEP 1b, not red, so this
+  is a roadmap slice. The sweep's first finding is a docs correction as much as a route: the ROADMAP
+  row claimed every painted English string in `shell.rs` went through `tl!`/`i18n::fmt`, which was only
+  true of the list the audit had been keeping.
+- **What is routed.** Settings → AI models: the digest sentence, `Install`, `Stop` (a row the cull
+  screen already had), `Remove`, `Download from the pinned release · {summary}`, the
+  `Removed · {size} reclaimed` receipt and the note shown with no library open. Settings → Updates:
+  the one-request sentence, `Check now`, `Checking…` and `Update check failed: {error}`. Nine keys are
+  new in each of the six catalogues (54 rows in all) and `Stop` reuses its existing row. Three of them
+  are `crate::i18n::fmt` templates: the sentence translates, the pinned row's summary, the formatted
+  size and the engine's error stay as their owners worded them.
+- **The sweep's remaining list.** The row now names every family still painting English — the
+  inspector's keyword editor, the filter strip's two hints, the folder tree's `Up one level`, the scan
+  row's `Cancel`, the insights breakdown's `Nothing recorded yet`, the map chip's
+  `OpenFreeMap · online`, Settings' sidecar/backup/suggest notes and the phone link's two sentences,
+  and the command table's menu labels. Symbols, key caps, the product name, the map credit and
+  assistive names are recorded as deliberate exceptions. The inspector's keyword editor is next.
+- **Tests.** `the_model_and_update_settings_speak_the_interface_language` reads `shell.rs` back with
+  each line's indentation trimmed, so a call rustfmt wrapped at the margin still reads as one call; it
+  requires all eight labels to be `RichText::new(tl!("…"))` with no bare-literal twin, all three
+  templates to be `crate::i18n::fmt("…"` calls, and no bare `format!` overlapping them. Then English
+  must answer every key unchanged and Arabic the translator's row, for all eleven. It was proved to
+  bite: putting `Install` back to a bare literal fails it with `the settings line "Install" is still a
+  literal`. The catalogue audit now reads the nine new keys too, so a catalogue losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, corrects its own over-claim and lists the sweep's
+  remaining families; UX.md's i18n paragraph and ARCHITECTURE.md §8.4 record the route and the three
+  templates. SL-L07 stays unticked: the inspector's keyword editor and the command-table labels are
+  still painted English.
+- **Visual verification.** None expected: no committed scene switches the interface language, the
+  English paint is unchanged and the row values are unchanged, so no baseline should move —
+  `cargo xtask screenshots` was run because `crates/ui` changed.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui -- the_model_and_update_settings_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed; then `cargo xtask ci` (fmt, workspace clippy, the
+  whole suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows` all ok), `cargo xtask snapshot` 5 passed,
+  `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30
+  passed and 1 ignored (network) with no baseline moved. `cargo xtask docs` was re-run after the doc
+  edits (ok), and `cargo clippy`/`cargo test` were re-run on the exact committed source (exit 0, 2
+  passed).
+  There is no `cargo xtask wasm` in this workspace; `crates/ui` changed, so `cargo xtask mobile` is
+  CI's job — this machine has no Android NDK and no Xcode, which leaves the device-side leg unverified
+  here. No release workflow was dispatched: source, catalogue rows, tests and docs, no build or
+  release surface.
+- **Files.** `crates/ui/src/shell.rs` (the eleven routes, the three templates and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (nine rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the inspector's
+  keyword editor family: `Keywords`, `No keywords yet.`, `Add`, `Used elsewhere` and the right panel's
+  `Keywords and collections for the selection appear here.` through `tl!`, with the same
+  source-readback and Arabic lookup test. SL-L07 stays unticked. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-sixth) — the keyword packs empty state speaks the interface language
 
 - **Why this came up.** The hundred-and-fifty-fifth entry's Next named the last painted literal in

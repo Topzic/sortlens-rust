@@ -1037,3 +1037,13 @@
 	Sortlens	Sortlens
 	Every shortcut in this mode  ?	此模式中的所有快速鍵  ?
 	Fit the photograph to the window, or show it at 1:1  Z	讓相片符合視窗，或以 1:1 顯示  Z
+	Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.	模型在使用前都會比對固定的 SHA-256 摘要。在您安裝之前不會下載任何內容，而且每個檔案都留在這台電腦上。
+	Install	安裝
+	Remove	移除
+	Download from the pinned release · {summary}	從固定版本下載 · {summary}
+	Removed · {size} reclaimed	已移除 · 釋出 {size}
+	Open a library to manage models — they are stored beside its catalog.	開啟圖庫即可管理模型 — 模型存放在其目錄旁邊。
+	One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.	只有在您按下「檢查」時，才會向專案的 GitHub releases 送出一次請求。不會自動下載或安裝任何項目。
+	Check now	立即檢查
+	Checking…	檢查中…
+	Update check failed: {error}	檢查更新失敗：{error}

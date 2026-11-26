@@ -11485,9 +11485,9 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
         actions.push(Action::SetModelConsent(consent));
     }
     ui.label(
-        RichText::new(
-            "Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.",
-        )
+        RichText::new(tl!(
+            "Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine."
+        ))
         .size(10.5)
         .color(t.text_faint),
     );
@@ -11506,7 +11506,7 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
                                         .desired_width(140.0),
                                 );
                                 if ui
-                                    .button(RichText::new("Stop").size(11.0))
+                                    .button(RichText::new(tl!("Stop")).size(11.0))
                                     .on_hover_text(tl!("Keeps the partial download; installing again resumes it"))
                                     .clicked()
                                 {
@@ -11527,8 +11527,11 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
                     if consent && !row.downloading {
                         if !row.installed
                             && ui
-                                .button(RichText::new("Install").size(11.0))
-                                .on_hover_text(format!("Download from the pinned release · {}", row.summary))
+                                .button(RichText::new(tl!("Install")).size(11.0))
+                                .on_hover_text(crate::i18n::fmt(
+                                    "Download from the pinned release · {summary}",
+                                    &[("summary", &row.summary)],
+                                ))
                                 .clicked()
                         {
                             let id = row.id.clone();
@@ -11538,17 +11541,15 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
                         }
                         if row.installed
                             && ui
-                                .button(RichText::new("Remove").size(11.0))
+                                .button(RichText::new(tl!("Remove")).size(11.0))
                                 .on_hover_text(tl!("Delete the file from the model store; you can install it again later"))
                                 .clicked()
                         {
                             match engine.remove_model(&row.id.clone()) {
                                 Ok(0) => {}
                                 Ok(bytes) => {
-                                    actions.push(Action::Notice(format!(
-                                        "Removed · {} reclaimed",
-                                        sortlens_core::format_bytes(bytes)
-                                    )));
+                                    let size = sortlens_core::format_bytes(bytes);
+                                    actions.push(Action::Notice(crate::i18n::fmt("Removed · {size} reclaimed", &[("size", &size)])));
                                 }
                                 Err(error) => actions.push(Action::Notice(error.to_string())),
                             }
@@ -11562,7 +11563,7 @@ fn ai_models_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut
         }
         Err(_) => {
             ui.label(
-                RichText::new("Open a library to manage models — they are stored beside its catalog.")
+                RichText::new(tl!("Open a library to manage models — they are stored beside its catalog."))
                     .size(10.5)
                     .color(t.text_faint),
             );
@@ -11586,13 +11587,13 @@ fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut V
         actions.push(Action::SetUpdateConsent(consent));
     }
     ui.label(
-        RichText::new(
-            "One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.",
-        )
+        RichText::new(tl!(
+            "One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically."
+        ))
         .size(10.5)
         .color(t.text_faint),
     );
-    if consent && ui.button(RichText::new("Check now").size(11.0)).clicked() {
+    if consent && ui.button(RichText::new(tl!("Check now")).size(11.0)).clicked() {
         match engine.check_for_updates() {
             Ok(()) => {}
             Err(error) => actions.push(Action::Notice(error.to_string())),
@@ -11602,12 +11603,15 @@ fn updates_section(ui: &mut Ui, t: &Tokens, engine: &mut Engine, actions: &mut V
     if let Some(answer) = engine.poll_update_check() {
         let message = match answer {
             Ok(report) => report.headline(),
-            Err(error) => format!("Update check failed: {error}"),
+            Err(error) => {
+                let detail = error.to_string();
+                crate::i18n::fmt("Update check failed: {error}", &[("error", &detail)])
+            }
         };
         actions.push(Action::Notice(message));
     }
     if engine.update_check_running() {
-        ui.label(RichText::new("Checking…").size(10.0).color(t.text_muted));
+        ui.label(RichText::new(tl!("Checking…")).size(10.0).color(t.text_muted));
     } else if let Some(report) = engine.last_update_report() {
         ui.label(
             RichText::new(report.headline())
@@ -22374,6 +22378,79 @@ mod tests {
         crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
         for (english, arabic) in LINES {
             assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// Settings → AI models and → Updates are catalogue rows, in every language the picker
+    /// offers.
+    ///
+    /// The model panel's digest sentence, its stop/install/remove buttons and the store note are
+    /// the chrome of the download the consent switch buys; the update panel's own sentence and its
+    /// check button are the chrome of the one request that switch allows. A reader who allowed
+    /// either in Arabic should not meet the terms of the permission in English.
+    #[test]
+    fn the_model_and_update_settings_speak_the_interface_language() {
+        // One row per label these two panels paint.
+        const LINES: [(&str, &str); 8] = [
+            (
+                "Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.",
+                "تُفحص النماذج مقابل بصمة SHA-256 مثبّتة قبل استخدام أي شيء. لا يُنزَّل شيء حتى تثبّت نموذجًا، ويبقى كل ملف على هذا الجهاز.",
+            ),
+            ("Install", "تثبيت"),
+            ("Stop", "إيقاف"),
+            ("Remove", "إزالة"),
+            (
+                "Open a library to manage models — they are stored beside its catalog.",
+                "افتح مكتبة لإدارة النماذج — فهي محفوظة بجانب فهرسها.",
+            ),
+            (
+                "One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.",
+                "طلب واحد إلى إصدارات المشروع على GitHub، وفقط عند الضغط على تحقّق. لا يُنزَّل أو يُثبَّت شيء تلقائيًا.",
+            ),
+            ("Check now", "تحقّق الآن"),
+            ("Checking…", "جارٍ التحقّق…"),
+        ];
+        // The three sentences with a value inside them: the sentence is the row, the value is the
+        // row's placeholder and stays as the engine or the size formatter worded it.
+        const TEMPLATES: [(&str, &str); 3] = [
+            ("Download from the pinned release · {summary}", "نزّل من الإصدار المثبّت · {summary}"),
+            ("Removed · {size} reclaimed", "أُزيل · استُعيد {size}"),
+            ("Update check failed: {error}", "فشل التحقّق من التحديث: {error}"),
+        ];
+        // The source with each line's own indentation trimmed away, so a call rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in LINES {
+            assert!(
+                source.contains(&format!("RichText::new(tl!(\"{english}\"))")),
+                "the settings line {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("RichText::new(\"{english}\")")),
+                "the settings line {english:?} also paints a bare literal"
+            );
+        }
+        for (template, _) in TEMPLATES {
+            assert!(
+                source.contains(&format!("crate::i18n::fmt(\"{template}\"")),
+                "the settings sentence {template:?} is still built with format!"
+            );
+        }
+        assert!(
+            !source.contains("format!(\"Download from the pinned release · {}\"")
+                && !source.contains("format!(\"Removed · {} reclaimed\"")
+                && !source.contains("format!(\"Update check failed: {error}\")"),
+            "a bare format! still overlaps the routed sentence"
+        );
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in LINES.iter().chain(TEMPLATES.iter()) {
+            assert_eq!(crate::i18n::tr(english), *english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in LINES.iter().chain(TEMPLATES.iter()) {
+            assert_eq!(crate::i18n::tr(english), *arabic, "the row for {english:?} is Arabic");
         }
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }

@@ -1039,3 +1039,13 @@
 	Sortlens	Sortlens
 	Every shortcut in this mode  ?	แป้นลัดทั้งหมดในโหมดนี้  ?
 	Fit the photograph to the window, or show it at 1:1  Z	พอดีรูปกับหน้าต่าง หรือแสดงที่ 1:1  Z
+	Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.	โมเดลจะถูกตรวจเทียบกับไดเจสต์ SHA-256 ที่ปักหมุดไว้ก่อนใช้งาน จะไม่มีการดาวน์โหลดใด ๆ จนกว่าคุณจะติดตั้ง และทุกไฟล์จะอยู่บนเครื่องนี้
+	Install	ติดตั้ง
+	Remove	ลบ
+	Download from the pinned release · {summary}	ดาวน์โหลดจากรุ่นที่ปักหมุด · {summary}
+	Removed · {size} reclaimed	ลบแล้ว · คืนพื้นที่ {size}
+	Open a library to manage models — they are stored beside its catalog.	เปิดไลบรารีเพื่อจัดการโมเดล — โมเดลถูกเก็บไว้ข้างแค็ตตาล็อกของไลบรารี
+	One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.	คำขอไปยัง GitHub releases ของโปรเจกต์มีเพียงครั้งเดียว และเฉพาะเมื่อคุณกดตรวจสอบ จะไม่มีการดาวน์โหลดหรือติดตั้งอัตโนมัติ
+	Check now	ตรวจสอบตอนนี้
+	Checking…	กำลังตรวจสอบ…
+	Update check failed: {error}	ตรวจสอบอัปเดตล้มเหลว: {error}

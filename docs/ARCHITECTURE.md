@@ -819,6 +819,15 @@ Suggested row in the inspector and the whole-library `Suggested keywords` dialog
 of the catalogues, so a source the pipeline adds later cannot arrive with a word only English has, and
 `the_suggestions_tab_speaks_the_interface_language` paints the tab in all three languages.
 
+Settings → AI models and → Updates are routed the same way (hundred-and-fifty-seventh entry): the
+digest sentence, the `Stop`, `Install` and `Remove` buttons, the store note, the update panel's
+one-request sentence and its `Check now`/`Checking…` state are `tl!` keys, and `Download from the
+pinned release · {summary}`, `Removed · {size} reclaimed` and `Update check failed: {error}` are
+`fmt` templates whose values — the model row's summary, the formatted size, the engine's error —
+stay as their owners worded them. `the_model_and_update_settings_speak_the_interface_language`
+reads `shell.rs` back, so a site that falls back to a bare `RichText::new` or a bare `format!`
+fails rather than painting English.
+
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

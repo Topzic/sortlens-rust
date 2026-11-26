@@ -891,6 +891,12 @@ re-checks its own contrast pairs after applying.
   The instruction names the menu path `Organise ▸ Keyword Packs`, and that path stays ASCII in all
   six catalogues because the menus paint their own English labels — a translated path would name
   words the reader cannot find on screen.
+  Settings → AI models and → Updates followed (hundred-and-fifty-seventh entry): the model panel's
+  digest sentence, its `Stop`/`Install`/`Remove` buttons, `Download from the pinned release ·
+  {summary}`, the `Removed · {size} reclaimed` receipt and the store note are rows and templates,
+  as are the update panel's one-request sentence, `Check now` and `Checking…` — so a reader who
+  allowed a download in Arabic reads the permission's terms, its buttons and its receipt in Arabic,
+  while `SHA-256`, the model's own name and the engine's error sentence stay values.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

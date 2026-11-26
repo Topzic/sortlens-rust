@@ -1037,3 +1037,13 @@
 	Sortlens	Sortlens
 	Every shortcut in this mode  ?	Mọi phím tắt trong chế độ này  ?
 	Fit the photograph to the window, or show it at 1:1  Z	Vừa ảnh với cửa sổ, hoặc hiển thị ở 1:1  Z
+	Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.	Mô hình được đối chiếu với một mã băm SHA-256 đã ghim trước khi dùng. Không có gì được tải xuống cho đến khi bạn cài đặt, và mọi tệp đều nằm trên máy này.
+	Install	Cài đặt
+	Remove	Xóa
+	Download from the pinned release · {summary}	Tải xuống từ bản phát hành đã ghim · {summary}
+	Removed · {size} reclaimed	Đã xóa · thu hồi {size}
+	Open a library to manage models — they are stored beside its catalog.	Mở một thư viện để quản lý mô hình — chúng được lưu cạnh danh mục của thư viện.
+	One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.	Chỉ một yêu cầu tới GitHub releases của dự án, và chỉ khi bạn nhấn Kiểm tra. Không có gì tự động tải xuống hay cài đặt.
+	Check now	Kiểm tra ngay
+	Checking…	Đang kiểm tra…
+	Update check failed: {error}	Kiểm tra cập nhật thất bại: {error}

@@ -1038,3 +1038,13 @@
 	Sortlens	Sortlens
 	Every shortcut in this mode  ?	كل اختصار في هذا الوضع  ?
 	Fit the photograph to the window, or show it at 1:1  Z	لائم الصورة مع النافذة، أو اعرضها بالحجم الأصلي  Z
+	Models are checked against a pinned SHA-256 digest before anything is used. Nothing downloads until you install one, and every file stays on this machine.	تُفحص النماذج مقابل بصمة SHA-256 مثبّتة قبل استخدام أي شيء. لا يُنزَّل شيء حتى تثبّت نموذجًا، ويبقى كل ملف على هذا الجهاز.
+	Install	تثبيت
+	Remove	إزالة
+	Download from the pinned release · {summary}	نزّل من الإصدار المثبّت · {summary}
+	Removed · {size} reclaimed	أُزيل · استُعيد {size}
+	Open a library to manage models — they are stored beside its catalog.	افتح مكتبة لإدارة النماذج — فهي محفوظة بجانب فهرسها.
+	One request to the project's GitHub releases, only when you press Check. Nothing downloads or installs automatically.	طلب واحد إلى إصدارات المشروع على GitHub، وفقط عند الضغط على تحقّق. لا يُنزَّل أو يُثبَّت شيء تلقائيًا.
+	Check now	تحقّق الآن
+	Checking…	جارٍ التحقّق…
+	Update check failed: {error}	فشل التحقّق من التحديث: {error}
