@@ -19,14 +19,22 @@
   `photo_menu`, `add_to_collection_menu` and `keyword_menu` under English and Arabic. It pins every
   English shape, requires the Arabic rows (including `إظهار في المجلد`, `أضف إلى مجموعة`,
   `لا مجموعات بعد` and `احذف في كل مكان`), asserts that no English row survives either menu, and
-  that a paint leaves every action field unset. It fails on the pre-slice source: the helpers do not
-  exist and the catalogue audit has no row for any of the new keys.
+  that a paint leaves every action field unset. It also pins the five hover sentences and the
+  `also written as {aliases}` template in Arabic. It fails on the pre-slice source: the helpers do
+  not exist and the catalogue audit has no row for any of the new keys.
 - **Docs.** ROADMAP's SL-L07 row records the family and narrows what the audit still finds to the
   Settings checkboxes, two empty-state hints and the remaining `on_hover_text` names. UX.md's i18n
   paragraph and ARCHITECTURE.md §8.4 name the three helpers and the test. SL-L07 stays unticked.
-- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` and
-  `cargo test -p sortlens-ui the_photo_and_keyword_menus_speak_the_interface_language` (1 passed,
-  252 filtered out) are green. Full gate: pending this tick.
+- **Verified.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` green;
+  `cargo test -p sortlens-ui the_photo_and_keyword_menus_speak_the_interface_language` 1 passed (252
+  filtered out); `cargo xtask ci` exit 0 through fmt, workspace clippy, the whole suite (the
+  catalogue audit among it) and the post-suite checks; `cargo xtask snapshot` 5 passed;
+  `cargo xtask deny` advisories, bans, licenses and sources ok; `cargo xtask screenshots` 30 passed,
+  1 ignored (network), no baseline moved. The full gate ran on the slice's production commit
+  `c42daf5`; the follow-up commit only adds the hover/alias assertions to the test, and re-ran UI
+  clippy and the focused test. No release workflow was dispatched — source, catalogue rows and docs,
+  no build or release surface. No phone code changed, but `crates/ui` did, so `cargo xtask mobile`
+  is CI's job: this machine has no Android NDK or Xcode.
 - **Files.** `crates/ui/src/shell.rs` (three helpers, the rewired cell and keyword menus, the aliases
   hover and the new test), the six `crates/ui/src/i18n/*.tsv` (eight rows each), `docs/ROADMAP.md`,
   `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.

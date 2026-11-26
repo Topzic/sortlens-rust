@@ -18177,6 +18177,29 @@ mod tests {
         );
 
         crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        // The hover sentences are rows too, so a missing translation cannot leave a tooltip in English.
+        assert_eq!(
+            tl!("Give this keyword another name, or merge it into an existing one"),
+            "امنح هذه الكلمة اسمًا آخر، أو ادمجها في كلمة موجودة"
+        );
+        assert_eq!(
+            tl!("Take the keyword off every photo; one undo brings it back"),
+            "أزل الكلمة من كل صورة؛ تراجع واحد يعيدها"
+        );
+        assert_eq!(
+            tl!("Write a copy somewhere; the original is not touched"),
+            "اكتب نسخة في مكان ما؛ الملف الأصلي لا يُمسّ"
+        );
+        assert_eq!(tl!("Show this file where it lives on disk"), "أظهر هذا الملف حيث يوجد على القرص");
+        assert_eq!(
+            tl!("Hand this file to the desktop's default application"),
+            "سلّم هذا الملف إلى التطبيق الافتراضي لسطح المكتب"
+        );
+        let aliases = crate::i18n::fmt("also written as {aliases}", &[("aliases", "backlit, night")]);
+        assert!(
+            aliases.contains("يُكتب أيضًا باسم") && aliases.contains("backlit, night"),
+            "the aliases hover is the catalogue's template with the value in place: {aliases:?}"
+        );
         let mut keyword_arabic = KeywordMenuActions::default();
         let keyword_texts = paint_menu(&ctx, |ui| keyword_menu(ui, &mut keyword_arabic));
         assert_painted(&keyword_texts, &["إعادة تسمية أو دمج…", "احذف في كل مكان"]);
