@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-ninth) — the keyword and collections hints speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-eighth entry's Next named the filter strip's hint and the
+  collections hint. The `CI` run for `236bdf8` (`45869239223`) was still in progress at STEP 1b, not
+  red, so this is a roadmap slice. `crates/ui/src/shell.rs` painted two literals: the hint the keyword
+  section shows when the library has no vocabulary, and the hint the Collections section shows when
+  there are no collections. They are the only words beside those two empty lists, so an Arabic window
+  explained both in English.
+- **What is routed.** Both sites are `hint(ui, t, tl!(…))` now: `Select a photo, press K and type a
+  keyword.` at the keyword section and `Collect photos into named sets without moving them.` at the
+  collections section. Two new rows in each of the six catalogues (12 rows). The `K` inside the first
+  sentence stays Latin in every catalogue, including Arabic, because it is the key a person presses —
+  the same rule the cull screen's key caps follow. English keeps every word it painted.
+- **Tests.** `the_filter_strip_and_collections_hints_speak_the_interface_language` reads `shell.rs`
+  back with each line's indentation trimmed, so a call rustfmt wrapped at the margin still reads as one
+  call; it requires both sites to be `hint(ui, t, tl!("…"))` with no bare-literal twin, then English
+  must answer every key unchanged and Arabic the translator's row. It was proved to bite: putting the
+  filter strip's hint back to a literal fails it with `the hint \"Select a photo, press K and type a
+  keyword.\" is still a literal`. The catalogue audit reads the two new keys too, so any of the six
+  catalogues losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, drops it from the sweep's remaining list and names
+  the folder tree's `Up one level` and the scan row's `Cancel` as next; the row stays unticked. UX.md's
+  i18n paragraph and ARCHITECTURE.md §8.4 record the route.
+- **Visual verification.** None expected: no committed scene opens a non-English window on either empty
+  state and the English paint is unchanged, so no baseline should move. `cargo xtask screenshots` was
+  run because `crates/ui` changed: 30 passed, 1 ignored (network), and `git status` showed no baseline
+  moved.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui -- the_filter_strip_and_collections_hints_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice literal, quoted above); then `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole
+  suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5 passed,
+  `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30
+  passed and 1 ignored (network) with no baseline moved. There is no `cargo xtask wasm` in this
+  workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job — this machine has no Android NDK
+  and no Xcode, which leaves the device-side leg unverified here. No release workflow was dispatched:
+  source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the two routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (two rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next family
+  on the row: the folder tree's `Up one level` and the scan row's `Cancel`, through `tl!`, with the
+  same source-readback and Arabic lookup test. SL-L07 stays unticked. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-eighth) — the inspector's keyword editor speaks the interface language
 
 - **Why this came up.** The hundred-and-fifty-seventh entry's Next named the inspector's keyword

@@ -1341,14 +1341,18 @@ and none of M9 is closed until the remaining rows are ticked.
   English beside those labels is each tag chip's hover: it is `TagSource::explanation()`, the crate's
   own sentence, joined to the suffix `· click to remove` — an engine word with no piece yet, the same
   kind of exception the map's `TileError::message()` is.
+  The keyword section's hint and the Collections hint followed (hundred-and-fifty-ninth entry): the
+  filter strip's `Select a photo, press K and type a keyword.` and `Collect photos into named sets
+  without moving them.` are `tl!` rows in all six languages, so the only words beside those two
+  empty lists are the reader's.
+  `the_filter_strip_and_collections_hints_speak_the_interface_language` reads `shell.rs` back,
+  requires both sites to route with no bare-literal twin, then English unchanged and the Arabic rows.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
   sweep's remaining families:
   - the tag chip's hover in that editor (`TagSource::explanation()` and the `· click to remove`
     suffix), which is a `sortlens-core` sentence with no piece yet;
-  - the filter strip's `Select a photo, press K and type a keyword.` and the collections hint
-    `Collect photos into named sets without moving them.`;
   - the folder tree's `Up one level`, the scan row's `Cancel`, the insights breakdown's
     `Nothing recorded yet`, and the map chip's `OpenFreeMap · online`;
   - Settings' sidecar and backup notes, `Suggest keywords for the library…`, and the phone link's
@@ -1357,7 +1361,7 @@ and none of M9 is closed until the remaining rows are ticked.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
   catalogue row or a recorded exception, which the next ticks take one family at a time — the
-  inspector's keyword editor is next.
+  folder tree's `Up one level` and the scan row's `Cancel` are next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

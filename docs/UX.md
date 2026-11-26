@@ -903,6 +903,9 @@ re-checks its own contrast pairs after applying.
   Arabic reader sees, types, adds and groups keywords in Arabic. What stays English beside those
   labels is each chip's hover, which is the keyword's source explained in `sortlens-core`'s own
   sentence.
+  The keyword section's hint and the Collections hint followed (hundred-and-fifty-ninth entry): the
+  filter strip's `Select a photo, press K and type a keyword.` and `Collect photos into named sets
+  without moving them.` are rows, so the only words beside those two empty lists are the reader's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

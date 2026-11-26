@@ -3386,7 +3386,7 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                     if state.sections.keywords {
                         let vocabulary = engine.tag_vocabulary_in(state.tag_order);
                         if vocabulary.is_empty() {
-                            hint(ui, t, "Select a photo, press K and type a keyword.");
+                            hint(ui, t, tl!("Select a photo, press K and type a keyword."));
                         }
                         let mut tag_delete: Option<String> = None;
                         for (tag, count) in vocabulary.iter().take(12) {
@@ -9458,7 +9458,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
     }
     let collections = engine.collections();
     if collections.is_empty() {
-        hint(ui, t, "Collect photos into named sets without moving them.");
+        hint(ui, t, tl!("Collect photos into named sets without moving them."));
     }
     let order: Vec<sortlens_core::CollectionId> = collections.iter().map(|collection| collection.id).collect();
     // A collection that was deleted elsewhere must not stay ticked.
@@ -22422,6 +22422,49 @@ mod tests {
             "hint(ui, t, \"Keywords and collections for the selection appear here.\")",
         ] {
             assert!(!source.contains(literal), "the keyword editor still paints {literal:?}");
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English
+        // fallback: a route whose key no catalogue answers would paint English in an Arabic window.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The filter strip's hint and the collections hint are catalogue rows, in every language the
+    /// picker offers.
+    ///
+    /// The filter strip tells a reader how to start a keyword vocabulary, and the Collections
+    /// section tells them what a collection is for; both are the only words beside those two
+    /// empty lists, so a reader who chose Arabic should not meet them in English.
+    #[test]
+    fn the_filter_strip_and_collections_hints_speak_the_interface_language() {
+        // One row per hint, with the call that paints it: the assertion is the wiring, so a route
+        // reading a key but painting something else cannot pass.
+        const LINES: [(&str, &str, &str); 2] = [
+            (
+                "Select a photo, press K and type a keyword.",
+                "اختر صورة، واضغط K واكتب كلمة مفتاحية.",
+                "hint(ui, t, tl!(\"Select a photo, press K and type a keyword.\"))",
+            ),
+            (
+                "Collect photos into named sets without moving them.",
+                "اجمع الصور في مجموعات مسماة دون نقلها.",
+                "hint(ui, t, tl!(\"Collect photos into named sets without moving them.\"))",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away, so a call rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _, route) in LINES {
+            assert!(source.contains(route), "the hint {english:?} is still a literal");
+            let literal = format!("hint(ui, t, \"{english}\")");
+            assert!(!source.contains(&literal), "the hint {english:?} also paints a bare literal");
         }
         // English is unchanged, and Arabic is the translator's row rather than the English
         // fallback: a route whose key no catalogue answers would paint English in an Arabic window.

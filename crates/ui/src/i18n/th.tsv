@@ -1053,3 +1053,5 @@
 	Check now	ตรวจสอบตอนนี้
 	Checking…	กำลังตรวจสอบ…
 	Update check failed: {error}	ตรวจสอบอัปเดตล้มเหลว: {error}
+	Select a photo, press K and type a keyword.	เลือกรูป กด K แล้วพิมพ์คำค้น
+	Collect photos into named sets without moving them.	รวบรวมรูปเป็นชุดที่มีชื่อโดยไม่ย้ายไฟล์
