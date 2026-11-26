@@ -900,9 +900,12 @@ re-checks its own contrast pairs after applying.
   The inspector's keyword editor followed (hundred-and-fifty-eighth entry): the Tags tab's `Keywords`
   title, its `No keywords yet.` empty line, the field's `Add keyword` hint, the `Add` button and the
   `Used elsewhere` group are rows, as is the hint the panel shows with no photograph selected — so an
-  Arabic reader sees, types, adds and groups keywords in Arabic. What stays English beside those
-  labels is each chip's hover, which is the keyword's source explained in `sortlens-core`'s own
-  sentence.
+  Arabic reader sees, types, adds and groups keywords in Arabic.
+  The chip's source word and hover followed (hundred-and-sixty-fifth entry): a chip that was not
+  typed by hand prints the source (`cat · AI`) and explains it on hover, and both the crate's label
+  (`Manual`, `AI`, `XMP`, `Not recorded`) and its one-sentence explanation are catalogue rows — so
+  an Arabic inspector names where a keyword came from in Arabic and tells the reader how to remove
+  it in Arabic. `TagSource::EVERY` is the list the chip, the filter and the catalogue guard share.
   The keyword section's hint and the Collections hint followed (hundred-and-fifty-ninth entry): the
   filter strip's `Select a photo, press K and type a keyword.` and `Collect photos into named sets
   without moving them.` are rows, so the only words beside those two empty lists are the reader's.

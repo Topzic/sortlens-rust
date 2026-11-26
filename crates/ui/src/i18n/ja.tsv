@@ -817,6 +817,16 @@
 	any	いずれか
 	all	すべて
 	{source} keywords	{source} のキーワード
+	Manual	手動
+	AI	AI
+	XMP	XMP
+	Not recorded	未記録
+	Typed in Sortlens, or applied by a command that does the same	Sortlens で入力したか、同じことをするコマンドで適用されました
+	Proposed by the model or a keyword pack, and accepted	モデルまたはキーワードパックが提案し、承認されました
+	Read from the file's own sidecar when it was indexed	索引時にファイル自身のサイドカーから読み取りました
+	This library predates recorded sources	このライブラリは出所の記録より前のものです
+	{tag} · {source}  ×	{tag} · {source}  ×
+	{explanation} · click to remove	{explanation} · クリックで削除
 	Only photos where some keyword came from here	キーワードの出どころがここである写真のみ
 	No keywords yet.	キーワードはまだありません。
 	Add keyword	キーワードを追加

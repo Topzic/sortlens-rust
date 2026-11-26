@@ -604,6 +604,16 @@
 	Pick	เลือก
 	Reject	ตัดออก
 	Defer	เลื่อน
+	Manual	ด้วยมือ
+	AI	AI
+	XMP	XMP
+	Not recorded	ไม่ได้บันทึก
+	Typed in Sortlens, or applied by a command that does the same	พิมพ์ใน Sortlens หรือใช้ผ่านคำสั่งที่ทำสิ่งเดียวกัน
+	Proposed by the model or a keyword pack, and accepted	โมเดลหรือชุดคำค้นเสนอ และได้รับการยอมรับ
+	Read from the file's own sidecar when it was indexed	อ่านจากไซด์คาร์ของไฟล์เองเมื่อทำดัชนี
+	This library predates recorded sources	คลังภาพนี้เก่ากว่าการบันทึกแหล่งที่มา
+	{tag} · {source}  ×	{tag} · {source}  ×
+	{explanation} · click to remove	{explanation} · คลิกเพื่อลบ
 	Apply rejects…	ใช้การตัดออก…
 	No keywords yet.	ยังไม่มีคำค้น
 	Add keyword	เพิ่มคำค้น

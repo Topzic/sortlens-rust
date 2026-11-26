@@ -857,6 +857,16 @@
 	Close the other Sortlens window to edit here. Everything stays readable meanwhile.	Hãy đóng cửa sổ Sortlens kia để chỉnh sửa ở đây. Trong lúc đó mọi thứ vẫn đọc được.
 	Rename keyword	Đổi tên từ khóa
 	#{tag} appears on every photo it was added to.	#{tag} xuất hiện trên mọi ảnh đã thêm nó.
+	Manual	Thủ công
+	AI	AI
+	XMP	XMP
+	Not recorded	Chưa ghi nhận
+	Typed in Sortlens, or applied by a command that does the same	Được nhập trong Sortlens, hoặc áp dụng bằng một lệnh làm điều tương tự
+	Proposed by the model or a keyword pack, and accepted	Do mô hình hoặc gói từ khóa đề xuất và đã được chấp nhận
+	Read from the file's own sidecar when it was indexed	Được đọc từ tệp phụ của chính tệp khi lập chỉ mục
+	This library predates recorded sources	Thư viện này có trước khi nguồn được ghi lại
+	{tag} · {source}  ×	{tag} · {source}  ×
+	{explanation} · click to remove	{explanation} · nhấp để xóa
 	That keyword already exists; the two will be merged.	Từ khóa đó đã tồn tại; hai từ sẽ được gộp lại.
 	No keywords yet.	Chưa có từ khóa nào.
 	Add keyword	Thêm từ khóa

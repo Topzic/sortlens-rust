@@ -862,6 +862,16 @@
 	#{tag} is not used by any photo	#{tag}은(는) 어떤 사진에서도 사용되지 않습니다
 	Start Cull	선별 시작
 	Export Picks…	선택 항목 내보내기…
+	Manual	수동
+	AI	AI
+	XMP	XMP
+	Not recorded	기록 없음
+	Typed in Sortlens, or applied by a command that does the same	Sortlens에서 입력했거나 같은 일을 하는 명령으로 적용되었습니다
+	Proposed by the model or a keyword pack, and accepted	모델이나 키워드 팩이 제안하고 승인되었습니다
+	Read from the file's own sidecar when it was indexed	색인할 때 파일 자체의 사이드카에서 읽었습니다
+	This library predates recorded sources	이 라이브러리는 출처 기록보다 이전 것입니다
+	{tag} · {source}  ×	{tag} · {source}  ×
+	{explanation} · click to remove	{explanation} · 클릭하여 제거
 	No selection	선택 없음
 	{n} selected	{n}장 선택됨
 	Search	검색

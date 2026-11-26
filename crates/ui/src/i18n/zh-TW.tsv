@@ -940,6 +940,16 @@
 	 (stopped)	（已停止）
 	; removed {n} from this phone	；已從這支手機移除 {n} 張
 	; none of the {n} were removed from this phone	；這 {n} 張都沒有從這支手機移除
+	Manual	手動
+	AI	AI
+	XMP	XMP
+	Not recorded	未記錄
+	Typed in Sortlens, or applied by a command that does the same	在 Sortlens 中輸入，或由執行相同動作的命令套用
+	Proposed by the model or a keyword pack, and accepted	由模型或關鍵字套件提出，並已接受
+	Read from the file's own sidecar when it was indexed	建立索引時從檔案自身的附屬檔案讀取
+	This library predates recorded sources	此圖庫早於來源記錄功能
+	{tag} · {source}  ×	{tag} · {source}  ×
+	{explanation} · click to remove	{explanation} · 點擊移除
 	; removed {removed} of {chosen} from this phone	；已從這支手機移除 {chosen} 張中的 {removed} 張
 	No keywords yet.	尚無關鍵字。
 	Add keyword	新增關鍵字

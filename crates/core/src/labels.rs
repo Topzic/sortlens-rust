@@ -133,8 +133,16 @@ pub enum TagSource {
 }
 
 impl TagSource {
-    /// Every source, in the order the filter offers them.
+    /// The recorded sources, in the order the filter offers them.
     pub const ALL: [Self; 3] = [Self::Manual, Self::Ai, Self::Xmp];
+
+    /// Every source the chips and the filter can name, with the derived [`Self::Unrecorded`] last.
+    ///
+    /// [`Self::ALL`] is what a library records; the fourth is derived for keywords written before
+    /// sources were kept, and the filter still has to offer it so an old library is findable. A chip
+    /// that can show it, the cycle it steps through and a catalogue that must answer its word all
+    /// need the four in one order, so that order lives here instead of in each caller's `chain`.
+    pub const EVERY: [Self; 4] = [Self::Manual, Self::Ai, Self::Xmp, Self::Unrecorded];
 
     /// Stable lowercase name, for the op log, the snapshot and filter JSON.
     pub const fn id(self) -> &'static str {
@@ -198,7 +206,12 @@ mod tests {
 
     #[test]
     fn every_source_survives_its_own_name() {
-        for source in TagSource::ALL.into_iter().chain([TagSource::Unrecorded]) {
+        assert!(
+            TagSource::EVERY.starts_with(&TagSource::ALL),
+            "the recorded sources keep their order"
+        );
+        assert_eq!(TagSource::EVERY[3], TagSource::Unrecorded, "the derived one comes last");
+        for source in TagSource::EVERY {
             assert_eq!(TagSource::parse(source.id()), Some(source), "{}", source.id());
             assert!(!source.explanation().is_empty(), "{} has no explanation", source.id());
         }

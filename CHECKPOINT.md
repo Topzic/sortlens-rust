@@ -1,5 +1,70 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-fifth) — the keyword source's word, hover and remove suffix speak the interface language
+
+- **Why this came up.** The hundred-and-sixty-fourth entry's Next named the tag chip's hover:
+  `TagSource::explanation()` and the `· click to remove` suffix, which needed a piece in
+  `sortlens-core` before the catalogue could answer them. The `CI` run for `e138686` (`45882637213`)
+  was in progress at STEP 1b, not red, so this is a roadmap slice. Reading the crate showed the
+  same panel's chip also printed `source.label()` raw (`cat · AI  ×`, and `Not recorded` is English
+  prose), and the filter strip's chip re-used the raw label under a routed template, so the slice
+  took the whole keyword-source family: the word, its hover and the suffix.
+- **The core piece.** `crates/core/src/labels.rs` gained `TagSource::EVERY` — the three recorded
+  sources plus the derived `Unrecorded`, in the order the filter cycles them. `ALL` stays the
+  recorded list the CLI and filter start from; `EVERY` is what the chip, the cycle and the
+  catalogue guard walk, replacing the ad-hoc `ALL.into_iter().chain([Unrecorded])` the chip's
+  cycle used to build. The core test now walks `EVERY` and asserts it starts with `ALL` and ends
+  with `Unrecorded`.
+- **What is routed.** `shell.rs` gained `tag_source_word(source)` = `tl!(source.label())` and
+  `tag_source_explanation(source)` = `tl!(source.explanation())`. The inspector chip's
+  `{tag} · {source}  ×` and the hover's `{explanation} · click to remove` are now `fmt` templates
+  whose values are the routed word and sentence (English is byte-identical: `cat · AI  ×`,
+  `Read from the file's own sidecar when it was indexed · click to remove`), and the filter chip's
+  `{source} keywords` passes the routed word instead of the crate's English label. The Manual chip
+  still prints its bare `{tag}  ×` — that is data, not prose.
+- **Rows.** Ten new rows in each of the six catalogues (60 rows): the four labels (`Manual`,
+  `AI`, `XMP`, `Not recorded`), the four explanations, and the two templates. `AI` and `XMP` keep
+  their spelling in all six — they are the data words the filter JSON carries — while `Manual` and
+  `Not recorded` and all four explanations are translated.
+- **Tests.** `the_keyword_sources_word_and_hover_speak_the_interface_language` reads `shell.rs`
+  back with the lines trimmed and joined, requires both helpers and all four paint routes, and
+  rejects the old `format!("{tag} · {}  ×", source.label())`, the old hover, the raw
+  `("source", source.label())` and a direct `.on_hover_text(source.explanation())`. It then walks
+  `TagSource::EVERY` and asserts every one of the six catalogues answers a row for every label and
+  explanation — keys the source-reading audit cannot see, because they come from `sortlens-core` —
+  holds the English chip and hover byte for byte, and asserts Arabic writes the word
+  (`غير مسجل`), the explanation and the remove suffix in Arabic with no English `click to remove`.
+  Proved to bite: restoring the pre-slice `format!("{tag} · {}  ×", source.label())` fails it with
+  `the keyword chip still paints "format!(\"{tag} · {}  ×\", source.label())"`. The catalogue
+  audit also reads the two new template keys, so a catalogue losing either fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, corrects the old claim that the hover simply
+  stayed English, removes the tag-chip bullet from the sweep's remaining list and names the
+  command table's labels as next; the row stays unticked. UX.md's i18n list records the routed
+  word and hover; ARCHITECTURE.md §8.4 records `EVERY` and the two helpers.
+- **Visual verification.** `cargo xtask screenshots` was run because `crates/ui` changed: 30
+  passed, 1 ignored (network), and `git status` showed no baseline moved — the proof the English
+  paint did not shift.
+- **Gates.** `cargo clippy -p sortlens-core --all-targets -- -D warnings` and
+  `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0; `cargo test -p sortlens-ui
+  --lib -- the_keyword_sources_word_and_hover_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed and `cargo test -p sortlens-core --lib --
+  every_source_survives_its_own_name` 1 passed (the new UI test proved to fail on the pre-slice
+  paint, quoted above); then `cargo fmt --all`; `cargo xtask ci` exit 0 (fmt, workspace clippy,
+  the whole suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5 passed,
+  `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30
+  passed and 1 ignored (network) with no baseline moved. `crates/core` and `crates/ui` changed, so
+  `cargo xtask mobile` is CI's job — this machine has no Android NDK and no Xcode, which leaves
+  the device-side leg unverified here. No release workflow was dispatched: source, catalogue rows,
+  tests and docs, no build or release surface.
+- **Files.** `crates/core/src/labels.rs` (`EVERY` and the test), `crates/ui/src/shell.rs` (the two
+  helpers, the four routes and the new test), the six `crates/ui/src/i18n/*.tsv` (ten rows each),
+  `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move; `mobile` now also
+  builds on the core change). Then the last family on the row: the command table's own labels in
+  `crates/engine/src/command.rs`, which the menus paint — one family, then the SL-L07 source audit
+  can decide whether the row ticks. SL-L07 stays unticked. No release run is in flight.
 ## 2026-11-26 (hundred-and-sixty-fourth) — the phone link's Send button counts the selection in the interface language
 
 - **Why this came up.** The hundred-and-sixty-third entry's Next named the Send button's own

@@ -1337,10 +1337,9 @@ and none of M9 is closed until the remaining rows are ticked.
   here.` are `tl!` rows in all six languages, so an Arabic inspector types, sees and groups keywords
   in Arabic. `Keywords` and `Add` reuse rows the sidebar and the shortcut editor already own.
   `the_inspector_keyword_editor_speaks_the_interface_language` reads `shell.rs` back, requires each
-  of the six sites to route with no bare-literal twin, then English unchanged and the Arabic rows. What stays
-  English beside those labels is each tag chip's hover: it is `TagSource::explanation()`, the crate's
-  own sentence, joined to the suffix `· click to remove` — an engine word with no piece yet, the same
-  kind of exception the map's `TileError::message()` is.
+  of the six sites to route with no bare-literal twin, then English unchanged and the Arabic rows.
+  The chip's hover was still the crate's sentence at that point; the hundred-and-sixty-fifth entry
+  routed it, with the chip's own source word, below.
   The keyword section's hint and the Collections hint followed (hundred-and-fifty-ninth entry): the
   filter strip's `Select a photo, press K and type a keyword.` and `Collect photos into named sets
   without moving them.` are `tl!` rows in all six languages, so the only words beside those two
@@ -1385,17 +1384,28 @@ and none of M9 is closed until the remaining rows are ticked.
   number. `the_send_button_counts_the_selection_in_the_interface_language` reads `shell.rs` back,
   requires the template and rejects the old `format!` twin, then English unchanged, and Arabic's
   row with `٢` where English writes `2`.
+  The keyword source's word, its hover and the chip's remove suffix followed (hundred-and-sixty-fifth
+  entry): `sortlens-core` gained `TagSource::EVERY` — the three recorded sources plus the derived
+  `Unrecorded`, in the order the filter cycles them — so the chip, the filter and the catalogue
+  guard walk one list instead of each caller's `chain`. `tag_source_word` and
+  `tag_source_explanation` key the catalogue with the crate's own `label()`/`explanation()`, the
+  chip's `{tag} · {source}  ×` and the hover's `{explanation} · click to remove` are `fmt`
+  templates, and the filter chip's `{source} keywords` passes the routed word rather than the
+  crate's English label. Ten new rows per catalogue.
+  `the_keyword_sources_word_and_hover_speak_the_interface_language` reads `shell.rs` back, requires
+  both helpers and rejects the four old paint sites, holds the English chip and hover byte for byte,
+  then checks every language answers a row for every `TagSource::EVERY` label and explanation — keys
+  the source-reading audit cannot see — and that Arabic writes the word, the explanation and the
+  remove suffix in Arabic.
   **Still open in this row.** The hundred-and-fifty-seventh entry swept the sources rather than the
   audit's old list and found that the paragraph here used to claim more than was true: the literal
   list the audit kept was empty, but `shell.rs` still paints prose a reader meets in English. The
-  sweep's remaining families:
-  - the tag chip's hover in that editor (`TagSource::explanation()` and the `· click to remove`
-    suffix), which is a `sortlens-core` sentence with no piece yet;
+  sweep's remaining family:
   - the command table's own labels (`crates/engine/src/command.rs`), which the menus paint.
   Symbols (`×`, `›`, `+`, `−`, `↔`), key caps (`?`), the product name, the map's credit line and
   assistive names stay deliberate exceptions. The row ticks only when every family above is a
-  catalogue row or a recorded exception, which the next ticks take one family at a time — the tag
-  chip's hover is next.
+  catalogue row or a recorded exception, which the next ticks take one family at a time — the
+  command table's labels are next.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

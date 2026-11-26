@@ -746,6 +746,16 @@
 	Image	صورة
 	pick	مختارة
 	reject	مرفوضة
+	Manual	يدوي
+	AI	AI
+	XMP	XMP
+	Not recorded	غير مسجل
+	Typed in Sortlens, or applied by a command that does the same	كُتبت في Sortlens، أو طُبِّقت بأمر يفعل الشيء نفسه
+	Proposed by the model or a keyword pack, and accepted	اقترحها النموذج أو حزمة الكلمات المفتاحية، وقُبلت
+	Read from the file's own sidecar when it was indexed	قُرئت من الملف الجانبي للصورة نفسه عند فهرستها
+	This library predates recorded sources	هذه المكتبة أقدم من تسجيل المصادر
+	{tag} · {source}  ×	{tag} · {source}  ×
+	{explanation} · click to remove	{explanation} · انقر للإزالة
 	No keywords yet.	لا كلمات مفتاحية بعد.
 	Add keyword	أضف كلمة مفتاحية
 	Used elsewhere	مستخدمة في مكان آخر

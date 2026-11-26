@@ -3801,6 +3801,19 @@ fn flag_word(flag: Flag) -> String {
     .to_string()
 }
 
+/// The keyword source's word in the interface language: the value a chip prints and the
+/// catalogue keys with the crate's English label (`Manual`, `AI`, `XMP`, `Not recorded`).
+fn tag_source_word(source: sortlens_core::TagSource) -> &'static str {
+    tl!(source.label())
+}
+
+/// The source's one-sentence hover explanation, in the interface language. The crate owns the
+/// sentence and it is the catalogue key, so a hover says what the word means in the reader's
+/// language rather than in the crate's.
+fn tag_source_explanation(source: sortlens_core::TagSource) -> &'static str {
+    tl!(source.explanation())
+}
+
 fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo: &Photo) {
     match photo.label {
         Some(label) => {
@@ -3824,17 +3837,17 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
             let text = if source == sortlens_core::TagSource::Manual {
                 format!("{tag}  ×")
             } else {
-                format!("{tag} · {}  ×", source.label())
+                crate::i18n::fmt("{tag} · {source}  ×", &[("tag", tag), ("source", tag_source_word(source))])
             };
             let chip = Button::new(RichText::new(text).size(11.0).color(t.text))
                 .fill(t.card)
                 .stroke(Stroke::new(1.0, t.border))
                 .corner_radius(t.corner());
-            if ui
-                .add(chip)
-                .on_hover_text(format!("{} · click to remove", source.explanation()))
-                .clicked()
-            {
+            let hover = crate::i18n::fmt(
+                "{explanation} · click to remove",
+                &[("explanation", tag_source_explanation(source))],
+            );
+            if ui.add(chip).on_hover_text(hover).clicked() {
                 remove = Some(tag.clone());
             }
         }
@@ -5132,7 +5145,7 @@ fn kind_filter_word(kind: Option<MediaKind>) -> String {
 fn source_filter_word(source: Option<sortlens_core::TagSource>) -> String {
     match source {
         None => tl!("Source").to_string(),
-        Some(source) => crate::i18n::fmt("{source} keywords", &[("source", source.label())]),
+        Some(source) => crate::i18n::fmt("{source} keywords", &[("source", tag_source_word(source))]),
     }
 }
 
@@ -5327,19 +5340,18 @@ fn filter_strip(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, t
                     state.source_filter.is_some(),
                 );
                 let source_chip = match state.source_filter {
-                    Some(source) => source_chip.on_hover_text(source.explanation()),
+                    Some(source) => source_chip.on_hover_text(tag_source_explanation(source)),
                     None => source_chip.on_hover_text(tl!("Only photos where some keyword came from here")),
                 };
                 if source_chip.clicked() {
                     state.source_filter = match state.source_filter {
                         None => sortlens_core::TagSource::ALL.first().copied(),
                         Some(current) => {
-                            let order: Vec<sortlens_core::TagSource> = sortlens_core::TagSource::ALL
-                                .into_iter()
-                                .chain([sortlens_core::TagSource::Unrecorded])
-                                .collect();
-                            let index = order.iter().position(|source| *source == current).unwrap_or(0);
-                            order.get(index + 1).copied()
+                            let index = sortlens_core::TagSource::EVERY
+                                .iter()
+                                .position(|source| *source == current)
+                                .unwrap_or(0);
+                            sortlens_core::TagSource::EVERY.get(index + 1).copied()
                         }
                     };
                 }
@@ -22797,6 +22809,99 @@ mod tests {
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
+    /// The keyword source's word, its hover and the chip's remove suffix are catalogue rows, in
+    /// every language the picker offers.
+    ///
+    /// A chip prints the source in `TagSource::label()` and explains it in
+    /// `TagSource::explanation()`; both sentences belong to `sortlens-core`, so the catalogue keys
+    /// them by the crate's English text and `TagSource::EVERY` is the list the guard walks. A reader
+    /// who chose Arabic should meet neither the word nor the explanation in English, and the chip's
+    /// hover should tell them how to remove the keyword in their own language.
+    #[test]
+    fn the_keyword_sources_word_and_hover_speak_the_interface_language() {
+        // The wiring itself: the four paint sites call the two helpers, and no site still joins the
+        // crate's English sentence to a bare `format!`. The helpers are the only `tl!` calls, so a
+        // site reading `source.label()`/`source.explanation()` again fails the last loop.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for route in [
+            "fn tag_source_word(source: sortlens_core::TagSource) -> &'static str {tl!(source.label())}",
+            "fn tag_source_explanation(source: sortlens_core::TagSource) -> &'static str {tl!(source.explanation())}",
+            "crate::i18n::fmt(\"{tag} · {source}  ×\"",
+            "crate::i18n::fmt(\"{explanation} · click to remove\"",
+            "crate::i18n::fmt(\"{source} keywords\", &[(\"source\", tag_source_word(source))])",
+            "Some(source) => source_chip.on_hover_text(tag_source_explanation(source)),",
+        ] {
+            assert!(source.contains(route), "the keyword source's route {route:?} is missing");
+        }
+        for literal in [
+            "format!(\"{tag} · {}  ×\", source.label())",
+            ".on_hover_text(format!(\"{} · click to remove\", source.explanation()))",
+            "(\"source\", source.label())",
+        ] {
+            assert!(!source.contains(literal), "the keyword chip still paints {literal:?}");
+        }
+        // Split so the test's own text cannot pass for the site it forbids.
+        assert!(
+            !source.contains(&format!(".on_hover_text(source.{}())", "explanation")),
+            "the keyword chip still paints the crate's explanation directly"
+        );
+
+        // Every source the filter and the chips can name has both rows in all six catalogues: the
+        // keys are the crate's sentences, which the source-reading audit cannot see.
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = crate::i18n::from_code(code).unwrap_or_else(|| panic!("{code} is offered"));
+            for source in sortlens_core::TagSource::EVERY {
+                for key in [source.label(), source.explanation()] {
+                    assert!(
+                        crate::i18n::I18N.get(lang, "", key).is_some(),
+                        "{code} has no row for the keyword source text {key:?}"
+                    );
+                }
+            }
+        }
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        // English keeps the words the chip paints today, byte for byte, so no baseline moves.
+        assert_eq!(tag_source_word(sortlens_core::TagSource::Ai), "AI");
+        assert_eq!(tag_source_word(sortlens_core::TagSource::Unrecorded), "Not recorded");
+        assert_eq!(
+            tag_source_explanation(sortlens_core::TagSource::Xmp),
+            "Read from the file's own sidecar when it was indexed"
+        );
+        assert_eq!(
+            crate::i18n::fmt(
+                "{tag} · {source}  ×",
+                &[("tag", "bird"), ("source", tag_source_word(sortlens_core::TagSource::Ai))],
+            ),
+            "bird · AI  ×"
+        );
+        assert_eq!(
+            crate::i18n::fmt(
+                "{explanation} · click to remove",
+                &[("explanation", tag_source_explanation(sortlens_core::TagSource::Xmp))],
+            ),
+            "Read from the file's own sidecar when it was indexed · click to remove"
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        assert_eq!(tag_source_word(sortlens_core::TagSource::Unrecorded), "غير مسجل");
+        assert_eq!(
+            tag_source_explanation(sortlens_core::TagSource::Manual),
+            "كُتبت في Sortlens، أو طُبِّقت بأمر يفعل الشيء نفسه"
+        );
+        let hover = crate::i18n::fmt(
+            "{explanation} · click to remove",
+            &[("explanation", tag_source_explanation(sortlens_core::TagSource::Ai))],
+        );
+        assert!(hover.contains("اقترحها النموذج"), "the hover explanation is Arabic: {hover:?}");
+        assert!(!hover.contains("click to remove"), "the remove suffix is still English: {hover:?}");
+        let chip = crate::i18n::fmt(
+            "{tag} · {source}  ×",
+            &[("tag", "bird"), ("source", tag_source_word(sortlens_core::TagSource::Unrecorded))],
+        );
+        assert!(chip.contains("غير مسجل"), "the chip's source word is Arabic: {chip:?}");
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
     /// Settings → AI models and → Updates are catalogue rows, in every language the picker
     /// offers.
     ///

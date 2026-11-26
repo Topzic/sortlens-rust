@@ -832,8 +832,14 @@ The inspector's keyword editor is routed the same way (hundred-and-fifty-eighth 
 tab's title, its empty line, the field's hint, the add button, the `Used elsewhere` group and the
 no-selection hint are `tl!` keys, and `the_inspector_keyword_editor_speaks_the_interface_language`
 reads `shell.rs` back for each of the six sites, so one that falls back to a bare `RichText::new` or
-a bare `hint` fails rather than painting English. The chip's hover stays the crate's
-`TagSource::explanation()` — an engine sentence with no piece yet, beside a suffix of its own.
+a bare `hint` fails rather than painting English. The chip's source word and its hover are routed
+the same way (hundred-and-sixty-fifth entry): `TagSource::EVERY` names the four sources in filter
+order, `tag_source_word`/`tag_source_explanation` key the catalogue with the crate's own
+`label()`/`explanation()` — its sentences are the English keys, so the rows live beside every
+other `tl!` row — and the chip's `{tag} · {source}  ×` and the hover's
+`{explanation} · click to remove` are `fmt` templates. The guard
+`the_keyword_sources_word_and_hover_speak_the_interface_language` walks `EVERY` in all six
+catalogues, because a key read from `sortlens-core` is invisible to the source-reading audit.
 
 The keyword section's hint and the Collections hint are routed the same way
 (hundred-and-fifty-ninth entry): both are `hint(ui, t, tl!(…))` calls, and
