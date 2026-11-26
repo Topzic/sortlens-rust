@@ -33,6 +33,7 @@ allow = [
     "BSD-3-Clause",
     "BSL-1.0",
     "CDLA-Permissive-2.0",
+    "ICU",
     "IJG",
     "ISC",
     "MIT",
@@ -47,7 +48,8 @@ allow = [
 # epaint_default_fonts is covered by the exception below rather than the list.
 #
 # The Unicode tables are Unicode-3.0; libjpeg's independent-JPEG-group licence (IJG) covers the JPEG
-# decoder's reference tables; fontconfig and the bundled fonts are OFL.
+# decoder's reference tables; fontconfig and the bundled fonts are OFL. ICU is the ICU4X data licence
+# that mln-rs-text carries for the online map's labels; it is permissive and attributed in docs/ATTRIBUTION.md.
 confidence-threshold = 0.93
 exceptions = [
     # Unicode licence on the tables egui and epaint embed: attribution is in docs/ATTRIBUTION.md.

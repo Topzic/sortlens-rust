@@ -50,6 +50,8 @@ These are the crates a manifest actually asks for and the build links.
 | `egui` | MIT OR Apache-2.0 | Immediate-mode GUI (storytold fork) |
 | `egui_extras` | MIT OR Apache-2.0 | The SVG image loader behind the shell's icon set; `svg` feature only, no HTTP or file loader is linked |
 | `walkers` | MIT | The slippy-map widget behind Places: pan, pinch, projection, tile placement |
+| `maplibre-egui` | MIT | Draws a MapLibre style directly into egui's wgpu pass for the optional OpenFreeMap basemap |
+| `egui-wgpu` | MIT OR Apache-2.0 | The shared wgpu render state `maplibre-egui` draws through; already linked by `eframe`'s wgpu backend |
 | `earcutr` | ISC | Triangulating the shipped Natural Earth land polygons into one fill mesh |
 | `egui_kittest` | MIT OR Apache-2.0 | The screenshot harness (`cargo xtask screenshots`): the same fork's headless wgpu renderer, AccessKit queries and image snapshot diffing; `sortlens-ui` tests only, never linked into the app |
 | `eframe` | MIT OR Apache-2.0 | The application shell and its renderer |
@@ -68,6 +70,25 @@ These are the crates a manifest actually asks for and the build links.
 
 `craft-tiff`, `craft-jpeg`, `craft-image-codecs` and `craft-raw` sit below the UI layer on purpose: they
 decode pixels and know nothing about a window, so the CLI and the phone app can use them too.
+
+## Map data and styles
+
+The optional online Places basemap is drawn by `maplibre-egui` (`MIT`) over
+`maplibre-rust-ui` (`MIT`) and the `mln-rs` family (`BSD-2-Clause`; `mln-rs-text` also carries
+`Unicode-3.0` and the `ICU` licence on its locale tables). Apart from the locale patch below, nothing
+from those crates is vendored.
+
+`vendor/mln-rs-expression/` is the published `mln-rs-expression 0.0.12` crate under `BSD-2-Clause`, with
+its `LICENSE.md` retained. It is changed only in its locale backend (ICU4X replaced by a small fallback)
+so its ICU4X 2.4 requirement does not conflict with `craft-i18n`'s pinned 2.3; `PATCH.md` records the
+change. The workspace `[patch.crates-io]` entry is local and deliberate.
+
+OpenFreeMap styles and tiles are not vendored; they are fetched only after the person consents to the
+online map. The styles and service are `MIT` ([openfreemap](https://github.com/hyperknot/openfreemap),
+[openfreemap-styles](https://github.com/hyperknot/openfreemap-styles)); the vector data is
+OpenStreetMap under the [ODbL](https://www.openstreetmap.org/copyright); the schema and design are
+OpenMapTiles (`BSD-3-Clause` code, `CC BY 4.0` design). The map's credit reads
+`OpenFreeMap © OpenMapTiles · Data from OpenStreetMap`, and the consent dialog links all three.
 
 ## Declared, not linked yet
 

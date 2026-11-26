@@ -302,6 +302,23 @@ pub struct Engine {
     image_embedder_tried: bool,
 }
 
+/// Put every object's keys back in alphabetical order.
+///
+/// serde_json used a BTreeMap for objects until a dependency enabled its preserve_order feature, which is
+/// additive across the workspace. The published JSON schema has always been alphabetical, so responses are
+/// normalised at the boundary rather than letting one dependency's feature change what a script reads.
+fn sort_json_keys(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let sorted: std::collections::BTreeMap<String, Value> =
+                map.into_iter().map(|(key, value)| (key, sort_json_keys(value))).collect();
+            Value::Object(sorted.into_iter().collect())
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sort_json_keys).collect()),
+        other => other,
+    }
+}
+
 impl Engine {
     /// An engine with no library open.
     pub fn new() -> Self {
@@ -4117,12 +4134,15 @@ impl Engine {
         // can be dropped rather than written back. Reading it once, after the command, is the
         // revision the response describes.
         let rev = self.revision();
-        response.map(|value| match value {
-            Value::Object(mut map) => {
-                map.insert("rev".into(), json!(rev));
-                Value::Object(map)
-            }
-            other => other,
+        response.map(|value| {
+            let value = match value {
+                Value::Object(mut map) => {
+                    map.insert("rev".into(), json!(rev));
+                    Value::Object(map)
+                }
+                other => other,
+            };
+            sort_json_keys(value)
         })
     }
 }

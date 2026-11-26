@@ -45,7 +45,10 @@ struct Scene {
 }
 
 impl eframe::App for Scene {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        // The app records the wgpu renderer before it calls `show`; online Places needs it, and the
+        // offline scenes below never select an online style, so this changes none of their pixels.
+        self.state.places_render.set(frame.wgpu_render_state());
         // `show` is what the window calls; ignoring its actions here is deliberate, because this
         // scene is painted, not driven. A scene that asked for something while merely settling
         // would be a stray event, so this is also the assertion that the baseline is inert.
@@ -413,6 +416,44 @@ fn the_harness_stack_draws_the_arabic_frames_words() {
     for (text, has) in covered {
         assert!(has, "{text} has no glyphs in the harness stack, so the RTL frame would be boxes");
     }
+}
+
+/// The opt-in online map, drawn by MapLibre into the same wgpu pass. Ignored because it needs both a
+/// GPU adapter and tiles.openfreemap.org; run "cargo test -p sortlens-ui --features screenshots
+/// --test screenshots -- --ignored online_places --nocapture" by hand, with network access.
+#[test]
+#[ignore = "network access and a GPU adapter"]
+fn online_places_map_loads_liberty_without_a_webview() {
+    let mut library = library();
+    let mut scene = new_scene(ThemeKind::Charcoal, library.take(), &library.cache());
+    scene.state.view = View::Places;
+    scene.state.places_online_consent = true;
+    scene.state.places_online_style = Some(sortlens_ui::places::OpenFreeMapStyle::Liberty);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(WIDTH, HEIGHT))
+        .with_pixels_per_point(1.0)
+        .with_max_steps(240)
+        .with_context_setup(|ctx| context_setup(ctx, ThemeKind::Charcoal))
+        .wgpu()
+        .build_eframe(|_cc| scene);
+    let mut loaded = false;
+    let mut failure = None;
+    for _ in 0..600 {
+        harness.step();
+        let online = harness.state().state.places_online.clone();
+        if let Some(map) = online {
+            let map = map.borrow();
+            loaded = map.loaded();
+            failure = map.failure().map(str::to_string);
+        }
+        if loaded || failure.is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(failure, None, "OpenFreeMap could not draw");
+    assert!(loaded, "the online Liberty map never loaded a frame");
+    library.keep(harness.into_state().engine);
 }
 
 /// The same, with tofu instead of a panic for glyphs the harness's font stack does not have.

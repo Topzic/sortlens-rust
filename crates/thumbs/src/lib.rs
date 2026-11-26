@@ -114,7 +114,7 @@ pub fn decode_heif(bytes: &[u8], max_edge: u32) -> Result<Thumbnail> {
     }
     if channels == 3 {
         let mut with_alpha = Vec::with_capacity(decoded.width as usize * decoded.height as usize * 4);
-        for pixel in rgba.chunks_exact(3) {
+        for pixel in rgba.as_chunks::<3>().0 {
             with_alpha.extend_from_slice(pixel);
             with_alpha.push(255);
         }
@@ -154,7 +154,7 @@ impl Histogram {
     /// Count pixels in a decoded thumbnail. Alpha is ignored; the luma weights are Rec. 601.
     pub fn from_thumbnail(thumbnail: &Thumbnail) -> Self {
         let mut histogram = Self::default();
-        for pixel in thumbnail.rgba.chunks_exact(4) {
+        for pixel in thumbnail.rgba.as_chunks::<4>().0 {
             let luma = (0.299 * f32::from(pixel[0]) + 0.587 * f32::from(pixel[1]) + 0.114 * f32::from(pixel[2])).round();
             let bin = ((luma as usize).min(255) * 64 / 256).min(63);
             histogram.bins[bin] = histogram.bins[bin].saturating_add(1);

@@ -26,7 +26,9 @@ use egui::{
 use sortlens_core::{ColorLabel, Flag, MediaKind, PhotoId};
 use sortlens_cull::gesture::Gesture;
 use sortlens_engine::{Decision, Engine, Filter, Job, JobDetail, Photo, Sort, TagOrder};
+use std::cell::RefCell;
 use std::collections::BTreeSet;
+use std::rc::Rc;
 
 /// A top-level destination in the bottom bar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -969,8 +971,18 @@ pub struct UiState {
     pub places_zoom_exact: f64,
     /// Walkers' pan and zoom state: the centre, whether it is detached from a GPS fix, and the exact zoom.
     pub places_map: walkers::MapMemory,
-    /// The chosen basemap treatment. Auto follows the theme and a supplied tile set is left alone.
+    /// The chosen offline basemap treatment. Auto follows the theme and a supplied tile set is left alone.
     pub places_style: places::MapStyle,
+    /// The chosen OpenFreeMap style, while the online map is in use.
+    pub places_online_style: Option<places::OpenFreeMapStyle>,
+    /// Whether the person accepted fetching OpenFreeMap's map. Never persisted without asking again.
+    pub places_online_consent: bool,
+    /// A style the person picked while consent was still missing, waiting on the dialog.
+    pub places_online_prompt: Option<places::OpenFreeMapStyle>,
+    /// The live online map, created only after consent and only when a wgpu renderer exists.
+    pub places_online: Option<Rc<RefCell<places::OnlineMap>>>,
+    /// The window's renderer, handed in by the host; `None` in tests and headless screenshots.
+    pub places_render: places::MapRenderState,
     /// Decoded basemap tiles, so panning and repainting do not decode the same tile again.
     pub places_tiles: places::TileCache,
     /// Place names from the library's own `places.txt`, re-read when the file changes.
@@ -1266,6 +1278,11 @@ impl UiState {
                 map
             },
             places_style: places::MapStyle::Auto,
+            places_online_style: None,
+            places_online_consent: false,
+            places_online_prompt: None,
+            places_online: None,
+            places_render: places::MapRenderState::default(),
             places_tiles: places::TileCache::new(),
             places_names: places::Names::new(),
             places_centre: None,
@@ -7234,6 +7251,41 @@ fn similar_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engin
     }
 }
 
+/// Draw the online map and read its camera back at rest.
+fn show_online_places_map(
+    ui: &mut Ui,
+    state: &mut UiState,
+    map_handle: &Rc<RefCell<places::OnlineMap>>,
+    render_state: &egui_wgpu::RenderState,
+    map_rect: Rect,
+    centre: sortlens_geo::LatLon,
+    limits: (f64, f64),
+) -> egui::Response {
+    let (low, high) = limits;
+    let mut map = map_handle.borrow_mut();
+    let mut map_ui = ui.new_child(egui::UiBuilder::new().max_rect(map_rect));
+    let response = map.show(&mut map_ui, render_state);
+    if let Some(camera) = map.camera() {
+        let before = centre;
+        let before_zoom = state.places_zoom_exact;
+        let centre_now = sortlens_geo::LatLon::new(camera.center[1], camera.center[0]).unwrap_or(centre);
+        let zoom_now = camera.zoom.clamp(low, high);
+        let user_moved = (centre_now.lat - before.lat).abs() > 1e-9
+            || (centre_now.lon - before.lon).abs() > 1e-9
+            || (zoom_now - before_zoom).abs() > 1e-9;
+        state.places_zoom_exact = zoom_now;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            state.places_zoom = zoom_now.round().clamp(low, high) as u8;
+        }
+        state.places_centre = Some(centre_now);
+        if user_moved {
+            state.places_zoom_chosen = true;
+        }
+    }
+    response
+}
+
 /// Where the photographs were taken: walkers hands the gestures, and the pins sit on top of the basemap.
 ///
 /// The basemap has three sources, in order. A **tile folder the person supplies** (see `sortlens_geo::tiles`) is a real
@@ -7254,7 +7306,13 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
 
     ui.add_space(8.0);
     // The map gets the space; the counts and the credit share what is left.
-    let footer = if usable { 86.0 } else { 108.0 };
+    let footer = if state.places_online_style.is_some() {
+        120.0
+    } else if usable {
+        86.0
+    } else {
+        108.0
+    };
     let map_height = (ui.available_height() - footer).max(120.0);
     let map_size = vec2(ui.available_width(), map_height);
 
@@ -7289,15 +7347,16 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         (low, high.max(low).min(places::MAX_ZOOM))
     });
 
+    let fitted_zoom = f64::from(sortlens_geo::coastline::fit_zoom(
+        &centres,
+        f64::from(map_size.x),
+        f64::from(map_size.y),
+        highest.min(high),
+    ));
     if !state.places_zoom_chosen {
         // The map opens fitted to the library: the deepest level that still shows every located photograph. A chosen
         // view is never overridden by a scan that adds a picture elsewhere.
-        state.places_zoom_exact = f64::from(sortlens_geo::coastline::fit_zoom(
-            &centres,
-            f64::from(map_size.x),
-            f64::from(map_size.y),
-            highest.min(high),
-        ));
+        state.places_zoom_exact = fitted_zoom;
     }
     let low_exact = f64::from(low);
     let high_exact = f64::from(high);
@@ -7311,6 +7370,34 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
     } else {
         fitted_centre
     };
+
+    // The online map is a second basemap, not a replacement: it is created only after consent, only when the
+    // window has a wgpu renderer, and only while it is healthy. A failed map falls back to the offline one, with the
+    // failure kept in the footer so Retry can build it again.
+    let render_state = state.places_render.get();
+    let mut online_failure = None;
+    if let Some(map) = &state.places_online {
+        online_failure = map.borrow().failure().map(str::to_string);
+    }
+    let online_style = state
+        .places_online_style
+        .filter(|_| state.places_online_consent && render_state.is_some() && online_failure.is_none());
+    if let Some(style) = online_style
+        && state.places_online.is_none()
+    {
+        state.places_online = Some(Rc::new(RefCell::new(places::OnlineMap::new(
+            style,
+            centre,
+            state.places_zoom_exact,
+        ))));
+    }
+    if let Some(style) = online_style
+        && let Some(map) = &state.places_online
+    {
+        map.borrow_mut().set_style(style);
+    }
+    let online_active = online_style.is_some() && state.places_online.is_some();
+    let online_map = online_style.and_then(|_| state.places_online.clone());
 
     // Walkers holds the live centre and zoom. Everything is written into it at the start of the frame and read back
     // after the map has seen the pointer, so a drag or a pinch is never overwritten by stale state on the next frame.
@@ -7327,58 +7414,80 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         ui.painter().rect_filled(map_rect, 0.0, palette.water);
     }
 
-    let map_response = {
-        let ctx = ui.ctx().clone();
-        let mut map_ui = ui.new_child(egui::UiBuilder::new().max_rect(map_rect));
-        let position = walkers::lon_lat(centre.lon, centre.lat);
-        if let Some(Ok(set)) = &tileset {
-            let mut tiles = places::PlacesTiles {
-                set,
-                cache: &mut state.places_tiles,
-                ctx,
-                style,
-            };
-            walkers::Map::new(Some(&mut tiles), &mut state.places_map, position)
-                .zoom_with_ctrl(false)
-                .double_click_to_zoom(false)
-                .panning(true)
-                .drag_pan_buttons(egui::DragPanButtons::PRIMARY)
-                .show(&mut map_ui, |_, _, _, _| ())
-                .response
-        } else {
-            walkers::Map::new(None, &mut state.places_map, position)
-                .zoom_with_ctrl(false)
-                .double_click_to_zoom(false)
-                .panning(true)
-                .drag_pan_buttons(egui::DragPanButtons::PRIMARY)
-                .show(&mut map_ui, |_, _, _, _| ())
-                .response
-        }
+    // The online pins are projected from the same camera the map draws, then painted over it. The camera is read
+    // back after the map has seen the pointer, so a drag moves the pins on the next frame.
+    let online_layout = if online_active {
+        build_online_layout(engine, map_rect, centre, state.places_zoom, state.places_zoom_exact)
+    } else {
+        None
     };
 
-    let before = centre;
-    let before_zoom = state.places_zoom_exact;
-    let zoom_now = state.places_map.zoom().clamp(low_exact, high_exact);
-    if (state.places_map.zoom() - zoom_now).abs() > 0.001 {
-        let _ = state.places_map.set_zoom(zoom_now);
-    }
-    let centre_now = state.places_map.detached().and_then(map_centre).unwrap_or(centre);
-    let user_moved =
-        (centre_now.lat - before.lat).abs() > 1e-9 || (centre_now.lon - before.lon).abs() > 1e-9 || (zoom_now - before_zoom).abs() > 1e-9;
-    state.places_zoom_exact = zoom_now;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    {
-        state.places_zoom = zoom_now.round().clamp(low_exact, high_exact) as u8;
-    }
-    state.places_centre = Some(centre_now);
-    if user_moved {
-        state.places_zoom_chosen = true;
-    }
+    let online_response = if online_active {
+        online_map
+            .as_ref()
+            .zip(render_state.as_deref())
+            .map(|(map, renderer)| show_online_places_map(ui, state, map, renderer, map_rect, centre, (low_exact, high_exact)))
+    } else {
+        None
+    };
+    let (map_response, map_layout) = if let Some(response) = online_response {
+        (response, online_layout)
+    } else {
+        let map_response = {
+            let ctx = ui.ctx().clone();
+            let mut map_ui = ui.new_child(egui::UiBuilder::new().max_rect(map_rect));
+            let position = walkers::lon_lat(centre.lon, centre.lat);
+            if let Some(Ok(set)) = &tileset {
+                let mut tiles = places::PlacesTiles {
+                    set,
+                    cache: &mut state.places_tiles,
+                    ctx,
+                    style,
+                };
+                walkers::Map::new(Some(&mut tiles), &mut state.places_map, position)
+                    .zoom_with_ctrl(false)
+                    .double_click_to_zoom(false)
+                    .panning(true)
+                    .drag_pan_buttons(egui::DragPanButtons::PRIMARY)
+                    .show(&mut map_ui, |_, _, _, _| ())
+                    .response
+            } else {
+                walkers::Map::new(None, &mut state.places_map, position)
+                    .zoom_with_ctrl(false)
+                    .double_click_to_zoom(false)
+                    .panning(true)
+                    .drag_pan_buttons(egui::DragPanButtons::PRIMARY)
+                    .show(&mut map_ui, |_, _, _, _| ())
+                    .response
+            }
+        };
+
+        let before = centre;
+        let before_zoom = state.places_zoom_exact;
+        let zoom_now = state.places_map.zoom().clamp(low_exact, high_exact);
+        if (state.places_map.zoom() - zoom_now).abs() > 0.001 {
+            let _ = state.places_map.set_zoom(zoom_now);
+        }
+        let centre_now = state.places_map.detached().and_then(map_centre).unwrap_or(centre);
+        let user_moved = (centre_now.lat - before.lat).abs() > 1e-9
+            || (centre_now.lon - before.lon).abs() > 1e-9
+            || (zoom_now - before_zoom).abs() > 1e-9;
+        state.places_zoom_exact = zoom_now;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            state.places_zoom = zoom_now.round().clamp(low_exact, high_exact) as u8;
+        }
+        state.places_centre = Some(centre_now);
+        if user_moved {
+            state.places_zoom_chosen = true;
+        }
+        (map_response, None)
+    };
 
     let zoom = state.places_zoom;
     let zoom_f = state.places_zoom_exact;
     let scale = zoom_f.exp2();
-    let Some(centre_world) = sortlens_geo::project(centre_now, 0) else {
+    let Some(centre_world) = sortlens_geo::project(state.places_centre.unwrap_or(centre), 0) else {
         return;
     };
     let to_local = |place: sortlens_geo::LatLon| {
@@ -7398,11 +7507,17 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
             (f64::from(map_rect.height()) / 2.0 + (world.y - centre_world.y) * scale) as f32,
         ))
     };
-    let clusters = engine.places(zoom);
-    let dots = places::dots(&clusters, to_local, map_rect.width(), map_rect.height());
+    let (clusters, dots) = match map_layout {
+        Some(layout) => (layout.clusters, layout.dots),
+        None => {
+            let clusters = engine.places(zoom);
+            let dots = places::dots(&clusters, to_local, map_rect.width(), map_rect.height());
+            (clusters, dots)
+        }
+    };
     let pointer = ui.ctx().pointer_hover_pos().filter(|at| map_rect.contains(*at));
     let pointer_local = pointer.map(|at| (at.x - map_rect.min.x, at.y - map_rect.min.y));
-    let hovered_dot = pointer_local.and_then(|at| places::dot_at(&dots, at));
+    let mut hovered_dot = pointer_local.and_then(|at| places::dot_at(&dots, at));
     let tray_zone = places_tray_rect(map_rect);
     let over_tray = pointer.is_some_and(|at| tray_zone.is_some_and(|zone| zone.contains(at)));
     // A click on a control is not a click on the map beneath it. The style chip's width depends on the language,
@@ -7441,7 +7556,14 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
     );
 
     if !usable {
-        places::paint_geography(&ui.painter_at(map_rect), map_rect, style, t, centre_now, zoom_f);
+        places::paint_geography(
+            &ui.painter_at(map_rect),
+            map_rect,
+            style,
+            t,
+            state.places_centre.unwrap_or(centre),
+            zoom_f,
+        );
     }
 
     // The border is drawn after the geography but before the pins, so a thumbnail at the edge is not cut by it.
@@ -7463,70 +7585,151 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         (labels, state.places_names.len(), state.places_names.error().map(str::to_string))
     };
 
-    paint_places_pins(
+    let online_clicks = if online_active {
+        let clicks = online_map.as_ref().map_or_else(OnlineClicks::default, |_| {
+            paint_online_pins(
+                ui,
+                t,
+                state,
+                engine,
+                thumbs,
+                PinScene {
+                    clusters: &clusters,
+                    dots: &dots,
+                    labels: &labels,
+                    map: map_rect,
+                    hovered: None,
+                },
+            )
+        });
+        hovered_dot = clicks.hovered;
+        clicks
+    } else {
+        paint_places_pins(
+            ui,
+            t,
+            state,
+            engine,
+            thumbs,
+            PinScene {
+                clusters: &clusters,
+                dots: &dots,
+                labels: &labels,
+                map: map_rect,
+                hovered: hovered_dot,
+            },
+        );
+        OnlineClicks::default()
+    };
+
+    if online_active && (map_response.hovered() || map_response.dragged()) {
+        let cursor = if map_response.dragged_by(egui::PointerButton::Primary) {
+            egui::CursorIcon::Grabbing
+        } else if hovered_dot.is_some() {
+            egui::CursorIcon::PointingHand
+        } else {
+            egui::CursorIcon::Grab
+        };
+        ui.ctx().set_cursor_icon(cursor);
+    }
+
+    // A click opens the photographs a pin stands for; a double-click goes closer on a group, or into Detail on a
+    // single frame. Tapping the map dismisses the strip, as a map does in a place app; dragging never does.
+    handle_places_clicks(
+        ui,
+        state,
+        PlacesClick {
+            clusters: &clusters,
+            dots: &dots,
+            labels: &labels,
+            map_response: &map_response,
+            online_clicks: &online_clicks,
+            online_active,
+            hovered_dot,
+            over_tray,
+            over_controls,
+            zoom,
+            high,
+            zoom_f,
+            high_exact,
+            pointer,
+            centre_world,
+            scale,
+            map_rect,
+        },
+    );
+
+    // The controls sit over the map's corners: style top-left, zoom top-right, fit bottom-right. The bottom is the
+    // photograph strip, so nothing important lives there while a group is open.
+    let zoom_changed = places_map_controls(ui, t, state, map_rect, zoom, low, high);
+    if zoom_changed {
+        if online_active && let Some(map) = &online_map {
+            let target_centre = state.places_centre.unwrap_or(fitted_centre);
+            let target_zoom = if state.places_zoom_chosen {
+                state.places_zoom_exact
+            } else {
+                fitted_zoom
+            };
+            state.places_zoom_exact = target_zoom;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            {
+                state.places_zoom = target_zoom.round().clamp(low_exact, high_exact) as u8;
+            }
+            map.borrow_mut().jump_to(target_centre, target_zoom);
+        }
+        ui.ctx().request_repaint();
+    }
+
+    places_tray(ui, t, state, engine, thumbs, map_rect);
+
+    if zoom_changed {
+        ui.ctx().request_repaint();
+    }
+    places_footer(
         ui,
         t,
         state,
         engine,
-        thumbs,
-        PinScene {
+        PlacesFooter {
+            located,
             clusters: &clusters,
-            dots: &dots,
-            labels: &labels,
-            map: map_rect,
-            hovered: hovered_dot,
+            names_len,
+            names_error: names_error.as_deref(),
+            tileset: &tileset,
+            online_failure: online_failure.as_deref(),
         },
     );
+}
 
-    // A click opens the photographs a pin stands for; a double-click goes closer on a group, or into Detail on a
-    // single frame. Tapping the map dismisses the strip, as a map does in a place app; dragging never does.
-    if map_response.double_clicked() && !over_tray && !over_controls {
-        if let Some(index) = hovered_dot {
-            let cluster = &clusters[dots[index].cluster];
-            let name = labels.get(dots[index].cluster).and_then(Option::as_ref);
-            handle_places_pin_click(ui, state, cluster, name, zoom, high, true);
-        } else if zoom_f + 1.0 <= high_exact {
-            let target = pointer.and_then(|at| {
-                let world = sortlens_geo::Point {
-                    x: centre_world.x + f64::from(at.x - map_rect.center().x) / scale,
-                    y: centre_world.y + f64::from(at.y - map_rect.center().y) / scale,
-                };
-                sortlens_geo::unproject(world, 0)
-            });
-            state.places_zoom_exact = (zoom_f + 1.0).min(high_exact);
-            state.places_zoom_chosen = true;
-            if let Some(target) = target {
-                state.places_centre = Some(target);
-                state.places_map.center_at(walkers::lon_lat(target.lon, target.lat));
-            }
-            let _ = state.places_map.set_zoom(state.places_zoom_exact);
-            ui.ctx().request_repaint();
-        }
-    } else if map_response.clicked() && !over_tray && !over_controls {
-        match hovered_dot {
-            Some(index) => {
-                let cluster = &clusters[dots[index].cluster];
-                let name = labels.get(dots[index].cluster).and_then(Option::as_ref);
-                handle_places_pin_click(ui, state, cluster, name, zoom, high, false);
-            }
-            None => state.places_tray = None,
-        }
-    }
+/// The counts, credit and place-name status under the map.
+struct PlacesFooter<'a> {
+    located: usize,
+    clusters: &'a [sortlens_geo::Cluster],
+    names_len: usize,
+    names_error: Option<&'a str>,
+    tileset: &'a Option<Result<sortlens_geo::tiles::TileSet, sortlens_geo::tiles::TileError>>,
+    online_failure: Option<&'a str>,
+}
 
-    // The controls sit over the map's corners: style top-left, zoom top-right, fit bottom-right. The bottom is the
-    // photograph strip, so nothing important lives there while a group is open.
-    let zoom_changed = places_map_controls(ui, t, state, map_rect, zoom, low, high, state.places_style);
-
-    places_tray(ui, t, state, engine, thumbs, map_rect);
-
+/// Draw the map's footer and the consent dialog, which lives above every Places surface.
+fn places_footer(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, footer: PlacesFooter<'_>) {
     // The credit, over the map, every frame it is drawn. Never hidden behind a menu or a hover.
+    let online_credit = state
+        .places_online
+        .as_ref()
+        .map(|map| map.borrow().attribution().to_owned())
+        .unwrap_or_else(|| places::OPENFREEMAP_CREDIT.to_owned());
     ui.allocate_ui_with_layout(vec2(ui.available_width(), 0.0), Layout::left_to_right(Align::Center), |ui| {
-        match &tileset {
-            Some(Ok(set)) => {
-                ui.label(RichText::new(set.attribution()).size(9.5).color(t.text_muted));
-            }
-            _ => {
-                ui.label(RichText::new(sortlens_geo::land::CREDIT).size(9.5).color(t.text_muted));
+        if state.places_online_style.is_some() || footer.online_failure.is_some() {
+            ui.label(RichText::new(&online_credit).size(9.5).color(t.text_muted));
+        } else {
+            match footer.tileset {
+                Some(Ok(set)) => {
+                    ui.label(RichText::new(set.attribution()).size(9.5).color(t.text_muted));
+                }
+                _ => {
+                    ui.label(RichText::new(sortlens_geo::land::CREDIT).size(9.5).color(t.text_muted));
+                }
             }
         }
         ui.add_space(8.0);
@@ -7534,18 +7737,15 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
             RichText::new(crate::i18n::fmt(
                 "{located} photo(s) with a location · {pins} pin(s) · drag to pan, scroll to zoom",
                 &[
-                    ("located", &format_count(located as u64)),
-                    ("pins", &format_count(clusters.len() as u64)),
+                    ("located", &format_count(footer.located as u64)),
+                    ("pins", &format_count(footer.clusters.len() as u64)),
                 ],
             ))
             .size(9.5)
             .color(t.text_faint),
         );
     });
-    if zoom_changed {
-        ui.ctx().request_repaint();
-    }
-    match (&names_error, names_len) {
+    match (footer.names_error, footer.names_len) {
         (Some(error), _) => {
             ui.add_space(2.0);
             ui.label(RichText::new(error).size(9.5).color(t.reject));
@@ -7573,7 +7773,98 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
             );
         }
     }
-    basemap_status(ui, t, engine, &tileset);
+    if let Some(error) = footer.online_failure {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "OpenFreeMap could not draw: {error} · showing the offline map",
+                    &[("error", error)],
+                ))
+                .size(9.5)
+                .color(t.reject),
+            );
+            if ui.small_button(tl!("Retry")).clicked()
+                && let Some(map) = &state.places_online
+            {
+                map.borrow_mut().retry();
+                ui.ctx().request_repaint();
+            }
+        });
+    } else if state.places_online_style.is_none() {
+        basemap_status(ui, t, engine, footer.tileset);
+    }
+
+    places_online_consent_dialog(ui.ctx(), t, state);
+}
+
+/// Everything one map click needs, kept in one value so the click paths stay out of the layout's body.
+struct PlacesClick<'a> {
+    clusters: &'a [sortlens_geo::Cluster],
+    dots: &'a [places::Dot],
+    labels: &'a [Option<String>],
+    map_response: &'a egui::Response,
+    online_clicks: &'a OnlineClicks,
+    online_active: bool,
+    hovered_dot: Option<usize>,
+    over_tray: bool,
+    over_controls: bool,
+    zoom: u8,
+    high: u8,
+    zoom_f: f64,
+    high_exact: f64,
+    pointer: Option<egui::Pos2>,
+    centre_world: sortlens_geo::Point,
+    scale: f64,
+    map_rect: Rect,
+}
+
+/// Act on a click or double-click on the map and its pins.
+fn handle_places_clicks(ui: &mut Ui, state: &mut UiState, click: PlacesClick<'_>) {
+    let online_click = click
+        .online_clicks
+        .double
+        .map(|index| (index, true))
+        .or_else(|| click.online_clicks.clicked.map(|index| (index, false)));
+    if click.online_active {
+        if let Some((index, double)) = online_click.filter(|_| !click.over_tray && !click.over_controls) {
+            let cluster = &click.clusters[click.dots[index].cluster];
+            let name = click.labels.get(click.dots[index].cluster).and_then(Option::as_ref);
+            handle_places_pin_click(ui, state, cluster, name, click.zoom, click.high, double);
+        } else if click.map_response.clicked() && !click.over_tray && !click.over_controls && click.online_clicks.hovered.is_none() {
+            state.places_tray = None;
+        }
+    } else if click.map_response.double_clicked() && !click.over_tray && !click.over_controls {
+        if let Some(index) = click.hovered_dot {
+            let cluster = &click.clusters[click.dots[index].cluster];
+            let name = click.labels.get(click.dots[index].cluster).and_then(Option::as_ref);
+            handle_places_pin_click(ui, state, cluster, name, click.zoom, click.high, true);
+        } else if click.zoom_f + 1.0 <= click.high_exact {
+            let target = click.pointer.and_then(|at| {
+                let world = sortlens_geo::Point {
+                    x: click.centre_world.x + f64::from(at.x - click.map_rect.center().x) / click.scale,
+                    y: click.centre_world.y + f64::from(at.y - click.map_rect.center().y) / click.scale,
+                };
+                sortlens_geo::unproject(world, 0)
+            });
+            state.places_zoom_exact = (click.zoom_f + 1.0).min(click.high_exact);
+            state.places_zoom_chosen = true;
+            if let Some(target) = target {
+                state.places_centre = Some(target);
+                state.places_map.center_at(walkers::lon_lat(target.lon, target.lat));
+            }
+            let _ = state.places_map.set_zoom(state.places_zoom_exact);
+            ui.ctx().request_repaint();
+        }
+    } else if click.map_response.clicked() && !click.over_tray && !click.over_controls {
+        match click.hovered_dot {
+            Some(index) => {
+                let cluster = &click.clusters[click.dots[index].cluster];
+                let name = click.labels.get(click.dots[index].cluster).and_then(Option::as_ref);
+                handle_places_pin_click(ui, state, cluster, name, click.zoom, click.high, false);
+            }
+            None => state.places_tray = None,
+        }
+    }
 }
 
 /// A walkers position as the engine's coordinate, with the wrap and the Mercator limit applied.
@@ -7590,12 +7881,16 @@ fn map_centre(position: walkers::Position) -> Option<sortlens_geo::LatLon> {
 /// The style chip and its one flat menu.
 ///
 /// The chip is drawn directly rather than through `menu_button`, which nests a button frame inside the caller's
-/// frame and makes a small control read as two containers. The popup is likewise one surface: no heading row, no
-/// second inner menu frame, just the six choices at a consistent height.
-fn places_style_chip(ui: &mut Ui, t: &Tokens, state: &mut UiState, current: places::MapStyle) -> bool {
-    let text = format!("{} · {}", tl!("Map style"), tl!(current.label()));
+/// frame and makes a small control read as two containers. The popup is one surface with two groups: OpenFreeMap's
+/// online styles first, then the shipped offline treatments. Choosing an online style without consent opens the
+/// consent dialog instead of fetching anything.
+fn places_style_chip(ui: &mut Ui, t: &Tokens, state: &mut UiState) -> bool {
+    let text = match state.places_online_style {
+        Some(style) => format!("OpenFreeMap · {}", tl!(style.label())),
+        None => format!("{} · {}", tl!("Map style"), tl!(state.places_style.label())),
+    };
     let font = FontId::proportional(10.5);
-    let width = (measure(ui, &text, &font) + 38.0).max(126.0);
+    let width = (measure(ui, &text, &font) + 38.0).clamp(126.0, 200.0);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 26.0), Sense::click());
     let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
     let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
@@ -7631,32 +7926,34 @@ fn places_style_chip(ui: &mut Ui, t: &Tokens, state: &mut UiState, current: plac
     );
     popup.show(|ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-        for option in places::MapStyle::ALL {
-            let selected = state.places_style == option;
+        ui.label(RichText::new("OpenFreeMap · online").size(9.0).color(t.text_faint));
+        for option in places::OpenFreeMapStyle::ALL {
+            let selected = state.places_online_style == Some(option);
             let label = tl!(option.label());
-            let (row, row_response) = ui.allocate_exact_size(vec2(ui.available_width(), 27.0), Sense::click());
-            let row_response = row_response.on_hover_cursor(egui::CursorIcon::PointingHand);
-            let row_painter = ui.painter();
-            if selected {
-                row_painter.rect_filled(row, 5.0, t.selection);
-            } else if row_response.hovered() {
-                row_painter.rect_filled(row, 5.0, t.hover);
+            if style_menu_row(ui, t, label, selected) {
+                if state.places_online_consent {
+                    state.places_online_style = Some(option);
+                    if let Some(map) = &state.places_online {
+                        map.borrow_mut().set_style(option);
+                    }
+                } else {
+                    state.places_online_prompt = Some(option);
+                }
+                changed = true;
+                ui.close();
             }
-            row_painter.text(
-                row.left_center() + vec2(10.0, 0.0),
-                Align2::LEFT_CENTER,
-                label,
-                FontId::proportional(11.0),
-                if selected { t.text } else { t.text_muted },
-            );
-            if selected {
-                let check = row.right_center() - vec2(12.0, 0.0);
-                let tick = Stroke::new(1.4, t.accent);
-                row_painter.line_segment([check + vec2(-4.0, 0.0), check + vec2(-1.0, 3.0)], tick);
-                row_painter.line_segment([check + vec2(-1.0, 3.0), check + vec2(4.0, -4.0)], tick);
-            }
-            a11y::label_widget(ui, &row_response, egui::Role::Button, label, selected);
-            if row_response.clicked() {
+        }
+        ui.add_space(4.0);
+        ui.separator();
+        ui.add_space(4.0);
+        ui.label(RichText::new(tl!("Offline map")).size(9.0).color(t.text_faint));
+        for option in places::MapStyle::ALL {
+            let selected = state.places_online_style.is_none() && state.places_style == option;
+            let label = tl!(option.label());
+            if style_menu_row(ui, t, label, selected) {
+                state.places_online_style = None;
+                state.places_online = None;
+                state.places_online_prompt = None;
                 state.places_style = option;
                 changed = true;
                 ui.close();
@@ -7666,28 +7963,46 @@ fn places_style_chip(ui: &mut Ui, t: &Tokens, state: &mut UiState, current: plac
     changed
 }
 
+/// One row of the style menu, with the check mark on the selected option.
+fn style_menu_row(ui: &mut Ui, t: &Tokens, label: &str, selected: bool) -> bool {
+    let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), 27.0), Sense::click());
+    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let painter = ui.painter();
+    if selected {
+        painter.rect_filled(row, 5.0, t.selection);
+    } else if response.hovered() {
+        painter.rect_filled(row, 5.0, t.hover);
+    }
+    painter.text(
+        row.left_center() + vec2(10.0, 0.0),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(11.0),
+        if selected { t.text } else { t.text_muted },
+    );
+    if selected {
+        let check = row.right_center() - vec2(12.0, 0.0);
+        let tick = Stroke::new(1.4, t.accent);
+        painter.line_segment([check + vec2(-4.0, 0.0), check + vec2(-1.0, 3.0)], tick);
+        painter.line_segment([check + vec2(-1.0, 3.0), check + vec2(4.0, -4.0)], tick);
+    }
+    a11y::label_widget(ui, &response, egui::Role::Button, label, selected);
+    response.clicked()
+}
+
 /// The map's own chrome: a style menu, a zoom pill and a fit button.
 ///
 /// The controls are drawn in a child UI with the map's rectangle, so painting them does not move the parent's cursor
 /// and lay the footer over the map. A map without a visible way back to the library's own extent is a map that can
 /// be lost by one enthusiastic trackpad gesture.
-fn places_map_controls(
-    ui: &mut Ui,
-    t: &Tokens,
-    state: &mut UiState,
-    map: Rect,
-    zoom: u8,
-    low: u8,
-    high: u8,
-    style: places::MapStyle,
-) -> bool {
+fn places_map_controls(ui: &mut Ui, t: &Tokens, state: &mut UiState, map: Rect, zoom: u8, low: u8, high: u8) -> bool {
     let mut changed = false;
     let mut overlay = ui.new_child(egui::UiBuilder::new().max_rect(map.shrink(8.0)));
 
     // Style, top-left, in a quiet chip rather than a toolbar. It opens one flat menu so the map itself stays
     // uncluttered; the chip and the menu are the only two surfaces, not a framed control inside a second frame.
     overlay.with_layout(Layout::left_to_right(Align::Min), |ui| {
-        changed |= places_style_chip(ui, t, state, style);
+        changed |= places_style_chip(ui, t, state);
     });
 
     // Zoom, top-right: two buttons and the level, in one rounded pill.
@@ -7827,6 +8142,242 @@ fn paint_places_pins(ui: &mut Ui, t: &Tokens, state: &UiState, engine: &Engine, 
     }
 }
 
+/// The online map's clusters and dots, projected from the same camera the map drew.
+struct OnlineLayout {
+    clusters: Vec<sortlens_geo::Cluster>,
+    dots: Vec<places::Dot>,
+}
+
+/// Project the clusters' dots for one online frame.
+fn build_online_layout(engine: &Engine, map: Rect, centre: sortlens_geo::LatLon, zoom: u8, zoom_exact: f64) -> Option<OnlineLayout> {
+    let centre_world = sortlens_geo::project(centre, 0)?;
+    let scale = zoom_exact.exp2();
+    let to_local = |place: sortlens_geo::LatLon| {
+        let world = sortlens_geo::project(place, 0)?;
+        let mut dx = world.x - centre_world.x;
+        while dx > 128.0 {
+            dx -= 256.0;
+        }
+        while dx < -128.0 {
+            dx += 256.0;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        Some((
+            (f64::from(map.width()) / 2.0 + dx * scale) as f32,
+            (f64::from(map.height()) / 2.0 + (world.y - centre_world.y) * scale) as f32,
+        ))
+    };
+    let clusters = engine.places(zoom);
+    let dots = places::dots(&clusters, to_local, map.width(), map.height());
+    Some(OnlineLayout { clusters, dots })
+}
+
+/// What the pointer did to the online map's pins this frame.
+#[derive(Default)]
+struct OnlineClicks {
+    hovered: Option<usize>,
+    clicked: Option<usize>,
+    double: Option<usize>,
+}
+
+/// Paint online pins over the map and report what they were clicked with.
+///
+/// The dots are already in the map's points, so a pin is an egui area at that point rather than a MapLibre content
+/// marker. That keeps the pin on the dot the offline map hit-tests, and avoids relying on the marker placement in
+/// maplibre-egui 0.3, which projects at twice the camera's offset when the window has a pixel ratio above one.
+fn paint_online_pins(
+    ui: &mut Ui,
+    t: &Tokens,
+    state: &UiState,
+    engine: &Engine,
+    thumbs: &mut Thumbnails,
+    scene: PinScene<'_>,
+) -> OnlineClicks {
+    let mut clicks = OnlineClicks::default();
+    let ctx = ui.ctx().clone();
+    for (index, dot) in scene.dots.iter().enumerate() {
+        let cluster = &scene.clusters[dot.cluster];
+        let selected = cluster.members.iter().any(|id| state.selection.contains(*id));
+        let described = scene
+            .labels
+            .get(dot.cluster)
+            .and_then(Option::as_ref)
+            .cloned()
+            .unwrap_or_else(|| crate::i18n::fmt("{n} photo(s)", &[("n", &format_count(cluster.len() as u64))]));
+        let at = scene.map.min + vec2(dot.at.0, dot.at.1);
+        let response = egui::Area::new(egui::Id::unique(("online-pin", index)))
+            .fixed_pos(at)
+            .pivot(Align2::CENTER_CENTER)
+            .constrain(false)
+            .show(&ctx, |ui| {
+                ui.set_clip_rect(scene.map);
+                paint_online_pin(ui, t, engine, thumbs, cluster, dot, selected, &described)
+            })
+            .inner;
+        if response.hovered() {
+            clicks.hovered = Some(index);
+        }
+        if response.double_clicked() {
+            clicks.double = Some(index);
+        } else if response.clicked() {
+            clicks.clicked = Some(index);
+        }
+        if let Some(label) = scene.labels.get(dot.cluster).and_then(Option::as_ref) {
+            let label_at = at + vec2(0.0, dot.radius + 2.0);
+            let _ = egui::Area::new(egui::Id::unique(("online-label", index)))
+                .fixed_pos(label_at)
+                .pivot(Align2::CENTER_TOP)
+                .constrain(false)
+                .show(&ctx, |ui| {
+                    ui.set_clip_rect(scene.map);
+                    paint_online_label(ui, t, label);
+                });
+        }
+    }
+    clicks
+}
+
+/// One online pin: a framed thumbnail for a frame, an accent disc for a group.
+fn paint_online_pin(
+    ui: &mut Ui,
+    t: &Tokens,
+    engine: &Engine,
+    thumbs: &mut Thumbnails,
+    cluster: &sortlens_geo::Cluster,
+    dot: &places::Dot,
+    selected: bool,
+    described: &str,
+) -> egui::Response {
+    let side = if cluster.is_single() {
+        30.0
+    } else {
+        (dot.radius * 2.0 + 4.0).max(22.0)
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
+    a11y::label_widget(ui, &response, egui::Role::Button, described, selected);
+    let hovered = response.hovered();
+    let scale = if hovered { 1.07 } else { 1.0 };
+    let centre = rect.center();
+    let painter = ui.painter();
+    if cluster.is_single() {
+        let side = 30.0 * scale;
+        let pin = Rect::from_center_size(centre + vec2(0.0, -1.0), vec2(side, side));
+        painter.rect_filled(pin.translate(vec2(0.0, 2.0)), t.corner(), t.shadow);
+        painter.rect_filled(pin, t.corner(), t.thumb_bg);
+        let texture = cluster
+            .members
+            .first()
+            .and_then(|id| engine.photo(*id))
+            .and_then(|photo| thumbs.get(ui.ctx(), photo, 128).cloned());
+        if let Some(texture) = texture {
+            painter.image(texture.id(), pin, cover_uv(texture.size_vec2(), pin.size()), Color32::WHITE);
+        }
+        painter.rect_stroke(
+            pin,
+            t.corner(),
+            Stroke::new(if selected { 2.0 } else { 1.5 }, if selected { t.accent } else { t.card }),
+            StrokeKind::Middle,
+        );
+        let tail = vec![
+            egui::pos2(pin.center().x - 4.0, pin.bottom() - 1.0),
+            egui::pos2(pin.center().x, pin.bottom() + 4.0),
+            egui::pos2(pin.center().x + 4.0, pin.bottom() - 1.0),
+        ];
+        painter.add(egui::Shape::convex_polygon(tail, t.card, Stroke::NONE));
+    } else {
+        let radius = dot.radius * scale;
+        painter.circle_filled(centre + vec2(0.0, 2.0), radius, t.shadow);
+        painter.circle_filled(centre, radius, t.accent);
+        painter.circle_stroke(
+            centre,
+            radius,
+            Stroke::new(if selected { 2.5 } else { 2.0 }, if selected { t.text } else { t.card }),
+        );
+        let count = format_count(cluster.len() as u64);
+        let size = if count.chars().count() > 3 { 8.5 } else { 10.0 };
+        painter.text(centre, Align2::CENTER_CENTER, count, FontId::proportional(size), t.accent_fg);
+    }
+    response
+}
+
+/// A place label under an online pin, with the same one-pixel shadow as the offline map.
+fn paint_online_label(ui: &mut Ui, t: &Tokens, label: &str) {
+    let font = FontId::proportional(9.5);
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), font, t.text);
+    let (rect, _) = ui.allocate_exact_size(galley.size() + vec2(4.0, 2.0), Sense::hover());
+    let at = rect.center_top();
+    let painter = ui.painter();
+    painter.text(
+        at + vec2(0.0, 1.0),
+        Align2::CENTER_TOP,
+        label,
+        FontId::proportional(9.5),
+        t.thumb_bg,
+    );
+    painter.text(at, Align2::CENTER_TOP, label, FontId::proportional(9.5), t.text);
+}
+
+/// Ask before the first OpenFreeMap request, and remember the answer for this session.
+fn places_online_consent_dialog(ctx: &egui::Context, t: &Tokens, state: &mut UiState) {
+    let Some(style) = state.places_online_prompt else {
+        return;
+    };
+    let mut confirm = false;
+    let mut cancel = false;
+    egui::Window::new(tl!("Use OpenFreeMap's online map?"))
+        .collapsible(false)
+        .resizable(false)
+        .movable(false)
+        .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            ui.set_max_width(360.0);
+            ui.label(
+                RichText::new(crate::i18n::fmt(
+                    "This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.",
+                    &[("style", tl!(style.label()))],
+                ))
+                .size(12.0),
+            );
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(tl!(
+                    "Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer."
+                ))
+                .size(10.5)
+                .color(t.text_muted),
+            );
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(tl!("The offline map stays available; switch back in the map style menu at any time."))
+                    .size(10.5)
+                    .color(t.text_muted),
+            );
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.hyperlink_to("OpenFreeMap", "https://openfreemap.org");
+                ui.hyperlink_to("OpenMapTiles", "https://openmaptiles.org");
+                ui.hyperlink_to("OpenStreetMap", "https://www.openstreetmap.org/copyright");
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button(tl!("Not now")).clicked() {
+                    cancel = true;
+                }
+                if ui.button(RichText::new(tl!("Use online map")).strong()).clicked() {
+                    confirm = true;
+                }
+            });
+        });
+    if confirm {
+        state.places_online_consent = true;
+        state.places_online_style = Some(style);
+        state.places_online_prompt = None;
+        state.places_online = None;
+    } else if cancel {
+        state.places_online_prompt = None;
+    }
+}
+
 /// Act on a click or double-click on one pin.
 ///
 /// A single click always opens the strip; a double-click on one frame goes to Detail, and on a group
@@ -7854,6 +8405,11 @@ fn handle_places_pin_click(
             state.places_centre = Some(cluster.centre);
             let _ = state.places_map.set_zoom(state.places_zoom_exact);
             state.places_map.center_at(walkers::lon_lat(cluster.centre.lon, cluster.centre.lat));
+            if state.places_online_style.is_some()
+                && let Some(map) = &state.places_online
+            {
+                map.borrow_mut().jump_to(cluster.centre, state.places_zoom_exact);
+            }
             state.places_tray = None;
             ui.ctx().request_repaint();
         } else {

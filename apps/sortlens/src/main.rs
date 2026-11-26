@@ -520,8 +520,11 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // The online Places map draws through egui-wgpu. The host is the only owner of that renderer; the shell
+        // keeps the handle for the frames that need it, and Places stays on its offline map when there is none.
+        self.ui.places_render.set(frame.wgpu_render_state());
 
         let tick = self.store.tick(std::time::Instant::now());
         if let Some(deadline) = tick.next_deadline {

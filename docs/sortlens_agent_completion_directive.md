@@ -26,6 +26,7 @@ Work through the phases below sequentially in clean, focused commits—one concr
 - **Network policy:** User-initiated, opt-in network calls are explicitly approved for:
   1. Downloading pinned AI models (`model.install`)
   2. Opt-in update checks (`craft-update`)
+  3. The consent-gated OpenFreeMap online map (map area, style name and network address only)
   Keep `crates/ai` strictly offline and preserve its `no_network` test.
 - **AI weights & map data:** Pin real, permissively licensed (MIT / Apache-2.0 / public domain) model weights and lightweight offline map/gazetteer data (or ship a clean opt-in downloader for them) and attribute them in `docs/ATTRIBUTION.md`.
 - **Licensing:** Confirmed as `MIT OR Apache-2.0` for `sortlens-rust`.

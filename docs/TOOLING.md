@@ -114,7 +114,7 @@ members = ["crates/*", "apps/*", "xtask"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.95"
+rust-version = "1.98"
 repository = "https://github.com/Topzic/sortlens-rust"
 
 # One rev for every craft crate. Move it in its own PR. (rev omitted here; pick the merge on main)
@@ -232,11 +232,11 @@ The user supplied the standard installer:
 What we actually need on each development machine and in CI:
 
 ```sh
-# 1. Toolchain, pinned by rust-toolchain.toml (craft-libs requires 1.95+)
-rustup toolchain install 1.95.0 --profile minimal \
+# 1. Toolchain, pinned by rust-toolchain.toml (mln-rs, the OpenFreeMap renderer, requires 1.98)
+rustup toolchain install 1.98.0 --profile minimal \
   --component rustfmt clippy \
   --target aarch64-linux-android aarch64-apple-ios
-rustup default 1.95.0
+rustup default 1.98.0
 
 # 2. Cargo tools used by the repo (all optional for building the app)
 cargo install --locked cargo-nextest cargo-deny cargo-mutants cargo-binstall
@@ -255,7 +255,7 @@ cargo install --locked cargo-nextest cargo-deny cargo-mutants cargo-binstall
 
 ```toml
 [toolchain]
-channel = "1.95.0"
+channel = "1.98.0"
 components = ["rustfmt", "clippy"]
 targets = ["aarch64-linux-android", "aarch64-apple-ios"]
 profile = "minimal"
@@ -357,7 +357,7 @@ in `Cargo.toml`, and (if it parses untrusted bytes) a hostile-input test.
 
 ## 8. Tooling checklist for Milestone 0
 
-- [ ] `rust-toolchain.toml` pinned to 1.95.0 + phone targets
+- [ ] `rust-toolchain.toml` pinned to 1.98.0 + phone targets
 - [ ] Workspace skeleton with the 19 library crates and 4 app crates from `ARCHITECTURE.md` §2; `[lints] workspace = true`
 - [ ] `#![forbid(unsafe_code)]` and the panic-free lint set in every crate root
 - [ ] Craft rev pinned in `Cargo.toml`, egui fork pinned in `.cargo/config.toml`, `Cargo.lock` committed

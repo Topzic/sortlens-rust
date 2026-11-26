@@ -33,7 +33,7 @@ Two-worker calendar. Single worker: stretch each row to its `weeks` estimate fro
 **State:** done — every row is checked, fonts and `cargo deny` included. The toolchain, the workspace,
 `xtask`, the shell and the settings store are what M1–M10 build on.
 
-- [x] `rust-toolchain.toml` (1.95.0, phone targets), `.cargo/config.toml` alias; egui + winit forks patched in `Cargo.toml`
+- [x] `rust-toolchain.toml` (1.98.0, phone targets), `.cargo/config.toml` alias; egui + winit forks patched in `Cargo.toml`
 - [x] Workspace: 19 library crates + 4 app crates; `[lints] workspace = true`; crate-root denies (A)
 - [x] `xtask`: `ci`, `fmt`, `clippy`, `test`, `layers`, `roots`, `assets`, `mobile` (E)
 - [x] `cargo deny` allow-list in `deny.toml` (licences, advisories, bans, sources), `cargo xtask deny`, its own CI job; `Cargo.lock` committed (E)
@@ -1179,10 +1179,11 @@ when the behaviour is absent, ticks its row here, and updates `CHECKPOINT.md` in
 commit: `cargo xtask ci`, `snapshot`, `deny`, and `mobile` when `crates/core`, `crates/ui` or phone-facing
 crates change.
 
-Owner sign-offs (Phase 0): user-initiated, opt-in network calls for `model.install` and `craft-update` only —
-`crates/ai` stays offline with its `no_network` test; real permissively licensed (MIT / Apache-2.0 / public
-domain) model weights and offline map data, or an opt-in downloader for them, attributed in
-`docs/ATTRIBUTION.md`; licence `MIT OR Apache-2.0`.
+Owner sign-offs (Phase 0): user-initiated, opt-in network calls for `model.install`, `craft-update` and the
+consent-gated OpenFreeMap online map (map area, style name and network address only) — `crates/ai` stays offline
+with its `no_network` test; real permissively licensed (MIT / Apache-2.0 / public domain) model weights and
+offline map data, or an opt-in downloader for them, attributed in `docs/ATTRIBUTION.md`; licence
+`MIT OR Apache-2.0`.
 
 ### Phase 0 — Re-scope blockers and fix stale docs
 

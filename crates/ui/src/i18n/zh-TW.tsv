@@ -820,3 +820,11 @@
 	Paper	紙
 	Blueprint	藍圖
 	Mono	單色
+	Offline map	離線地圖
+	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	只有地圖範圍、樣式名稱與您的網路位址會傳送到 tiles.openfreemap.org。您的照片、其名稱與位置，以及這個圖庫，永遠不會離開這台電腦。
+	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap 無法繪製：{error} · 目前顯示離線地圖
+	Retry	重試
+	The offline map stays available; switch back in the map style menu at any time.	離線地圖仍可使用；隨時可從地圖樣式選單切換回來。
+	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	這會繪製 OpenFreeMap 的 {style} 樣式，與 openfreemap.org 相同的 MapLibre 地圖。
+	Use OpenFreeMap's online map?	要使用 OpenFreeMap 的線上地圖嗎？
+	Use online map	使用線上地圖

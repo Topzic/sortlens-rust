@@ -820,3 +820,11 @@
 	Paper	Giấy
 	Blueprint	Bản thiết kế
 	Mono	Đơn sắc
+	Offline map	Bản đồ ngoại tuyến
+	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	Chỉ khu vực bản đồ, tên kiểu và địa chỉ mạng của bạn được gửi đến tiles.openfreemap.org. Ảnh, tên và vị trí của chúng, cùng thư viện này không bao giờ rời khỏi máy tính này.
+	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap không thể vẽ: {error} · đang hiển thị bản đồ ngoại tuyến
+	Retry	Thử lại
+	The offline map stays available; switch back in the map style menu at any time.	Bản đồ ngoại tuyến vẫn luôn có sẵn; chuyển lại trong menu kiểu bản đồ bất cứ lúc nào.
+	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	Lớp này vẽ kiểu {style} của OpenFreeMap, cùng bản đồ MapLibre như openfreemap.org.
+	Use OpenFreeMap's online map?	Dùng bản đồ trực tuyến của OpenFreeMap?
+	Use online map	Dùng bản đồ trực tuyến

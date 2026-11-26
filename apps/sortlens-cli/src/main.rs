@@ -923,13 +923,13 @@ fn print_schemas() -> Result<(), String> {
         .iter()
         .map(|schema| {
             serde_json::json!({
-                "verb": schema.verb,
                 "command": schema.command,
                 "kind": match schema.kind {
                     Kind::Read => "read",
                     Kind::Write => "write",
                 },
                 "note": schema.note,
+                "verb": schema.verb,
             })
         })
         .collect();

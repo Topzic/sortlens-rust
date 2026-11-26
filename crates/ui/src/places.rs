@@ -5,10 +5,14 @@
 //! window to check a hit test is a test nobody writes twice.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use egui::{Color32, ColorImage, TextureHandle};
+use maplibre_egui::EguiMap;
+use maplibre_egui::model::{Camera, CameraChange, Command, Content, Inputs, Options, Record};
 use sortlens_core::PhotoId;
 use sortlens_geo::LatLon;
 use sortlens_geo::tiles::TileSet;
@@ -215,6 +219,242 @@ impl MapStyle {
                 a,
             );
         }
+    }
+}
+
+/// A cartographic style served by [OpenFreeMap](https://openfreemap.org).
+///
+/// These are the real MapLibre styles, not recoloured approximations: the map is fetched and drawn only after the
+/// person accepts the online map, and the shipped land/coastline map remains the default and the fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum OpenFreeMapStyle {
+    /// OpenFreeMap's general-purpose light style, with land use, roads and labels.
+    #[default]
+    Liberty,
+    /// A brighter general-purpose style.
+    Bright,
+    /// A quiet light style for reading data over.
+    Positron,
+    /// A dark style for a dark room.
+    Dark,
+    /// A muted blue-green style.
+    Fiord,
+}
+
+impl OpenFreeMapStyle {
+    /// Every style, in menu order.
+    pub const ALL: [Self; 5] = [Self::Liberty, Self::Bright, Self::Positron, Self::Dark, Self::Fiord];
+
+    /// The style's path on OpenFreeMap, also its stable identifier.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Liberty => "liberty",
+            Self::Bright => "bright",
+            Self::Positron => "positron",
+            Self::Dark => "dark",
+            Self::Fiord => "fiord",
+        }
+    }
+
+    /// The English catalogue key for the style's name.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Liberty => "Liberty",
+            Self::Bright => "Bright",
+            Self::Positron => "Positron",
+            Self::Dark => "Dark",
+            Self::Fiord => "Fiord",
+        }
+    }
+
+    /// The MapLibre style document's URL.
+    pub const fn url(self) -> &'static str {
+        match self {
+            Self::Liberty => "https://tiles.openfreemap.org/styles/liberty",
+            Self::Bright => "https://tiles.openfreemap.org/styles/bright",
+            Self::Positron => "https://tiles.openfreemap.org/styles/positron",
+            Self::Dark => "https://tiles.openfreemap.org/styles/dark",
+            Self::Fiord => "https://tiles.openfreemap.org/styles/fiord",
+        }
+    }
+
+    /// The style Auto would pick for an interface: Dark in a dark room, Liberty in a light one.
+    #[must_use]
+    pub fn auto(tokens: &crate::theme::Tokens) -> Self {
+        let luminance = 0.2126 * f32::from(tokens.bg.r()) + 0.7152 * f32::from(tokens.bg.g()) + 0.0722 * f32::from(tokens.bg.b());
+        if luminance < 128.0 { Self::Dark } else { Self::Liberty }
+    }
+}
+
+/// The credit OpenFreeMap's data requires, for the map's own footer.
+pub const OPENFREEMAP_CREDIT: &str = "OpenFreeMap © OpenMapTiles · Data from OpenStreetMap";
+
+/// The render state eframe owns, kept so Places can hand it to the online map.
+///
+/// An online map draws through egui-wgpu, which is only available once the window has a wgpu renderer. Tests and the
+/// headless screenshot harness do not, so this stays None and Places keeps the offline map.
+#[derive(Clone, Default)]
+pub struct MapRenderState(Option<Arc<egui_wgpu::RenderState>>);
+
+impl fmt::Debug for MapRenderState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MapRenderState").field("present", &self.0.is_some()).finish()
+    }
+}
+
+impl MapRenderState {
+    /// Record the window's renderer, or clear it when the window has none.
+    pub fn set(&mut self, render_state: Option<&egui_wgpu::RenderState>) {
+        match render_state {
+            Some(render_state) => {
+                if self.0.is_none() {
+                    self.0 = Some(Arc::new(render_state.clone()));
+                }
+            }
+            None => self.0 = None,
+        }
+    }
+
+    /// The renderer, cloned out so a map can be drawn without borrowing the shell's whole state.
+    #[must_use]
+    pub fn get(&self) -> Option<Arc<egui_wgpu::RenderState>> {
+        self.0.clone()
+    }
+}
+
+/// A live online map, and what the shell knows of it after its last frame.
+///
+/// Kept behind Rc<RefCell<..>> because EguiMap is not Clone or Debug, while UiState is both. The map owns its
+/// texture and its gestures; the shell owns the pins and reads the record after show.
+pub struct OnlineMap {
+    map: EguiMap,
+    style: OpenFreeMapStyle,
+    record: Option<Record>,
+    error: Option<String>,
+}
+
+impl fmt::Debug for OnlineMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OnlineMap")
+            .field("style", &self.style)
+            .field("loaded", &self.loaded())
+            .field("error", &self.error)
+            .finish_non_exhaustive()
+    }
+}
+
+impl OnlineMap {
+    /// A map of OpenFreeMap's style, centred on centre at zoom.
+    #[must_use]
+    pub fn new(style: OpenFreeMapStyle, centre: LatLon, zoom: f64) -> Self {
+        let inputs = Inputs {
+            style: style.url().to_owned(),
+            camera: Camera {
+                center: [centre.lon, centre.lat],
+                zoom,
+                bearing: 0.0,
+                pitch: 0.0,
+            },
+            content: Content::default(),
+            options: Options {
+                min_zoom: Some(1.0),
+                max_zoom: Some(f64::from(MAX_ZOOM)),
+                // Places is a two-dimensional map for now: a pin's geographic point must be the point a click
+                // reaches, and a turned or pitched map would need a second pin geometry to keep that true.
+                drag_rotate: Some(false),
+                pitch_with_rotate: Some(false),
+                touch_pitch: Some(false),
+                ..Options::default()
+            },
+            events: Vec::new(),
+        };
+        Self {
+            map: EguiMap::new(inputs),
+            style,
+            record: None,
+            error: None,
+        }
+    }
+
+    /// The style the map is drawing.
+    #[must_use]
+    pub fn style(&self) -> OpenFreeMapStyle {
+        self.style
+    }
+
+    /// Replace the style, keeping the camera.
+    pub fn set_style(&mut self, style: OpenFreeMapStyle) {
+        if style == self.style {
+            return;
+        }
+        self.style = style;
+        let mut inputs = self.map.inputs().clone();
+        inputs.style = style.url().to_owned();
+        self.map.set_inputs(inputs);
+        self.record = None;
+        self.error = None;
+    }
+
+    /// Whether the style and every tile in view have loaded.
+    #[must_use]
+    pub fn loaded(&self) -> bool {
+        self.record.as_ref().is_some_and(|record| record.loaded)
+    }
+
+    /// The camera where the map last came to rest.
+    #[must_use]
+    pub fn camera(&self) -> Option<Camera> {
+        self.record.as_ref().map(|record| record.camera)
+    }
+
+    /// The last failure, from the style or a tile, while there is one.
+    #[must_use]
+    pub fn failure(&self) -> Option<&str> {
+        self.error
+            .as_deref()
+            .or_else(|| self.record.as_ref().and_then(|record| record.failure.as_deref()))
+    }
+
+    /// Who the data comes from, as the style declares it.
+    #[must_use]
+    pub fn attribution(&self) -> &str {
+        self.record
+            .as_ref()
+            .map(|record| record.attribution.as_str())
+            .filter(|attribution| !attribution.is_empty())
+            .unwrap_or(OPENFREEMAP_CREDIT)
+    }
+
+    /// Show the map in ui, which must be a child of the map's own rectangle.
+    pub fn show(&mut self, ui: &mut egui::Ui, render_state: &egui_wgpu::RenderState) -> egui::Response {
+        let response = self.map.show(ui, render_state);
+        if let Some(record) = self.map.record() {
+            self.record = Some(record.clone());
+        }
+        if let Some(error) = self.map.error() {
+            self.error = Some(error.to_owned());
+        }
+        response
+    }
+
+    /// Move the camera without an animation, for a control or a double-click.
+    pub fn jump_to(&mut self, centre: LatLon, zoom: f64) {
+        self.map.command(Command::JumpTo(CameraChange {
+            center: Some([centre.lon, centre.lat]),
+            zoom: Some(zoom),
+            ..CameraChange::default()
+        }));
+    }
+
+    /// Drop the failed map and build it again at the last camera, keeping the style.
+    pub fn retry(&mut self) {
+        let mut inputs = self.map.inputs().clone();
+        if let Some(record) = &self.record {
+            inputs.camera = record.camera;
+        }
+        self.map = EguiMap::new(inputs);
+        self.record = None;
+        self.error = None;
     }
 }
 
@@ -1080,6 +1320,34 @@ mod tests {
         });
         output.textures_delta.clear();
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn online_styles_name_the_published_openfreemap_documents() {
+        let urls: Vec<&str> = OpenFreeMapStyle::ALL.iter().map(|style| style.url()).collect();
+        assert_eq!(
+            urls,
+            [
+                "https://tiles.openfreemap.org/styles/liberty",
+                "https://tiles.openfreemap.org/styles/bright",
+                "https://tiles.openfreemap.org/styles/positron",
+                "https://tiles.openfreemap.org/styles/dark",
+                "https://tiles.openfreemap.org/styles/fiord",
+            ]
+        );
+        for style in OpenFreeMapStyle::ALL {
+            assert!(style.url().ends_with(style.id()), "{} names its own document", style.id());
+            assert!(!style.label().is_empty());
+        }
+        assert!(OPENFREEMAP_CREDIT.contains("OpenStreetMap"));
+    }
+
+    #[test]
+    fn the_default_online_style_follows_the_interface_luminance() {
+        let charcoal = crate::theme::ThemeKind::Charcoal.tokens();
+        let paper = crate::theme::ThemeKind::Paper.tokens();
+        assert_eq!(OpenFreeMapStyle::auto(&charcoal), OpenFreeMapStyle::Dark);
+        assert_eq!(OpenFreeMapStyle::auto(&paper), OpenFreeMapStyle::Liberty);
     }
 
     #[test]

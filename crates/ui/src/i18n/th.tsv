@@ -822,3 +822,11 @@
 	Paper	กระดาษ
 	Blueprint	พิมพ์เขียว
 	Mono	ขาวดำ
+	Offline map	แผนที่ออฟไลน์
+	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	สิ่งที่ส่งไปยัง tiles.openfreemap.org มีเพียงพื้นที่แผนที่ ชื่อสไตล์ และที่อยู่เครือข่ายของคุณ ภาพถ่าย ชื่อและตำแหน่งของภาพถ่าย และไลบรารีนี้จะไม่ออกจากคอมพิวเตอร์เครื่องนี้
+	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap วาดไม่ได้: {error} · กำลังแสดงแผนที่ออฟไลน์
+	Retry	ลองใหม่
+	The offline map stays available; switch back in the map style menu at any time.	แผนที่ออฟไลน์ยังใช้ได้เสมอ สามารถกลับไปได้จากเมนูสไตล์แผนที่
+	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	สิ่งนี้วาดสไตล์ {style} ของ OpenFreeMap ซึ่งเป็นแผนที่ MapLibre เดียวกับ openfreemap.org
+	Use OpenFreeMap's online map?	ใช้แผนที่ออนไลน์ของ OpenFreeMap หรือไม่?
+	Use online map	ใช้แผนที่ออนไลน์

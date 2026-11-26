@@ -821,3 +821,11 @@
 	Paper	ورق
 	Blueprint	مخطط
 	Mono	أحادي
+	Offline map	الخريطة دون اتصال
+	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	لا يذهب إلى tiles.openfreemap.org سوى مساحة الخريطة واسم النمط وعنوان شبكتك. لا تغادر صورك وأسماؤها ومواقعها وهذه المكتبة هذا الجهاز أبدًا.
+	OpenFreeMap could not draw: {error} · showing the offline map	تعذّر على OpenFreeMap الرسم: {error} · تُعرض الخريطة دون اتصال
+	Retry	إعادة المحاولة
+	The offline map stays available; switch back in the map style menu at any time.	تظل الخريطة دون اتصال متاحة؛ يمكنك العودة إليها من قائمة نمط الخريطة في أي وقت.
+	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	هذا يرسم نمط {style} من OpenFreeMap، خريطة MapLibre نفسها التي تعرضها openfreemap.org.
+	Use OpenFreeMap's online map?	استخدام خريطة OpenFreeMap عبر الإنترنت؟
+	Use online map	استخدام الخريطة عبر الإنترنت

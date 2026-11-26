@@ -21,6 +21,10 @@ sortlens-icon = { workspace = true }
 egui = { workspace = true }
 # The Places map: slippy-map widget, projection and tile loading.
 walkers = { workspace = true }
+# The opt-in online basemap (OpenFreeMap via mln-rs). It is only shown after the person accepts
+# fetching map tiles; the offline map above remains the default and the fallback.
+maplibre-egui = { workspace = true }
+egui-wgpu = { workspace = true }
 # SVG rasterisation for the monochrome icon set: `craft_ui::icons` prepares the bytes, this loads them.
 egui_extras = { workspace = true }
 craft-ui = { workspace = true }

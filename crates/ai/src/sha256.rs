@@ -75,13 +75,12 @@ impl Hasher {
                 self.filled = 0;
             }
         }
-        let mut chunks = data.chunks_exact(64);
-        for chunk in &mut chunks {
+        let (chunks, rest) = data.as_chunks::<64>();
+        for chunk in chunks {
             let mut block = [0u8; 64];
             block.copy_from_slice(chunk);
             compress(&mut self.state, &block);
         }
-        let rest = chunks.remainder();
         if self.filled == 0 {
             self.tail[..rest.len()].copy_from_slice(rest);
             self.filled = rest.len();
@@ -119,14 +118,13 @@ pub fn digest(data: &[u8]) -> Digest {
     let mut block = [0u8; 64];
 
     // Every full block, straight through.
-    let mut chunks = data.chunks_exact(64);
-    for chunk in &mut chunks {
+    let (chunks, rest) = data.as_chunks::<64>();
+    for chunk in chunks {
         block.copy_from_slice(chunk);
         compress(&mut state, &block);
     }
 
     // The tail: what is left, a 1 bit, zeros, and the bit length as a big-endian u64.
-    let rest = chunks.remainder();
     let mut tail = [0u8; 128];
     tail[..rest.len()].copy_from_slice(rest);
     tail[rest.len()] = 0x80;

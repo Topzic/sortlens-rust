@@ -285,7 +285,7 @@ fn triangulate(polygon: &Polygon) -> Option<Vec<[Point; 3]>> {
         return None;
     }
     let mut triangles = Vec::with_capacity(indices.len() / 3);
-    for triangle in indices.chunks_exact(3) {
+    for triangle in indices.as_chunks::<3>().0 {
         let mut points = [Point { x: 0.0, y: 0.0 }; 3];
         for (slot, index) in points.iter_mut().zip(triangle) {
             let x = *vertices.get(index * 2)?;

@@ -410,7 +410,9 @@ pub fn export_one(spec: &Spec, job: &Job) -> Result<u64> {
             let decoded = sortlens_thumbs::decode_file(&job.source, edge).or_else(|_| sortlens_thumbs::decode_jpeg(&original, edge))?;
             let rgb: Vec<u8> = decoded
                 .rgba
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .flat_map(|pixel| [pixel[0], pixel[1], pixel[2]])
                 .collect();
             let segments = if spec.metadata { metadata_segments(&original) } else { Vec::new() };

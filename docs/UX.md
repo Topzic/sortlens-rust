@@ -442,11 +442,21 @@ thumbnails over the map without moving the map; `Open` goes to Detail, `Close` l
 double-click on one photograph opens Detail; on a group it zooms two levels and re-clusters. Clicking the sea closes
 the strip and nothing else.
 
-The style menu at the top-left (`Map style · Auto`) offers **Auto**, **Original**, **Ink**, **Paper**, **Blueprint** and
-**Mono**. Auto is Original when a tile set is installed, otherwise Ink on a dark theme and Paper on a light one. The
-five palettes restyle only the basemap: pins keep the accent colour, so a style change never makes a photograph harder
-to find. The zoom pill at the top-right has `+`, `−` and the rounded zoom, and stops at the ends of the tile set's
-range; zooming past the top clamps, because the tiles stopping is not a reason for the pins to stop.
+The style menu at the top-left (`Map style · Auto`) has two groups. **OpenFreeMap · online** offers **Liberty**,
+**Bright**, **Positron**, **Dark** and **Fiord**, the published OpenFreeMap styles drawn by MapLibre from its vector
+tiles. **Offline map** offers **Auto**, **Original**, **Ink**, **Paper**, **Blueprint** and **Mono**. Auto is Original
+when a tile set is installed, otherwise Ink on a dark theme and Paper on a light one; the offline palettes restyle only
+the basemap, and pins keep the accent colour in every style, so a style change never makes a photograph harder to find.
+
+Choosing an online style for the first time asks before anything is fetched: only the map area, the style name and the
+person's network address go to `tiles.openfreemap.org`; photographs, their names and locations, and the library never
+do. Consent lasts for the session. If the style or a tile cannot be fetched, the view keeps the pins and falls back to
+the offline map, with the reason and a **Retry** button under it. The online map opens without rotation or pitch: the
+style's labels, roads and buildings arrive now, and the 3D building view is a later step. MapLibre draws it directly
+into the egui renderer, so there is no WebView and no browser.
+
+The zoom pill at the top-right has `+`, `−` and the rounded zoom, and stops at the ends of the current map's range;
+zooming past the top clamps, because the tiles stopping is not a reason for the pins to stop.
 
 **Land and coastline ship with the application**, so a first-run library is geography rather than a field of dots: the
 public-domain Natural Earth 1:110m land polygons and coastlines, embedded in `sortlens-geo`, triangulated and painted
@@ -460,12 +470,15 @@ A **basemap the person supplies** replaces the shipped land and wins over it, in
 **`tiles.mbtiles` archive** (the SQLite format tile downloaders and QGIS write) whose `metadata` carries an
 `attribution` row — or, failing that, an `attribution.txt` beside it. The folder wins when both are present. **The
 credit is printed over the map every frame it is drawn**, bottom-left, and a basemap without one is refused outright —
-an unlabelled map implies the application made it. Nothing is downloaded, and the archive is opened read-only. A tile
-that is missing or will not decode is painted as background: a hole in a tile set is a hole, not a notice.
+an unlabelled map implies the application made it. This offline path downloads nothing, and the archive is opened
+read-only. A tile that is missing or will not decode is painted as background: a hole in a tile set is a hole, not a
+notice. The opt-in OpenFreeMap styles above are the only map path that fetches anything.
 
 The footer states what is on the map — "4,182 photo(s) with a location · 96 pin(s) · drag to pan, scroll to zoom" —
 and the state of the basemap: the shipped land and coastline (with where to put a tile folder or archive to replace
-it), refused (with the reason), or the person's own tiles.
+it), refused (with the reason), or the person's own tiles. When an online style is selected, the same line carries
+`OpenFreeMap © OpenMapTiles · Data from OpenStreetMap`, linked from the consent dialog, and the OpenFreeMap failure
+notice replaces the offline basemap status while the fallback is showing.
 
 The view's own words come from the catalogues: the empty state, the counts, the `zoom` label, the gazetteer line and
 both basemap notes, with the numbers as templates — a Japanese map reads "位置情報のある写真 3 枚 · 1 地点", an Arabic one

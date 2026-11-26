@@ -76,7 +76,7 @@ So the recreation is a **behavioural** port, not a code port:
 | D4 | Delete defaults to OS trash; all deletes staged | Vendor default, safest, reversible |
 | D5 | XMP sidecars on by default for rating/label/tags | Interop is the reason people trust the tool |
 | D6 | AI is optional, `tract`-based, model store with sha256 | Pure Rust, offline, auditable |
-| D7 | Map is offline by default; tiles opt-in | The product promise is "nothing leaves your machine" |
+| D7 | Map is offline by default; tiles opt-in, OpenFreeMap online styles separately opt-in | The product promise is "nothing leaves your machine"; the online map is a map-only, consent-gated exception drawn in-process by MapLibre |
 | D8 | Phones run a native Rust app (`sortlens-mobile`) over the same engine and UI; the optional local server is how a phone and a desktop share a library | No handwritten JS or Swift/Kotlin UI; one UI to maintain. Reverses the earlier wasm-client decision (2026-11-24) |
 | D9 | Product name **Sortlens**; crates `sortlens-*`; id `app.sortlens.desktop` | The owner's existing brand; ArtCraft-style internals |
 | D10 | Licence MIT OR Apache-2.0 (pending owner confirmation) | Matches the suite and every dependency |
@@ -303,7 +303,7 @@ docs entry in `FEATURES.md` (status flipped) + translation keys + accessible nam
 | R7 | Destructive-action bug (wrong file, wrong folder) | Low | Critical | Canonicalise + verify inside root, plan/execute count equality, trash default, audit-before-act, property tests | Any test where plan ≠ executed |
 | R8 | Scope creep toward a RAW editor | High | High | Non-goal in §3; "develop" opens LightCraft or the external editor | A PR adds a tone slider |
 | R9 | Clean-room contamination | Low | High | Behaviour spec only; no vendor code/assets/strings; provenance log per fixture | Any asset without provenance |
-| R10 | Map/tiles privacy expectation | Medium | Medium | Offline basemap default; tiles opt-in and disclosed; no requests until enabled | Any network call before opt-in |
+| R10 | Map/tiles privacy expectation | Medium | Medium | Offline basemap default; tiles opt-in and disclosed; OpenFreeMap styles opt-in with a consent dialog and an offline fallback; no requests until enabled | Any network call before opt-in |
 | R11 | Accessibility debt compounding | Medium | Medium | Roles/names from the first widget; a11y tree read on every UI snapshot; audit at M6 and M10 | Snapshot shows an unnamed control |
 | R12 | i18n/font gaps (CJK, Arabic filenames) | Medium | Medium | craft-fonts + `assert_covers` + 6-language screenshots from M2 | A snapshot shows a missing glyph |
 | R13 | Remote surface becomes a security hole | Low | High | Loopback/LAN bind, token auth, permission allow-list, no path outside roots, fuzz the API | Any endpoint accepts a raw path |
@@ -376,8 +376,8 @@ builds, installer toolchains for MSI/AppImage/Flatpak, a screen-reader session, 
 redistribution licence, and the owner's release tag — and the post-1.0 backlog stays a visible table
 rather than a hiding place. The two buildable rows left in M9 (more localisation catalogues with RTL
 screenshots, and localised numbers and dates) remain unchecked and plainly labelled. The owner has
-approved two user-initiated network calls — `model.install` and an opt-in update check — and `crates/ai`
-stays offline. Licensing is `MIT OR Apache-2.0`. `docs/PERF.md` lists the budgets this machine cannot
+approved three user-initiated network calls — `model.install`, an opt-in update check, and the
+consent-gated OpenFreeMap online map (map area, style name and network address only) — and `crates/ai` stays offline. Licensing is `MIT OR Apache-2.0`. `docs/PERF.md` lists the budgets this machine cannot
 measure.
 
 The gates did not move, and they are what makes the paragraph above checkable rather than a claim: every

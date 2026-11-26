@@ -1,12 +1,15 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
+# Vendored only for its locale fallback (see vendor/mln-rs-expression/PATCH.md): the published
+# crate needs ICU4X 2.4, while craft-i18n pins 2.3. It is built as a dependency, not a workspace member.
+exclude = ["vendor/mln-rs-expression"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.95"
+rust-version = "1.98"
 repository = "https://github.com/Topzic/sortlens-rust"
 # This workspace is distributed as a repository, not as crates: nothing here is published, so a path
 # dependency with no version is correct rather than an oversight.
@@ -95,6 +98,11 @@ egui_extras = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799
 # The Places map widget: gestures, projection and raster tile placement. Default features off; the app only
 # ever hands it a disk-backed tile adapter, so no network tile source is constructed and nothing is fetched.
 walkers = { version = "0.66", default-features = false }
+# The opt-in online basemap: OpenFreeMap's MapLibre styles, rendered by mln-rs into an egui texture.
+# Nothing is fetched until the person accepts the online map; the shipped offline map stays the default.
+maplibre-egui = "=0.3.0"
+# The render-state handle `maplibre-egui` draws through; the same egui fork as the rest of the shell.
+egui-wgpu = { version = "0.37", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -125,6 +133,9 @@ debug = false
 
 # The complete egui family and the native event bridge stay on reviewed fork commits.
 [patch.crates-io]
+# The map renderer's expression crate, with its ICU4X 2.4 locale backend replaced by a small
+# dependency-free one so it can resolve beside craft-i18n's ICU4X 2.3. See the vendored PATCH.md.
+mln-rs-expression = { path = "vendor/mln-rs-expression" }
 ecolor = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
 emath = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
 epaint = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }

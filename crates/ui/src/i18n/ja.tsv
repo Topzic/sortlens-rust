@@ -821,3 +821,11 @@
 	Paper	紙
 	Blueprint	設計図
 	Mono	モノクロ
+	Offline map	オフライン地図
+	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	tiles.openfreemap.org に送られるのは、地図の範囲、スタイル名、ネットワークアドレスだけです。写真、その名前と場所、このライブラリがこのコンピューターから出ることはありません。
+	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap が描画できませんでした: {error} · オフライン地図を表示しています
+	Retry	再試行
+	The offline map stays available; switch back in the map style menu at any time.	オフライン地図は引き続き利用できます。地図スタイルメニューからいつでも戻せます。
+	This draws OpenFreeMap's {style} style, the same MapLibre map as openfreemap.org.	OpenFreeMap の {style} スタイルを描画します。openfreemap.org と同じ MapLibre 地図です。
+	Use OpenFreeMap's online map?	OpenFreeMap のオンライン地図を使いますか？
+	Use online map	オンライン地図を使う
