@@ -493,6 +493,39 @@ fn a_baseline_set_scopes_every_scene_to_its_own_directory() {
     assert_eq!(scoped_name("  //  ", "x"), "x", "a name with no letter or digit is no set");
     assert_eq!(scoped_name("../..", "x"), "x", "a set cannot climb out of the baselines");
 }
+/// Both committed sets hold the same scenes, so no scene is a baseline only one run can check.
+///
+/// Two sets exist because two rasterisers paint the same frame a few pixels apart: the reference set
+/// a developer's machine compares with, and `lavapipe/` for CI's software Vulkan. A scene that lands
+/// in one set and not the other is a scene one of the two runs cannot check — the runner fails it as a
+/// missing baseline, or a developer's green run says nothing about the frame CI will compare. The
+/// three RTL failures that kept the trunk red came from a text change painted into one set only, so
+/// the lists are compared here before either run spends a minute on an adapter.
+#[test]
+fn every_scene_is_painted_in_both_committed_sets() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots");
+    let reference = set_frames(&root);
+    let ci = set_frames(&root.join("lavapipe"));
+    assert!(reference.len() > 1, "the reference set is empty: {}", root.display());
+    let only_reference: Vec<&String> = reference.iter().filter(|name| !ci.contains(name)).collect();
+    let only_ci: Vec<&String> = ci.iter().filter(|name| !reference.contains(name)).collect();
+    assert!(
+        only_reference.is_empty() && only_ci.is_empty(),
+        "the reference set and `lavapipe` disagree: only in the reference set {only_reference:?}, only in `lavapipe` {only_ci:?}"
+    );
+}
+
+/// The `.png` names directly under one set's directory, sorted so a failure message is stable.
+fn set_frames(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap_or_else(|err| panic!("cannot read {}: {err}", dir.display()))
+        .map(|entry| entry.expect("a baseline directory entry").path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "png"))
+        .map(|path| path.file_name().expect("a file name").to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
 
 /// A report names every scene that differed, and taking it leaves the thread clean.
 ///

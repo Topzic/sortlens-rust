@@ -1,5 +1,43 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-thirty-second) — the trunk's red `screenshots` job is adopted, and neither set may drift alone
+
+- **Why this came up.** STEP 1b's one read of CI for `80a9bc9` answered `failure`: seven jobs green,
+  `screenshots` red on both RTL frames. The run for that commit uploaded `screenshot-set` with
+  `rtl-library-{charcoal,paper}.new.png`, and the diff against the committed `lavapipe` frames was
+  17 pixels in a 3×8 region of the top bar's badge — the same corner in both themes. `80a9bc9` had
+  moved `paint_badge` from `count.to_string()` to `format_count`, so the badge went from a Latin `1`
+  to an Arabic `١`, and it repainted only `tests/snapshots/*.png` (the reference set a developer's
+  machine compares with). `tests/snapshots/lavapipe/` — the set CI names — kept the Latin `1`.
+  That is the whole of the six-commit red trunk: a text change painted into one set only, while the
+  loop read release runs and never `CI`.
+- **The fix.** Downloaded the artifact (`gh run download 45795241673 -n screenshot-set -D .git/shots`)
+  and adopted it through the harness's own path,
+  `SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .git/shots`, rather than copying
+  PNGs by hand: that path names the set, and the adopted frames ARE the runner's paint, so CI compares
+  itself rather than a Windows rendering of the same words. The named scenes keep their localized
+  digit; nothing about the interface changed.
+- **The guard.** `every_scene_is_painted_in_both_committed_sets` reads both directories and fails
+  when a `.png` is in one set and not the other (the sets are 49 frames each today). It catches the
+  next scene added to only one set before either run spends a minute on an adapter; the paint-level
+  drift above is still a runner's artifact to adopt, which is why STEP 1b now reads CI every tick.
+- **Docs.** ARCHITECTURE.md's baseline-set paragraph names the parity test and states that a word
+  change repaints both sets — locally with `--update`, on CI by adopting the upload.
+- **Verified.** `cargo xtask screenshots` exit 0, 30 passed (the new test among them), 1 ignored, and
+  the Arabic scene green against the reference set; `cargo xtask ci` exit 0 (fmt, workspace clippy,
+  the workspace suite, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`,
+  `templates`, `workflows`). `cargo xtask snapshot` and `cargo xtask deny` ran with no dependency or
+  golden surface touched. No release workflow was dispatched: PNG baselines, one feature-gated test
+  and docs are not a build or release surface.
+- **Files.** `crates/ui/tests/snapshots/lavapipe/rtl-library-charcoal.png`,
+  `crates/ui/tests/snapshots/lavapipe/rtl-library-paper.png`, `crates/ui/tests/screenshots.rs`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run first with ONE `gh run view <id> --json status,conclusion,jobs`
+  — the `screenshots` job is the one that was red and it must go green on the adopted frames. Then the
+  host's last notices from the hundred-and-thirty-first entry: the suggest pass, the pack and tag
+  toasts, undo-move, the change report, remap and rescan, both consent lines and remove-root, plus the
+  two remaining `rfd` titles (`Save the change report`, `Where does this folder live now?`), through the
+  same `i18n::fmt` seam. No release run is in flight.
 ## 2026-11-26 (hundred-and-thirty-first) — the host's library-lifecycle notices speak the interface language
 
 - **Why this came up.** The hundred-and-thirtieth entry's Next named the host's remaining notices.

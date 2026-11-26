@@ -964,6 +964,11 @@ directory (lower case, one dash per run of anything else), so a hand-written `Me
 folder and `../..` is none. CI uploads a failed run's `.new.png` paint as the `screenshot-set`
 artifact, which is how a set that nobody has committed yet gets committed: download, read the frames,
 add them under the set's directory.
+`every_scene_is_painted_in_both_committed_sets` reads both directories and refuses a scene that
+only one of them holds, so a new surface cannot be painted into one set and left as a missing
+baseline on the other; a change to a word also repaints both sets — the reference one with `--update`
+on a developer's machine, the `lavapipe` one by adopting the runner's uploaded frames — because the
+same text laid out by two rasterisers is still two committed frames.
 
 CI (`xtask`, mirroring LightCraft):
 `cargo xtask ci --quick` (fmt, clippy -D warnings, changed-package tests, layers, roots,
