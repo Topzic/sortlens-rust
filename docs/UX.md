@@ -873,6 +873,11 @@ re-checks its own contrast pairs after applying.
   section's nine hovers — both states of the forget button, the connection test, the pair button,
   the stop button and the send button's four states — are rows, so a phone in Arabic explains
   pairing, the wait and the stop in Arabic rather than in English.
+  The top bar's mark and export control followed (hundred-and-fifty-third entry): the app mark's
+  name, `Export the selection…` and `Select a photo to export` are rows, so the product's name and
+  the reason a disabled export cannot run read in the reader's language. The name is a name: its
+  six rows keep the spelling, and the catalogue audit now counts a row by its presence rather than
+  by its difference from the English.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

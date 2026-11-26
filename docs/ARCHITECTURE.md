@@ -720,6 +720,13 @@ variable holding a literal, which no source audit can read as a route; each bran
 `on_hover_text(tl!(…))` itself, and `the_phone_links_hovers_speak_the_interface_language` reads
 them back the way the Settings test does.
 
+The top bar's mark and export control take it too (hundred-and-fifty-third entry): `Sortlens`,
+`Export the selection…` and `Select a photo to export` are `tl!` keys, and
+`the_app_mark_and_export_hovers_speak_the_interface_language` reads the three sites back the same
+way. Because the product's name is the same word in every language, the routed-key audit asks
+whether a row exists (`I18n::get`) rather than whether its translation differs from the English
+key; a name that keeps its spelling still has a row a translator was handed.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

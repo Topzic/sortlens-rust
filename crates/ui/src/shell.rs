@@ -2256,7 +2256,7 @@ fn app_mark(ui: &mut Ui, size: f32) {
             .fit_to_exact_size(Vec2::splat(size))
             .sense(Sense::hover()),
     )
-    .on_hover_text("Sortlens");
+    .on_hover_text(tl!("Sortlens"));
 }
 
 /// The Filter chip: a toggle for the filter bar, carrying the count of what is narrowing the view.
@@ -2303,9 +2303,9 @@ fn export_button(ui: &mut Ui, state: &mut UiState) {
     );
     a11y::label_widget(ui, &response, egui::Role::Button, "Export the selection", false);
     let response = if enabled {
-        response.on_hover_text("Export the selection…")
+        response.on_hover_text(tl!("Export the selection…"))
     } else {
-        response.on_hover_text("Select a photo to export")
+        response.on_hover_text(tl!("Select a photo to export"))
     };
     if response.clicked() {
         state.export_ids = ids;
@@ -22173,6 +22173,46 @@ mod tests {
                 "Sends over the resumable upload, one photograph at a time",
                 "يرسل عبر الرفع القابل للاستئناف، صورة واحدة في كل مرة",
             ),
+        ];
+        // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _) in HOVERS {
+            assert!(
+                source.contains(&format!("on_hover_text(tl!(\"{english}\"))")),
+                "the hover {english:?} is still a literal"
+            );
+            assert!(
+                !source.contains(&format!("on_hover_text(\"{english}\")")),
+                "the hover {english:?} also paints a bare literal"
+            );
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English fallback.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic) in HOVERS {
+            assert_eq!(crate::i18n::tr(english), arabic, "the hover row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The app mark's and the export control's hover names are catalogue rows, in every language
+    /// the picker offers.
+    ///
+    /// A hover never paints in a frame, so the catalogue is the witness: each name resolves to the
+    /// reader's own row, and the source read back proves the call site routes through `tl!` instead
+    /// of carrying the literal. `Sortlens` is the product's name, so its row is that name in every
+    /// language — the row is what a translator was handed, not a respelling of it.
+    #[test]
+    fn the_app_mark_and_export_hovers_speak_the_interface_language() {
+        // One row per name the top bar's mark and the export control hang on a control.
+        const HOVERS: [(&str, &str); 3] = [
+            ("Sortlens", "Sortlens"),
+            ("Export the selection…", "تصدير التحديد…"),
+            ("Select a photo to export", "اختر صورة لتصديرها"),
         ];
         // The source with each line's own indentation trimmed away, so a `tl!` rustfmt wrapped at
         // the margin still reads as one call: the wiring is the claim, not the line break.

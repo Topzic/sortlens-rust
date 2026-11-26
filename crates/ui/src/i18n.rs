@@ -221,7 +221,10 @@ mod tests {
         );
         for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
             let lang = I18N.match_tag(code).unwrap_or_else(|| panic!("{code} is offered"));
-            let missing: Vec<&String> = keys.iter().filter(|k| I18N.t(lang, k) == *k).collect();
+            // Presence, not difference: `Sortlens` is the product's name in every language, and a
+            // row that keeps the English word is still a row a translator was handed. What must
+            // fail here is a routed key that no catalogue answers at all.
+            let missing: Vec<&String> = keys.iter().filter(|k| I18N.get(lang, "", k.as_str()).is_none()).collect();
             assert!(missing.is_empty(), "{code} is missing {} routed rows: {missing:#?}", missing.len());
         }
     }

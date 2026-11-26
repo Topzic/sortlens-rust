@@ -1289,9 +1289,17 @@ and none of M9 is closed until the remaining rows are ticked.
   each branch now calls `on_hover_text(tl!(…))` itself.
   `the_phone_links_hovers_speak_the_interface_language` reads `shell.rs` back and requires all nine
   sites to route, then requires English to answer each key unchanged and Arabic all nine rows.
+  The top bar's mark and export control followed (hundred-and-fifty-third entry): the app mark's
+  `Sortlens`, the enabled button's `Export the selection…` and its disabled `Select a photo to
+  export` are `tl!` rows in all six languages, so an Arabic top bar names the product and explains
+  the export in Arabic. `Sortlens` is a name, so its six rows are that name: the row is the proof a
+  translator was handed it, not a respelling. The catalogue audit now asks whether the row exists
+  rather than whether it differs from the English, which is what lets a name carry a row at all.
+  `the_app_mark_and_export_hovers_speak_the_interface_language` reads `shell.rs` back, requires all
+  three sites to route, then English unchanged and the Arabic rows.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: eight more `on_hover_text` sites over seven sentences (the app
-  mark, the canvas's export pair, the cull help and fit names, the destination strip, and the
+  went through `tl!`/`i18n::fmt`: five more `on_hover_text` sites over four sentences (the cull
+  help and fit names, the destination strip, and the
   keyword menu's two `Switch between most used and A–Z`), and the keyword packs empty
   state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
   lists where.`, which names a menu path no catalogue row covers yet) — no production

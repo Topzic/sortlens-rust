@@ -1,5 +1,56 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fifty-third) — the top bar's mark and the export control speak the interface language
+
+- **Why this came up.** The hundred-and-fifty-second entry's Next named the app mark's `Sortlens` and
+  the export control's two sentences. `top_bar` painted all three as bare `on_hover_text` literals,
+  so an Arabic window named its own product and explained the export in English — and no frame could
+  show it, because a hover paints nothing until a pointer rests on it. The `CI` run for `6721de5`
+  (`45852933358`) was still in progress at STEP 1b, not red, so this is a roadmap slice.
+- **What is routed.** Three rows per catalogue, 18 in all: `Sortlens`, `Export the selection…` and
+  `Select a photo to export` are `tl!` keys, at `app_mark` and at both branches of
+  `export_button`. English keeps every word and the ellipsis it painted.
+- **The name is a name.** `Sortlens` keeps its spelling in all six catalogues, which the old audit
+  could not accept: it called a row missing whenever the translation equalled the English.
+  `catalogs_load_and_routed_keys_have_rows` now asks whether the row exists (`I18n::get`) instead
+  of whether it differs — the same presence test the phone crate's listing took in the
+  hundred-and-thirty-fifth entry. A row that keeps its spelling is still a row a translator was
+  handed; a key no catalogue answers still fails.
+- **Tests.** `the_app_mark_and_export_hovers_speak_the_interface_language` reads `shell.rs` back
+  with each line's indentation trimmed and requires each of the three sites to be
+  `on_hover_text(tl!("…"))` with no bare-literal twin; then it requires English to answer each key
+  unchanged and Arabic to answer `تصدير التحديد…`, `اختر صورة لتصديرها` and the name as itself. It
+  fails on the pre-slice source at the first wiring assertion, and would fail at the Arabic lookups
+  if the rows were added without the route. The catalogue audit now reads the three keys too, so any
+  of the six catalogues losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family and narrows the audit's remaining list to the
+  five `on_hover_text` sites over four sentences (the cull help and fit names, the destination
+  strip, and the keyword menu's two `Switch between most used and A–Z`) and the packs instruction;
+  UX.md's i18n paragraph and ARCHITECTURE.md §8.4 record the route and why the audit counts a row by
+  its presence. SL-L07 stays unticked.
+- **Visual verification.** None expected: no committed scene rests a pointer on a hover, and the
+  English paint is unchanged, so no baseline should move. `cargo xtask screenshots` was still run
+  because `crates/ui` changed, and no scene moved.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui hovers_speak_the_interface_language` 3 passed (the new test beside the
+  two earlier hover routes), `cargo test -p sortlens-ui catalogs_load_and_routed_keys_have_rows`
+  1 passed; `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole suite including the catalogue
+  audit, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`,
+  `templates`, `workflows` — the last ten were also re-read individually after the suite passed);
+  `cargo xtask snapshot` 5 passed, `cargo xtask deny` advisories, bans, licenses and sources ok, and
+  `cargo xtask screenshots` green with no baseline moved. There is no `cargo xtask wasm` in this
+  workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job — this machine has no Android
+  NDK and no Xcode, which leaves the device-side leg unverified here. No release workflow was
+  dispatched: source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the three routes and the new test),
+  `crates/ui/src/i18n.rs` (the audit asks for presence), the six `crates/ui/src/i18n/*.tsv`
+  (three rows each), `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` should be green, since no baseline moved). Then the cull screen's two hover names —
+  `Every shortcut in this mode  ?` and `Fit the photograph to the window, or show it at 1:1  Z` —
+  through `tl!`, with the same source-readback and Arabic lookup test. SL-L07 stays unticked until
+  the source audit proves every painted literal is a catalogue row. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-fifty-second) — the phone link's hover names speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-first entry's Next named the phone link's five
@@ -8709,13 +8760,13 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-forty-eighth entry).** Read this commit's `CI` run with one
-`gh run view` — no committed scene paints the Settings switches and the English paint is unchanged,
-so no baseline should have moved. Then the two empty-state hints in `crates/ui/src/shell.rs`:
-`sync_section`'s `No devices are paired yet; pairing starts from the code above.` and
-`keyword_packs`'s `No packs installed.`, through `tl!`, with a paint test that chooses Arabic and
-requires the Arabic rows with no English left. SL-L07 stays unticked; its row lists what the audit
-still finds (the rest of the `on_hover_text` names). No release run is in flight.
+**Next tick (after the hundred-and-fifty-third entry).** Read this commit's `CI` run with one
+`gh run view` — no committed scene paints a hover and the English paint is unchanged, so no
+baseline should have moved. Then the cull screen's two hover names in `crates/ui/src/shell.rs`:
+`Every shortcut in this mode  ?` and `Fit the photograph to the window, or show it at 1:1  Z`,
+through `tl!`, with the same source-readback and Arabic lookup test. SL-L07 stays unticked; its row
+lists what the audit still finds (the destination strip, the keyword menu's two names and the packs
+instruction). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
