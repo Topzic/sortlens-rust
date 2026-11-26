@@ -834,6 +834,11 @@ re-checks its own contrast pairs after applying.
   receipt are rows too — one photograph its own — with the counts in the reader's digits, so an
   Arabic ⌘A reads `حُدّدت ٣ صور` and the cut reads `حُدّد أضعف ٢ صورة` where they read
   `Selected 3 photos` and `Selected the 2 softest`.
+  The pass's receipts and a new collection followed (hundred-and-forty-fourth entry): Soft Focus'
+  measured, coda and stopped sentences are rows with their counts in the reader's digits, and a new
+  collection is named `Collection {n}` and announced by `Created {name}` from the catalogue, so an
+  Arabic library's first collection is `مجموعة ١` and its toast reads Arabic instead of an English
+  frame around Latin ones.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

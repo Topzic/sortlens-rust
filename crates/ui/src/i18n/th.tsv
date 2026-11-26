@@ -969,3 +969,8 @@
 	Selected {n} photo	เลือกรูป {n} รูปแล้ว
 	Selected {n} photos	เลือกรูป {n} รูปแล้ว
 	Selected the {n} softest	เลือก {n} รูปที่นุ่มที่สุดแล้ว
+	Created {name}	สร้าง {name} แล้ว
+	Collection {n}	คอลเลกชัน {n}
+	Measured {n} photo(s)	วัดแล้ว {n} รูป
+	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	วัดแล้ว {n} รูป; ตัดสิน {unjudged} รูปไม่ได้และปล่อยไว้โดยไม่ให้คะแนน
+	Sharpness pass stopped after {n} photo(s)	การวัดความคมชัดหยุดที่ {n} รูป

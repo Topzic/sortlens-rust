@@ -968,3 +968,8 @@
 	Selected {n} photo	{n} 枚の写真を選択しました
 	Selected {n} photos	{n} 枚の写真を選択しました
 	Selected the {n} softest	最も柔らかい {n} 枚を選択しました
+	Created {name}	{name} を作成しました
+	Collection {n}	コレクション {n}
+	Measured {n} photo(s)	{n} 枚を測定しました
+	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	{n} 枚を測定しました。{unjudged} 枚は判定できず、未採点のままです
+	Sharpness pass stopped after {n} photo(s)	シャープさの測定は {n} 枚で停止しました

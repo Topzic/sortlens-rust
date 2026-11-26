@@ -967,3 +967,8 @@
 	Selected {n} photo	Đã chọn {n} ảnh
 	Selected {n} photos	Đã chọn {n} ảnh
 	Selected the {n} softest	Đã chọn {n} ảnh mềm nhất
+	Created {name}	Đã tạo {name}
+	Collection {n}	Bộ sưu tập {n}
+	Measured {n} photo(s)	Đã đo {n} ảnh
+	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	Đã đo {n} ảnh; không thể xét {unjudged} ảnh nên để nguyên chưa chấm
+	Sharpness pass stopped after {n} photo(s)	Lượt đo độ nét dừng sau {n} ảnh

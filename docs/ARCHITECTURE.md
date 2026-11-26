@@ -653,6 +653,16 @@ button's click are `select_all_in_view` and `select_softest`, so neither can bui
 sentence; `the_selection_notices_speak_the_interface_language` runs both over a real library under
 Arabic and requires the toast and the bell's painted history to agree with the catalogue.
 
+The pass's receipts and a new collection take it over the outcome, the name and the count:
+`sharpness_notice` words all three endings of Soft Focus' pass — `Measured {n} photo(s)`,
+`Measured {n} photo(s); {unjudged} could not be judged and were left unscored` and
+`Sharpness pass stopped after {n} photo(s)` — with every count through `format_count`, while
+`default_collection_name` words the generated `Collection {n}` and `collection_created_notice`
+words `Created {name}`, so an Arabic library names its first collection in Arabic and its receipt
+says so in the same sentence. `the_sharpness_and_collection_notices_speak_the_interface_language`
+runs a real two-photo pass and creates a real collection under Arabic, requires the counted digits,
+and pins the English shapes the shell painted before.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

@@ -968,3 +968,8 @@
 	Selected {n} photo	حُدّدت {n} صورة
 	Selected {n} photos	حُدّدت {n} صور
 	Selected the {n} softest	حُدّد أضعف {n} صورة
+	Created {name}	أُنشئت {name}
+	Collection {n}	مجموعة {n}
+	Measured {n} photo(s)	قِيست {n} صورة
+	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	قِيست {n} صورة؛ تعذّر فرز {unjudged} وبقيت بلا تقييم
+	Sharpness pass stopped after {n} photo(s)	توقّف قياس الحِدّة بعد {n} صورة

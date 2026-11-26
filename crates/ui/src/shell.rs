@@ -5754,17 +5754,35 @@ fn command_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actio
         return true;
     }
     if collection {
-        let name = format!("Collection {}", engine.collections().len() + 1);
+        let name = default_collection_name(engine.collections().len() + 1);
         match engine.create_collection(&name) {
             Ok(id) => {
                 state.collection_filter = Some(id);
-                state.notice(format!("Created {name}"));
+                state.notice(collection_created_notice(&name));
             }
             Err(error) => state.notice_problem(error.to_string()),
         }
         return true;
     }
     false
+}
+
+/// The name a new collection is given (SL-L07).
+///
+/// The name is chrome on the day it is made, not user data: two sites built the same
+/// `format!("Collection {}", n)` by hand, so an Arabic library named its first collection in English.
+/// One helper words it from a catalogue row with the count in the reader's digits; a collection the
+/// person renames later is their own name and stays exactly as they spelled it.
+fn default_collection_name(next: usize) -> String {
+    crate::i18n::fmt("Collection {n}", &[("n", &format_count(next as u64))])
+}
+
+/// The receipt a new collection leaves (SL-L07).
+///
+/// The name is a placeholder rather than a translated word: the row says "created", the name is
+/// whatever `create_collection` stored, and the two cannot disagree about which collection it was.
+fn collection_created_notice(name: &str) -> String {
+    crate::i18n::fmt("Created {name}", &[("name", name)])
 }
 
 /// Switch to a destination and start whatever that destination needs.
@@ -8906,6 +8924,28 @@ fn softest_notice(count: usize) -> String {
     crate::i18n::fmt("Selected the {n} softest", &[("n", &format_count(count as u64))])
 }
 
+/// Soft Focus' pass receipt in the interface language (SL-L07).
+///
+/// The pass ends three ways and each used to be a `format!` literal: a clean run, a run whose dark or
+/// undecodable frames were counted rather than scored, and a stopped run, whose count is everything it
+/// looked at. One helper words all three from catalogue rows with every count through `format_count`,
+/// so an Arabic toast writes `٣` and the stopped line cannot fall back to English on its own.
+fn sharpness_notice(measured: usize, unjudged: usize, remaining: usize) -> String {
+    if remaining > 0 {
+        crate::i18n::fmt(
+            "Sharpness pass stopped after {n} photo(s)",
+            &[("n", &format_count((measured + unjudged) as u64))],
+        )
+    } else if unjudged == 0 {
+        crate::i18n::fmt("Measured {n} photo(s)", &[("n", &format_count(measured as u64))])
+    } else {
+        crate::i18n::fmt(
+            "Measured {n} photo(s); {unjudged} could not be judged and were left unscored",
+            &[("n", &format_count(measured as u64)), ("unjudged", &format_count(unjudged as u64))],
+        )
+    }
+}
+
 /// Soft Focus: the sharpness review as its own destination rather than the last thing you scroll to.
 ///
 /// The pass lands here, not on a timer: this is the view that asked for it, and a pass that finished while not
@@ -8913,21 +8953,7 @@ fn softest_notice(count: usize) -> String {
 /// [`sharpness_section`] the insights page used to end with, so there is one review, not two that could disagree.
 fn soft_focus_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine) {
     if let Some(report) = engine.poll_sharpness() {
-        if report.remaining == 0 {
-            let message = match report.unjudged {
-                0 => format!("Measured {} photo(s)", report.measured),
-                unjudged => format!(
-                    "Measured {} photo(s); {unjudged} could not be judged and were left unscored",
-                    report.measured
-                ),
-            };
-            state.notice(message);
-        } else {
-            state.notice(format!(
-                "Sharpness pass stopped after {} photo(s)",
-                report.measured + report.unjudged
-            ));
-        }
+        state.notice(sharpness_notice(report.measured, report.unjudged, report.remaining));
     }
     ui.horizontal(|ui| {
         ui.label(RichText::new(tl!("Soft Focus")).size(15.0).strong().color(t.text));
@@ -9383,7 +9409,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
         .add(Button::new(RichText::new(tl!("+ New collection")).size(10.5)).fill(Color32::TRANSPARENT))
         .clicked()
     {
-        let name = format!("Collection {}", collections.len() + 1);
+        let name = default_collection_name(collections.len() + 1);
         match engine.create_collection(&name) {
             Ok(id) => {
                 state.collection_filter = Some(id);
@@ -20298,6 +20324,112 @@ mod tests {
         assert!(select_all.contains("3 枚") && !select_all.contains("photos"), "{select_all}");
         let soft = softest_notice(2);
         assert!(soft.contains("2 枚") && !soft.contains("softest"), "{soft}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The sharpness and collection notices speak the interface language (SL-L07).
+    ///
+    /// Three `format!` literals worded what Soft Focus' pass leaves — the measured count, the
+    /// unjudged coda and the stopped line — and a fourth worded a new collection, while two sites
+    /// built the default `Collection {n}` name in English. Every one is a catalogue row now with its
+    /// counts placeholders through `format_count`, and this test drives a real pass and a real
+    /// collection so the helpers cannot be the only thing that says so.
+    #[test]
+    fn the_sharpness_and_collection_notices_speak_the_interface_language() {
+        // Its own folder: a shared path lets a parallel test delete this library mid-run.
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-sharpness-collection-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-sharpness-collection-i18n");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [60 * index as u8, 90, 160], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 2, "the fixture scans its two photographs");
+
+        // English: every shape the shell painted is unchanged.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(sharpness_notice(2, 0, 0), "Measured 2 photo(s)");
+        assert_eq!(
+            sharpness_notice(2, 1, 0),
+            "Measured 2 photo(s); 1 could not be judged and were left unscored"
+        );
+        assert_eq!(sharpness_notice(2, 1, 3), "Sharpness pass stopped after 3 photo(s)");
+        assert_eq!(default_collection_name(1), "Collection 1");
+        assert_eq!(collection_created_notice("Collection 1"), "Created Collection 1");
+
+        // Arabic, through a real pass over a real library: the report's own counts word the receipt,
+        // so the sentence cannot disagree with what the pass looked at, and the digits are the
+        // reader's rather than the pass's.
+        engine.begin_sharpness().expect("the pass starts");
+        let report = (0..600)
+            .find_map(|_| {
+                if let Some(report) = engine.poll_sharpness() {
+                    Some(report)
+                } else {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    None
+                }
+            })
+            .expect("the pass reports when it ends");
+        assert_eq!(report.remaining, 0, "two thumbnails are a whole pass");
+        assert_eq!((report.measured, report.unjudged), (2, 0), "both photographs are judged");
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let measured = sharpness_notice(report.measured, report.unjudged, report.remaining);
+        assert_eq!(measured, sharpness_notice(2, 0, 0), "the pass and the helper word one sentence");
+        assert!(
+            measured.contains('٢') && !measured.contains("Measured") && !measured.contains("photo(s)"),
+            "the count is the reader's digits under its own words: {measured}"
+        );
+        let stopped = sharpness_notice(1, 1, 4);
+        assert!(
+            stopped.contains('٢') && !stopped.contains("stopped") && !stopped.contains("photo(s)"),
+            "a stopped pass words its own count in Arabic: {stopped}"
+        );
+
+        // A real collection: the name it is given and the receipt it leaves are both the catalogue's.
+        let name = default_collection_name(engine.collections().len() + 1);
+        assert!(
+            name.contains('١') && !name.contains("Collection"),
+            "the default name is the interface language's: {name}"
+        );
+        let id = engine.create_collection(&name).expect("the collection is created");
+        let receipt = collection_created_notice(&name);
+        assert!(
+            receipt.contains("أُنشئت") && receipt.contains("مجموعة") && receipt.contains('١'),
+            "the receipt words the catalogue's sentence: {receipt}"
+        );
+        assert!(
+            !receipt.contains("Created") && !receipt.contains("Collection"),
+            "no English frame is left behind: {receipt}"
+        );
+        let stored = engine
+            .collections()
+            .into_iter()
+            .find(|collection| collection.id == id)
+            .expect("the collection is stored");
+        assert_eq!(stored.name, name, "the stored name is the one the receipt spoke");
+
+        // Japanese words the same receipts with its own nouns and counter.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let ja_measured = sharpness_notice(2, 0, 0);
+        assert!(ja_measured.contains("2 枚") && !ja_measured.contains("photo(s)"), "{ja_measured}");
+        let ja_created = collection_created_notice(&default_collection_name(1));
+        assert!(
+            ja_created.contains("コレクション 1") && !ja_created.contains("Created"),
+            "{ja_created}"
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

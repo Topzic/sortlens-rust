@@ -967,3 +967,8 @@
 	Selected {n} photo	已選取 {n} 張照片
 	Selected {n} photos	已選取 {n} 張照片
 	Selected the {n} softest	已選取最柔和的 {n} 張照片
+	Created {name}	已建立 {name}
+	Collection {n}	選集 {n}
+	Measured {n} photo(s)	已測量 {n} 張
+	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	已測量 {n} 張；{unjudged} 張無法評判，維持未評分
+	Sharpness pass stopped after {n} photo(s)	銳利度測量在 {n} 張後停止

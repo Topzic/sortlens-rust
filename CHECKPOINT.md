@@ -1,5 +1,54 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-fourth) — the pass's receipts and a new collection speak the interface language
+
+- **Why this came up.** The hundred-and-forty-third entry's Next named the last two
+  `state.notice(format!(…))` sites in `shell.rs`. Soft Focus' finished pass built three sentences with
+  `format!`: `Measured {} photo(s)`, its `{unjudged} could not be judged…` coda and
+  `Sharpness pass stopped after {} photo(s)`; the new-collection action built `Created {name}`; and
+  both sites that make a collection hand-built the default `Collection {n}` name in English. So an
+  Arabic library named its first collection in English and its pass reported Latin digits inside an
+  English frame.
+- **What is routed.** Five rows per catalogue, thirty in all. `sharpness_notice` decides the three
+  endings of a pass — a clean run, a run with unjudged frames and a stopped run — and every count is
+  a placeholder filled through `format_count`. `default_collection_name` words the generated
+  `Collection {n}` and `collection_created_notice` words `Created {name}`; the colour command's key
+  handler and the sidebar's `+ New collection` button both call the one name helper, so the two doors
+  cannot name a collection differently. English keeps every shape it painted: `Measured 2 photo(s)`,
+  `Measured 2 photo(s); 1 could not be judged and were left unscored`,
+  `Sharpness pass stopped after 3 photo(s)`, `Collection 1` and `Created Collection 1`.
+- **Tests.** `the_sharpness_and_collection_notices_speak_the_interface_language` pins the five English
+  shapes, then runs a real two-photo sharpness pass and requires Arabic `قِيست` with `٢` and neither
+  `Measured` nor `photo(s)` behind it, and a stopped line with its own `٢`; creates a real collection
+  under Arabic and requires the stored name to be the Arabic default and the receipt to carry
+  `أُنشئت` and `مجموعة` with `١` and no English word; and asks Japanese for `2 枚` and
+  `コレクション 1`. It fails on the pre-slice source twice over: the helpers do not exist, and the
+  catalogue audit has no row for any of the five keys.
+- **Docs.** ROADMAP's SL-L07 row records the family and re-counts what is left — dozens of
+  `on_hover_text`/accessibility names and dialog literals such as `No folders yet`,
+  `Remove from library` and the collection menu, with no production `state.notice(format!(…))` site
+  left in `shell.rs`. UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name the helpers and the test.
+  SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite — 250
+  `sortlens-ui` tests, the catalogue audit among them — `layers`, `roots`, `assets`, `fonts`,
+  `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`); `cargo xtask screenshots`
+  30 passed, 1 ignored (network), no baseline moved — no committed scene leaves a pass receipt or
+  creates a collection and the English paint is unchanged; `cargo xtask snapshot` 5 passed and
+  `cargo xtask deny` (advisories, bans, licenses, sources) exit 0. The previous commit's `CI` run
+  (`45816677805`) concluded success. `cargo xtask mobile` cannot run here (no Android NDK, no Xcode)
+  and no phone code changed; there is no `cargo xtask wasm` in this workspace. No release workflow
+  was dispatched: source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the helpers, the three call sites and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (five rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that matters, though no committed scene leaves a pass receipt or creates a
+  collection). Then the folder rows and their context menu in `folders_section`: `No folders yet. Add
+  one to index a shoot.`, `{count} · away`, both `Not mounted` lines,
+  `Add to favourites`/`Remove from favourites`, `Rescan` and `Remove from library`, with the row's
+  count through `format_count`. SL-L07 stays unticked; its row lists what the audit still finds. No
+  release run is in flight.
+
 ## 2026-11-26 (hundred-and-forty-third) — the selection receipts speak the interface language, their counts in the reader's digits
 
 - **Why this came up.** The hundred-and-forty-second entry's Next named the selection family. ⌘A's
@@ -8291,14 +8340,14 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-forty-second entry).** Read this commit's `CI` run with one
-`gh run view` — `screenshots` is the job that matters, though no committed scene paints a culling
-receipt and the English paint is unchanged. Then the selection family in
-`crates/ui/src/shell.rs`: `Selected {total} photos` from `⌘A` and `Selected the {} softest` in
-Soft Focus, with counts through `format_count`. After that: a new collection (`Created {name}`) and
-the sharpness pass's `Measured … photo(s)` pair plus its stopped line. SL-L07 stays unticked; its
-row lists what the audit still finds (the remaining notice literals, the hover/accessibility names,
-the dialog literals). No release run is in flight.
+**Next tick (after the hundred-and-forty-fourth entry).** Read this commit's `CI` run with one
+`gh run view` — `screenshots` is the job that matters, though no committed scene leaves a pass
+receipt or creates a collection and the English paint is unchanged. Then the folder rows and their
+context menu in `crates/ui/src/shell.rs`'s `folders_section`: `No folders yet. Add one to index a
+shoot.`, `{count} · away`, both `Not mounted` lines, `Add to favourites`/`Remove from favourites`,
+`Rescan` and `Remove from library`, with the row's count through `format_count`. SL-L07 stays
+unticked; its row lists what the audit still finds (the hover/accessibility names and the dialog
+literals now that no production `format!` notice is left). No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

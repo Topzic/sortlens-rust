@@ -1215,14 +1215,23 @@ and none of M9 is closed until the remaining rows are ticked.
   `the_selection_notices_speak_the_interface_language` drives both functions over a real three-photo
   library under Arabic and requires the toast and the bell's painted history to be the catalogue's
   sentence with its own digits, then asks Japanese for its own counter.
+  The pass's receipts and a new collection followed (hundred-and-forty-fourth entry): Soft Focus'
+  three endings — `Measured {n} photo(s)`, the same with its `{unjudged}` coda and
+  `Sharpness pass stopped after {n} photo(s)` — and the creation receipt `Created {name}` plus the
+  generated default name `Collection {n}` are rows and templates, every count through
+  `format_count`; one `sharpness_notice` words all three endings and one
+  `default_collection_name`/`collection_created_notice` pair words a new collection, so an Arabic
+  library names its first collection `مجموعة ١` and its receipt reads Arabic with those digits
+  instead of an English frame around Latin ones.
+  `the_sharpness_and_collection_notices_speak_the_interface_language` runs a real two-photo pass and
+  creates a real collection under Arabic and requires the digits.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: two remaining `state.notice(format!(…))` sites — a new collection
-  and the sharpness pass's stopped line — plus the two
-  `Measured … photo(s)` sentences worded one line above that pass's notice (indexing
-  went in the hundred-and-thirty-eighth entry, rating in the hundred-and-thirty-ninth, the flag
+  went through `tl!`/`i18n::fmt`: dozens of `on_hover_text`/accessibility names, and dialog literals
+  such as `No folders yet`, `Remove from library` and the collection menu — no production
+  `state.notice(format!(…))` site is left (the notice family finished in the hundred-and-forty-fourth
+  entry, indexing in the hundred-and-thirty-eighth, rating in the hundred-and-thirty-ninth, the flag
   match in the hundred-and-fortieth, tagging in the hundred-and-forty-first, culling in the
-  hundred-and-forty-second and selection in the hundred-and-forty-third), dozens of `on_hover_text`/accessibility
-  names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
+  hundred-and-forty-second and selection in the hundred-and-forty-third). The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`

@@ -967,3 +967,8 @@
 	Selected {n} photo	사진 {n}장 선택함
 	Selected {n} photos	사진 {n}장 선택함
 	Selected the {n} softest	가장 부드러운 {n}장 선택함
+	Created {name}	{name} 만듦
+	Collection {n}	컬렉션 {n}
+	Measured {n} photo(s)	{n}장을 측정함
+	Measured {n} photo(s); {unjudged} could not be judged and were left unscored	{n}장을 측정함. {unjudged}장은 판정할 수 없어 점수를 매기지 않았습니다
+	Sharpness pass stopped after {n} photo(s)	선명도 측정이 {n}장에서 중단되었습니다
