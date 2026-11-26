@@ -1177,10 +1177,15 @@ and none of M9 is closed until the remaining rows are ticked.
   (`{n} missing`, `{n} routed by content, not name`, `{n} unreadable`) and the first-scan banner's
   `Start culling {n} photos` and `Dismiss` are rows and templates, with counts through
   `i18n::count`, so an Arabic scan reads `تمت فهرسة ١ صورة في …` where it read `Indexed 1 photo in …`.
+  The rating receipt followed (hundred-and-thirty-ninth entry): `Cleared rating`, `Cleared the rating
+  on {n} photos`, `Rated {stars}★` and `Rated {stars}★ on {n} photos` are rows, with the stars and the
+  count through `format_count`, so an Arabic click reads `قُيِّمت ٢ صورة بـ ٣★` in its own digits and
+  `the_rating_notices_speak_the_interface_language` rates a real two-photo selection under Arabic and
+  requires both the toast and the bell's painted history to be the catalogue's sentence.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the remaining ~30 `state.notice(format!(…))` messages
-  (rating, tagging, culling, selection, errors; indexing went in the hundred-and-thirty-eighth
-  entry), dozens of `on_hover_text`/accessibility
+  went through `tl!`/`i18n::fmt`: the ten remaining `state.notice(format!(…))` messages
+  (tagging, culling, selection, a new collection, hashing previews, the softest photographs; indexing
+  went in the hundred-and-thirty-eighth entry and rating in the hundred-and-thirty-ninth), dozens of `on_hover_text`/accessibility
   names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.

@@ -750,6 +750,10 @@
 	A relative cut, never a verdict	قطع نسبي، لا حكم
 	The server is already running	الخادم يعمل بالفعل
 	Alerts	تنبيهات
+	Cleared rating	أُزيل التقييم
+	Cleared the rating on {n} photos	أُزيل التقييم عن {n} صورة
+	Rated {stars}★	قُيِّمت {stars}★
+	Rated {stars}★ on {n} photos	قُيِّمت {n} صورة بـ {stars}★
 	Alerts, {n} unread	تنبيهات، {n} غير مقروء
 	What has happened recently	ما حدث مؤخرًا
 	Nothing has happened yet	لم يحدث شيء بعد

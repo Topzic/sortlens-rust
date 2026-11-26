@@ -606,6 +606,10 @@
 	Indexing {folder}…	กำลังทำดัชนี {folder}…
 	Exporting {n} file(s)…	กำลังส่งออก {n} ไฟล์…
 	Back	ย้อนกลับ
+	Cleared rating	ล้างคะแนนดาวแล้ว
+	Cleared the rating on {n} photos	ล้างคะแนนดาวบน {n} รูปแล้ว
+	Rated {stars}★	ให้ {stars}★ แล้ว
+	Rated {stars}★ on {n} photos	ให้ {stars}★ กับ {n} รูปแล้ว
 	Alerts	การแจ้งเตือน
 	Alerts, {n} unread	การแจ้งเตือน, ยังไม่ได้อ่าน {n} รายการ
 	What has happened recently	เรื่องที่เกิดขึ้นล่าสุด

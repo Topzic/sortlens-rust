@@ -937,6 +937,10 @@
 	The desktop at {host}:{port} answered	{host}:{port} 的桌面電腦已回應
 	No answer from {host}:{port}: {reason}	{host}:{port} 沒有回應：{reason}
 	the pairing thread could not start: {error}	無法啟動配對執行緒：{error}
+	Cleared rating	已清除評分
+	Cleared the rating on {n} photos	已清除 {n} 張照片的評分
+	Rated {stars}★	已評為 {stars}★
+	Rated {stars}★ on {n} photos	已將 {n} 張照片評為 {stars}★
 	the test thread could not start: {error}	無法啟動測試執行緒：{error}
 	Alerts	通知
 	Alerts, {n} unread	通知，{n} 則未讀

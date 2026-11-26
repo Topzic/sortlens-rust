@@ -3026,13 +3026,23 @@ fn rate_selection(state: &mut UiState, engine: &mut Engine, stars: u8) {
     }
     let count = targets.len();
     match engine.rate(&targets, stars) {
-        Ok(_) => state.notice(match (stars, count) {
-            (0, 1) => "Cleared rating".to_string(),
-            (0, many) => format!("Cleared the rating on {many} photos"),
-            (stars, 1) => format!("Rated {stars}★"),
-            (stars, many) => format!("Rated {stars}★ on {many} photos"),
-        }),
+        Ok(_) => state.notice(rating_notice(stars, count)),
         Err(error) => state.notice_problem(error.to_string()),
+    }
+}
+
+/// The rating receipt in the interface language (SL-L07): the stars and the count are placeholders,
+/// so an Arabic toast is its own sentence with its own digits rather than an English frame around
+/// them. Clearing is its own pair of rows — a language words "took the stars off" differently from
+/// "gave three stars" — and one photo and several stay separate rows for the same reason.
+fn rating_notice(stars: u8, count: usize) -> String {
+    let digits = format_count(u64::from(stars));
+    let n = format_count(count as u64);
+    match (stars, count) {
+        (0, 1) => tl!("Cleared rating").to_string(),
+        (0, _) => crate::i18n::fmt("Cleared the rating on {n} photos", &[("n", &n)]),
+        (_, 1) => crate::i18n::fmt("Rated {stars}★", &[("stars", &digits)]),
+        (_, _) => crate::i18n::fmt("Rated {stars}★ on {n} photos", &[("stars", &digits), ("n", &n)]),
     }
 }
 
@@ -19796,6 +19806,109 @@ mod tests {
         let banner = state.welcome_ready.clone().expect("the first scan sets the welcome banner");
         assert!(banner.contains("صورة") && !banner.contains("photo"), "{banner}");
         assert!(label_at(&painted, "ابدأ فرز").is_some(), "the banner's Start culling is a row");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The rating receipt speaks the interface language (SL-L07).
+    ///
+    /// Four `format!` calls built the toast a star click leaves: `Cleared rating`, the clearing
+    /// sentence with its count, `Rated {stars}★` and its plural. Each is a catalogue row now, with
+    /// the stars and the count as placeholders through `format_count`, so an Arabic click reads its
+    /// own digits in its own sentence instead of an English frame around them.
+    #[test]
+    fn the_rating_notices_speak_the_interface_language() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-rate-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-rate-i18n");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 * index, 90, 170], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "the fixture scans both photographs");
+
+        // English: the words the toast has always painted, one photo and several.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(rating_notice(3, 1), "Rated 3★");
+        assert_eq!(rating_notice(3, 2), "Rated 3★ on 2 photos");
+        assert_eq!(rating_notice(0, 1), "Cleared rating");
+        assert_eq!(rating_notice(0, 2), "Cleared the rating on 2 photos");
+
+        // Arabic: the shell's own path rates the selection and leaves its own sentence, its own
+        // digits, and no English noun behind it.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.selection.select_many(&ids);
+        rate_selection(&mut state, &mut engine, 3);
+        let arabic = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("the rating leaves a notice");
+        assert!(
+            arabic.contains('٣') && arabic.contains('★'),
+            "the stars are the reader's digits: {arabic}"
+        );
+        assert!(
+            !arabic.contains("Rated") && !arabic.contains("photo"),
+            "and no English behind them: {arabic}"
+        );
+        assert_eq!(engine.photo(ids[0]).expect("photo").rating, 3, "the click rates the selection");
+
+        // The painted history is that same sentence: the toast and the bell cannot word it apart.
+        state.bell_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint(&ctx, &mut state);
+        let frame = paint(&ctx, &mut state);
+        assert!(label_at(&frame, &arabic).is_some(), "the history paints the catalogue's sentence");
+
+        // Clearing one photograph is its own row, and it is the clearing sentence in Arabic too.
+        state.selection.select_many(&ids[..1]);
+        rate_selection(&mut state, &mut engine, 0);
+        let cleared = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("clearing leaves a notice");
+        assert!(cleared.contains("التقييم") && !cleared.contains("Cleared"), "{cleared}");
+
+        // Japanese words the same two shapes its own way, with its own measure word.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let rated = rating_notice(4, 3);
+        assert!(rated.contains("4★") && rated.contains("枚") && !rated.contains("photos"), "{rated}");
+        assert!(rating_notice(4, 1).contains("付けました"), "{}", rating_notice(4, 1));
+        assert!(rating_notice(0, 1).contains("評価を解除"), "{}", rating_notice(0, 1));
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

@@ -619,6 +619,13 @@ screen's button paints. `the_indexing_notices_speak_the_interface_language` pins
 with all three suffixes, the Arabic and Japanese fills, and then runs a real first scan under Arabic
 through `show`, requiring both the banner and the notice to be the catalogue's sentence.
 
+The rating receipt takes the same seam over the click's stars and count: `rating_notice` words
+`Cleared rating` / `Cleared the rating on {n} photos` and `Rated {stars}★` / `Rated {stars}★ on {n}`
+through `format_count`, so neither the stars nor the count can arrive in Latin digits inside an
+Arabic sentence, and `the_rating_notices_speak_the_interface_language` rates a real two-photo
+selection under Arabic and requires the toast and the bell's painted history to agree with the
+catalogue.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

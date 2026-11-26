@@ -866,6 +866,10 @@
 	Shortcut set	단축키 세트
 	The set could not be read: {error}	세트를 읽지 못했습니다: {error}
 	The set could not be written: {error}	세트를 쓰지 못했습니다: {error}
+	Cleared rating	별점 지움
+	Cleared the rating on {n} photos	사진 {n}장의 별점 지움
+	Rated {stars}★	별점 {stars}★ 지정
+	Rated {stars}★ on {n} photos	사진 {n}장에 별점 {stars}★ 지정
 	Wrote “{name}”	“{name}”을(를) 기록했습니다
 	Back up the Sortlens library	Sortlens 라이브러리 백업
 	Sortlens backup	Sortlens 백업

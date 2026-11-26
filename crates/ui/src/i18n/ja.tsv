@@ -817,6 +817,10 @@
 	Empty bin…	箱を空にする…
 	The server is already running	サーバーはすでに実行中です
 	Alerts	通知
+	Cleared rating	評価を解除しました
+	Cleared the rating on {n} photos	{n} 枚の写真の評価を解除しました
+	Rated {stars}★	{stars}★ を付けました
+	Rated {stars}★ on {n} photos	{n} 枚の写真に {stars}★ を付けました
 	Alerts, {n} unread	通知、未読 {n} 件
 	What has happened recently	最近のできごと
 	Nothing has happened yet	まだ何もありません

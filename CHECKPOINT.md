@@ -1,5 +1,42 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-thirty-ninth) — the rating receipt speaks the interface language, its stars in the reader's digits
+
+- **Why this came up.** The hundred-and-thirty-eighth entry's Next named the next notice family: rating.
+  Four `format!` calls in `rate_selection` built `Cleared rating`, `Cleared the rating on {many} photos`,
+  `Rated {stars}★` and `Rated {stars}★ on {many} photos` — an English frame with Latin digits under an
+  interface the catalogues had already translated, so an Arabic click read `Rated 3★` beside its own
+  language everywhere else.
+- **What is routed.** `rating_notice(stars, count)` matches on the engine's own star count (never on the
+  localized digits, which is the trap the first draft walked into — Arabic's zero is `٠`), and words one
+  photo and several through four rows: `Cleared rating`, `Cleared the rating on {n} photos`,
+  `Rated {stars}★`, `Rated {stars}★ on {n} photos`. The stars and the count are placeholders filled with
+  `format_count`, so `Rated 3★ on 2 photos` reads `قُيِّمت ٢ صورة بـ ٣★` in Arabic. Four rows per
+  catalogue, six catalogues.
+- **Tests.** `the_rating_notices_speak_the_interface_language` pins all four English shapes, then rates a
+  real two-photo selection through the shell's own `rate_selection` under Arabic and requires Arabic-Indic
+  stars with no English word behind them; it paints the bell popover and requires the history to be that
+  same sentence, then clears a single photo (its own row) and asks Japanese for its measure word and its
+  two clearing/rating shapes. It fails on the old literals two ways: the catalogue audit would have no row
+  for the new keys, and the Arabic lookups would return English.
+- **Docs.** ROADMAP's SL-L07 row records the rating family and re-counts what is left (`state.notice(format!(…))`
+  is ten sites now: tagging, culling, selection, a new collection, hashing previews, the softest photographs);
+  UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name `rating_notice` and the test. SL-L07 stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 (fmt after one formatting fix, workspace clippy, the workspace suite,
+  `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`, `workflows`);
+  `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — no committed scene rates a
+  photo; `cargo xtask snapshot` 5 passed and `cargo xtask deny` (advisories, bans, licenses, sources) exit 0.
+  `cargo xtask mobile` cannot run here (no Android NDK, no Xcode) and no phone code changed; there is no
+  `cargo xtask wasm` in this workspace. No release workflow was dispatched: this is source, catalogue rows,
+  tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs`, the six `crates/ui/src/i18n/*.tsv` (four rows each), `docs/ROADMAP.md`,
+  `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs` —
+  `screenshots` is the job that matters, though no committed scene sets a rating notice. Then the flag
+  family, the last notice pair beside rating: `Picked`/`Rejected`/`Unflagged` and their three several-photo
+  forms in `flag_selection`. SL-L07 stays unticked; its row lists what the audit still finds. No release run
+  is in flight.
+
 ## 2026-11-26 (hundred-and-thirty-eighth) — a finished scan reports in the interface language, suffixes and banner included
 
 - **Why this came up.** The hundred-and-thirty-seventh entry's Next named the shell's
