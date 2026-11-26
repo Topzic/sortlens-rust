@@ -1110,9 +1110,14 @@ and none of M9 is closed until the remaining rows are ticked.
   its headline is worded from the receipt's own count and folder rather than read from the engine's
   English `headline()` — so an Arabic receipt reads `نُقلت ١ صورة إلى Rejects` and the count keeps
   Arabic-Indic digits. A `run_ui` paint test makes one real move of one indexed photo and requires the
-  Japanese dialog to leave no English behind. What remains on this row is outside the shell: the host's
-  own notices and the native file-dialog titles in `apps/sortlens`, which the source-reading catalogue
-  audit cannot see.
+  Japanese dialog to leave no English behind. The host's own words followed (hundred-and-thirtieth
+  entry): `apps/sortlens` looks up its add-folder, pick, move and export notices and those three
+  native `rfd` dialog titles through `i18n::tr`/`i18n::fmt`, and the move notice asks the receipt's
+  own `move_receipt_headline` so the dialog and the status line cannot disagree. Because the shell's
+  audit cannot read another crate's source, the host carries its own listing: a test reads `main.rs`
+  back, collects every routed key and requires a row for each in all six catalogues. What remains on
+  this row is the host's other notices — library open, backup and restore, and the sync server's
+  lines — and the remaining `rfd` titles.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

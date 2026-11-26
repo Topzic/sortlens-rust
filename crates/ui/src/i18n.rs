@@ -93,6 +93,38 @@ pub fn size(bytes: u64) -> String {
     I18N.file_size(current(), bytes, FileSize::DECIMAL)
 }
 
+/// A literal in the interface language, for the host's own words (SL-L07).
+///
+/// The shell routes its labels through `tl!`; the desktop app builds its notices and the titles of
+/// its native file dialogs in its own file, where no `tl!` site paints them and the catalogue audit
+/// cannot read them. This is the same English-key lookup those sites use, so one row serves both.
+#[must_use]
+pub fn tr(text: &str) -> &str {
+    I18N.t(current(), text)
+}
+
+/// A number in the interface language's own digits and grouping, for a sentence built with
+/// [`fmt`].
+#[must_use]
+pub fn count(n: u64) -> String {
+    crate::format::count(n)
+}
+
+/// The `Moved` headline in the reader's language, from a count and the folder the files went to.
+///
+/// The receipt dialog and the host's own notice both say where the files went, and they must not
+/// word it differently: one photo and several are two English rows a language may disagree about,
+/// so each is a template and the count and folder are its placeholders.
+#[must_use]
+pub fn moved_headline(count: usize, folder: &str) -> String {
+    let digits = self::count(count as u64);
+    if count == 1 {
+        fmt("{n} photo moved to {folder}", &[("n", &digits), ("folder", folder)])
+    } else {
+        fmt("{n} photos moved to {folder}", &[("n", &digits), ("folder", folder)])
+    }
+}
+
 /// The catalogue as `craft-keymap`'s dialog words: its own strings, the command labels and the
 /// menu paths look up the rows the rest of the shell paints, so the shortcut editor speaks the
 /// interface language without a second table (SL-L07). The language is read when the adapter is

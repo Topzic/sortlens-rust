@@ -10225,16 +10225,11 @@ fn health_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engi
 
 /// The Moved receipt's headline in the reader's language, from the receipt's own count and
 /// folder — the pieces its English `headline()` is joined from.
-fn move_receipt_headline(receipt: &sortlens_engine::moves::MoveReceipt) -> String {
-    let folder = sortlens_engine::moves::folder_name(&receipt.dest);
-    let count = format_count(receipt.len() as u64);
-    // "1 photo moved" and "3 photos moved" are two English rows a language may disagree about, so
-    // each is a template with the count in its placeholder.
-    if receipt.len() == 1 {
-        crate::i18n::fmt("{n} photo moved to {folder}", &[("n", &count), ("folder", &folder)])
-    } else {
-        crate::i18n::fmt("{n} photos moved to {folder}", &[("n", &count), ("folder", &folder)])
-    }
+///
+/// The host's own notice after a move calls this too, so the dialog and the status line cannot
+/// word the same move differently.
+pub fn move_receipt_headline(receipt: &sortlens_engine::moves::MoveReceipt) -> String {
+    crate::i18n::moved_headline(receipt.len(), &sortlens_engine::moves::folder_name(&receipt.dest))
 }
 
 /// A move just happened: say where the files went, and offer the one thing a photographer wants

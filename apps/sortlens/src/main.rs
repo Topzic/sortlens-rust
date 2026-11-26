@@ -15,7 +15,7 @@ use craft_window::policy::{Backend, Frame, TitleBarPref, apply as apply_titlebar
 use settings::Prefs;
 use sortlens_engine::{Engine, Sort};
 use sortlens_ui::shell::ExportReceipt;
-use sortlens_ui::{Action, Density, ThemeKind, Thumbnails, UiState, apply as apply_theme};
+use sortlens_ui::{Action, Density, ThemeKind, Thumbnails, UiState, apply as apply_theme, i18n};
 use sync::Sync;
 
 /// The top bar's leading inset: how much room the frame needs before the app paints anything.
@@ -290,25 +290,32 @@ impl App {
             Action::Reveal(id) => self.show_in_folder(id),
             Action::OpenExternal(id) => self.open_externally(id),
             Action::PickFolder => {
-                if let Some(folder) = rfd::FileDialog::new().set_title("Add a folder to Sortlens").pick_folder() {
+                if let Some(folder) = rfd::FileDialog::new()
+                    .set_title(i18n::tr("Add a folder to the library"))
+                    .pick_folder()
+                {
                     let path = folder.to_string_lossy().to_string();
                     match self.engine.begin_scan(path.clone()) {
-                        Ok(()) => self.ui.notice(format!("Indexing {}…", folder_name(&path))),
+                        Ok(()) => self.ui.notice(i18n::fmt("Indexing {folder}…", &[("folder", &folder_name(&path))])),
                         Err(error) => self.ui.notice(error.to_string()),
                     }
                 }
             }
             Action::MovePicks(ids) => {
                 if ids.is_empty() {
-                    self.ui.notice("Pick a photo first");
+                    self.ui.notice(i18n::tr("Pick a photo first"));
                     return;
                 }
-                if let Some(folder) = rfd::FileDialog::new().set_title("Move the picks into…").pick_folder() {
+                if let Some(folder) = rfd::FileDialog::new().set_title(i18n::tr("Move the picks into…")).pick_folder() {
                     let dest = folder.to_string_lossy().to_string();
                     match self.engine.move_picks(&dest, &ids) {
                         Ok(count) => {
+                            // The receipt dialog words the same move; the status line asks it, so the
+                            // two cannot disagree about the folder or the count.
+                            let headline = self.engine.move_receipts().last().map(sortlens_ui::shell::move_receipt_headline);
                             self.ui.move_receipt = self.engine.move_receipts().last().map(|receipt| receipt.id);
-                            self.ui.notice(format!("Moved {count} photo(s) to {}", folder_name(&dest)))
+                            self.ui
+                                .notice(headline.unwrap_or_else(|| i18n::moved_headline(count, &folder_name(&dest))))
                         }
                         Err(error) => self.ui.notice(error.to_string()),
                     }
@@ -316,10 +323,10 @@ impl App {
             }
             Action::Export(ids, spec) => {
                 if ids.is_empty() {
-                    self.ui.notice("Pick a photo first");
+                    self.ui.notice(i18n::tr("Pick a photo first"));
                     return;
                 }
-                if let Some(folder) = rfd::FileDialog::new().set_title("Export into…").pick_folder() {
+                if let Some(folder) = rfd::FileDialog::new().set_title(i18n::tr("Export into…")).pick_folder() {
                     match self.engine.begin_export(&folder, &ids, &spec) {
                         Ok(0) => {
                             let receipt = self.engine.last_export().map(ExportReceipt::from_report).unwrap_or(ExportReceipt {
@@ -333,7 +340,8 @@ impl App {
                             self.ui.export_receipt = Some(receipt);
                         }
                         Ok(planned) => {
-                            self.ui.notice(format!("Exporting {planned} file(s)…"));
+                            self.ui
+                                .notice(i18n::fmt("Exporting {n} file(s)…", &[("n", &i18n::count(planned as u64))]));
                         }
                         Err(error) => self.ui.notice(error.to_string()),
                     }
@@ -635,5 +643,71 @@ mod tests {
         assert!((title_inset(&Frame::Native) - 10.0).abs() < f32::EPSILON);
         assert_eq!(title_bar_height(&Frame::Inset(mac)), Some(28.0));
         assert_eq!(title_bar_height(&Frame::Native), None);
+    }
+
+    /// Every route this file's own words take, read out of the file itself: `i18n::tr(` literals and
+    /// `i18n::fmt(` templates. The shell's catalogue audit cannot reach this crate, so the host
+    /// carries its own listing — a key routed here with no row is a notice that quietly stays
+    /// English, which is exactly the debt SL-L07 exists to pay.
+    fn routed_keys() -> Vec<String> {
+        let source = include_str!("main.rs");
+        let mut keys = Vec::new();
+        // A route's literal may sit on the next line, so the whitespace after the parenthesis is
+        // skipped before the opening quote is required.
+        // Split here rather than on a literal marker, so these two lines do not list themselves.
+        let markers = [["i18n", "::tr("].concat(), ["i18n", "::fmt("].concat()];
+        for marker in markers {
+            for part in source.split(marker.as_str()).skip(1) {
+                if let Some(rest) = part.trim_start().strip_prefix('"')
+                    && let Some(end) = rest.find('"')
+                {
+                    keys.push(rest[..end].to_owned());
+                }
+            }
+        }
+        keys
+    }
+
+    /// The host's routes are listed here and every one has a row in all six catalogues.
+    #[test]
+    fn the_hosts_words_have_a_row_in_every_catalogue() {
+        let keys = routed_keys();
+        // These are the routes this tick added; the listing has to see every one of them.
+        for key in [
+            "Pick a photo first",
+            "Add a folder to the library",
+            "Move the picks into…",
+            "Export into…",
+            "Indexing {folder}…",
+            "Exporting {n} file(s)…",
+        ] {
+            assert!(keys.iter().any(|seen| seen == key), "the listing lost {key:?}");
+        }
+        for code in ["ar", "ja", "ko", "th", "vi", "zh-TW"] {
+            let lang = i18n::from_code(code).expect("an offered interface language");
+            for key in &keys {
+                assert_ne!(i18n::I18N.t(lang, key), key, "{code} has no row for the host's {key:?}");
+            }
+        }
+    }
+
+    /// The status line after a move is the receipt dialog's own sentence, so a reader in Arabic is
+    /// told where the files went in Arabic — and told one photo and several differently only if the
+    /// language asks for it.
+    #[test]
+    fn the_hosts_move_notice_reads_the_interface_language() {
+        let english = i18n::from_code("en").expect("English");
+        let arabic = i18n::from_code("ar").expect("Arabic");
+        i18n::set_current(english);
+        assert_eq!(i18n::moved_headline(1, "moved"), "1 photo moved to moved");
+        assert_eq!(i18n::moved_headline(3, "moved"), "3 photos moved to moved");
+        assert_eq!(i18n::tr("Pick a photo first"), "Pick a photo first");
+        i18n::set_current(arabic);
+        let one = i18n::moved_headline(1, "moved");
+        assert!(one.contains('١') && one.contains("صورة"), "the count and noun are Arabic: {one}");
+        assert!(!one.contains("photo"), "no English noun is left: {one}");
+        assert_ne!(i18n::tr("Pick a photo first"), "Pick a photo first");
+        assert!(i18n::fmt("Indexing {folder}…", &[("folder", "sea")]).contains("جارٍ"));
+        i18n::set_current(english);
     }
 }

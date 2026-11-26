@@ -1,6 +1,59 @@
 # Checkpoint
 
 ## 2026-11-26 (hundred-and-twenty-ninth) — the `Moved` receipt speaks the interface language, and no English is left on the canvas
+## 2026-11-26 (hundred-and-thirtieth) — the desktop's own pick, move and export words speak the interface language
+
+- **Why this came up.** The hundred-and-twenty-ninth entry's Next named the English the shell could not
+  reach: the host's own status lines and the native file-dialog titles in `apps/sortlens`. The `CI` run
+  for the newest commit (`45775311062`) was in progress at the first step, not red, so this is a roadmap
+  slice rather than a repair.
+- **What the host said in English.** `Action::PickFolder` opened `Add a folder to Sortlens` and reported
+  `Indexing <folder>…`; `MovePicks` and `Export` answered an empty selection with the literal
+  `Pick a photo first`, titled their native dialogs `Move the picks into…` and `Export into…`, and
+  reported a move as `Moved {count} photo(s) to <folder>` and a batch export as
+  `Exporting {planned} file(s)…` — strings the shell's catalogue audit reads only in `crates/ui`, so no
+  row ever covered them.
+- **The seam.** `sortlens_ui::i18n` gained `tr` (a literal in the current language, the same English-key
+  lookup `tl!` makes), `count` (the reader's digits, `format::count` re-exported) and
+  `moved_headline(count, folder)`. `shell::move_receipt_headline` is now `pub` and delegates to
+  `moved_headline`, which is the point: the receipt dialog and the host's status line word a move from
+  the same two templates, so they cannot disagree. The host's `MovePicks` asks the just-made receipt's
+  headline first and falls back to `moved_headline(count, dest)` only if the engine kept no receipt.
+- **What is routed.** All six above: the add-folder title (reusing the existing
+  `Add a folder to the library` row), `Indexing {folder}…`, both `Pick a photo first` notices, both
+  move/export titles and `Exporting {n} file(s)…`. The add-folder title's English changed from *Add a
+  folder to Sortlens* to the row the shell already paints, which is the same dialog under the app's name.
+- **The host's own audit.** Four new rows landed in each of the six catalogues (24):
+  `Move the picks into…`, `Export into…`, `Indexing {folder}…` and `Exporting {n} file(s)…`.
+  Because `crates/ui`'s audit cannot `include_str!` another crate's source, `apps/sortlens/src/main.rs`
+  now carries `the_hosts_words_have_a_row_in_every_catalogue`: it reads `main.rs` back, collects every
+  `i18n::tr` literal and `i18n::fmt` template (whitespace after the parenthesis is skipped, and the
+  scanner's own marker literals are split as `["i18n", "::tr("]` so they do not list themselves), and
+  requires a row for each in all six catalogues. `the_hosts_move_notice_reads_the_interface_language`
+  pins the English headline, the Arabic one (`١` and `صورة`, no `photo`), the Arabic
+  `Pick a photo first` and the Arabic `Indexing {folder}…` template.
+- **Not routed here, named.** The host's other notices — `Settings could not be read in full…`, the
+  library-open failure, backup and restore, the sync server's three lines, the shortcut-set errors, the
+  tag/put-back words and the sidecars toggles — and the remaining `rfd` titles are still English; the
+  same seam takes them one slice at a time, and the host's listing is where each one lands.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite including the
+  catalogue audit and both host tests, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`,
+  `a11y`, `docs`, `templates`, `workflows`); `cargo xtask snapshot` (5 goldens), `cargo xtask deny`
+  (advisories, bans, licenses, sources) and `cargo xtask screenshots` (29 passed, 1 ignored, no baseline
+  moved — no committed frame paints a native dialog title or a host notice) all exit 0. No
+  `cargo xtask wasm` exists in this workspace; `cargo xtask mobile` cannot run here (no NDK, no Xcode)
+  and no phone code changed. No release workflow was dispatched: this is source and docs, no build or
+  release surface.
+- **Files.** `crates/ui/src/i18n.rs` (`tr`, `count`, `moved_headline`), `crates/ui/src/shell.rs`
+  (the public headline helper), `apps/sortlens/src/main.rs` (routing and two tests),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (four rows each), `docs/UX.md`,
+  `docs/ARCHITECTURE.md`, `docs/ROADMAP.md` and this file.
+- **Next.** Read this commit's `CI` run first with one `gh run view` (`screenshots` is the job that
+  matters; no committed frame paints these words). Then the host's remaining notices, starting with the
+  library open and backup/restore lines, through the same `i18n::tr`/`i18n::fmt` seam. No release run is
+  in flight.
+
+
 
 - **Why this came up.** The hundred-and-twenty-eighth entry's Next named SL-L07's last English on the
   canvas: the `Moved` receipt's title, the sentence under it, its `and {n} more` line and its two
@@ -7593,16 +7646,12 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-twenty-eighth entry).** The `lavapipe/` set carries the runner's own paint for
-`6bd6b53`'s whole-row clip (run `45771651973`), so read this commit's `CI` run with one `gh run view` and expect
-`screenshots` green; if it is red, that run's `screenshot-set` artifact is adopted the same way
-(`gh run download <id> -n screenshot-set -D .ci-shots`, then
-`SORTLENS_SNAPSHOT_SET=lavapipe cargo xtask screenshots --adopt .ci-shots`, with each pair's changed-pixel box
-computed first — a band in the sections' column is the paint this loop adopts, anything else is not). Then
-SL-L07's last English on the canvas: the `Moved` receipt (title, the sentence under it, `and {n} more`, `Put
-them back`, `Done`) with a paint test that builds a real receipt — one indexed photo and one move. The search
-field's hint and the bar's `No selection` count shipped in the hundred-and-twenty-seventh entry. No release run
-is in flight.
+**Next tick (after the hundred-and-thirtieth entry).** Read this commit's `CI` run with one `gh run view` —
+`screenshots` is the job that matters, and no committed frame paints a word this tick routed. Then the host's
+remaining English in `apps/sortlens/src/main.rs`, through the same `i18n::tr`/`i18n::fmt` seam: the
+library-open failure and `Settings could not be read in full`, backup and restore (both titles, the restore
+destination title, and their toasts), the sync server's three lines, the shortcut-set read/write errors, and
+the two sidecars toggles. The host's listing test is where each new row lands. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

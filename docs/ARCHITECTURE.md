@@ -589,6 +589,17 @@ callers print — stays as it was. The title, the sentence under it, `and {n} mo
 are `tl!`/`i18n::fmt` keys, and `the_move_receipt_speaks_the_interface_language` makes one real
 move of one indexed photo and paints the dialog in English, Japanese and Arabic.
 
+`apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
+the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
+host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with
+`i18n::count` for regional digits), and the move notice asks `shell::move_receipt_headline`, so the
+status line and the receipt dialog cannot word the same move differently. Because the catalogue
+audit in `crates/ui` reads only its own crate's sources, the host carries its own listing:
+`the_hosts_words_have_a_row_in_every_catalogue` reads `main.rs` back, collects every `i18n::tr`/
+`i18n::fmt` key and requires a row for each in all six catalogues, and
+`the_hosts_move_notice_reads_the_interface_language` pins the English, the Arabic count and noun,
+and the Arabic dialog title.
+
 A colour label is one worded piece: `colour_word` reads the `Red`…`Purple` rows, and every
 surface that paints one goes through it — the filter chip's word and its spoken name, the folder
 and collection `Colour` menus, the inspector's Label row and Tags tab, Library insights' label

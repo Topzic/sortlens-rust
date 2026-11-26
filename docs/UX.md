@@ -785,8 +785,11 @@ re-checks its own contrast pairs after applying.
   entry): its title, the sentence under it, its `and {n} more` line and both buttons (`Put them
   back`, `Done`) are rows in all six languages, and its headline is worded from the receipt's own
   count and folder, so an Arabic receipt reads `نُقلت ١ صورة إلى Rejects` where it read
-  `Moved 1 photo(s) to Rejects`. A bin row's summary and mode remain the engine's own sentences
-  rather than the shell's.
+  `Moved 1 photo(s) to Rejects`. The host's own words followed for the add-folder, pick, move and
+  export path: each status line and the three native file-dialog titles are looked up, so an Arabic
+  window reads `اختر صورة أولًا` where it read `Pick a photo first`, and the move notice is the
+  receipt's own headline. A bin row's summary and mode remain the engine's own sentences rather than
+  the shell's.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
