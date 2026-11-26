@@ -7293,7 +7293,8 @@ fn show_online_places_map(
 /// drawn with its own credit line printed over it every frame, and neither source can exist without one. Otherwise the
 /// **shipped land and coastline** — the public-domain Natural Earth 1:110m polygons and outlines, embedded in
 /// `sortlens_geo::land` and `sortlens_geo::coastline` — are painted under the pins, so a first-run library is
-/// geography rather than a field of dots on a blank rectangle. A tile that is missing from a set is painted as
+/// geography rather than a field of dots on a blank rectangle. The opt-in OpenFreeMap frame replaces that
+/// land: it is painted first, and the land is not painted over it. A tile that is missing from a set is painted as
 /// background: a hole in a basemap is a hole, not an error to shout about.
 ///
 /// The map opens **fitted to the library's own photographs**: centred on the middle of their spread and zoomed to the
@@ -7555,7 +7556,9 @@ fn places_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &Engine, th
         false,
     );
 
-    if !usable {
+    // The land is the basemap only while nothing else is. Painting it after the online frame fills the
+    // rectangle with water and covers the style that just loaded.
+    if places::shipped_land_is_basemap(online_active, usable) {
         places::paint_geography(
             &ui.painter_at(map_rect),
             map_rect,

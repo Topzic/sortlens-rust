@@ -407,12 +407,17 @@ impl OnlineMap {
         self.record.as_ref().map(|record| record.camera)
     }
 
-    /// The last failure, from the style or a tile, while there is one.
+    /// The last failure that should replace this map with the offline one.
+    ///
+    /// A cache database that cannot be opened is not one of those: the renderer keeps that cache in
+    /// memory and still draws. Hiding the map for it showed the offline land and a red line while
+    /// OpenFreeMap was fine.
     #[must_use]
     pub fn failure(&self) -> Option<&str> {
         self.error
             .as_deref()
             .or_else(|| self.record.as_ref().and_then(|record| record.failure.as_deref()))
+            .filter(|message| !cache_warning(message))
     }
 
     /// Who the data comes from, as the style declares it.
@@ -1000,6 +1005,21 @@ fn fill_world_mesh(
     }
 }
 
+/// Whether this frame's basemap is the shipped land.
+///
+/// A tile set the person supplies replaces that land, and so does the online map. The online frame
+/// is painted first. Filling the rectangle with water afterwards hides it, so an OpenFreeMap style
+/// looks as if it never loaded.
+#[must_use]
+pub fn shipped_land_is_basemap(online_map: bool, tiles_installed: bool) -> bool {
+    !online_map && !tiles_installed
+}
+
+/// A renderer note that the map survived: the cache file could not be opened, so it stays in memory.
+fn cache_warning(message: &str) -> bool {
+    message.contains("maplibre: cache:")
+}
+
 /// Paint the embedded land, lakes, borders, rivers and coastline for a map rectangle.
 ///
 /// This is the offline basemap: the Natural Earth land polygons are filled, the 1:50m country boundaries, rivers and
@@ -1320,6 +1340,16 @@ mod tests {
         });
         output.textures_delta.clear();
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_online_map_replaces_the_shipped_land() {
+        assert!(shipped_land_is_basemap(false, false));
+        assert!(!shipped_land_is_basemap(true, false));
+        assert!(!shipped_land_is_basemap(false, true));
+        assert!(!shipped_land_is_basemap(true, true));
+        assert!(cache_warning("maplibre: cache: can't make the cache database's directory"));
+        assert!(!cache_warning("maplibre: style: connection failed"));
     }
 
     #[test]
