@@ -763,6 +763,7 @@
 	Decode each photo and measure how much fine detail it has	解碼每張照片並測量其細節多寡
 	{n} photo(s) have no current score	{n} 張照片沒有目前的評分
 	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	尚未測量。銳利度只為這個圖庫內的畫格排名，並非對任何一張的判定。
+	Nothing recorded yet	尚無記錄
 	Softest {percent}% · scores {low} to {high}	最柔和的 {percent}% · 分數 {low} 到 {high}
 	Select {n} photo(s)	選取 {n} 張照片
 	Ticks them in the library, where you can look before you act	在圖庫中勾選它們，讓你能先看清楚再行動
@@ -840,6 +841,7 @@
 	Mono	單色
 	Offline map	離線地圖
 	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	只有地圖範圍、樣式名稱與您的網路位址會傳送到 tiles.openfreemap.org。您的照片、其名稱與位置，以及這個圖庫，永遠不會離開這台電腦。
+	OpenFreeMap · online	OpenFreeMap · 線上
 	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap 無法繪製：{error} · 目前顯示離線地圖
 	Retry	重試
 	The offline map stays available; switch back in the map style menu at any time.	離線地圖仍可使用；隨時可從地圖樣式選單切換回來。

@@ -788,6 +788,7 @@
 	Decode each photo and measure how much fine detail it has	ถอดรหัสแต่ละรูปและวัดว่ามีรายละเอียดปลีกย่อยมากแค่ไหน
 	{n} photo(s) have no current score	{n} รูปยังไม่มีคะแนนปัจจุบัน
 	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	ยังไม่ได้วัดอะไร ความคมชัดจัดอันดับเฟรมในคลังภาพนี้ ไม่ใช่คำตัดสินต่อรูปใด
+	Nothing recorded yet	ยังไม่มีบันทึก
 	Softest {percent}% · scores {low} to {high}	นุ่มที่สุด {percent}% · คะแนน {low} ถึง {high}
 	Select {n} photo(s)	เลือก {n} รูป
 	Ticks them in the library, where you can look before you act	ติ๊กไว้ในคลังภาพ เพื่อให้ดูก่อนลงมือ
@@ -867,6 +868,7 @@
 	Mono	ขาวดำ
 	Offline map	แผนที่ออฟไลน์
 	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	สิ่งที่ส่งไปยัง tiles.openfreemap.org มีเพียงพื้นที่แผนที่ ชื่อสไตล์ และที่อยู่เครือข่ายของคุณ ภาพถ่าย ชื่อและตำแหน่งของภาพถ่าย และไลบรารีนี้จะไม่ออกจากคอมพิวเตอร์เครื่องนี้
+	OpenFreeMap · online	OpenFreeMap · ออนไลน์
 	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap วาดไม่ได้: {error} · กำลังแสดงแผนที่ออฟไลน์
 	Retry	ลองใหม่
 	The offline map stays available; switch back in the map style menu at any time.	แผนที่ออฟไลน์ยังใช้ได้เสมอ สามารถกลับไปได้จากเมนูสไตล์แผนที่

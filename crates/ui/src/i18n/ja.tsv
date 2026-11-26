@@ -763,6 +763,7 @@
 	Decode each photo and measure how much fine detail it has	各写真をデコードし、細部の量を測定します
 	{n} photo(s) have no current score	{n} 枚の写真に現在のスコアがありません
 	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	まだ計測していません。シャープさはこのライブラリ内のフレームを順位づけるもので、どれかへの判定ではありません。
+	Nothing recorded yet	まだ記録がありません
 	Softest {percent}% · scores {low} to {high}	最も柔らかい {percent}% · スコア {low}〜{high}
 	Select {n} photo(s)	{n} 枚の写真を選択
 	Ticks them in the library, where you can look before you act	ライブラリ内で印を付け、実行前に確認できます
@@ -866,6 +867,7 @@
 	Mono	モノクロ
 	Offline map	オフライン地図
 	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	tiles.openfreemap.org に送られるのは、地図の範囲、スタイル名、ネットワークアドレスだけです。写真、その名前と場所、このライブラリがこのコンピューターから出ることはありません。
+	OpenFreeMap · online	OpenFreeMap · オンライン
 	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap が描画できませんでした: {error} · オフライン地図を表示しています
 	Retry	再試行
 	The offline map stays available; switch back in the map style menu at any time.	オフライン地図は引き続き利用できます。地図スタイルメニューからいつでも戻せます。

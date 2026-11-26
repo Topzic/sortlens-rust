@@ -843,7 +843,11 @@ The folder tree's `Up one level` and the scan row's `Cancel` are routed the same
 (hundred-and-sixtieth entry): both are `RichText::new(tl!(…))` calls inside their own `Button`, and
 `the_folder_tree_and_scan_row_buttons_speak_the_interface_language` reads `shell.rs` back for both,
 so one that falls back to a bare literal fails rather than painting English. The scan row's route is
-matched with its `.size(10.5)`, because `Cancel` is a key a dozen dialogs paint.
+matched with its `.size(10.5)`, because `Cancel` is a key a dozen dialogs paint. The insights
+breakdown's empty line and the map style menu's online group are routed the same way
+(hundred-and-sixty-first entry): `Nothing recorded yet` and `OpenFreeMap · online` are `tl!` calls,
+and `the_insights_breakdown_and_map_style_menu_speak_the_interface_language` reads `shell.rs` back
+for both, so one that falls back to a bare literal fails rather than painting English.
 `crates/ui/src/format.rs` (SL-L08) writes the numbers and dates the shell paints in the interface
 language's own convention: an explicit style per offered language fixes the digit set, the grouping
 and decimal marks and the date's field order, and a test holds the table to `i18n::LANGUAGES` so a

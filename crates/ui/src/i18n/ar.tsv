@@ -788,6 +788,7 @@
 	Decode each photo and measure how much fine detail it has	فكّ ترميز كل صورة وقياس مقدار التفاصيل الدقيقة فيها
 	{n} photo(s) have no current score	{n} صورة بلا درجة حالية
 	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	لم يُقس شيء بعد. الحِدّة ترتّب إطارات هذه المكتبة، وليست حكمًا على أيٍّ منها.
+	Nothing recorded yet	لم يُسجَّل شيء بعد
 	Softest {percent}% · scores {low} to {high}	الأضعف {percent}% · الدرجات من {low} إلى {high}
 	Select {n} photo(s)	تحديد {n} صورة
 	Ticks them in the library, where you can look before you act	تؤشّرها في المكتبة حيث يمكنك النظر قبل التصرف
@@ -866,6 +867,7 @@
 	Mono	أحادي
 	Offline map	الخريطة دون اتصال
 	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	لا يذهب إلى tiles.openfreemap.org سوى مساحة الخريطة واسم النمط وعنوان شبكتك. لا تغادر صورك وأسماؤها ومواقعها وهذه المكتبة هذا الجهاز أبدًا.
+	OpenFreeMap · online	OpenFreeMap · عبر الإنترنت
 	OpenFreeMap could not draw: {error} · showing the offline map	تعذّر على OpenFreeMap الرسم: {error} · تُعرض الخريطة دون اتصال
 	Retry	إعادة المحاولة
 	The offline map stays available; switch back in the map style menu at any time.	تظل الخريطة دون اتصال متاحة؛ يمكنك العودة إليها من قائمة نمط الخريطة في أي وقت.

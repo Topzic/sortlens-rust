@@ -8221,7 +8221,7 @@ fn places_style_chip(ui: &mut Ui, t: &Tokens, state: &mut UiState) -> bool {
     );
     popup.show(|ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-        ui.label(RichText::new("OpenFreeMap · online").size(9.0).color(t.text_faint));
+        ui.label(RichText::new(tl!("OpenFreeMap · online")).size(9.0).color(t.text_faint));
         for option in places::OpenFreeMapStyle::ALL {
             let selected = state.places_online_style == Some(option);
             let label = tl!(option.label());
@@ -9293,7 +9293,7 @@ fn bar_row(ui: &mut Ui, t: &Tokens, label: &str, count: usize, whole: usize) {
 fn breakdown(ui: &mut Ui, t: &Tokens, title: &str, rows: &[sortlens_engine::InsightRow], extra: usize) {
     ui.label(RichText::new(title).size(12.0).strong());
     if rows.is_empty() {
-        ui.label(RichText::new("Nothing recorded yet").size(11.0).color(t.text_faint));
+        ui.label(RichText::new(tl!("Nothing recorded yet")).size(11.0).color(t.text_faint));
         return;
     }
     let peak = sortlens_engine::Insights::peak(rows).max(1);
@@ -22514,6 +22514,52 @@ mod tests {
         }
         // English is unchanged, and Arabic is the translator's row rather than the English fallback:
         // a route whose key no catalogue answers would paint English in an Arabic window.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        for (english, _, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        for (english, arabic, _) in LINES {
+            assert_eq!(crate::i18n::tr(english), arabic, "the row for {english:?} is Arabic");
+        }
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The insights breakdown's empty line and the map style menu's online group are catalogue
+    /// rows, in every language the picker offers.
+    ///
+    /// The breakdown is where the Insights tab says a list has nothing in it, and the style menu's
+    /// `OpenFreeMap · online` heading is the only word that says the upper group of styles leaves
+    /// this machine, so a reader who chose Arabic should not meet either in English. The chip's own
+    /// `format!("OpenFreeMap · {}")` prefix stays: the product's name is a recorded exception and
+    /// only the group heading carries a word to translate.
+    #[test]
+    fn the_insights_breakdown_and_map_style_menu_speak_the_interface_language() {
+        // One row per label, with the call that paints it: the assertion is the wiring, so a route
+        // reading a key but painting something else cannot pass. The routes carry their own size,
+        // because other panels paint `Nothing …` lines and other groups sit in the same menu.
+        const LINES: [(&str, &str, &str); 2] = [
+            (
+                "Nothing recorded yet",
+                "لم يُسجَّل شيء بعد",
+                "RichText::new(tl!(\"Nothing recorded yet\")).size(11.0)",
+            ),
+            (
+                "OpenFreeMap · online",
+                "OpenFreeMap · عبر الإنترنت",
+                "RichText::new(tl!(\"OpenFreeMap · online\")).size(9.0)",
+            ),
+        ];
+        // The source with each line's own indentation trimmed away, so a call rustfmt wrapped at
+        // the margin still reads as one call: the wiring is the claim, not the line break.
+        let source: String = include_str!("shell.rs").lines().map(str::trim).collect();
+        for (english, _, route) in LINES {
+            assert!(source.contains(route), "the label {english:?} is still a literal");
+            let literal = format!("RichText::new(\"{english}\")");
+            assert!(!source.contains(&literal), "the label {english:?} also paints a bare literal");
+        }
+        // English is unchanged, and Arabic is the translator's row rather than the English
+        // fallback: a route whose key no catalogue answers would paint English in an Arabic window.
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         for (english, _, _) in LINES {
             assert_eq!(crate::i18n::tr(english), english, "English keeps the key it painted");

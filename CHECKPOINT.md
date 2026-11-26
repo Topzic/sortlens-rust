@@ -1,5 +1,51 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-sixty-first) — the insights breakdown and the map style menu speak the interface language
+
+- **Why this came up.** The hundred-and-sixtieth entry's Next named the insights breakdown's empty
+  line and the map chip's `OpenFreeMap · online`. The `CI` run for `422f9d8` (`45873557050`) was in
+  progress at STEP 1b, not red, so this is a roadmap slice. `crates/ui/src/shell.rs` painted two
+  literals: the line a breakdown shows when it has nothing in it, and the heading that opens the
+  style menu's online group — the one word that says the upper group of styles leaves this machine.
+- **What is routed.** Both sites are `RichText::new(tl!(…))`: `Nothing recorded yet` in `breakdown`,
+  and `OpenFreeMap · online` at the top of the style menu's first group. Two new rows in each of the
+  six catalogues (12 rows). The chip's own `format!("OpenFreeMap · {}")` prefix is untouched — the
+  product's name is the recorded exception — and the menu's `Offline map` heading was already a row,
+  so both group headings now read in one language while `OpenFreeMap` stays Latin in every catalogue.
+- **Tests.** `the_insights_breakdown_and_map_style_menu_speak_the_interface_language` reads
+  `shell.rs` back with each line's indentation trimmed, so a call rustfmt wrapped at the margin still
+  reads as one call; it requires both labels to route and rejects a bare-literal twin, then English
+  must answer every key unchanged and Arabic the translator's row. It was proved to bite: putting the
+  menu heading back to a literal fails it with `the label "OpenFreeMap · online" is still a literal`.
+  The catalogue audit reads the two new keys too, so any of the six catalogues losing a row fails it.
+- **Docs.** ROADMAP's SL-L07 row records the family, drops the pair from the sweep's remaining list
+  and names Settings' sidecar and backup notes, `Suggest keywords for the library…` and the phone
+  link's pair and remove sentences as next; the row stays unticked. UX.md's i18n paragraph and
+  ARCHITECTURE.md §8.4 record the route.
+- **Visual verification.** None expected: no committed scene opens the style menu's popup and none
+  paints an empty insights breakdown in a non-English window, and the English paint is unchanged, so
+  no baseline should move. `cargo xtask screenshots` was run because `crates/ui` changed: 30 passed,
+  1 ignored (network), and `git status` showed no baseline moved.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` exit 0;
+  `cargo test -p sortlens-ui --lib -- the_insights_breakdown_and_map_style_menu_speak_the_interface_language
+  catalogs_load_and_routed_keys_have_rows` 2 passed (and the new test was proved to fail on the
+  pre-slice literal, quoted above); then `cargo xtask ci` exit 0 (fmt, workspace clippy, the whole
+  suite including the catalogue audit, `layers`, `roots`, `assets`, `fonts`, `version`,
+  `attribution`, `a11y`, `docs`, `templates`, `workflows`), `cargo xtask snapshot` 5 passed,
+  `cargo xtask deny` advisories, bans, licenses and sources ok, and `cargo xtask screenshots` 30
+  passed and 1 ignored (network) with no baseline moved. There is no `cargo xtask wasm` in this
+  workspace; `crates/ui` changed, so `cargo xtask mobile` is CI's job — this machine has no Android
+  NDK and no Xcode, which leaves the device-side leg unverified here. No release workflow was
+  dispatched: source, catalogue rows, tests and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (the two routes and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (one row each for two keys), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that could disagree, though no baseline should move). Then the next
+  family on the row: Settings' sidecar and backup notes, `Suggest keywords for the library…` and the
+  phone link's pair and remove sentences, through `tl!`, with the same source-readback and Arabic
+  lookup test. SL-L07 stays unticked. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-sixtieth) — the folder tree's way up and the scan row's stop speak the interface language
 
 - **Why this came up.** The hundred-and-fifty-ninth entry's Next named the folder tree's `Up one

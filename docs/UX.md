@@ -909,6 +909,10 @@ re-checks its own contrast pairs after applying.
   The folder tree's `Up one level` and the Activity tab's scan row `Cancel` followed
   (hundred-and-sixtieth entry): both are rows, so the way back up a subfolder and the way to stop an
   index pass are words the reader's language owns.
+  The insights breakdown's empty line and the map style menu's online group followed
+  (hundred-and-sixty-first entry): `Nothing recorded yet` and the heading `OpenFreeMap · online`
+  are rows, so a breakdown with nothing in it and the word that marks the styles leaving this machine
+  are the reader's language; the product's name stays `OpenFreeMap` everywhere.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

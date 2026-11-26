@@ -763,6 +763,7 @@
 	Decode each photo and measure how much fine detail it has	각 사진을 디코딩해 세부 묘사가 얼마나 많은지 측정합니다
 	{n} photo(s) have no current score	사진 {n}장에 현재 점수가 없습니다
 	Nothing measured yet. Sharpness ranks the frames in this library; it is not a verdict on any of them.	아직 측정하지 않았습니다. 선명도는 이 라이브러리 프레임의 순위를 매길 뿐 어느 것도 판정하지 않습니다.
+	Nothing recorded yet	아직 기록이 없습니다
 	Softest {percent}% · scores {low} to {high}	가장 부드러운 {percent}% · 점수 {low}–{high}
 	Select {n} photo(s)	사진 {n}장 선택
 	Ticks them in the library, where you can look before you act	라이브러리에서 체크해 두어 직접 확인한 뒤 작업할 수 있습니다
@@ -840,6 +841,7 @@
 	Mono	모노
 	Offline map	오프라인 지도
 	Only the map area, the style name and your network address go to tiles.openfreemap.org. Your photos, their names and locations, and this library never leave this computer.	tiles.openfreemap.org로 전송되는 것은 지도 영역, 스타일 이름, 네트워크 주소뿐입니다. 사진, 사진 이름과 위치, 이 라이브러리는 이 컴퓨터를 떠나지 않습니다.
+	OpenFreeMap · online	OpenFreeMap · 온라인
 	OpenFreeMap could not draw: {error} · showing the offline map	OpenFreeMap이 그리지 못했습니다: {error} · 오프라인 지도를 표시합니다
 	Retry	다시 시도
 	The offline map stays available; switch back in the map style menu at any time.	오프라인 지도는 계속 사용할 수 있습니다. 지도 스타일 메뉴에서 언제든지 돌아갈 수 있습니다.
