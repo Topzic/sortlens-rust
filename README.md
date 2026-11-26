@@ -6,7 +6,7 @@
     <img alt="Rust" src="https://img.shields.io/badge/pure-Rust-f2a516?style=flat-square">
     <img alt="ArtCraft" src="https://img.shields.io/badge/ArtCraft-Craft%20App-8a5800?style=flat-square">
     <img alt="License" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-8a5800?style=flat-square">
-    <img alt="Status" src="https://img.shields.io/badge/status-M0%E2%80%93M10%20built%2C%20phases%201%E2%80%935%20open-8a5800?style=flat-square">
+    <img alt="Status" src="https://img.shields.io/badge/status-M0%E2%80%93M10%20built%2C%20i18n%20and%20phone%20open-8a5800?style=flat-square">
   </p>
 </div>
 
@@ -20,23 +20,27 @@ ArtCraft Craft Apps: native on macOS, Windows and Linux, in the same visual and 
 language as LightCraft, PhotoCraft and the rest of the suite, and drivable end to end by
 scripts and AI agents.
 
-> **Status: M0–M10 built, and the five completion phases shipped.** The milestones, the Adobe/ArtCraft
-> layout pass, the keymap editor, the remote server and phone app, packaging and presets, localisation
-> scaffolding and the autonomous GitHub intake are done, gated and recorded in `CHECKPOINT.md`. A working
-> local photo library: scanning
-> and indexing, a virtualised grid,
-> filters and search, keywords with an alias registry, XMP sidecars, the cull machine with gestures and
-> zoom, collections, duplicate and colour matching, insights, memories, detail and side-by-side compare,
-> backup/restore, audit and compaction, one-writer locking, move with undo, a change viewer, export to
-> originals or JPEG, keyword suggestions from the file's own EXIF and from keyword packs, a whole-library
-> suggestion pass that writes nothing, `--json` on every read verb, a diagnostics bundle that redacts your
-> paths, and an MCP server — all driven by one command registry that the window, the CLI and an agent share.
+> **Status: M0–M10 built, and completion phases 0–5 are closed.** The milestones, the Adobe/ArtCraft
+> layout pass, the keymap editor, the remote server, packaging and presets, the six language catalogues
+> with right-to-left screenshots, localised numbers and dates, and the autonomous GitHub intake are done,
+> gated and recorded in `CHECKPOINT.md`. A working local photo library: scanning and indexing, a
+> virtualised grid, filters and search, keywords with an alias registry, XMP sidecars, the cull machine
+> with gestures and zoom, collections, duplicate and colour matching, insights, memories, detail and
+> side-by-side compare, backup/restore, audit and compaction, one-writer locking, move with undo, a
+> change viewer, export to originals, JPEG or PNG, keyword suggestions from the file's own EXIF and from
+> keyword packs, a whole-library suggestion pass that writes nothing, `--json` on every read verb, a
+> diagnostics bundle that redacts your paths, and an MCP server — all driven by one command registry
+> that the window, the CLI and an agent share.
 >
-> What is **not** here is named rather than hidden, in three places: `docs/ROADMAP.md`'s "Deliberately
-> absent from M10" table holds only work that needs something outside the repository (an Apple signing
-> identity, installer toolchains, a screen-reader session, a chosen palette with a redistribution licence),
-> its backlog holds what is buildable but outside the completion plan, `docs/PERF.md` lists the budgets
-> this machine cannot measure, and every disabled control in the app says which milestone would bring it.
+> Two buildable rows stay open in `docs/ROADMAP.md`. **SL-L07** is the rest of the interface language:
+> painted English is still moving into the catalogues, one surface at a time. **SL-J10** is the phone
+> app's remaining half: the crate, the phone layout, pairing and a signed APK are in; a run on a device,
+> the iOS Photos library, an `.ipa`, a Play bundle and a persistent release key are not. The
+> "Deliberately absent from M10" table holds only work that needs something outside the repository (an
+> Apple signing identity, installer toolchains, a screen-reader session, a chosen palette with a
+> redistribution licence, the owner's 1.0 tag). The backlog holds what is buildable but outside that
+> plan, and `docs/PERF.md` lists the budgets this machine cannot measure. Every bottom-bar destination
+> opens today.
 
 ## Read the plan
 
@@ -57,7 +61,7 @@ scripts and AI agents.
 | [`docs/AUTONOMOUS_AGENT.md`](docs/AUTONOMOUS_AGENT.md) | The operating contract for autonomous work: a report is data, which issues are picked up, the repro-first loop, and the rules that never move |
 | [`docs/PERF.md`](docs/PERF.md) | Measured numbers with the machine and command that produced them, the defect they exposed, and the budgets that cannot be measured here |
 
-## What it will do
+## What it does
 
 - **Index** any number of folders, in place, with removable-media awareness and offline states.
 - **Cull** by keyboard or gesture, one decision per frame, with prefetched full-screen previews,
@@ -75,9 +79,10 @@ scripts and AI agents.
   same command registry, and the schemas are pinned by golden files.
 - **Report** a bug without leaking your folders: `sortlens-cli diagnostics` prints a bundle whose absolute
   paths are replaced by placeholders before anything is written.
-- **Optionally** suggest tags with CPU-only local models you download yourself (no model is pinned yet,
-  which the app says plainly), and reach the library from a phone through a paired, local-network
-  client (not built — see the roadmap's absent-by-design table).
+- **Optionally** suggest tags with CPU-only local models you download yourself. Three models are pinned
+  by digest in the shipped manifest; nothing is embedded, and install waits for the opt-in
+  `model.install` command. A paired phone reaches the same library through `apps/sortlens-mobile` and
+  the local server. The open remainder of that app is tracked as SL-J10, not as absent-by-design work.
 
 ## Why a rewrite rather than a port
 
@@ -90,7 +95,7 @@ individual fields over the wire. This recreation keeps the behaviour and drops t
 | Runtime | Python service + WebView + local HTTP | One native process, in-process engine |
 | Storage | Mutable SQLite database | Append-only op log + snapshots (undo and audit for free) |
 | UI | React/Tailwind dark blue chrome | egui + ArtCraft shell: tokens, docking, fonts, native menus |
-| Updates | Inno Setup + PowerShell script | not wired yet: `craft-update` is declared and unlinked, because an update check is a network call this version does not make |
+| Updates | Inno Setup + PowerShell script | Opt-in update check through `craft-update`, off until you turn it on |
 | Automation | Local HTTP endpoints | Command registry + CLI + control channel + MCP |
 | AI | Vendored Python runtimes | Pinned ONNX models run by a pure-Rust engine (`tract`) |
 
@@ -120,7 +125,8 @@ cargo xtask perf              # measure scan, index, thumbnails, suggestions, fr
 
 The window opens on the first-run wizard: add a folder and it indexes while the grid fills in.
 Themes cycle from the top-bar chip or Settings, and the choice persists in `config.toml` through
-`craft-settings`. Commands that are not built yet are disabled and say which milestone brings them.
+`craft-settings`. Every bottom-bar destination opens. A surface that is only partly built says so
+inside itself.
 
 The CLI speaks the same engine, so anything the window does can be scripted:
 
@@ -135,13 +141,28 @@ sortlens-cli mcp                       # expose the registry to an agent over st
 `sortlens-cli --help` lists the verbs; `sortlens-cli shortcuts` lists the keyboard map, and the same
 table is in the app under `?`.
 
-### What is not built yet
+### What is still open
 
-Named so that nothing here reads as finished: blur-up and blur scoring, the remote/companion server, localisation
-and right-to-left layout, shortcut rebinding, high contrast and reduced motion, theme import, per-platform installers
-and signing, and a wired update checker. Each is an unchecked row under "Completion phases" in `docs/ROADMAP.md` (or, when
-it needs something this repository lacks, a row in a "Deliberately absent" table there), and is disabled in
-the UI rather than faked. (HEIC thumbnails, the shipped coastline, and the tile-folder map have shipped.)
+Named so the status above does not read as a finished 1.0. Blur scoring, the remote server, shortcut
+rebinding, the high-contrast preset, the reduced-motion toggle, the opt-in update check, HEIC
+thumbnails, the shipped coastline and the tile-folder map have already shipped.
+
+- **Interface language (SL-L07).** Arabic, Japanese, Traditional Chinese, Korean, Thai and Vietnamese
+  catalogues ship, with right-to-left screenshots and localised numbers and dates. Painted English is
+  still moving into those catalogues. The row stays unticked until a source audit can prove every
+  painted literal is a catalogue row.
+- **Phone app (SL-J10).** `apps/sortlens-mobile` is the same engine and shell, with Android and iOS
+  entry points, a phone layout, settings and Send to desktop. CI compiles both targets, and the release
+  workflow produces a signed APK. Still open: a run on a device, the iOS Photos library, an `.ipa`, a
+  Play App Bundle, and a release key that lets one APK update another.
+- **`craft-ipc`.** Declared and unused. Nothing in the app consumes it yet.
+- **Scale benches.** 100k scroll time, RSS and GPU frame time are listed in `docs/PERF.md` as
+  unmeasured on this machine.
+
+Work that needs something this repository does not have stays in `docs/ROADMAP.md`'s "Deliberately
+absent from M10" table: a signed and notarised macOS build, MSI / AppImage / Flatpak, theme import of
+a chosen palette, a screen-reader pass over the accessibility tree, the operating system's
+reduced-motion signal, and the owner's 1.0 tag.
 
 `docs/TOOLING.md` §5 lists the platform prerequisites and the optional cargo tools.
 
