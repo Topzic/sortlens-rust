@@ -1149,3 +1149,11 @@
 	{n} star	{n} نجمة
 	{n} stars	{n} نجوم
 	file missing	الملف مفقود
+	there is no tile folder at {path}	لا يوجد مجلد بلاطات في {path}
+	{path} has no {attribution}; write the tiles' credit and licence into it, because an unlabelled map implies the application made it	لا يحتوي {path} على {attribution}؛ اكتب نسبة البلاطات ورخصتها فيه، لأن خريطة بلا نسبة توحي بأن التطبيق هو من صنعها
+	{path} is empty; a map needs its credit and licence written down	{path} فارغ؛ تحتاج الخريطة إلى نسبة ورخصة مكتوبتين
+	could not read {path}: {reason}	تعذّرت قراءة {path}: {reason}
+	{path} has no {z}/{x}/{y}.png tiles in it, so there is nothing to draw	لا يحتوي {path} على بلاطات {z}/{x}/{y}.png، لذا لا يوجد ما يُرسم
+	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	لا يحتوي {path} على نسبة في جدول بياناته الوصفية؛ أضف صفًا باسم `attribution`، أو اكتب نسبة البلاطات ورخصتها في {attribution} بجانبه
+	{path} is not an MBTiles archive: {reason}	{path} ليس أرشيف MBTiles: {reason}
+	{path} has no tiles in its `tiles` table, so there is nothing to draw	لا يحتوي {path} على بلاطات في جدول `tiles`، لذا لا يوجد ما يُرسم

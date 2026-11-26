@@ -9848,6 +9848,53 @@ was indistinguishable from "this photo has no EXIF", and nothing ever tried agai
   `apps/sortlens` — the audit's last named sink. SL-L07 stays unticked until a whole-source audit
   proves every painted literal is a catalogue row.
 
+## 2026-11-26 (hundred-and-seventy-sixth) — a refused basemap is worded from its own fault
+
+- **Why this came up.** The last entry's Next named the command palette's own chrome; reading the crate
+  showed it already routed, with `the_command_palettes_chrome_speaks_the_interface_language` holding
+  `Type a command…`, `No command matches` and the legend, so that instruction was stale, and the host
+  app's words in `apps/sortlens` were routed by earlier ticks with their own listing test. The SL-L07
+  row still names the Places tile refusal as English — `TileError::message()` on the footer — and the
+  whole-source audit cannot tick the row while a painted sentence is a shell literal, so that is this
+  tick's slice. The `CI` run for `85cafb3` (`45907104813`) was still running at STEP 1b, not red.
+- **What is routed.** `crates/ui/src/shell.rs`: `basemap_status`'s refused branch paints
+  `tile_refusal(error)` instead of the crate's own `error.message()`, and `tile_refusal` words all
+  eight `sortlens_geo::tiles::TileError` faults from their variants through `crate::i18n::fmt` —
+  `Missing`, `MissingAttribution`, `EmptyAttribution`, `Unreadable`, `NoTiles`,
+  `MissingArchiveAttribution`, `NotAnArchive` and `EmptyArchive`. The folder, the parser's reason and
+  `ATTRIBUTION_FILE` are the values, so a language places them inside its own sentence. Eight new
+  rows per catalogue, 48 in all. English is byte-identical to `TileError::message()`: routing the
+  refusal does not reword the screen, and the CLI and the logs keep the crate's English sentence.
+- **Test.** `the_places_tile_refusal_speaks_the_interface_language` holds every variant's English
+  against `error.message()`, reads the painted half of `shell.rs` back (cut at `#[cfg(test)]`) and
+  fails if the paint site returns to `error.message()` or a template leaves `fmt`, then paints the
+  Places status twice through `run_ui`: English keeps `The basemap cannot be used` and
+  `could not read /photos/tiles: denied`, and Arabic reads `تعذّرت قراءة {path}` and
+  `لا يمكن استخدام الخريطة` with no English residue. **Proved to bite:** with the paint site back on
+  the crate's sentence the Arabic frame paints `could not read …`.
+- **What was not verified.** No screen reader and no device; the sentence is held by the pure
+  function, the catalogue and a painted frame. The map's assistive name and the click notice are
+  still English, as `docs/UX.md` says.
+- **Docs.** `docs/ROADMAP.md`'s SL-L07 audit prose records the routed refusal and keeps the row
+  unticked; the Places paragraph that said the tile refusal stays English now says it is worded from
+  the variant, and `docs/UX.md`'s Places paragraph says the same.
+- **Gates.** `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean;
+  `cargo test -p sortlens-ui the_places_tile_refusal_speaks_the_interface_language` (1 passed) and
+  `... i18n` (4 passed); `cargo xtask ci`, `snapshot`, `deny` and `screenshots` green with no
+  baseline moved. `crates/ui` changed, so the phone gate applies: `cargo xtask mobile` cannot run on
+  this machine (no Android NDK, no Xcode) and CI's mobile jobs are the proof. No release workflow
+  dispatched — source, catalogue rows and docs, no build or release surface.
+- **Files.** `crates/ui/src/shell.rs` (`tile_refusal`, the paint site and the new test),
+  `crates/ui/src/i18n/{ar,ja,ko,th,vi,zh-TW}.tsv` (eight rows each), `docs/ROADMAP.md`,
+  `docs/UX.md` and this file.
+- **Next.** The Places click notice in `crates/ui/src/places.rs` — `selection_notice`'s
+  `Selected {n} photo(s) at {lat}{lon}` and its `near {name}` form — is the last painted English
+  family the SL-L07 row names; it needs its rows and a paint test in English and Arabic. After that
+  the whole-source audit that can tick the row: sweep `crates/ui/src` and `apps/sortlens/src` for
+  painted literals the widget, notice and spoken sweeps do not reach, and read the host's routes in
+  the catalogue audit too. The palette chrome and the host's own words are already routed (checked
+  this tick), so the two entries that named them as next were stale. SL-L07 stays unticked until
+  that audit passes.
 ## Next
 
 Phase 0 is done. The queue below is the order work runs in, one vertical slice per commit, each with a test
@@ -9856,14 +9903,15 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-seventy-fifth entry).** Read this commit's `CI` run with one
-`gh run view` — no baseline moved here and the English paint is unchanged. Then the command
-palette's own chrome in `crates/ui/src/shell.rs`: `Type a command…`, `No command matches`, the
-`Up/Down choose · Enter run · Esc photo search` hint and the field's accessible name, through
-`tl!`/`fmt`, with a paint test in English and Arabic (the palette field's name is already set by
-`a11y::name_field`, so its sentence is the hint's row). After that, `apps/sortlens`'s own words —
-the last sink the audit names. SL-L07 stays unticked; the whole-source sweep that could tick it
-comes after both. No release run is in flight.
+**Next tick (after the hundred-and-seventy-sixth entry).** Read this commit's `CI` run with one
+`gh run view` — the English paint is unchanged and no baseline moved. Then the Places click notice in
+`crates/ui/src/places.rs`: `selection_notice`'s `Selected {n} photo(s) at {lat}{lon}` and its
+`near {name}` form are the last painted English family the SL-L07 row names, so route them with rows
+and a paint test in English and Arabic. After that the whole-source audit: sweep `crates/ui/src` and
+`apps/sortlens/src` for painted literals the widget, notice and spoken sweeps do not reach, and read
+the host's routes in the catalogue audit. The palette chrome and the host's own words are already
+routed, so the two entries that named them as next were stale. SL-L07 stays unticked until the audit
+passes. No release run is in flight.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.

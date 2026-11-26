@@ -1150,3 +1150,11 @@
 	{n} star	{n} ดาว
 	{n} stars	{n} ดาว
 	file missing	ไม่พบไฟล์
+	there is no tile folder at {path}	ไม่มีโฟลเดอร์ไทล์ที่ {path}
+	{path} has no {attribution}; write the tiles' credit and licence into it, because an unlabelled map implies the application made it	{path} ไม่มี {attribution} เขียนเครดิตและสัญญาอนุญาตของไทล์ลงไป เพราะแผนที่ที่ไม่ระบุแหล่งที่มาทำให้เหมือนแอปเป็นผู้สร้าง
+	{path} is empty; a map needs its credit and licence written down	{path} ว่างเปล่า แผนที่ต้องมีเครดิตและสัญญาอนุญาตเขียนไว้
+	could not read {path}: {reason}	อ่าน {path} ไม่ได้: {reason}
+	{path} has no {z}/{x}/{y}.png tiles in it, so there is nothing to draw	{path} ไม่มีไทล์ {z}/{x}/{y}.png จึงไม่มีอะไรให้วาด
+	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	{path} ไม่มีเครดิตในตารางข้อมูลเมตา เพิ่มแถว `attribution` หรือเขียนเครดิตและสัญญาอนุญาตของไทล์ลงใน {attribution} ข้าง ๆ
+	{path} is not an MBTiles archive: {reason}	{path} ไม่ใช่ไฟล์เก็บถาวร MBTiles: {reason}
+	{path} has no tiles in its `tiles` table, so there is nothing to draw	{path} ไม่มีไทล์ในตาราง `tiles` จึงไม่มีอะไรให้วาด

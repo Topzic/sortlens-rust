@@ -1148,3 +1148,11 @@
 	{n} star	별 {n}개
 	{n} stars	별 {n}개
 	file missing	파일 없음
+	there is no tile folder at {path}	{path} 에 타일 폴더가 없습니다
+	{path} has no {attribution}; write the tiles' credit and licence into it, because an unlabelled map implies the application made it	{path} 에 {attribution} 이 없습니다. 타일의 저작자 표시와 라이선스를 적어 주세요. 출처 없는 지도는 앱이 만든 것으로 오해됩니다
+	{path} is empty; a map needs its credit and licence written down	{path} 이(가) 비어 있습니다. 지도에는 저작자 표시와 라이선스가 필요합니다
+	could not read {path}: {reason}	{path} 을(를) 읽을 수 없습니다: {reason}
+	{path} has no {z}/{x}/{y}.png tiles in it, so there is nothing to draw	{path} 에 {z}/{x}/{y}.png 타일이 없어 그릴 것이 없습니다
+	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	{path} 의 메타데이터 테이블에 저작자 표시가 없습니다. `attribution` 행을 추가하거나 옆의 {attribution} 에 타일의 저작자 표시와 라이선스를 적어 주세요
+	{path} is not an MBTiles archive: {reason}	{path} 은(는) MBTiles 아카이브가 아닙니다: {reason}
+	{path} has no tiles in its `tiles` table, so there is nothing to draw	{path} 의 `tiles` 테이블에 타일이 없어 그릴 것이 없습니다

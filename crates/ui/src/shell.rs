@@ -8795,12 +8795,53 @@ fn basemap_status(
         Some(Err(error)) => {
             ui.add_space(4.0);
             ui.label(RichText::new(tl!("The basemap cannot be used")).size(10.5).strong().color(t.reject));
-            // The tile error is the geo crate's own sentence, like the export spec and the job
-            // detail: an engine word routed by piece, not a shell literal, and the piece it would
-            // need does not exist yet. Named as not shipped rather than looked up as English.
-            ui.label(RichText::new(error.message()).size(9.5).color(t.text_muted));
+            // The refusal is worded from the error's own variant, so the person who has to fix the
+            // folder reads the reason in their language while the CLI and the logs keep printing
+            // the crate's English sentence.
+            ui.label(RichText::new(tile_refusal(error)).size(9.5).color(t.text_muted));
         }
         Some(Ok(_)) => {}
+    }
+}
+
+/// A refused basemap in the reader's language, worded from the error's own variant.
+///
+/// English is byte-identical to `sortlens_geo::tiles::TileError`'s own sentence, so routing the
+/// refusal does not reword the screen; the path, the parser's reason and the credit file's name
+/// stay values a language places inside its own sentence.
+fn tile_refusal(error: &sortlens_geo::tiles::TileError) -> String {
+    use sortlens_geo::tiles::{ATTRIBUTION_FILE, TileError};
+    let attribution = ATTRIBUTION_FILE;
+    match error {
+        TileError::Missing(path) => crate::i18n::fmt("there is no tile folder at {path}", &[("path", &path.display().to_string())]),
+        TileError::MissingAttribution(path) => crate::i18n::fmt(
+            "{path} has no {attribution}; write the tiles' credit and licence into it, because an unlabelled map implies the application made it",
+            &[("path", &path.display().to_string()), ("attribution", attribution)],
+        ),
+        TileError::EmptyAttribution(path) => crate::i18n::fmt(
+            "{path} is empty; a map needs its credit and licence written down",
+            &[("path", &path.display().to_string())],
+        ),
+        TileError::Unreadable { path, reason } => crate::i18n::fmt(
+            "could not read {path}: {reason}",
+            &[("path", &path.display().to_string()), ("reason", reason.as_str())],
+        ),
+        TileError::NoTiles(path) => crate::i18n::fmt(
+            "{path} has no {z}/{x}/{y}.png tiles in it, so there is nothing to draw",
+            &[("path", &path.display().to_string())],
+        ),
+        TileError::MissingArchiveAttribution(path) => crate::i18n::fmt(
+            "{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it",
+            &[("path", &path.display().to_string()), ("attribution", attribution)],
+        ),
+        TileError::NotAnArchive { path, reason } => crate::i18n::fmt(
+            "{path} is not an MBTiles archive: {reason}",
+            &[("path", &path.display().to_string()), ("reason", reason.as_str())],
+        ),
+        TileError::EmptyArchive(path) => crate::i18n::fmt(
+            "{path} has no tiles in its `tiles` table, so there is nothing to draw",
+            &[("path", &path.display().to_string())],
+        ),
     }
 }
 
@@ -14795,6 +14836,98 @@ mod tests {
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A refused basemap speaks the interface language, and English keeps every word it painted.
+    ///
+    /// The refusal is `sortlens_geo`'s own eight faults. English is byte-identical to the crate's
+    /// sentence, so routing it does not reword the screen; Arabic words the fault itself and places
+    /// the path inside its own sentence. **Proved to bite:** with the paint site back on the crate's
+    /// sentence the Arabic frame paints `could not read …`, and with one template back on a bare
+    /// literal the Arabic frame paints the English row.
+    #[test]
+    fn the_places_tile_refusal_speaks_the_interface_language() {
+        use sortlens_geo::tiles::TileError;
+        let path = std::path::PathBuf::from("/photos/tiles");
+        let every = [
+            TileError::Missing(path.clone()),
+            TileError::MissingAttribution(path.clone()),
+            TileError::EmptyAttribution(path.clone()),
+            TileError::Unreadable {
+                path: path.clone(),
+                reason: "denied".to_owned(),
+            },
+            TileError::NoTiles(path.clone()),
+            TileError::MissingArchiveAttribution(path.clone()),
+            TileError::NotAnArchive {
+                path: path.clone(),
+                reason: "not a database".to_owned(),
+            },
+            TileError::EmptyArchive(path.clone()),
+        ];
+        let english = crate::i18n::from_code("en").expect("English is offered");
+        crate::i18n::set_current(english);
+        for error in &every {
+            assert_eq!(tile_refusal(error), error.message(), "English keeps the crate's sentence");
+        }
+
+        // The paint site is the routed one: the source the frame runs is read back, with the test
+        // module cut off, so a call site that goes back to the crate's sentence fails here.
+        let source = include_str!("shell.rs");
+        let painted = source.split("#[cfg(test)]").next().unwrap_or(source);
+        assert!(
+            painted.contains(&["tile_refusal", "(error)"].concat()),
+            "the basemap refusal is not painted through the catalogues"
+        );
+        assert!(
+            !painted.contains(&["error.", "message()"].concat()),
+            "the basemap refusal paints the crate's English sentence"
+        );
+
+        // `fmt` isolates a value that has to hold its direction in right-to-left text; the frame is
+        // read without those marks, so the sentence's own words are what is compared.
+        let plain = |text: &str| -> String {
+            text.chars()
+                .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                .collect()
+        };
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let engine = Engine::new();
+        let unreadable = || TileError::Unreadable {
+            path: path.clone(),
+            reason: "denied".to_owned(),
+        };
+        let paint = |make: &dyn Fn() -> TileError| -> Vec<String> {
+            let tileset = Some(Err(make()));
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    basemap_status(ui, &tokens, &engine, &tileset);
+                });
+            });
+            output.textures_delta.clear();
+            painted_texts(&output).into_iter().map(|text| plain(&text)).collect()
+        };
+        let english_frame = paint(&unreadable);
+        assert_painted(
+            &english_frame,
+            &["The basemap cannot be used", "could not read /photos/tiles: denied"],
+        );
+
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic_frame = paint(&unreadable);
+        assert!(
+            arabic_frame
+                .iter()
+                .any(|text| text.contains("تعذّرت قراءة") && text.contains("/photos/tiles")),
+            "the refusal is not the Arabic row: {arabic_frame:?}"
+        );
+        assert!(
+            !arabic_frame.iter().any(|text| text.contains("could not read")),
+            "the refusal is English in Arabic: {arabic_frame:?}"
+        );
+        assert_painted(&arabic_frame, &["لا يمكن استخدام الخريطة"]);
+        crate::i18n::set_current(english);
     }
 
     /// A click on a dot selects that dot's photographs, all of them, and a click on the map does not clear anything.

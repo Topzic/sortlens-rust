@@ -982,9 +982,10 @@ and none of M9 is closed until the remaining rows are ticked.
   The Places view followed (hundredth entry): its empty state's two lines, the `zoom` label, the footer
   counts, both `places.txt` lines, the basemap note and the tile-folder instruction are catalogue rows, and
   the counts are templates — so a Japanese map reads `位置情報のある写真 3 枚 · 1 地点` and an Arabic one
-  writes `٣ صورة بموقع`. What stays English on that view is the click notice and the tile refusal's own
-  sentence (`TileError::message()`, an engine word with no piece yet), plus the map's assistive name, which
-  the row does not count as painted chrome.
+  writes `٣ صورة بموقع`. The tile refusal's own sentence followed (hundred-and-seventy-sixth entry): the
+  shell words each of `TileError`'s eight faults from its variant through `fmt`, so an Arabic frame reads
+  `تعذّرت قراءة /photos/tiles: denied` where it read the crate's English. What stays English on that view is
+  the click notice and the map's assistive name, which the row does not count as painted chrome.
   The Detail view followed (hundred-and-first entry): its `Nothing selected` state and `Back to the grid`
   button, the `Previous`/`Next` controls, `Lookahead`, the keyboard hint and the zoom/compare row
   (`Fit  Z`, `1:1  Z`, `Swap  S`, `Close compare  C`, `Compare  C`) are catalogue rows, and its position
@@ -1529,8 +1530,18 @@ The widget sweep followed (hundred-and-seventy-third entry):
   `a11y.rs` now, and `the_spoken_sentences_speak_the_interface_language` reads the painted half
   back and holds English byte for byte, Arabic's digits and Japanese's word order — **proved to
   bite:** with `picked` reverted to a bare literal it fails naming that row.
-  What the sweeps still do not read is the host app's own words in `apps/sortlens`. That is the
-  next slice; SL-L07 stays unticked until the whole-source audit covers every sink.
+  The Places refusal followed (hundred-and-seventy-sixth entry): `TileError`'s eight faults are
+  worded from their own variants through `fmt`, the path, the parser's reason and `ATTRIBUTION_FILE`
+  the values a language places inside its own sentence, and English is byte-identical to the crate's
+  own sentence so the screen does not reword. **Proved to bite:** with the paint site back on
+  `error.message()` the Arabic frame paints `could not read …`.
+  The host app's own words in `apps/sortlens` are routed too — the desktop's pick, move and export
+  notices, the library, backup and sync notices, the suggestion pass through remove-root, and the
+  server supervision's refusals — with the host's own listing test, so what the shell sweeps do not
+  read is that crate's notices and its listing is what holds them. The Places click notice
+  (`places::selection_notice`) is the last painted English family named here; after it, the
+  whole-source audit that reads `crates/ui/src` and `apps/sortlens/src` is what can tick the row.
+  SL-L07 stays unticked until that audit passes.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -490,9 +490,11 @@ notice replaces the offline basemap status while the fallback is showing.
 
 The view's own words come from the catalogues: the empty state, the counts, the `zoom` label, the gazetteer line and
 both basemap notes, with the numbers as templates — a Japanese map reads "位置情報のある写真 3 枚 · 1 地点", an Arabic one
-writes "٣ صورة بموقع". The click notice and the tile refusal's reason are still English (the first is a notice, the
-second is `TileError::message()`, an engine sentence that would need a piece of its own); the map's assistive name is
-too, which this document counts as announcement rather than painted chrome.
+writes "٣ صورة بموقع". A refused basemap is worded from `TileError`'s own variant — eight catalogue
+templates whose placeholders are the folder, the parser's reason and the credit file's name — so an Arabic map
+reads "تعذّرت قراءة /photos/tiles: denied" while the CLI and the logs keep the crate's English sentence. What is
+still English on that view is the click notice and the map's assistive name, which this document counts as
+announcement rather than painted chrome.
 
 **Names come from the person's own gazetteer.** A `places.txt` beside the catalog, tab-separated
 `name<TAB>lat<TAB>lon[<TAB>country]`, is what turns "50.82N 0.14W" into "Brighton": a pin within
