@@ -1,5 +1,49 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-forty-first) — the keyword receipts speak the interface language, their counts in the reader's digits
+
+- **Why this came up.** The hundred-and-fortieth entry's Next named the tagging notices. Four literals in
+  `shell.rs` built them — `#{tag} is not used by any photo`, `#{tag} taken off {count} photo(s) — one undo
+  brings it back`, `Removed keyword {tag}` and `Added keyword {name}` — plus the inspector's bare `That
+  keyword is already on this photo`. The cull strip and the rename dialog already said their own
+  `Tagged “{tag}”`/`Removed keyword {tag}` through the catalogues, so the same action worded itself two ways
+  depending on which panel started it, and the sidebar's delete put an English `photo(s)` frame around Latin
+  digits under an interface the catalogues had already translated.
+- **What is routed.** `tag_taken_off(tag, count)` words the removal through two rows (`#{tag} taken off {n}
+  photo — one undo brings it back` and its `photos` sibling), the count a placeholder through `format_count`,
+  so an Arabic delete reads `أُزيل #backlit من ٢ صور — تراجع واحد يعيده`. `#{tag} is not used by any photo`
+  (the row the rename dialog already had), `Removed keyword {tag}` and the new `Added keyword {name}` go
+  through `crate::i18n::fmt`, and `That keyword is already on this photo` takes the `tl!` row the cull strip
+  paints. Three rows per catalogue, six catalogues; Japanese words both removal rows with `写真`/`枚` and the
+  add receipt as `キーワード … を追加しました`.
+- **Tests.** `the_keyword_notices_speak_the_interface_language` pins the four English shapes, then tags two
+  photographs and deletes the keyword through the shell's own `delete_keyword_everywhere` under Arabic: the
+  receipt must carry `٢` and no English word, the painted bell history must be that same sentence, the
+  "nobody uses it" row must be Arabic, and Japanese must word both removal rows with its own measure word.
+  It fails on the old literals two ways: the catalogue audit would have no row for the new keys, and the
+  Arabic lookups would return English. The test owns its own library folder
+  (`sortlens-ui-keyword-notice-i18n`) after the first draft shared the keyword editor's and the two deleted
+  each other's tree under the parallel suite — the first full gate run caught exactly that.
+- **Docs.** ROADMAP's SL-L07 row records the keyword family and re-counts what is left (seven
+  `state.notice(format!(…))` sites: culling, selection, a new collection, hashing previews and the softest
+  photographs); UX.md's i18n paragraph and ARCHITECTURE.md §8.4 name `tag_taken_off` and the test. SL-L07
+  stays unticked.
+- **Verified.** `cargo xtask ci` exit 0 (fmt, workspace clippy, the workspace suite — 247 `sortlens-ui` tests
+  — `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`,
+  `workflows`); `cargo xtask screenshots` 30 passed, 1 ignored (network), no baseline moved — no committed
+  scene paints a keyword notice, and the English paint of the scenes is unchanged; `cargo xtask snapshot` 5
+  passed and `cargo xtask deny` (advisories, bans, licenses, sources) exit 0. `cargo xtask mobile` cannot run
+  here (no Android NDK, no Xcode) and no phone code changed; there is no `cargo xtask wasm` in this
+  workspace. No release workflow was dispatched: source, catalogue rows, tests and docs, no build or release
+  surface.
+- **Files.** `crates/ui/src/shell.rs`, the six `crates/ui/src/i18n/*.tsv` (three rows each),
+  `docs/ROADMAP.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`
+  (`screenshots` is the job that matters, though no committed scene deletes a keyword). Then the culling
+  notices: `Culling {n} photos` and `Hashing {n} previews` in `shell.rs` (the smallest of the remaining
+  families, two rows per catalogue), then selection (`Selected {n} photos`, `Selected the {n} softest`), a
+  new collection and the sharpness pass. SL-L07 stays unticked; its row lists what the audit still finds. No
+  release run is in flight.
 ## 2026-11-26 (hundred-and-fortieth) — the flag receipt speaks the interface language, its counts in the reader's digits
 
 - **Why this came up.** The hundred-and-thirty-ninth entry's Next named the flag family, the last notice pair

@@ -820,6 +820,12 @@ re-checks its own contrast pairs after applying.
   The flag receipt followed (hundred-and-fortieth entry): `Picked`, `Rejected` and `Unflagged`, and
   their `{n} photos` forms, are five new rows with the count in the reader's digits, so an Arabic flag
   reads `٢ صورة مختارة` where it read `Picked 2 photos`.
+  The keyword receipts followed (hundred-and-forty-first entry): the context menu's delete words
+  `#{tag} taken off {n} photo` and its several-photo row, `#{tag} is not used by any photo`,
+  `Removed keyword {tag}`, `Added keyword {name}` and `That keyword is already on this photo` are
+  rows and templates, the count in the reader's digits, so an Arabic delete reads
+  `أُزيل #backlit من ٢ صور — تراجع واحد يعيده` where it read
+  `#backlit taken off 2 photo(s) — one undo brings it back`.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

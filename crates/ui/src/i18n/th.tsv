@@ -963,3 +963,6 @@
 	Picked {n} photos	เลือก {n} รูปแล้ว
 	Rejected {n} photos	ตัดออก {n} รูปแล้ว
 	Unflagged {n} photos	เอาเครื่องหมายออกจาก {n} รูปแล้ว
+	#{tag} taken off {n} photo — one undo brings it back	เอา #{tag} ออกจาก {n} ภาพแล้ว — เลิกทำครั้งเดียวก็คืนกลับ
+	#{tag} taken off {n} photos — one undo brings it back	เอา #{tag} ออกจาก {n} ภาพแล้ว — เลิกทำครั้งเดียวก็คืนกลับ
+	Added keyword {name}	เพิ่มคำค้น {name} แล้ว

@@ -1188,11 +1188,20 @@ and none of M9 is closed until the remaining rows are ticked.
   through `format_count`, so an Arabic flag reads `٢ صورة مختارة` where it read `Picked 2 photos`, and
   `the_flag_notices_speak_the_interface_language` flags a real two-photo selection under Arabic and
   requires the toast and the bell's painted history to be the catalogue's sentence.
+  The keyword receipts followed (hundred-and-forty-first entry): `#{tag} taken off {n} photo` and its
+  several-photo row (one row per count, the count through `format_count`, so a language that words
+  the noun differently for one receives both), `#{tag} is not used by any photo`,
+  `Removed keyword {tag}`, `Added keyword {name}` and `That keyword is already on this photo` are
+  rows and templates, so an Arabic context-menu delete reads
+  `أُزيل #backlit من ٢ صور — تراجع واحد يعيده` where it read
+  `#backlit taken off 2 photo(s) — one undo brings it back`, and
+  `the_keyword_notices_speak_the_interface_language` deletes a real two-photo keyword under Arabic
+  and requires the toast and the bell's painted history to be the catalogue's sentence.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
-  went through `tl!`/`i18n::fmt`: the ten remaining `state.notice(format!(…))` messages
-  (tagging, culling, selection, a new collection, hashing previews, the softest photographs; indexing
-  went in the hundred-and-thirty-eighth entry, rating in the hundred-and-thirty-ninth and the flag
-  match in the hundred-and-fortieth), dozens of `on_hover_text`/accessibility
+  went through `tl!`/`i18n::fmt`: seven remaining `state.notice(format!(…))` messages
+  (culling, selection, a new collection, hashing previews, the softest photographs; indexing
+  went in the hundred-and-thirty-eighth entry, rating in the hundred-and-thirty-ninth, the flag
+  match in the hundred-and-fortieth and tagging in the hundred-and-forty-first), dozens of `on_hover_text`/accessibility
   names, and dialog literals such as `No folders yet`, `Remove from library` and the collection menu. The row stays unticked until the
   source-reading audit can prove a painted literal is a row rather than only a row being present for
   every literal that already routed.

@@ -962,3 +962,6 @@
 	Picked {n} photos	{n} صورة مختارة
 	Rejected {n} photos	{n} صورة مرفوضة
 	Unflagged {n} photos	{n} صورة بلا علامة
+	#{tag} taken off {n} photo — one undo brings it back	أُزيل #{tag} من {n} صورة — تراجع واحد يعيده
+	#{tag} taken off {n} photos — one undo brings it back	أُزيل #{tag} من {n} صور — تراجع واحد يعيده
+	Added keyword {name}	أُضيفت الكلمة المفتاحية {name}

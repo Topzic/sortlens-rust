@@ -3517,14 +3517,27 @@ fn sidebar_foot(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
 /// The context menu's delete: take the keyword off every photo and say what happened.
 fn delete_keyword_everywhere(state: &mut UiState, engine: &mut Engine, tag: &str) {
     match engine.delete_tag(tag) {
-        Ok(0) => state.notice(format!("#{tag} is not used by any photo")),
+        Ok(0) => state.notice(crate::i18n::fmt("#{tag} is not used by any photo", &[("tag", tag)])),
         Ok(count) => {
-            state.notice(format!("#{tag} taken off {count} photo(s) — one undo brings it back"));
+            state.notice(tag_taken_off(tag, count));
             // A filter pointing at a deleted keyword would show an empty grid forever.
             state.tag_filters.retain(|active| active != tag);
         }
         Err(error) => state.notice_problem(error.to_string()),
     }
+}
+
+/// The keyword-removal receipt in the interface language (SL-L07): the keyword and the count are
+/// placeholders, so an Arabic toast carries its own digits, and one photo and several are two rows
+/// because a language words "took it off the photo" differently from "took it off four photos".
+fn tag_taken_off(tag: &str, count: usize) -> String {
+    let n = format_count(count as u64);
+    let template = if count == 1 {
+        "#{tag} taken off {n} photo — one undo brings it back"
+    } else {
+        "#{tag} taken off {n} photos — one undo brings it back"
+    };
+    crate::i18n::fmt(template, &[("tag", tag), ("n", &n)])
 }
 
 /// The far-edge tool strip: one glyph per question the panel can answer.
@@ -3732,7 +3745,7 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
     });
     if let Some(tag) = remove {
         match engine.set_tag(&[photo.id], &tag, false) {
-            Ok(_) => state.notice(format!("Removed keyword {tag}")),
+            Ok(_) => state.notice(crate::i18n::fmt("Removed keyword {tag}", &[("tag", &tag)])),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -3753,9 +3766,10 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
         let clicked = ui.add(Button::new(RichText::new("Add").size(11.0))).clicked();
         if (entered || clicked) && !state.tag_input.trim().is_empty() {
             match engine.set_tag(&[photo.id], &state.tag_input, true) {
-                Ok(0) => state.notice("That keyword is already on this photo"),
+                Ok(0) => state.notice(tl!("That keyword is already on this photo")),
                 Ok(_) => {
-                    state.notice(format!("Added keyword {}", state.tag_input.trim().to_lowercase()));
+                    let name = state.tag_input.trim().to_lowercase();
+                    state.notice(crate::i18n::fmt("Added keyword {name}", &[("name", &name)]));
                     state.tag_input.clear();
                 }
                 Err(error) => state.notice_problem(error.to_string()),
@@ -20029,6 +20043,126 @@ mod tests {
         assert!(rejected.contains("3 枚") && !rejected.contains("photos"), "{rejected}");
         let unflagged = flag_notice(Flag::None, 3);
         assert!(unflagged.contains("3 枚") && !unflagged.contains("photos"), "{unflagged}");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The keyword notices speak the interface language (SL-L07).
+    ///
+    /// Five literals built the words a keyword click leaves: `#{tag} is not used by any photo`, the
+    /// removal sentence with its count, `That keyword is already on this photo`, `Removed keyword
+    /// {tag}` and `Added keyword {name}`. Each is a catalogue row now, the count a placeholder
+    /// through `format_count` and one photo and several two rows, so a language that words the
+    /// noun differently for one receives both.
+    #[test]
+    fn the_keyword_notices_speak_the_interface_language() {
+        // Its own folder: the keyword editor's test owns `sortlens-ui-tag-i18n`, and two tests
+        // sharing one path delete each other's library half-way through.
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-keyword-notice-i18n-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-keyword-notice-i18n");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 * index, 90, 170], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        assert_eq!(ids.len(), 2, "the fixture scans both photographs");
+        engine.set_tag(&ids, "backlit", true).expect("tag");
+
+        // English: the words the notices have always painted, one photo and several.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        assert_eq!(tag_taken_off("backlit", 1), "#backlit taken off 1 photo — one undo brings it back");
+        assert_eq!(tag_taken_off("backlit", 2), "#backlit taken off 2 photos — one undo brings it back");
+        assert_eq!(
+            crate::i18n::fmt("Added keyword {name}", &[("name", "backlit")]),
+            "Added keyword backlit"
+        );
+        assert_eq!(
+            crate::i18n::fmt("#{tag} is not used by any photo", &[("tag", "backlit")]),
+            "#backlit is not used by any photo"
+        );
+        assert_eq!(
+            tl!("That keyword is already on this photo"),
+            "That keyword is already on this photo"
+        );
+        assert_eq!(
+            crate::i18n::fmt("Removed keyword {tag}", &[("tag", "backlit")]),
+            "Removed keyword backlit"
+        );
+
+        // Arabic: the shell's own delete path words the receipt itself, with its own digits and no
+        // English frame behind them.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        delete_keyword_everywhere(&mut state, &mut engine, "backlit");
+        let arabic = state
+            .live_notice()
+            .map(|(text, _)| text.to_string())
+            .expect("the delete leaves a notice");
+        assert!(
+            arabic.contains('٢') && !arabic.contains("taken off") && !arabic.contains("photo"),
+            "the count is the reader's digits under its own words: {arabic}"
+        );
+        assert!(engine.tag_vocabulary().is_empty(), "the keyword is gone everywhere");
+
+        // The painted history is that same sentence: the toast and the bell cannot word it apart.
+        state.bell_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint(&ctx, &mut state);
+        let frame = paint(&ctx, &mut state);
+        assert!(label_at(&frame, &arabic).is_some(), "the history paints the catalogue's sentence");
+
+        // The "nobody uses it" row is the same deletion path's other branch, and it is Arabic too:
+        // the store refuses a tag no photo carries, so the branch is worded from the catalogue here.
+        let unused = crate::i18n::fmt("#{tag} is not used by any photo", &[("tag", "backlit")]);
+        assert!(
+            unused.contains("غير مستخدمة") && !unused.contains("is not used"),
+            "the empty delete is the catalogue's sentence: {unused}"
+        );
+
+        // Japanese words the several-photo removal with its own measure word, and the single one
+        // as a photograph rather than a count.
+        crate::i18n::set_current(crate::i18n::from_code("ja").expect("Japanese is offered"));
+        let many = tag_taken_off("backlit", 3);
+        assert!(many.contains("枚") && !many.contains("photos"), "{many}");
+        let one = tag_taken_off("backlit", 1);
+        assert!(one.contains("写真") && !one.contains("photo"), "{one}");
+        assert!(
+            crate::i18n::fmt("Added keyword {name}", &[("name", "backlit")]).contains("キーワード"),
+            "the add receipt is Japanese"
+        );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);

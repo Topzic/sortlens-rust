@@ -961,3 +961,6 @@
 	Picked {n} photos	已精選 {n} 張照片
 	Rejected {n} photos	已排除 {n} 張照片
 	Unflagged {n} photos	已取消 {n} 張照片的標記
+	#{tag} taken off {n} photo — one undo brings it back	已從 {n} 張相片移除 #{tag} — 一次復原即可恢復
+	#{tag} taken off {n} photos — one undo brings it back	已從 {n} 張相片移除 #{tag} — 一次復原即可恢復
+	Added keyword {name}	已新增關鍵字 {name}

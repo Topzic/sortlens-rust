@@ -962,3 +962,6 @@
 	Picked {n} photos	{n} 枚をピックしました
 	Rejected {n} photos	{n} 枚を却下しました
 	Unflagged {n} photos	{n} 枚のフラグを外しました
+	#{tag} taken off {n} photo — one undo brings it back	#{tag} を {n} 枚の写真から外しました — 取り消し 1 回で戻せます
+	#{tag} taken off {n} photos — one undo brings it back	#{tag} を {n} 枚の写真から外しました — 取り消し 1 回で戻せます
+	Added keyword {name}	キーワード {name} を追加しました

@@ -961,3 +961,6 @@
 	Picked {n} photos	사진 {n}장 선택함
 	Rejected {n} photos	사진 {n}장 제외함
 	Unflagged {n} photos	사진 {n}장 표시 해제
+	#{tag} taken off {n} photo — one undo brings it back	#{tag}을(를) {n}장의 사진에서 제거했습니다 — 실행 취소 한 번으로 되돌립니다
+	#{tag} taken off {n} photos — one undo brings it back	#{tag}을(를) {n}장의 사진에서 제거했습니다 — 실행 취소 한 번으로 되돌립니다
+	Added keyword {name}	키워드 {name} 추가됨

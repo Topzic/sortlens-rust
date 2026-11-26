@@ -961,3 +961,6 @@
 	Picked {n} photos	Đã chọn {n} ảnh
 	Rejected {n} photos	Đã loại {n} ảnh
 	Unflagged {n} photos	Đã bỏ cờ {n} ảnh
+	#{tag} taken off {n} photo — one undo brings it back	Đã gỡ #{tag} khỏi {n} ảnh — một lần hoàn tác sẽ đưa nó trở lại
+	#{tag} taken off {n} photos — one undo brings it back	Đã gỡ #{tag} khỏi {n} ảnh — một lần hoàn tác sẽ đưa nó trở lại
+	Added keyword {name}	Đã thêm từ khóa {name}

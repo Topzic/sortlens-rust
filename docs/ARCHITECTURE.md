@@ -631,6 +631,14 @@ and `Unflagged` and their three several-photo templates, with the count through 
 Arabic flag reads `٢ صورة مختارة` and `the_flag_notices_speak_the_interface_language` flags a real
 two-photo selection under Arabic and requires the toast and the bell's painted history to agree.
 
+The keyword receipts take it over the keyword and the count: `tag_taken_off` words
+`#{tag} taken off {n} photo — one undo brings it back` and its several-photo row, with the count
+through `format_count`, while `#{tag} is not used by any photo`, `Removed keyword {tag}`,
+`Added keyword {name}` and `That keyword is already on this photo` are the rows the tag editor and
+the context menu share. `the_keyword_notices_speak_the_interface_language` deletes a real
+two-photo keyword under Arabic, requires the toast and the bell's painted history to be the
+catalogue's sentence, and asks Japanese for both removal rows.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with
