@@ -1002,3 +1002,14 @@
 	Check for updates (network)	Kiểm tra cập nhật (mạng)
 	No devices are paired yet; pairing starts from the code above.	Chưa có thiết bị nào được ghép nối; việc ghép nối bắt đầu từ mã ở trên.
 	No packs installed.	Chưa cài đặt gói nào.
+	Serving on 127.0.0.1:{port}	Đang phục vụ trên 127.0.0.1:{port}
+	Pairing code  {code}	Mã ghép đôi  {code}
+	The code lives ten minutes; a fresh one is printed here when it does.	Mã có hiệu lực mười phút; khi hết hạn, mã mới sẽ được in ở đây.
+	Starting the server…	Đang khởi động máy chủ…
+	The library is not being served.	Thư viện không được phục vụ.
+	A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.	Điện thoại hoặc máy tính bảng đã ghép đôi sẽ đọc, tuyển và tải lên qua kết nối loopback của máy này; không có gì rời khỏi đó.
+	The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.	Giao diện máy tính chỉ gắn với loopback của máy này. Để phục vụ thiết bị khác trên mạng của bạn, hãy tự chạy `sortlens-server --bind lan`.
+	Stops the process and frees the library's write lock	Dừng tiến trình và giải phóng khóa ghi của thư viện
+	Runs sortlens-server beside this app against the open library	Chạy sortlens-server bên cạnh ứng dụng này trên thư viện đang mở
+	The device's token is removed from the library's token file	Mã thông báo của thiết bị bị xoá khỏi tệp mã thông báo của thư viện
+	Stop the server first: a running server holds its own token store and would bring the row back	Hãy dừng máy chủ trước: máy chủ đang chạy giữ kho mã thông báo riêng và sẽ khôi phục dòng

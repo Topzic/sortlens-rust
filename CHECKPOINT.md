@@ -1,5 +1,59 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-fiftieth) — the Sync & devices section speaks the interface language
+
+- **Why this came up.** The hundred-and-forty-ninth entry's Next named the section's remaining
+  sentences. A running server still built `Serving on 127.0.0.1:52114` and `Pairing code  448821`
+  with `format!`, a stopped one painted `The library is not being served.` and both loopback
+  sentences as literals, and the section's four hover names were English too — so an Arabic Settings
+  explained how to pair a phone in English under Arabic headings.
+- **What is routed.** Eleven rows per catalogue, 66 in all: `Serving on 127.0.0.1:{port}` and
+  `Pairing code  {code}` are `i18n::fmt` templates, and `The code lives ten minutes; a fresh one is
+  printed here when it does.`, `Starting the server…`, `The library is not being served.`, the
+  paired-device sentence, the `--bind lan` sentence and the four hover names (stop, start, revoke, and
+  the stop-first refusal) are `tl!` keys. English keeps every shape it painted, the pairing line's two
+  spaces among them.
+- **Digits.** The port and the code go in as `craft_i18n::ltr` isolates rather than `i18n::count`
+  digits: a person reads them and types them back, and an RTL sentence must not reorder them. The
+  sentence around them is the translator's.
+- **Tests.** `the_sync_section_speaks_the_interface_language` paints the real `sync_section` in its
+  running, starting and stopped states under English, pinning `Serving on 127.0.0.1:52114`,
+  `Pairing code  448821`, the ten-minute sentence, the stopped state, both loopback sentences and
+  `Starting the server…`; then under Arabic requires the Arabic row for each, requires the port and
+  the code to survive inside an Arabic sentence, requires no English serving line or stopped state to
+  remain, pins the four hover rows through `i18n::tr`, and requires the paint to leave the actions
+  list empty. It fails on the pre-slice source: the Arabic lookups would answer the English literals.
+- **Docs.** ROADMAP's SL-L07 row records the family, UX.md's i18n list and ARCHITECTURE.md §8.4 name
+  the test and the LTR isolates. SL-L07 stays unticked: the audit still finds twenty literal
+  `on_hover_text` names and the packs instruction.
+- **Verified.** `cargo fmt --all` after the ci gate's first pass found three formatting diffs;
+  `cargo clippy -p sortlens-ui --all-targets -- -D warnings` green;
+  `cargo test -p sortlens-ui the_sync_section_speaks_the_interface_language` 1 passed (255 filtered
+  out); `cargo test -p sortlens-ui catalogs_load_and_routed_keys_have_rows` 1 passed, so all 66 new
+  rows parse and every routed key has one; `cargo xtask ci` with every step ok (fmt, workspace
+  clippy, the whole suite, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`,
+  `a11y`, `docs`, `templates`, `workflows`) — PowerShell reported the pipeline as exit 1 only
+  because it turns cargo's stderr font warning into a NativeCommandError, the same artefact a bare
+  `cargo clippy` shows while printing `Finished`; `cargo xtask snapshot` 5 passed;
+  `cargo xtask deny` advisories, bans, licenses and sources ok; `cargo xtask screenshots` 30 passed,
+  1 ignored (network), and no baseline moved — `settings_sync_paints_in_both_themes` passing is the
+  proof the English frame is byte-identical. There is no `cargo xtask wasm` in this workspace;
+  `crates/ui` changed, so `cargo xtask mobile` is CI's job: this machine has no Android NDK and no
+  Xcode. No release workflow was dispatched — source, catalogue rows, tests and docs, no build or
+  release surface.
+- **Files.** `crates/ui/src/shell.rs` (the routes, the LTR isolates and the new test), the six
+  `crates/ui/src/i18n/*.tsv` (eleven rows each), `docs/ROADMAP.md`, `docs/UX.md`,
+  `docs/ARCHITECTURE.md` and this file.
+- **Next.** Read this commit's `CI` run with one `gh run view <id> --json status,conclusion,jobs`.
+  Then the Settings tree's hover names — `Every binding, searchable`, `One verified file holding the
+  index and every decision`, `Unpack a backup as a separate library; the open one is untouched`,
+  `Rebind keys, resolve conflicts, and import or export shortcut sets`, `Proposes keywords for every
+  photo that has something to say; writes nothing until you accept`, `Keeps the partial download;
+  installing again resumes it` and `Delete the file from the model store; you can install it again
+  later` — seven rows through `tl!`, with a lookup test under Arabic because hovers never paint.
+  SL-L07 stays unticked until the source audit proves every painted literal is a catalogue row. No
+  release run is in flight.
+
 ## 2026-11-26 (hundred-and-forty-ninth) — the empty states speak the interface language
 
 - **Why this came up.** The hundred-and-forty-eighth entry's Next named the two empty-state hints. A

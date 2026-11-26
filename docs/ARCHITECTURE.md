@@ -698,6 +698,14 @@ from the code above.` and `keyword_packs`' `No packs installed.` are `tl!` keys,
 `the_empty_states_speak_the_interface_language` paints both real sections under English and Arabic
 and requires no English hint to survive either.
 
+The serving half of the same dialog takes it as well: `Serving on 127.0.0.1:{port}` and
+`Pairing code  {code}` are `i18n::fmt` templates whose port and code are passed through
+`craft_i18n::ltr` — they are values a person reads and types back, and an RTL sentence must not
+reorder them — while the ten-minute sentence, the starting and stopped states, the loopback note,
+the `--bind lan` note and the section's four hover names are `tl!` keys, so
+`the_sync_section_speaks_the_interface_language` paints the real section in all three states under
+English and Arabic.
+
 `apps/sortlens` paints words of its own — the status line after a pick, a move or an export, and
 the titles of the native `rfd` dialogs — where no `tl!` site in `crates/ui` can reach them. The
 host calls the same lookup through `i18n::tr` (a literal) and `i18n::fmt` (a template with

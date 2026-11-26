@@ -1002,3 +1002,14 @@
 	Check for updates (network)	檢查更新（網路）
 	No devices are paired yet; pairing starts from the code above.	尚無已配對的裝置；配對從上方的代碼開始。
 	No packs installed.	尚未安裝任何套件。
+	Serving on 127.0.0.1:{port}	正在 127.0.0.1:{port} 提供服務
+	Pairing code  {code}	配對碼  {code}
+	The code lives ten minutes; a fresh one is printed here when it does.	代碼有效期為十分鐘；到期後這裡會印出新的一組。
+	Starting the server…	正在啟動伺服器…
+	The library is not being served.	圖庫目前未提供服務。
+	A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.	已配對的手機或平板會透過這台機器的回送連線讀取、揀選與上傳；沒有任何東西會離開它。
+	The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.	桌面介面只綁定這台機器的回送位址。若要對網路上的其他裝置提供服務，請自行執行 `sortlens-server --bind lan`。
+	Stops the process and frees the library's write lock	停止處理程序並釋放圖庫的寫入鎖定
+	Runs sortlens-server beside this app against the open library	針對已開啟的圖庫，在這個應用程式旁執行 sortlens-server
+	The device's token is removed from the library's token file	裝置的權杖會從圖庫的權杖檔案中移除
+	Stop the server first: a running server holds its own token store and would bring the row back	請先停止伺服器：執行中的伺服器保有自己的權杖存放區，會讓這一列回來

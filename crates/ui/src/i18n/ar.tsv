@@ -1003,3 +1003,14 @@
 	Check for updates (network)	التحقق من التحديثات (شبكة)
 	No devices are paired yet; pairing starts from the code above.	لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.
 	No packs installed.	لا حزم مثبّتة.
+	Serving on 127.0.0.1:{port}	يُقدَّم على 127.0.0.1:{port}
+	Pairing code  {code}	رمز الاقتران  {code}
+	The code lives ten minutes; a fresh one is printed here when it does.	يعيش الرمز عشر دقائق؛ ويُطبع هنا رمز جديد عند انتهائه.
+	Starting the server…	جارٍ بدء الخادم…
+	The library is not being served.	المكتبة غير مقدَّمة.
+	A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.	الهاتف أو الجهاز اللوحي المقترن يقرأ ويفرز ويرفع عبر اتصال الاسترجاع المحلي لهذا الجهاز؛ لا شيء يغادره.
+	The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.	واجهة سطح المكتب لا تربط إلا استرجاع هذا الجهاز المحلي. لتقديم المكتبة لأجهزة أخرى على شبكتك، شغّل `sortlens-server --bind lan` بنفسك.
+	Stops the process and frees the library's write lock	يوقف العملية ويحرر قفل الكتابة في المكتبة
+	Runs sortlens-server beside this app against the open library	يشغّل sortlens-server إلى جانب هذا التطبيق على المكتبة المفتوحة
+	The device's token is removed from the library's token file	يُزال رمز الجهاز من ملف رموز المكتبة
+	Stop the server first: a running server holds its own token store and would bring the row back	أوقف الخادم أولًا: الخادم العامل يحتفظ بمخزن رموزه الخاص وسيُعيد الصف

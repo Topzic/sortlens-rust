@@ -11631,35 +11631,54 @@ fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     if server.running {
         match (server.port, server.code.as_deref()) {
             (Some(port), Some(code)) => {
-                ui.label(RichText::new(format!("Serving on 127.0.0.1:{port}")).size(12.0).strong());
-                ui.label(RichText::new(format!("Pairing code  {code}")).size(13.0).strong());
+                // The port and the code are read left to right in every language, and a person
+                // types them back, so both go in as LTR isolates rather than numbers the sentence
+                // could reorder.
+                let port = craft_i18n::ltr(&port.to_string());
+                let code = craft_i18n::ltr(code);
                 ui.label(
-                    RichText::new("The code lives ten minutes; a fresh one is printed here when it does.")
+                    RichText::new(crate::i18n::fmt("Serving on 127.0.0.1:{port}", &[("port", &port)]))
+                        .size(12.0)
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new(crate::i18n::fmt("Pairing code  {code}", &[("code", &code)]))
+                        .size(13.0)
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new(tl!("The code lives ten minutes; a fresh one is printed here when it does."))
                         .size(10.5)
                         .color(t.text_faint),
                 );
             }
             _ => {
-                ui.label(RichText::new("Starting the server…").size(12.0).color(t.text_muted));
+                ui.label(RichText::new(tl!("Starting the server…")).size(12.0).color(t.text_muted));
             }
         }
         if ui
             .button(RichText::new(tl!("Stop serving")).size(12.0))
-            .on_hover_text("Stops the process and frees the library's write lock")
+            .on_hover_text(tl!("Stops the process and frees the library's write lock"))
             .clicked()
         {
             actions.push(Action::ServerStop);
         }
     } else {
-        ui.label(RichText::new("The library is not being served.").size(12.0).color(t.text_muted));
         ui.label(
-            RichText::new("A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.")
-                .size(10.5)
-                .color(t.text_faint),
+            RichText::new(tl!("The library is not being served."))
+                .size(12.0)
+                .color(t.text_muted),
+        );
+        ui.label(
+            RichText::new(tl!(
+                "A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it."
+            ))
+            .size(10.5)
+            .color(t.text_faint),
         );
         if ui
             .button(RichText::new(tl!("Start serving")).size(12.0))
-            .on_hover_text("Runs sortlens-server beside this app against the open library")
+            .on_hover_text(tl!("Runs sortlens-server beside this app against the open library"))
             .clicked()
         {
             actions.push(Action::ServerStart);
@@ -11681,9 +11700,9 @@ fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
                 let enabled = !server.running;
                 let revoke = ui.add_enabled(enabled, Button::new(RichText::new(tl!("Revoke")).size(11.0)));
                 let hover = if enabled {
-                    "The device's token is removed from the library's token file"
+                    tl!("The device's token is removed from the library's token file")
                 } else {
-                    "Stop the server first: a running server holds its own token store and would bring the row back"
+                    tl!("Stop the server first: a running server holds its own token store and would bring the row back")
                 };
                 let revoke = revoke.on_hover_text(hover);
                 if enabled && revoke.clicked() {
@@ -11694,9 +11713,9 @@ fn sync_section(ui: &mut Ui, state: &mut UiState, t: &Tokens, actions: &mut Vec<
     }
     ui.add_space(8.0);
     ui.label(
-        RichText::new(
-            "The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.",
-        )
+        RichText::new(tl!(
+            "The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself."
+        ))
         .size(10.5)
         .color(t.text_faint),
     );
@@ -21910,6 +21929,140 @@ mod tests {
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// Settings → Sync & devices speaks the interface language (SL-L07): the serving line, the
+    /// pairing code, the ten-minute sentence, the starting and stopped states, the loopback and
+    /// `--bind lan` sentences, and the four hover names. Each is a catalogue row, so an Arabic
+    /// owner reads how to pair a phone in Arabic; the port and the code stay the Latin digits they
+    /// will type, and painting the section starts and stops nothing.
+    #[test]
+    fn the_sync_section_speaks_the_interface_language() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        let actions = std::cell::RefCell::new(Vec::<Action>::new());
+        let frame = |state: &mut UiState| {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    sync_section(ui, state, &tokens, &mut actions.borrow_mut());
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+        let painted = |state: &mut UiState| painted_texts(&frame(state));
+        let containing = |texts: &[String], needle: &str| texts.iter().find(|text| text.contains(needle)).cloned();
+        let device = DeviceRow {
+            token: "a1b2c3d4".to_owned(),
+            device: "Ian's phone".to_owned(),
+            scopes: "read,annotate".to_owned(),
+            since: "2026-11-24".to_owned(),
+        };
+        let running = |state: &mut UiState, port: Option<u16>, code: Option<&str>| {
+            state.server = ServerSurface {
+                running: true,
+                port,
+                code: code.map(str::to_owned),
+                devices: vec![device.clone()],
+            };
+        };
+        let stopped = |state: &mut UiState| {
+            state.server = ServerSurface {
+                running: false,
+                port: None,
+                code: None,
+                devices: vec![device.clone()],
+            };
+        };
+
+        // English keeps the shapes the section painted before the words were routed.
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        running(&mut state, Some(52_114), Some("448821"));
+        let english = painted(&mut state);
+        assert_painted(&english, &["The code lives ten minutes; a fresh one is printed here when it does."]);
+        assert_eq!(
+            containing(&english, "Serving on").as_deref(),
+            Some("Serving on 127.0.0.1:52114"),
+            "the serving line names the loopback and the port"
+        );
+        assert_eq!(
+            containing(&english, "Pairing code  ").as_deref(),
+            Some("Pairing code  448821"),
+            "the pairing line names the live code"
+        );
+        stopped(&mut state);
+        assert_painted(
+            &painted(&mut state),
+            &[
+                "The library is not being served.",
+                "A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.",
+                "The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.",
+            ],
+        );
+        running(&mut state, None, None);
+        assert_painted(&painted(&mut state), &["Starting the server…"]);
+        assert!(actions.borrow().is_empty(), "painting the English section changes nothing");
+
+        // Arabic: every sentence is the catalogue's, and the port and the code are still the digits
+        // a phone types back — inside an LTR isolate, so the Arabic sentence cannot reorder them.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        running(&mut state, Some(52_114), Some("448821"));
+        let arabic = painted(&mut state);
+        let serving = containing(&arabic, "يُقدَّم على").expect("the serving line is Arabic");
+        assert!(
+            serving.contains("127.0.0.1:") && serving.contains("52114"),
+            "the port survives the sentence: {serving:?}"
+        );
+        let pairing = containing(&arabic, "رمز الاقتران").expect("the pairing line is Arabic");
+        assert!(pairing.contains("448821"), "the code survives the sentence: {pairing:?}");
+        assert_painted(&arabic, &["يعيش الرمز عشر دقائق؛ ويُطبع هنا رمز جديد عند انتهائه."]);
+        assert!(
+            !arabic
+                .iter()
+                .any(|text| text.contains("Serving on") || text.contains("Pairing code")),
+            "no English serving line survives: {arabic:?}"
+        );
+        stopped(&mut state);
+        let arabic = painted(&mut state);
+        assert_painted(
+            &arabic,
+            &[
+                "المكتبة غير مقدَّمة.",
+                "الهاتف أو الجهاز اللوحي المقترن يقرأ ويفرز ويرفع عبر اتصال الاسترجاع المحلي لهذا الجهاز؛ لا شيء يغادره.",
+                "واجهة سطح المكتب لا تربط إلا استرجاع هذا الجهاز المحلي. لتقديم المكتبة لأجهزة أخرى على شبكتك، شغّل `sortlens-server --bind lan` بنفسك.",
+            ],
+        );
+        assert!(
+            !arabic.iter().any(|text| text.contains("The library is not being served")),
+            "no English stopped state survives: {arabic:?}"
+        );
+        running(&mut state, None, None);
+        assert_painted(&painted(&mut state), &["جارٍ بدء الخادم…"]);
+
+        // The four hover names are rows too; they never paint, so the catalogue is the witness.
+        for (english, arabic) in [
+            (
+                "Stops the process and frees the library's write lock",
+                "يوقف العملية ويحرر قفل الكتابة في المكتبة",
+            ),
+            (
+                "Runs sortlens-server beside this app against the open library",
+                "يشغّل sortlens-server إلى جانب هذا التطبيق على المكتبة المفتوحة",
+            ),
+            (
+                "The device's token is removed from the library's token file",
+                "يُزال رمز الجهاز من ملف رموز المكتبة",
+            ),
+            (
+                "Stop the server first: a running server holds its own token store and would bring the row back",
+                "أوقف الخادم أولًا: الخادم العامل يحتفظ بمخزن رموزه الخاص وسيُعيد الصف",
+            ),
+        ] {
+            assert_eq!(crate::i18n::tr(english), arabic, "the hover row is {arabic:?}");
+        }
+        assert!(actions.borrow().is_empty(), "painting the Arabic section starts and stops nothing");
+
+        crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
     }
 
     /// Settings → Appearance lists every preset — the four colour ones and High Contrast — and

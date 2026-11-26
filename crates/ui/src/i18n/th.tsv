@@ -1004,3 +1004,14 @@
 	Check for updates (network)	ตรวจสอบอัปเดต (เครือข่าย)
 	No devices are paired yet; pairing starts from the code above.	ยังไม่มีอุปกรณ์ที่จับคู่ การจับคู่เริ่มจากรหัสด้านบน
 	No packs installed.	ยังไม่ได้ติดตั้งแพ็ก
+	Serving on 127.0.0.1:{port}	กำลังให้บริการที่ 127.0.0.1:{port}
+	Pairing code  {code}	รหัสจับคู่  {code}
+	The code lives ten minutes; a fresh one is printed here when it does.	รหัสมีอายุสิบนาที เมื่อหมดอายุจะมีรหัสใหม่แสดงที่นี่
+	Starting the server…	กำลังเริ่มเซิร์ฟเวอร์…
+	The library is not being served.	ไลบรารีไม่ได้ถูกให้บริการอยู่
+	A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.	โทรศัพท์หรือแท็บเล็ตที่จับคู่แล้วจะอ่าน คัด และอัปโหลดผ่านการเชื่อมต่อลูปแบ็กของเครื่องนี้ ไม่มีสิ่งใดออกไปข้างนอก
+	The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.	หน้าจอเดสก์ท็อปผูกกับการเชื่อมต่อลูปแบ็กของเครื่องนี้เท่านั้น หากต้องการให้บริการอุปกรณ์อื่นในเครือข่าย ให้รัน `sortlens-server --bind lan` เอง
+	Stops the process and frees the library's write lock	หยุดโปรเซสและปลดล็อกการเขียนของไลบรารี
+	Runs sortlens-server beside this app against the open library	เรียก sortlens-server ทำงานเคียงข้างแอปนี้กับไลบรารีที่เปิดอยู่
+	The device's token is removed from the library's token file	โทเค็นของอุปกรณ์จะถูกนำออกจากไฟล์โทเค็นของไลบรารี
+	Stop the server first: a running server holds its own token store and would bring the row back	หยุดเซิร์ฟเวอร์ก่อน เซิร์ฟเวอร์ที่ทำงานอยู่ถือที่เก็บโทเค็นของตัวเองและจะทำให้แถวกลับมา

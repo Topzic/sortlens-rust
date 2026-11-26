@@ -1002,3 +1002,14 @@
 	Check for updates (network)	업데이트 확인(네트워크)
 	No devices are paired yet; pairing starts from the code above.	아직 페어링된 기기가 없습니다. 페어링은 위의 코드에서 시작합니다.
 	No packs installed.	설치된 팩이 없습니다.
+	Serving on 127.0.0.1:{port}	127.0.0.1:{port}에서 제공 중
+	Pairing code  {code}	페어링 코드  {code}
+	The code lives ten minutes; a fresh one is printed here when it does.	코드는 10분 동안 유효하며, 만료되면 새 코드가 여기에 표시됩니다.
+	Starting the server…	서버를 시작하는 중…
+	The library is not being served.	라이브러리가 제공되고 있지 않습니다.
+	A paired phone or tablet reads, culls and uploads over this machine's loopback connection; nothing leaves it.	페어링된 휴대폰이나 태블릿은 이 컴퓨터의 루프백 연결로 읽고 골라내고 업로드합니다. 밖으로 나가는 것은 없습니다.
+	The desktop's own surface binds this machine's loopback only. To serve other devices on your network, run `sortlens-server --bind lan` yourself.	데스크톱 화면은 이 컴퓨터의 루프백에만 바인딩합니다. 네트워크의 다른 기기에 제공하려면 `sortlens-server --bind lan`을 직접 실행하세요.
+	Stops the process and frees the library's write lock	프로세스를 멈추고 라이브러리의 쓰기 잠금을 해제합니다
+	Runs sortlens-server beside this app against the open library	열린 라이브러리를 대상으로 이 앱 옆에서 sortlens-server를 실행합니다
+	The device's token is removed from the library's token file	기기의 토큰을 라이브러리의 토큰 파일에서 제거합니다
+	Stop the server first: a running server holds its own token store and would bring the row back	먼저 서버를 멈추세요. 실행 중인 서버는 자체 토큰 저장소를 쥐고 있어 행이 되살아납니다

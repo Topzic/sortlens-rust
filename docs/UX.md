@@ -860,6 +860,11 @@ re-checks its own contrast pairs after applying.
   The empty states followed (hundred-and-forty-ninth entry): the Sync & devices line for a library
   with no paired device and the keyword packs row's `No packs installed.` are rows, so an Arabic
   Settings reads `لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.` where it read English.
+  The Sync & devices section's own sentences followed (hundred-and-fiftieth entry): the serving line
+  and the pairing line are templates whose port and code stay the Latin digits a phone types back,
+  and the ten-minute sentence, the starting and stopped states, the loopback note, the `--bind lan`
+  note and the section's four hover names are rows, so an Arabic Settings explains the pairing in
+  Arabic where it read English.
   Numbers and dates follow that language too (SL-L08, `crates/ui/src/format.rs`): counts and file
   sizes write their own digits and grouping (`12,408` in Japanese, `١٢٬٤٠٨` in Arabic), a decimal
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese

@@ -1266,6 +1266,14 @@ and none of M9 is closed until the remaining rows are ticked.
   with no paired device and the keyword packs row's `No packs installed.` are rows, so an Arabic
   Settings reads `لا توجد أجهزة مقترنة بعد؛ يبدأ الاقتران من الرمز أعلاه.` where it read English, and
   `the_empty_states_speak_the_interface_language` paints both real sections under English and Arabic.
+  The Sync & devices section followed (hundred-and-fiftieth entry): `Serving on 127.0.0.1:{port}`
+  and `Pairing code  {code}` are templates whose port and code go in as LTR isolates (the digits a
+  phone types back), and `The code lives ten minutes; a fresh one is printed here when it does.`,
+  `Starting the server…`, `The library is not being served.`, the loopback sentence, the
+  `--bind lan` sentence and the section's four hover names are rows in all six languages — so an
+  Arabic Settings names the port and the live code inside an Arabic sentence where it read English.
+  `the_sync_section_speaks_the_interface_language` paints the real section in its running, starting
+  and stopped states under English and Arabic.
   **Still open in this row.** An audit of `crates/ui/src/shell.rs` finds painted English that never
   went through `tl!`/`i18n::fmt`: the remaining `on_hover_text` names, and the keyword packs empty
   state's second line (`Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs
