@@ -917,6 +917,21 @@ impl Engine {
                 photo: Box::new(item.old.clone()),
             });
         }
+        // Moving indexed the destination so the files stayed in view; putting them back leaves it
+        // holding nothing, so the folder leaves the sidebar with them rather than as an empty row.
+        // Only when nothing else was indexed there — a folder someone dropped other photos into
+        // keeps its row, and its photos.
+        let emptied = self.catalog.as_ref().is_some_and(|catalog| {
+            catalog
+                .photos()
+                .filter(|photo| photo.root == receipt.dest)
+                .all(|photo| receipt.items.iter().any(|item| item.new.id == photo.id))
+        });
+        if emptied {
+            ops.push(Op::RemoveRoot {
+                path: receipt.dest.clone(),
+            });
+        }
         self.mutate(Op::Group { ops })?;
         self.moves.remove(index);
         self.persist_moves();
@@ -7246,6 +7261,12 @@ mod tests {
         assert_eq!(engine.photo(ids[0]).expect("photo").root, folder.0.to_string_lossy());
         // A sidecar the review state wrote travels with the photo, in both directions.
         assert!(!dest.0.join("day one/a.xmp").exists(), "the sidecar came home with the file");
+        // Moving indexed the destination; putting the batch back leaves it empty, so the folder
+        // leaves the library with the photos instead of staying as an empty row.
+        assert!(
+            !engine.roots().iter().any(|root| root == &dest_text),
+            "the destination left the library"
+        );
         assert!(
             engine.run("edit.moves", &json!({})).expect("moves")["moves"]
                 .as_array()
