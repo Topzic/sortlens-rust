@@ -931,7 +931,9 @@ and none of M9 is closed until the remaining rows are ticked.
     instead of refusing, that every note is a sentence rather than a placeholder, and that the table marks
     writes as writes — **proved to bite** by renaming `pack` in the table (it fails naming the verb and quoting
     the refusal).
-- [ ] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07 — the scaffolding is in:
+- [x] i18n catalogs + RTL screenshots (ar/ja/zh-TW/ko/th/vi) (B) — SL-L07 — **done 2026-11-26**: the
+  whole-source audit below proves every painted literal in `crates/ui/src` and `apps/sortlens/src`
+  comes from the catalogues. The scaffolding is in:
   embedded ar/ja catalogues, Settings → Language, the reading-start/end panels and the mirrored rows
   (see the Phase 4 item 2d row). The Arabic face ships in the crate (2026-11-26, hundred-and-fourteenth
   entry): `assets/fonts/NotoSansArabic.ttf` is embedded by `crates/ui/src/fonts.rs` and appended last
@@ -1547,9 +1549,22 @@ The widget sweep followed (hundred-and-seventy-third entry):
   (`places::selection_notice`) was the last painted English family named here: it is two catalogue
   templates now (hundred-and-seventy-seventh entry), the count and the coordinate placeholders in the
   reader's digits, English byte for byte. **Proved to bite:** with the function back on its two
-  `format!` literals the Arabic frame paints `Selected 3 photo(s) at …`. What the row still names is
-  the map's assistive name; beyond that, the whole-source audit that reads `crates/ui/src` and
-  `apps/sortlens/src` is what can tick the row. SL-L07 stays unticked until that audit passes.
+  `format!` literals the Arabic frame paints `Selected 3 photo(s) at …`.
+  The whole-source audit that closes the row is `every_painted_literal_in_the_shell_and_the_host_comes_from_the_catalogues`
+  (hundred-and-seventy-eighth entry). It walks `crates/ui/src` and `apps/sortlens/src` from disk —
+  so a file that lands later is read the day it lands, which the fixed lists in `shell.rs` could not
+  promise — cuts each file's `#[cfg(test)]` modules, and holds three sinks: the literal a paint call
+  hands a widget (a bare one, and every `format!` inside the call), the literal a notice still spells
+  once its `tl!`/`fmt`/`tr` spans are masked, and the title or filter name a native dialog is given.
+  Every literal left must be an `EXCEPTIONS` entry (the product's name, checked for staleness) or the
+  audit fails naming the file and the sentence — a literal that happens to equal a catalogue key is
+  still English, because nothing asked the catalogue for it. It reads 1,300-odd call sites and asserts
+  a floor, so a broken reader fails instead of passing quietly. **Proved to bite twice:** with the icon
+  button's `on_hover_text` handed a literal — a file none of the earlier sweeps named — it fails with
+  `Collapse the sidebar`; with the host's `Pick a photo first` put back as a bare literal it fails on
+  `apps/sortlens/src/main.rs`. What the row still excludes is the map's assistive name (spoken, not
+  painted) and the one shape no text sweep reads, a literal moved into a binding first — the trees hold
+  none of those outside tests.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

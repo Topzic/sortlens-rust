@@ -1,5 +1,56 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-eighth) — the audit that closes the interface language
+
+- **Why it came up.** The hundred-and-seventy-seventh entry's Next named the whole-source audit that
+  reads `crates/ui/src` and `apps/sortlens/src` — the last thing SL-L07 named. The `CI` run for
+  `7d91eac` (`45920728504`) was still in progress at STEP 1b (an empty conclusion, not red), so this
+  was the roadmap slice rather than a repair, and it is the row's gate.
+- **What shipped.** `every_painted_literal_in_the_shell_and_the_host_comes_from_the_catalogues` in
+  `crates/ui/src/i18n.rs`: it walks both source trees **from disk** (`std::fs` from
+  `CARGO_MANIFEST_DIR`, sorted, skipping the `._*` AppleDouble sidecars this exFAT checkout leaves
+  beside the sources), cuts each file's `#[cfg(test)]` modules, and holds three sinks — paint calls
+  (a bare literal, and every `format!` inside the call), notices (the argument with its
+  `tl!`/`i18n::fmt`/`i18n::tr` spans masked), and native dialog titles and file-filter names. Any
+  literal left must be an `EXCEPTIONS` entry (the product's name, checked for staleness) or the
+  audit fails naming the file and the sentence. The rule is the route, not the row: a literal that
+  happens to equal a catalogue key still paints English, because nothing asked the catalogue for it.
+  Floors on sources and call sites keep a broken reader from passing; it reads 17 sources and about
+  1,340 call sites, and the only literal it finds is `Sortlens`.
+- **The bite proofs, in files the older sweeps cannot see.** With `icons::button`'s `on_hover_text`
+  handed `"Collapse the sidebar"` — `icons.rs` is in none of the fixed lists — it fails with that
+  sentence; with the host's `Pick a photo first` put back as a bare literal it fails on
+  `apps/sortlens/src/main.rs` (twice, both sites). Both reverted.
+- **The row.** SL-L07 is ticked: the audit proves every painted literal in both trees comes from the
+  catalogues, the route audits in `i18n.rs` prove every route has six rows, and the host's own
+  listing covers the app. The two shapes the row excludes are recorded on it — the map's assistive
+  name (spoken, not painted) and a literal moved into a binding first (none outside tests).
+- **Docs.** `docs/ROADMAP.md`'s SL-L07 row is `[x]` with the audit, its floors and both bite proofs;
+  `README.md` says one buildable row stays open (SL-J10) and its "What is still open" bullet records
+  the closure; `docs/FEATURES.md`'s SL-L07 row records the audit; `docs/UX.md`'s i18n section and
+  `docs/ARCHITECTURE.md` §8.4 (whose "Arabic and Japanese rows for the strings routed so far" was
+  contradicted) are reconciled.
+- **Gates.** `cargo fmt --all`; `cargo clippy -p sortlens-ui --all-targets -- -D warnings` clean
+  (one `collapsible_if` fixed); the new audit green, plus both bite proofs above; then
+  `cargo xtask ci` exit 0 with every step ok (fmt, workspace clippy, the whole suite, `layers`,
+  `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`, `templates`,
+  `workflows`); `cargo xtask snapshot` 5 passed. `cargo xtask deny` fails on this checkout for the
+  environment reason the earlier entries record — the advisory-DB fetch writes macOS AppleDouble
+  `._*` files into the exFAT volume, which cargo-deny reads as invalid UTF-8; with those six removed,
+  `cargo deny --offline check` reports *advisories ok, bans ok, licenses ok, sources ok*, and CI's
+  Linux `deny` job is the proof. No `cargo xtask screenshots`: no paint code changed, only a test
+  and docs, so no committed scene moves. `crates/ui` changed (test only), so the phone gate applies:
+  `cargo xtask mobile` cannot run here (no Android NDK, no Xcode), so CI's mobile legs are the proof.
+  No release workflow was dispatched — a test-and-docs slice is not a build or release surface.
+- **Files.** `crates/ui/src/i18n.rs` (the audit and its helpers), `docs/ROADMAP.md`, `README.md`,
+  `docs/FEATURES.md`, `docs/UX.md`, `docs/ARCHITECTURE.md` and this file.
+- **Next.** No ticketed work is in flight. The open rows left are the externally blocked ones:
+  SL-J10 (a device run, the iOS Photos library, an `.ipa`, a Play bundle, a persistent release key —
+  this machine has no NDK, no Xcode, no signing identity), `craft-ipc` (needs a consumer that reaches
+  a running window) and Benchmarks part 2 (needs a GPU, a window and a long single-process run). The
+  next tick should judge whether those are the exit condition rather than inventing a slice; CI for
+  the commit this entry rides on is the first thing to read.
+
 ## 2026-11-26 (hundred-and-seventy-seventh) — a clicked dot's receipt speaks the interface language
 
 - **Why it came up.** The hundred-and-seventy-sixth entry's Next named `places::selection_notice`, the

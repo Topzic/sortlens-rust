@@ -32,9 +32,9 @@ scripts and AI agents.
 > diagnostics bundle that redacts your paths, and an MCP server — all driven by one command registry
 > that the window, the CLI and an agent share.
 >
-> Two buildable rows stay open in `docs/ROADMAP.md`. **SL-L07** is the rest of the interface language:
-> painted English is still moving into the catalogues, one surface at a time. **SL-J10** is the phone
-> app's remaining half: the crate, the phone layout, pairing and a signed APK are in; a run on a device,
+> One buildable row stays open in `docs/ROADMAP.md`: **SL-J10**, the phone app's remaining half. The
+> interface language closed on 2026-11-26, with a whole-source audit that fails on any hand-spelled
+> paint, notice or dialog literal. **SL-J10** is the phone app's remaining half: the crate, the phone layout, pairing and a signed APK are in; a run on a device,
 > the iOS Photos library, an `.ipa`, a Play bundle and a persistent release key are not. The
 > "Deliberately absent from M10" table holds only work that needs something outside the repository (an
 > Apple signing identity, installer toolchains, a screen-reader session, a chosen palette with a
@@ -147,10 +147,10 @@ Named so the status above does not read as a finished 1.0. Blur scoring, the rem
 rebinding, the high-contrast preset, the reduced-motion toggle, the opt-in update check, HEIC
 thumbnails, the shipped coastline and the tile-folder map have already shipped.
 
-- **Interface language (SL-L07).** Arabic, Japanese, Traditional Chinese, Korean, Thai and Vietnamese
-  catalogues ship, with right-to-left screenshots and localised numbers and dates. Painted English is
-  still moving into those catalogues. The row stays unticked until a source audit can prove every
-  painted literal is a catalogue row.
+- **Interface language (SL-L07).** Closed 2026-11-26. Arabic, Japanese, Traditional Chinese, Korean,
+  Thai and Vietnamese catalogues ship, with right-to-left screenshots and localised numbers and dates,
+  and a whole-source audit walks `crates/ui/src` and `apps/sortlens/src` and fails on any literal a
+  paint, notice or native-dialog call spells by hand instead of asking the catalogues.
 - **Phone app (SL-J10).** `apps/sortlens-mobile` is the same engine and shell, with Android and iOS
   entry points, a phone layout, settings and Send to desktop. CI compiles both targets, and the release
   workflow produces a signed APK. Still open: a run on a device, the iOS Photos library, an `.ipa`, a

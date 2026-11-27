@@ -187,6 +187,8 @@ pub fn apply_direction(ctx: &egui::Context) {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
 
     /// The catalogues parse without a single bad row, and every language the picker offers is
@@ -235,6 +237,315 @@ mod tests {
             let missing: Vec<&String> = keys.iter().filter(|k| I18N.get(lang, "", k.as_str()).is_none()).collect();
             assert!(missing.is_empty(), "{code} is missing {} routed rows: {missing:#?}", missing.len());
         }
+    }
+
+    /// Every literal the shell and the host app paint, raise as a notice or hand a native dialog
+    /// is a catalogue row (SL-L07).
+    ///
+    /// The sweeps in shell.rs read a fixed list of files, so a file the list never named would
+    /// paint English unseen; the audit above reads the routes, so a call that never asked the
+    /// catalogues is invisible to it too. This is the whole-source audit the row asks for: it
+    /// walks crates/ui/src and apps/sortlens/src from disk, so a file that lands later is read
+    /// the day it lands; it cuts each file's #[cfg(test)] modules, because a fixture's English is
+    /// not chrome; and it holds three sinks to the six catalogues — the literal a paint call hands
+    /// a widget (a bare one, and every format! inside the call, because a painter takes its text
+    /// as the third argument), the literal a notice still spells once its tl!/fmt/tr spans are
+    /// masked, and the title or filter name a native dialog is given. The product's name is the
+    /// one exception, and it is checked for staleness. What no text sweep reads is a literal moved
+    /// into a binding first; the trees hold none of those today.
+    #[test]
+    fn every_painted_literal_in_the_shell_and_the_host_comes_from_the_catalogues() {
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let root = std::fs::canonicalize(&workspace).unwrap_or(workspace);
+        let mut files = 0usize;
+        let mut calls = 0usize;
+        let mut found: Vec<(String, String)> = Vec::new();
+        for tree in ["crates/ui/src", "apps/sortlens/src"] {
+            for (name, source) in sources(&root.join(tree)) {
+                files += 1;
+                let (literals, seen) = swept_literals(&without_test_modules(&source));
+                calls += seen;
+                found.extend(literals.into_iter().map(|literal| (name.clone(), literal)));
+            }
+        }
+        assert!(files >= 12, "the audit read only {files} sources, so it is not walking both trees");
+        assert!(calls >= 800, "the audit read only {calls} paint, notice and dialog calls");
+        let mut hand_spelled = Vec::new();
+        for (file, literal) in &found {
+            if EXCEPTIONS.iter().any(|(exception, _)| exception == literal) {
+                continue;
+            }
+            // A row exists for it or it does not: either way nothing asked the catalogue, so the
+            // site paints its own English in every language. This is why the audit asks for the
+            // route rather than for the row — a sentence that was un-routed still has its row.
+            hand_spelled.push(format!("{file}: {literal:?}"));
+        }
+        assert!(
+            hand_spelled.is_empty(),
+            "{} literals the shell or the host spells by hand instead of asking a catalogue: {hand_spelled:#?}",
+            hand_spelled.len()
+        );
+        for (literal, reason) in EXCEPTIONS {
+            assert!(
+                found.iter().any(|(_, seen)| seen == literal),
+                "the audit no longer reads {literal:?}, so its exception ({reason}) is stale"
+            );
+        }
+    }
+
+    /// What may paint beside the catalogues: the product's name, which every catalogue spells the
+    /// same. The audit above fails when an entry stops being painted, so it cannot outlive its
+    /// site.
+    const EXCEPTIONS: &[(&str, &str)] = &[(
+        "Sortlens",
+        "the product's name, which every catalogue spells the same and a translator is not asked to change",
+    )];
+
+    /// The calls that hand a literal to a painted surface, and the two native dialog calls the
+    /// host uses for its own titles and file filters.
+    const PAINT_CALLS: &[&str] = &[
+        "RichText::new(",
+        "Label::new(",
+        "Button::new(",
+        "ui.button(",
+        "ui.small_button(",
+        "ui.heading(",
+        "ui.label(",
+        "ui.selectable_label(",
+        "ui.selectable_value(",
+        "ui.checkbox(",
+        "ui.radio_value(",
+        "ui.small(",
+        "ui.strong(",
+        "ui.monospace(",
+        "ui.weak(",
+        "ui.hyperlink(",
+        "ui.link(",
+        "ui.menu_button(",
+        "ui.collapsing(",
+        "ui.text_edit_singleline(",
+        "ui.group(",
+        "Window::new(",
+        "painter().text(",
+        "painter.text(",
+        ".hover(",
+        "on_hover_text(",
+        ".tooltip(",
+        ".prefix(",
+        ".suffix(",
+        ".hint_text(",
+        ".text(",
+    ];
+
+    /// The native dialog's title and its file filter's name.
+    const DIALOG_CALLS: &[&str] = &["set_title(", ".add_filter("];
+
+    /// Every .rs file under dir, recursively, as (path, text): sorted so the audit reads the tree
+    /// the same way twice, and skipping the AppleDouble ._* sidecars an exFAT checkout leaves
+    /// beside the sources, which are not UTF-8 and not source.
+    fn sources(dir: &Path) -> Vec<(String, String)> {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return Vec::new();
+        };
+        let mut paths: Vec<std::path::PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
+        paths.sort();
+        let mut out = Vec::new();
+        for path in paths {
+            let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_owned();
+            if name.starts_with("._") {
+                continue;
+            }
+            if path.is_dir() {
+                out.extend(sources(&path));
+            } else if path.extension().is_some_and(|extension| extension == "rs")
+                && let Ok(text) = std::fs::read_to_string(&path)
+            {
+                out.push((path.display().to_string(), text));
+            }
+        }
+        out
+    }
+
+    /// The literals a source hands a surface, with the placeholders dropped, and how many call
+    /// sites the sweep read — the second number is what keeps a broken reader from passing.
+    fn swept_literals(source: &str) -> (Vec<String>, usize) {
+        let mut literals = Vec::new();
+        let mut calls = 0usize;
+        for call in PAINT_CALLS {
+            for open in call_sites(source, call) {
+                calls += 1;
+                let argument = call_argument(source, open);
+                if let Some(literal) = leading_literal(argument) {
+                    literals.push(literal);
+                }
+                literals.extend(format_literals(argument));
+            }
+        }
+        for call in DIALOG_CALLS {
+            for open in call_sites(source, call) {
+                calls += 1;
+                if let Some(literal) = leading_literal(call_argument(source, open)) {
+                    literals.push(literal);
+                }
+            }
+        }
+        for open in call_sites(source, ".notice(") {
+            calls += 1;
+            literals.extend(notice_literals(call_argument(source, open)));
+        }
+        literals.retain(|literal| spells_words(literal));
+        (literals, calls)
+    }
+
+    /// The offset of every call's opening paren.
+    fn call_sites(source: &str, call: &str) -> Vec<usize> {
+        let mut sites = Vec::new();
+        let mut cursor = 0;
+        while let Some(found) = source[cursor..].find(call) {
+            let open = cursor + found + call.len() - 1;
+            sites.push(open);
+            cursor = open + 1;
+        }
+        sites
+    }
+
+    /// The same source with its top-level #[cfg(test)] modules cut out: a fixture's own English is
+    /// not painted chrome, and the sweeps read the widgets outside those modules.
+    fn without_test_modules(source: &str) -> String {
+        let mut out = String::with_capacity(source.len());
+        let mut skipping = false;
+        for line in source.lines() {
+            if !skipping && line.starts_with("#[cfg(test)]") {
+                skipping = true;
+                continue;
+            }
+            if skipping {
+                if line == "}" {
+                    skipping = false;
+                }
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        out
+    }
+
+    /// The argument of a call whose paren is at open, cut at its matching close paren and skipping
+    /// over quoted strings so a bracket inside a literal does not end the call early.
+    fn call_argument(source: &str, open: usize) -> &str {
+        let bytes = source.as_bytes();
+        let mut depth = 0usize;
+        let mut quoted = false;
+        let mut escaped = false;
+        for (offset, byte) in bytes[open..].iter().enumerate() {
+            if quoted {
+                if escaped {
+                    escaped = false;
+                } else if *byte == b'\\' {
+                    escaped = true;
+                } else if *byte == b'"' {
+                    quoted = false;
+                }
+                continue;
+            }
+            match *byte {
+                b'"' => quoted = true,
+                b'(' => depth += 1,
+                b')' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return &source[open + 1..open + offset];
+                    }
+                }
+                _ => {}
+            }
+        }
+        ""
+    }
+
+    /// The literal an argument starts with, if it starts with one at all: a value, a tl! or a
+    /// helper call paints no literal of its own.
+    fn leading_literal(argument: &str) -> Option<String> {
+        let rest = argument.trim_start().strip_prefix('"')?;
+        let end = rest.find('"')?;
+        Some(rest[..end].to_owned())
+    }
+
+    /// The literals of every format! inside an argument: a painter takes its text as the third
+    /// argument, so a sweep that read only the first would miss it.
+    fn format_literals(argument: &str) -> Vec<String> {
+        let mut literals = Vec::new();
+        let mut cursor = 0;
+        while let Some(found) = argument[cursor..].find("format!(") {
+            let after = cursor + found + "format!(".len();
+            if let Some(literal) = leading_literal(&argument[after..]) {
+                literals.push(literal);
+            }
+            cursor = after;
+        }
+        literals
+    }
+
+    /// What a notice still spells by hand: its argument with the spans a catalogue already answers
+    /// blanked out, then every literal left in it. A match arm, an if/else or a format! is chrome;
+    /// the routed keys' rows are the audit above.
+    fn notice_literals(argument: &str) -> Vec<String> {
+        let masked = masked_routes(argument);
+        let mut literals = Vec::new();
+        let mut rest = masked.as_str();
+        while let Some(start) = rest.find('"') {
+            let after = &rest[start + 1..];
+            let Some(end) = after.find('"') else {
+                break;
+            };
+            literals.push(after[..end].to_owned());
+            rest = &after[end + 1..];
+        }
+        literals
+    }
+
+    /// The argument with every tl!, i18n::fmt and i18n::tr call removed whole — the spans whose
+    /// literals are catalogue keys, which the route audit already holds to a row.
+    fn masked_routes(argument: &str) -> String {
+        let mut spans: Vec<(usize, usize)> = Vec::new();
+        for marker in ["tl!(", "i18n::fmt(", "crate::i18n::fmt(", "i18n::tr(", "crate::i18n::tr("] {
+            let mut cursor = 0;
+            while let Some(found) = argument[cursor..].find(marker) {
+                let open = cursor + found + marker.len() - 1;
+                spans.push((open, open + call_argument(argument, open).len() + 2));
+                cursor = open + 1;
+            }
+        }
+        spans.sort_unstable();
+        let mut out = String::with_capacity(argument.len());
+        let mut copied = 0usize;
+        for (start, end) in spans {
+            if end <= copied {
+                continue;
+            }
+            out.push_str(&argument[copied..start]);
+            copied = end;
+        }
+        out.push_str(&argument[copied..]);
+        out
+    }
+
+    /// Whether a literal spells anything once its placeholders are dropped: a literal that is only
+    /// punctuation (a multiplication sign, a path separator, a key cap beside a value) paints no
+    /// word of its own and is not a candidate.
+    fn spells_words(literal: &str) -> bool {
+        let mut words = String::with_capacity(literal.len());
+        let mut depth = 0usize;
+        for ch in literal.chars() {
+            match ch {
+                '{' => depth += 1,
+                '}' => depth = depth.saturating_sub(1),
+                _ if depth == 0 => words.push(ch),
+                _ => {}
+            }
+        }
+        words.chars().any(|ch| ch.is_ascii_alphabetic())
     }
 
     /// The shortcut editor's own words are the keymap crate's list, and both catalogues answer

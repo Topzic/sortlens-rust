@@ -484,11 +484,12 @@ Implemented as `crates/ui/build.rs` + `crates/ui/src/fonts.rs`:
 
 `crates/ui/src/i18n.rs` routes the interface's strings through `craft-i18n`: the English text is
 the lookup key, a missing row is the English itself, and the catalogue a translation has not
-reached yet never breaks the interface. The scaffold (SL-L07, Phase 4 item 2d) embeds Arabic and
-Japanese rows for the strings routed so far — the sidebar's sources and sections, the foot's
-registry labels and the Settings dialog — and offers the picker (Settings → Language) that names
-every language in itself. `Appearance.language` persists the code and an unknown code reads as
-English.
+reached yet never breaks the interface. SL-L07 closed on 2026-11-26: six catalogues — Arabic,
+Japanese, Korean, Thai, Vietnamese and Traditional Chinese — answer every routed key, and the
+whole-source audit `every_painted_literal_in_the_shell_and_the_host_comes_from_the_catalogues`
+walks `crates/ui/src` and `apps/sortlens/src` from disk and fails on any literal a paint, notice or
+native-dialog call spells by hand. The picker (Settings → Language) names every language in itself,
+`Appearance.language` persists the code, and an unknown code reads as English.
 
 The direction plumbing is `craft-ui`'s: `i18n::apply_direction` resolves the interface direction
 from the chosen language (overridable with `CRAFT_UI_DIRECTION` for checking a mirrored layout

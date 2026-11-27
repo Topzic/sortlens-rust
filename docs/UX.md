@@ -957,6 +957,14 @@ re-checks its own contrast pairs after applying.
   mark comes from the language (`1.4 MB`, `١٫٤ MB`), and dates keep its order (English and Japanese
   year-first, Arabic day-first: `٠٣/١٠/٢٠٢٦ ٠٤:٠٠`). English is byte-identical to what shipped
   before, because the committed scenes are English.
+  The interface language closed on 2026-11-26 (hundred-and-seventy-eighth entry). A whole-source
+  audit — `every_painted_literal_in_the_shell_and_the_host_comes_from_the_catalogues` — walks
+  `crates/ui/src` and `apps/sortlens/src` from disk, cuts the test modules, and fails on any
+  literal a paint call, a notice or a native dialog title still spells by hand instead of asking the
+  catalogues. A literal that merely equals a catalogue key fails the same way, because nothing asked
+  the catalogue for it; a new file is read the day it lands, because the audit walks the tree rather
+  than a list. The map's assistive name is spoken rather than painted and stays out of its scope, as
+  does a literal moved into a binding first.
 
 ---
 
