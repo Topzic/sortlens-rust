@@ -11178,17 +11178,14 @@ fn canvas_interaction(
     current: Option<sortlens_core::PhotoId>,
 ) -> (Gesture, f32) {
     let size = (area.width(), area.height());
-    let mut delta = (0.0, 0.0);
-    if response.dragged()
-        && let Some(origin) = state.drag_from
-        && let Some(pointer) = response.interact_pointer_pos()
-    {
-        delta = (pointer.x - origin.x, pointer.y - origin.y);
-    }
+    let pointer = response.interact_pointer_pos();
     if response.drag_started() {
-        state.drag_from = response.interact_pointer_pos();
-        delta = (0.0, 0.0);
+        state.drag_from = pointer;
     }
+    // egui clears `dragged()` on the frame the pointer is released, before this widget reads it, but
+    // `drag_stopped()` and the release position are still reported. Classify the release from the press
+    // point as well: otherwise a swipe paints its label while the finger is down and then decides nothing.
+    let mut delta = cull_drag_offset(state.drag_from, pointer, response.dragged() || response.drag_stopped());
 
     if response.hovered() {
         let notches = ui.input(|input| input.smooth_scroll_delta.y / 50.0);
@@ -11222,6 +11219,18 @@ fn canvas_interaction(
     }
     state.drag_from = None;
     (Gesture::None, 0.0)
+}
+
+/// The offset a cull swipe has travelled from where it was pressed, in screen points.
+///
+/// `live` is true while the drag is in flight and on the frame it is released: egui clears `dragged()`
+/// on release but still reports `drag_stopped()` and the pointer position, and that release frame is
+/// the one that has to make the decision.
+fn cull_drag_offset(origin: Option<egui::Pos2>, pointer: Option<egui::Pos2>, live: bool) -> (f32, f32) {
+    match (origin, pointer) {
+        (Some(origin), Some(pointer)) if live => (pointer.x - origin.x, pointer.y - origin.y),
+        _ => (0.0, 0.0),
+    }
 }
 
 /// Rename a keyword everywhere, merging when the new name is already in use.
@@ -17025,6 +17034,32 @@ mod tests {
         frame(&mut state, key(Key::Num2, egui::Modifiers::NONE));
         assert_eq!(engine_cell.borrow().photo(first).expect("photo").rating, 2, "2 rated the photo");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A swipe decides on the frame it is released, when egui has already cleared `dragged()`.
+    ///
+    /// The canvas used to read the offset only while `dragged()` was true, so a swipe painted its Keep or
+    /// Reject label under the finger and then staged nothing when the finger came up. The offset now comes
+    /// from the press point and the release position on the `drag_stopped()` frame too.
+    #[test]
+    fn a_cull_swipe_decides_on_the_release_frame() {
+        use sortlens_cull::gesture::{Gesture, classify};
+        let origin = pos2(700.0, 500.0);
+        assert_eq!(
+            classify(cull_drag_offset(Some(origin), Some(pos2(700.0, 300.0)), true)),
+            Gesture::Pick,
+            "an upward release keeps the photo"
+        );
+        assert_eq!(
+            classify(cull_drag_offset(Some(origin), Some(pos2(700.0, 700.0)), true)),
+            Gesture::Reject,
+            "a downward release rejects it"
+        );
+        assert_eq!(
+            cull_drag_offset(Some(origin), Some(pos2(700.0, 300.0)), false),
+            (0.0, 0.0),
+            "a settled pointer is not a drag"
+        );
     }
 
     /// The block under the cull canvas stays above the bottom bar, and the photograph gives way to it.

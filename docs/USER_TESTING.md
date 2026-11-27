@@ -85,9 +85,9 @@ the only copy of a photograph.
 
 ### Cull and compare
 
-- [ ] **UT-C01 Cull screen.** As a photographer I can start a cull and see one photo, the position, and the decision buttons. Pass: an empty library explains how to start, and a library with photos shows the first frame. Note:
-- [ ] **UT-C02 Keyboard decisions.** As a photographer I can pick, reject, defer, and undo from the keyboard. Pass: the session counts change and the file is not deleted yet. Note:
-- [ ] **UT-C03 Gestures.** As a photographer I can swipe a decision. Pass: the same decision as the key, with the overlay naming it. Note:
+- [x] **UT-C01 Cull screen.** As a photographer I can start a cull and see one photo, the position, and the decision buttons. Pass: an empty library explains how to start, and a library with photos shows the first frame. Note: `Start Cull` in Quick Actions on All Photos (306) opened the deck on `_GJM8786.NEF` with `Cull 1 of 306`, a four-frame Up next strip, and the Pick/Reject/Defer/Clear buttons beside End session and Summary; every row sat above the bottom bar.
+- [x] **UT-C02 Keyboard decisions.** As a photographer I can pick, reject, defer, and undo from the keyboard. Pass: the session counts change and the file is not deleted yet. Note: P took photo 1 to `1 picked` at `2 of 306`, X made `1 rejected` at `3 of 306`, and Space made `1 deferred` at `4 of 306`. ◀ stepped back to the rejected frame with its red `REJECT` badge, and U cleared it back to `0 rejected`. The sidebar still read All Photos 306 and Rejects 0, so nothing was written to disk.
+- [x] **UT-C03 Gestures.** As a photographer I can swipe a decision. Pass: the same decision as the key, with the overlay naming it. Note: a 180-point upward drag tinted the canvas green, named `Keep`, and landed a pick (`2 picked`, `6 of 306`); a downward drag named `Reject` in red and landed a rejection (`1 rejected`, `7 of 306`). Before the fix a swipe painted its label and then committed nothing, because egui clears `dragged()` on the release frame; the shell now classifies that frame from the press point too (`a_cull_swipe_decides_on_the_release_frame`).
 - [ ] **UT-C06 Up next.** As a photographer I can see the upcoming frames. Pass: the strip follows the session order. Note:
 - [ ] **UT-C07 Resume.** As a photographer I can leave a cull and come back to the same photo. Pass: relaunch restores the cursor and the unapplied decisions. Note:
 - [ ] **UT-C10 Apply.** As a photographer I can apply rejects and read the count, the size, and the warning before anything is removed. Pass: cancel leaves the files, and confirm moves only the rejects. Use a copy. Note:
@@ -237,3 +237,6 @@ Append one line per finished or blocked story. Do not rewrite history.
 | 2026-11-27 | UT-B22 | Pass — `Show in folder` opened Finder on `_GJM5426.NEF` with it selected, and `Open in default app` opened `_GJM5450.NEF` in Affinity. |
 | 2026-11-27 | UT-B23 | Pass — `?` opened the 43-binding overlay; a `⌘J` rebind on `Add a folder to the library` showed in both the overlay and the `⌘K` palette; `⌘O` was restored afterwards. |
 | 2026-11-27 | UT-B24 | Pass — Original, JPEG and PNG each stated their spec, wrote into the picked copy folder, and counted their files (2 NEFs, 2 JPEGs at 5568×3712, 1 PNG). |
+| 2026-11-27 | UT-C01 | Pass — Start Cull opened the deck on `_GJM8786.NEF` at `Cull 1 of 306` with a four-frame Up next strip and Pick/Reject/Defer/Clear beside End session and Summary, all above the bottom bar. |
+| 2026-11-27 | UT-C02 | Pass — P, X and Space moved the counts to 1 picked, 1 rejected and 1 deferred; ◀ showed the rejected frame with its REJECT badge and U cleared it to 0 rejected, while All Photos stayed 306 and Rejects 0. |
+| 2026-11-27 | UT-C03 | Pass — an upward swipe named `Keep` and a downward one named `Reject`, each landing the same decision as its key. Fixed the release frame committing nothing because egui had already cleared `dragged()`.
