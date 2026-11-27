@@ -326,7 +326,11 @@ mod tests {
             let embedded = &ico[offset..offset + length];
             let thumbnail =
                 sortlens_thumbs::decode_image(embedded, size).unwrap_or_else(|error| panic!("decode the {size} px entry: {error}"));
-            assert_eq!((thumbnail.width, thumbnail.height), (size, size), "the {size} px entry is that square");
+            assert_eq!(
+                (thumbnail.width, thumbnail.height),
+                (size, size),
+                "the {size} px entry is that square"
+            );
             assert!(thumbnail.is_consistent(), "the {size} px entry is a real image");
             let rendered = render(size as usize);
             let at = size as usize / 2;
