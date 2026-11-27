@@ -1597,6 +1597,21 @@ fn cancelled_notice(root: &str) -> String {
     crate::i18n::fmt("Cancelled indexing {folder}", &[("folder", &folder_name(root))])
 }
 
+/// Whether a pass is running that paints its own progress in the window.
+///
+/// Such a pass moves only if the window keeps asking for frames: egui repaints when something arrives, so
+/// without this the count under a measuring pass stands still while the work goes on. A pass over a real
+/// library takes minutes, and a number frozen at zero for that long reads as a hung app (UT-E01).
+fn a_pass_is_running(engine: &Engine) -> bool {
+    engine.is_scanning()
+        || engine.hash_progress().is_some()
+        || engine.sharpness_progress().is_some()
+        || engine.batch_progress().is_some()
+        || engine.insights_progress().is_some()
+        || engine.export_progress().is_some()
+        || engine.model_progress().is_some()
+}
+
 /// Draw the whole window.
 ///
 /// Returns host actions; the caller applies them and, for a theme change, persists the choice.
@@ -1645,7 +1660,7 @@ pub fn show(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, thumbs: &mut 
         state.notice(similar_groups_notice(engine.similar_groups().len()));
     }
     thumbs.poll(ui.ctx());
-    if engine.is_scanning() || engine.hash_progress().is_some() {
+    if a_pass_is_running(engine) {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(80));
     }
 
@@ -22079,6 +22094,52 @@ mod tests {
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A pass that paints progress has to keep the frames coming (UT-E01).
+    ///
+    /// The sharpness pass over this library ran for 168 seconds, and the window stood on `0 of 307` for
+    /// all of it: egui repaints on input, and the pass asked for nothing. The gate now names every pass
+    /// that paints a count, so the frame that paints it is the frame that asks for the next one.
+    #[test]
+    fn a_running_pass_keeps_the_window_repainting() {
+        // Its own folder: a shared path lets a parallel test delete this library mid-run.
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-busy-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-busy");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [60 * index as u8, 90, 160], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(engine.stats().total, 2, "the fixture scans its two photographs");
+        assert!(!a_pass_is_running(&engine), "an idle window asks for nothing");
+
+        engine.begin_sharpness().expect("the pass starts");
+        assert!(a_pass_is_running(&engine), "a measured library keeps the frames coming");
+        let report = (0..600)
+            .find_map(|_| {
+                if let Some(report) = engine.poll_sharpness() {
+                    Some(report)
+                } else {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                    None
+                }
+            })
+            .expect("the pass reports when it ends");
+        assert_eq!(report.measured, 2, "both photographs are judged");
+        assert!(!a_pass_is_running(&engine), "the pass' own end stops the repainting");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 
