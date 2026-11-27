@@ -11419,9 +11419,15 @@ fn tag_edit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut En
 }
 
 /// The quit guard: what would be lost, and the two ways out.
+///
+/// A press sets a flag the window reads after it has had its say, never `state.quit_open`: the
+/// closing line below writes that field from the window's own `open`, so a button that armed the
+/// state directly was overwritten by the line that closes the dialog — "Keep working" painted,
+/// took the click, and did nothing.
 fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, actions: &mut Vec<Action>) {
     let reasons = engine.unsaved_reasons();
     let mut open = state.quit_open;
+    let mut dismissed = false;
     dialog_window(tl!("Quit Sortlens?"))
         .open(&mut open)
         .resizable(false)
@@ -11435,18 +11441,21 @@ fn quit_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &Engine, ac
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if ui.button(RichText::new(tl!("Keep working")).size(12.0)).clicked() {
-                    state.quit_open = false;
+                    dismissed = true;
                 }
                 if ui
                     .button(RichText::new(tl!("Quit anyway")).size(12.0))
                     .on_hover_text(tl!("Close the window now; unstaged work is dropped"))
                     .clicked()
                 {
-                    state.quit_open = false;
+                    dismissed = true;
                     actions.push(Action::Quit);
                 }
             });
         });
+    if dismissed {
+        open = false;
+    }
     state.quit_open = open;
 }
 
@@ -22265,6 +22274,115 @@ mod tests {
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The guard's two answers both close it, and only one asks the window to quit.
+    ///
+    /// A press used to write `state.quit_open` straight from the button, and the guard's closing
+    /// line then wrote that field from the window's own `open` — so "Keep working" painted, took
+    /// the click, and changed nothing (found by the click-through pass, UT-H08).
+    #[test]
+    fn the_quit_guard_s_buttons_dismiss_it_and_only_one_quits() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-quit-buttons-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-quit-buttons");
+        std::fs::copy(fixture.jpeg("IMG_0001.jpg", [30, 60, 140], 64, 48), root.join("IMG_0001.jpg")).expect("copy");
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine
+            .page(&Filter::default(), Sort::Natural, 0, 10)
+            .photos
+            .iter()
+            .map(|photo| photo.id)
+            .collect();
+        engine.begin_cull(&ids).expect("cull");
+        engine.cull_decide(Decision::Pick);
+        assert_eq!(
+            engine.unsaved_reasons(),
+            vec![sortlens_engine::UnsavedReason::StagedCull { staged: 1 }]
+        );
+
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let input = |events: Vec<egui::Event>| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(900.0, 700.0))),
+            events,
+            ..egui::RawInput::default()
+        };
+        let paint = |state: &mut UiState, engine: &Engine, actions: &mut Vec<Action>, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| quit_dialog(ui, state, &tokens, engine, actions));
+            });
+            output.textures_delta.clear();
+            output
+        };
+        // A press is two frames, as the window delivers it: the pointer lands, then lets go.
+        let click = |state: &mut UiState, actions: &mut Vec<Action>, at: egui::Pos2| {
+            let button = |pressed: bool| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            paint(state, &engine, actions, input(vec![egui::Event::PointerMoved(at), button(true)]));
+            paint(state, &engine, actions, input(vec![egui::Event::PointerMoved(at), button(false)]));
+        };
+
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut actions: Vec<Action> = Vec::new();
+        state.quit_open = true;
+        // The first frame lays the dialog out; the second is the one a person sees and clicks.
+        paint(&mut state, &engine, &mut actions, input(Vec::new()));
+        let first = paint(&mut state, &engine, &mut actions, input(Vec::new()));
+        assert!(engine.has_unsaved(), "the staged pick is the reason the guard is up");
+        let keep = painted_at(&first.shapes, tl!("Keep working"))
+            .unwrap_or_else(|| panic!("the guard paints its way out; painted: {:?}", painted_texts(&first)));
+        click(&mut state, &mut actions, keep.center());
+        assert!(!state.quit_open, "Keep working closes the guard");
+        assert!(
+            !actions.iter().any(|action| matches!(action, Action::Quit)),
+            "and the window stays: {:?}",
+            actions
+        );
+
+        state.quit_open = true;
+        let again = paint(&mut state, &engine, &mut actions, input(Vec::new()));
+        let quit = painted_at(&again.shapes, tl!("Quit anyway")).expect("the other way out is painted");
+        click(&mut state, &mut actions, quit.center());
+        assert!(!state.quit_open, "Quit anyway closes the guard too");
+        assert!(
+            actions.iter().any(|action| matches!(action, Action::Quit)),
+            "and asks for the quit: {:?}",
+            actions
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Where a painted string sits, so a test can put the pointer on it.
+    fn painted_at(shapes: &[egui::epaint::ClippedShape], needle: &str) -> Option<Rect> {
+        fn walk(shape: &egui::Shape, needle: &str, found: &mut Option<Rect>) {
+            match shape {
+                egui::Shape::Text(text) if text.galley.text() == needle => {
+                    *found = Some(Rect::from_min_size(text.pos, text.galley.size()));
+                }
+                egui::Shape::Vec(inner) => inner.iter().for_each(|shape| walk(shape, needle, found)),
+                _ => {}
+            }
+        }
+        let mut found = None;
+        for clipped in shapes {
+            walk(&clipped.shape, needle, &mut found);
+        }
+        found
     }
 
     /// The quit guard speaks the interface language, from the engine's own pieces (SL-L07).
