@@ -51,7 +51,7 @@ L0  sortlens-core        ids, time, units, bytes, versioned errors
     sortlens-quality     sharpness score (unitless, versioned); exposure and clipping follow
     sortlens-export      export planning, collision policy, copy and re-encode
     sortlens-testkit     synthetic libraries, fixtures, assertions
-    sortlens-icon        the application mark, drawn in code for the window, the SVG and the .ico/.icns files
+    sortlens-icon        the application mark: one engraving for the window, the SVG, the PNG, and the .ico/.icns files
 ```
 
 Dependency rule: a crate may depend on strictly lower layers plus `craft-*` crates.
@@ -433,10 +433,12 @@ delete when the preflight plan and the executed count disagrees.
 - Status: bottom-centre toast HUD for confirmations; activity bell opens the job list with
   progress bars, cancel, and error detail.
 - The bar is the title bar when the frame is the app's (`craft-window`'s `Frame::Integrated`), so it draws
-  the window's minimize, maximize/restore and close glyphs at its far end; under a system title bar the OS
-  draws them and the shell draws none. The bar asks rather than commands: `Action::MinimizeWindow`,
-  `ToggleZoom` and `CloseWindow` go to the host, which sends the viewport commands. Close is the system close
-  request, not `Quit`, so the unsaved-changes guard runs first.
+  the window's minimize, maximize/restore and close glyphs at its far end, in that order left to right; under
+  a system title bar the OS draws them and the shell draws none. The bar is also what the window is moved
+  by — the strip it covers drags it, and a double press zooms it — because an undecorated frame has no title
+  strip of its own to take hold of. The bar asks rather than commands: `Action::BeginWindowDrag`,
+  `Action::MinimizeWindow`, `ToggleZoom` and `CloseWindow` go to the host, which sends the viewport
+  commands. Close is the system close request, not `Quit`, so the unsaved-changes guard runs first.
 - Empty states are first-class: every view has a title, one sentence, and 1–2 primary buttons
   that run real commands.
 - Destructive dialogs are in-app (themeable, testable, screenshot-able), not native message
@@ -1202,8 +1204,8 @@ snapshot-update job. Sonar or `cargo-mutants` optional for the catalog crate.
   opens a socket even though the crate's client code is linked.
 - Icons: our own SVG set (40 monochrome glyphs in `assets/icons/`, prepared by
   `craft_ui::icons::SvgIconSet` and rasterised by `egui_extras`' SVG loader — the one image loader this
-  app links), one brand icon in `assets/` whose geometry in `sortlens-icon` is rendered three ways — the
-  window RGBA, the committed SVG, and the committed `assets/icon.ico` / `assets/icon.icns` packaging
+  app links), one brand icon in `assets/` whose engraving in `sortlens-icon` is rendered three ways — the
+  window RGBA, the committed SVG and PNG, and the committed `assets/icon.ico` / `assets/icon.icns` packaging
   files that `cargo xtask icons` checks (`--update` rewrites) and the `sortlens-icon` tests hold to the
   drawing byte for byte.
 - Manifest: `ai.storyteller`-style reverse-DNS id per ArtCraft convention, app name

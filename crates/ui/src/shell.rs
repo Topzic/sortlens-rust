@@ -269,6 +269,9 @@ pub enum Action {
     SetTheme(ThemeKind),
     /// Close the window, flushing settings first.
     Quit,
+    /// The bar was dragged, so the window should move with the pointer from here. The app-drawn frame
+    /// leaves the window undecorated, and the strip the system would have dragged is the bar itself.
+    BeginWindowDrag,
     /// The bar's own minimize button. Only the host can press it: the window is the host's.
     MinimizeWindow,
     /// The bar's zoom button: maximize the window, or restore it when it already is.
@@ -1952,6 +1955,26 @@ fn dismiss_top_window(state: &mut UiState) -> bool {
 }
 
 fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
+    // A window whose frame the app draws has no system title strip, so the bar is the only part of it
+    // a person can take hold of, and without this the window cannot be put anywhere on the screen.
+    //
+    // The drag area is laid down *before* the bar's widgets and covers the strip entire, so it sits
+    // under all of them. That order is what keeps the search field working: a text field selects with
+    // the same drag the bar uses to move the window, and the layout hands a drag to the widget added
+    // last. Everything drawn after this point still answers its own click.
+    if state.captions {
+        let room = ui.available_rect_before_wrap();
+        let strip = Rect::from_min_size(room.min, vec2(room.width(), state.title_bar_h.unwrap_or(t.top_bar_h)));
+        let bar = ui.interact(strip, ui.scope_id().with("title_bar_drag"), Sense::click_and_drag());
+        if bar.drag_started() {
+            actions.push(Action::BeginWindowDrag);
+        }
+        // Two presses on a title strip make the window as large as the screen, or put it back: the
+        // gesture these systems teach, asked of the host through the button that already does it.
+        if bar.double_clicked() {
+            actions.push(Action::ToggleZoom);
+        }
+    }
     egui::Panel::top("top_bar")
         .exact_size(state.title_bar_h.unwrap_or(t.top_bar_h))
         .frame(Frame::NONE.fill(t.chrome).inner_margin(Margin::symmetric(10, 0)))
@@ -2084,9 +2107,12 @@ fn caption_buttons(ui: &mut Ui, t: &Tokens, actions: &mut Vec<Action>) -> [egui:
     let spacing = ui.spacing().item_spacing.x;
     ui.spacing_mut().item_spacing.x = 2.0;
     let maximized = ui.input(|input| input.viewport().maximized).unwrap_or(false);
-    let minimize = caption_button(ui, t, Caption::Minimize, "Minimize", maximized);
-    let zoom = caption_button(ui, t, Caption::Zoom, if maximized { "Restore" } else { "Maximize" }, maximized);
+    // Close first, which the trailing layout paints last: the bar reads minimize, maximize, close from
+    // left to right, which is where every window of these systems keeps them. Adding minimize first
+    // put the three in macOS's order on a frame that had already said it was not macOS.
     let close = caption_button(ui, t, Caption::Close, "Close", maximized);
+    let zoom = caption_button(ui, t, Caption::Zoom, if maximized { "Restore" } else { "Maximize" }, maximized);
+    let minimize = caption_button(ui, t, Caption::Minimize, "Minimize", maximized);
     ui.spacing_mut().item_spacing.x = spacing;
     if minimize.clicked() {
         actions.push(Action::MinimizeWindow);
@@ -2288,16 +2314,16 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32
 
 /// The app mark, registered once per process and painted at the top-left.
 ///
-/// The bytes come from `sortlens-icon`, the crate the window icon is generated from, so the tile, the
-/// stack of prints and the lens are the same drawing in both places.
+/// The bytes come from `sortlens-icon`, the crate the window icon is generated from, so the bar and
+/// the window show one engraving.
 fn app_mark(ui: &mut Ui, size: f32) {
     use std::sync::OnceLock;
     static MARK: OnceLock<(String, egui::load::Bytes)> = OnceLock::new();
     let (uri, bytes) = MARK.get_or_init(|| {
-        let svg = sortlens_icon::svg();
+        let png = sortlens_icon::png();
         (
-            "bytes://sortlens/app-mark.svg".to_string(),
-            std::sync::Arc::<[u8]>::from(svg.into_bytes()).into(),
+            "bytes://sortlens/app-mark.png".to_string(),
+            std::sync::Arc::<[u8]>::from(png).into(),
         )
     });
     ui.ctx().include_bytes(uri.clone(), bytes.clone());
@@ -3623,6 +3649,9 @@ const FOOT_INSET: Margin = Margin {
 
 fn sidebar_foot(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, actions: &mut Vec<Action>) {
     egui::Panel::bottom("sidebar_foot")
+        // The strip draws its own hairline below; a panel also paints a separator line along its fixed
+        // edge, which put a second rule eight points above the first, over one row of utilities.
+        .show_separator_line(false)
         .resizable(false)
         .exact_size(sidebar_foot_height(ui.spacing()))
         .frame(Frame::NONE.fill(t.panel).inner_margin(FOOT_INSET))
@@ -12944,10 +12973,14 @@ mod tests {
         let frame = |input: egui::RawInput, actions: &mut Vec<Action>, seen: &mut Vec<(String, Rect)>| {
             let mut output = ctx.run_ui(input, |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    for button in caption_buttons(ui, &t, actions) {
-                        let label = ui.ctx().accesskit_node_builder(button.id, |node| node.label().map(str::to_owned));
-                        seen.push((label.flatten().unwrap_or_default(), button.rect));
-                    }
+                    // The shape the bar lays them out in: a trailing row, where the button added
+                    // first is the one read last.
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        for button in caption_buttons(ui, &t, actions) {
+                            let label = ui.ctx().accesskit_node_builder(button.id, |node| node.label().map(str::to_owned));
+                            seen.push((label.flatten().unwrap_or_default(), button.rect));
+                        }
+                    });
                 });
             });
             output.textures_delta.clear();
@@ -12959,6 +12992,19 @@ mod tests {
             labels,
             vec!["Minimize", "Maximize", "Close"],
             "each button says what it does, in the order those systems use"
+        );
+        // Where they are, not only what they say: the bar is a trailing layout, so the three are
+        // added in the reverse of the order they read, and adding minimize first put them in
+        // macOS's order on a frame that had already said it was not macOS.
+        let at = |label: &str| {
+            seen.iter()
+                .find(|(painted, _)| painted == label)
+                .map(|(_, rect)| rect.left())
+                .expect("a labelled button")
+        };
+        assert!(
+            at("Minimize") < at("Maximize") && at("Maximize") < at("Close"),
+            "minimize, maximize, close from left to right: {seen:?}"
         );
         let close = seen.last().map(|(_, rect)| *rect).unwrap_or(Rect::NOTHING);
         assert!(close.width() > 0.0, "close is on the bar");
@@ -12985,6 +13031,76 @@ mod tests {
         assert!(
             !actions.iter().any(|action| matches!(action, Action::Quit)),
             "and not for a quit that says the guard was already answered"
+        );
+    }
+
+    /// The bar is the window's handle: the app draws the frame, so there is no system title strip
+    /// to drag, and a bar that ignores the pointer leaves a window nobody can put anywhere.
+    ///
+    /// The claim is the request the shell makes, not the move itself: `StartDrag` is the host's to
+    /// send, and a window with a system frame is the system's to move.
+    #[test]
+    fn the_bar_drags_the_window_it_draws() {
+        let t = Tokens::CHARCOAL;
+        // An empty stretch of the bar, between the library's name and the search field.
+        let at = pos2(420.0, 16.0);
+        let gestures = |captions: bool, double: bool| {
+            let ctx = egui::Context::default();
+            let engine = std::cell::RefCell::new(Engine::new());
+            let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+            state.captions = captions;
+            let mut actions = Vec::new();
+            let mut time = 0.0;
+            let mut frame = |events: Vec<egui::Event>| {
+                time += 0.05;
+                let mut input = bar_input();
+                input.time = Some(time);
+                input.events = events;
+                let mut output = ctx.run_ui(input, |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        top_bar(ui, &mut state, &t, &mut engine.borrow_mut(), &mut actions);
+                    });
+                });
+                output.textures_delta.clear();
+            };
+            let button = |pressed: bool, pos: egui::Pos2| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            frame(vec![egui::Event::PointerMoved(at)]);
+            if double {
+                // Two presses in a row, inside the double-click delay the bar's own widgets use.
+                for _ in 0..2 {
+                    frame(vec![button(true, at)]);
+                    frame(vec![button(false, at)]);
+                }
+            } else {
+                let moved = at + vec2(24.0, 0.0);
+                frame(vec![button(true, at)]);
+                frame(vec![egui::Event::PointerMoved(moved)]);
+                frame(vec![button(false, moved)]);
+            }
+            actions
+        };
+        let dragged = gestures(true, false);
+        assert!(
+            dragged.iter().any(|action| matches!(action, Action::BeginWindowDrag)),
+            "the bar asked the window to move: {dragged:?}"
+        );
+        assert!(
+            !dragged.iter().any(|action| matches!(action, Action::ToggleZoom)),
+            "a drag is not a double click: {dragged:?}"
+        );
+        assert!(
+            gestures(false, false).is_empty(),
+            "a window with a system title strip keeps its own move"
+        );
+        let zoomed = gestures(true, true);
+        assert!(
+            zoomed.iter().any(|action| matches!(action, Action::ToggleZoom)),
+            "two presses on the bar make the window as large as the screen: {zoomed:?}"
         );
     }
 
@@ -19732,6 +19848,26 @@ mod tests {
                 "{rect:?} was painted outside the {clip:?} it was clipped to — the foot does not fit"
             );
         }
+        // Between the last section and the first utility there is one rule, not two: the strip
+        // paints its own hairline, and the panel it sits in also painted a separator line along its
+        // fixed edge, eight points above it.
+        fn rules(shape: &egui::Shape, out: &mut Vec<Rect>) {
+            match shape {
+                egui::Shape::LineSegment { points, .. } => {
+                    let run = (points[0].x - points[1].x).abs();
+                    let fall = (points[0].y - points[1].y).abs();
+                    if fall < 0.5 && run > 100.0 {
+                        out.push(Rect::from_two_pos(points[0], points[1]));
+                    }
+                }
+                egui::Shape::Vec(inner) => inner.iter().for_each(|shape| rules(shape, out)),
+                _ => {}
+            }
+        }
+        let mut painted_rules = Vec::new();
+        for clipped in &output.shapes {
+            rules(&clipped.shape, &mut painted_rules);
+        }
         let lowest_section = sidebar
             .iter()
             .filter(|(rect, _)| !column.contains_rect(*rect))
@@ -19744,6 +19880,19 @@ mod tests {
             lowest_section < column.min.y - 10.0,
             "the sections stop above the foot (lowest {lowest_section} vs foot top {})",
             column.min.y
+        );
+        let first_utility = in_foot.iter().map(|rect| rect.top()).fold(f32::INFINITY, f32::min);
+        let between: Vec<Rect> = painted_rules
+            .into_iter()
+            .filter(|rule| {
+                let y = rule.center().y;
+                y > lowest_section && y < first_utility && rule.right() <= t.left_w
+            })
+            .collect();
+        assert_eq!(
+            between.len(),
+            1,
+            "one hairline separates the sections from the utilities: {between:?}"
         );
 
         let _ = std::fs::remove_dir_all(&dir);

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/icon.svg" width="72" height="72" alt="">
+  <img src="assets/icon.png" width="72" height="72" alt="Sortlens">
   <h1>Sortlens</h1>
   <p><strong>Cull thousands of photos. Keep everything local. Lose nothing.</strong></p>
   <p>

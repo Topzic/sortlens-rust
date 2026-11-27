@@ -120,9 +120,9 @@ way, because a checksum of something else is worse than no checksum.
 
 ## The icon
 
-The mark is drawn in `crates/icon`: `rgba()` is rendered by `apps/sortlens/build.rs` into the window icon and
-`svg()` is the committed `assets/icon.svg`. A test holds the file to the drawing (`SORTLENS_UPDATE_ICON=1`
-rewrites it when the mark changes on purpose). The packaging files are generated from the same drawing too:
+The mark is the engraving in `crates/icon`: `rgba()` is rendered by `apps/sortlens/build.rs` into the window icon, and
+`svg()` and `png()` are the committed `assets/icon.svg` and `assets/icon.png`. A test holds the files to that picture (`SORTLENS_UPDATE_ICON=1`
+rewrites them when the mark changes on purpose). The packaging files are generated from the same pixels:
 `assets/icon.ico` carries PNG entries at 16–256 px for Windows and `assets/icon.icns` carries the 32–512 px
 PNG slots macOS reads, both checked byte-for-byte by the `sortlens-icon` tests and regenerable with
 `cargo xtask icons --update`. What still does not exist is the installer and bundle work that would consume

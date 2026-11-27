@@ -120,7 +120,7 @@ Appearance.
 
 | Element | Behaviour | Command |
 | --- | --- | --- |
-| App mark + name | The mark is `sortlens-icon`'s own geometry, painted at 16 px, then the product name and the library label | — (the mark is not a menu yet) |
+| App mark + name | The mark is `sortlens-icon`'s engraving, painted at 16 px, then the product name and the library label | — (the mark is not a menu yet) |
 | Search field | Typing filters photos by name; the command key switches the same field to command mode; the hint teaches that key only while the field is wide enough to hold it (`Search photos or Ctrl+K` on Windows, `Search photos or ⌘K` on a Mac, then `Search photos`, then `Search`), and the field is measured from the hint so the words are never cut | feeds `library.page` |
 | Command palette | Grouped by the command registry's own groups (Library, Review, Organise, View, App, Help), each row printing the shortcut the registry declares; `↑/↓` moves, `Enter` runs, `Esc` returns to photo search with its text untouched. A row that cannot run right now (nothing selected, nothing staged) says why in a notice | every row is a `Ready` registry command |
 | Filter button + badge | Toggles the filter bar; the badge is the live active-filter count and is painted onto the button, so the bar never reflows | shell state; the count is `UiState::active_filter_count` |

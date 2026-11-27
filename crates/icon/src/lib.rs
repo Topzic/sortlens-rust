@@ -1,144 +1,79 @@
-//! The application icon, drawn in code.
+//! The application icon.
 //!
-//! There was an `assets/icon.svg` and nothing loaded it — the kind of asset that looks finished in a file
-//! listing and is missing everywhere a user meets the app. This crate is the one place the mark is
-//! defined: `rgba` renders it to pixels for the window, `svg` renders the same geometry for the committed
-//! file, and `ico` and `icns` pack fresh renders of it into the committed Windows and macOS packaging
-//! files (`cargo xtask icons` rewrites those two; `cargo xtask icons` without `--update` checks them).
-//! A test holds all three committed files to the drawing, so neither can drift into a description of
-//! something else.
-//!
-//! No dependency and no compressor: the PNG writer emits stored deflate blocks, which is several hundred
-//! kilobytes for one 512 px image but is byte-identical on every machine and crate version. An icon is
-//! written once at build time, and determinism is worth more here than a small file.
+//! The mark is the engraved aperture in [`MARK`]: one mountain seen through the blades, on an indigo
+//! tile. `rgba` is those pixels, `png` and `svg` are the same pixels for the window and for the file a
+//! person can open, and `ico` and `icns` pack fresh reductions of them into the committed packaging
+//! files (`cargo xtask icons` rewrites those two; without `--update` it checks them). A test holds the
+//! committed files to these bytes, so none of them can drift into a different picture.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::todo, clippy::unimplemented)]
 
-/// Edge length of the raster, big enough for the largest slot any desktop asks for.
+/// Edge length of the master raster, big enough for the largest slot any desktop asks for.
 pub const SIZE: usize = 512;
 
-/// Samples per axis per pixel. Four is enough that a rounded corner reads as a curve at 32 px.
-const SAMPLES: usize = 4;
-
-/// The corner radius of the tile, as a fraction of its edge.
-const TILE_RADIUS: f64 = 0.22;
-
-/// One painted rectangle: position and size as fractions of the tile, then a colour.
-type Shape = (f64, f64, f64, f64, [u8; 3]);
-
-/// The mark: three stacked prints on a dark rounded tile, a red lens on the front one.
-///
-/// Coordinates are fractions of the tile so the raster and the SVG cannot disagree about where anything
-/// is. The stack is the product in one picture: a library of frames, and the one you are deciding about on
-/// top.
-fn mark() -> Vec<Shape> {
-    let tile = [28_u8, 28, 31];
-    let mut shapes: Vec<Shape> = vec![(0.0, 0.0, 1.0, 1.0, tile)];
-    shapes.push((0.20, 0.20, 0.52, 0.52, [126, 124, 120]));
-    shapes.push((0.26, 0.26, 0.52, 0.52, [206, 203, 196]));
-    shapes.push((0.32, 0.32, 0.52, 0.52, [242, 240, 235]));
-    shapes.push((0.58, 0.58, 0.17, 0.17, [198, 46, 46]));
-    shapes
-}
+/// The engraved aperture, RGBA8, [`SIZE`] on a side, top row first. The rounded corners are
+/// transparent; everything else is the tile.
+const MARK: &[u8] = include_bytes!("mark.rgba");
 
 /// A one-line description, used as the SVG's accessible name.
-pub const DESCRIPTION: &str = "Sortlens icon: dark rounded tile, three stacked prints, red lens on the front one";
+pub const DESCRIPTION: &str = "Sortlens icon: an engraved aperture on an indigo tile, one mountain in the opening";
 
-/// Render the mark to RGBA8, `SIZE × SIZE`, top row first.
+/// The mark at [`SIZE`], RGBA8, top row first.
 #[must_use]
 pub fn rgba() -> Vec<u8> {
-    render(SIZE)
+    MARK.to_vec()
 }
 
-/// Render the mark at any square edge length, RGBA8, top row first.
+/// The mark at any square edge length, RGBA8, top row first.
 ///
-/// The geometry is defined in fractions of the tile, so there is one drawing and every size is a
-/// fresh render of it — not a resample of a larger raster, which is how a curve becomes a stair.
+/// Smaller sizes are an area average of the master, so a 16 px tile is the same picture as the
+/// window icon and not a second drawing.
 #[must_use]
 pub fn render(size: usize) -> Vec<u8> {
-    let shapes = mark();
-    let mut pixels = vec![0_u8; size * size * 4];
+    if size == 0 {
+        return Vec::new();
+    }
+    if size == SIZE {
+        return rgba();
+    }
+    let mut out = vec![0_u8; size * size * 4];
     for y in 0..size {
+        let y0 = y * SIZE / size;
+        let y1 = ((y + 1) * SIZE / size).max(y0 + 1).min(SIZE);
         for x in 0..size {
-            let mut sum = [0.0_f64; 4];
-            for sy in 0..SAMPLES {
-                for sx in 0..SAMPLES {
-                    let px = (x as f64 + (sx as f64 + 0.5) / SAMPLES as f64) / size as f64;
-                    let py = (y as f64 + (sy as f64 + 0.5) / SAMPLES as f64) / size as f64;
-                    if let Some(colour) = sample(px, py, &shapes) {
-                        sum[0] += f64::from(colour[0]);
-                        sum[1] += f64::from(colour[1]);
-                        sum[2] += f64::from(colour[2]);
-                        sum[3] += 255.0;
+            let x0 = x * SIZE / size;
+            let x1 = ((x + 1) * SIZE / size).max(x0 + 1).min(SIZE);
+            let mut sum = [0_u32; 4];
+            let mut count = 0_u32;
+            for sy in y0..y1 {
+                for sx in x0..x1 {
+                    let index = (sy * SIZE + sx) * 4;
+                    for channel in 0..4 {
+                        sum[channel] += u32::from(MARK[index + channel]);
                     }
+                    count += 1;
                 }
             }
-            let samples = (SAMPLES * SAMPLES) as f64;
-            let coverage = sum[3] / (255.0 * samples);
             let index = (y * size + x) * 4;
-            if coverage > 0.0 {
-                // Average the colour over covered samples only, so a half-covered edge is not half dark.
-                for channel in 0..3 {
-                    pixels[index + channel] = (sum[channel] / (coverage * samples)).round().clamp(0.0, 255.0) as u8;
-                }
+            for channel in 0..4 {
+                out[index + channel] = u8::try_from(sum[channel] / count).unwrap_or(0);
             }
-            pixels[index + 3] = (coverage * 255.0).round().clamp(0.0, 255.0) as u8;
         }
     }
-    pixels
-}
-
-/// The topmost shape covering a point, or `None` where the tile has been rounded away.
-fn sample(x: f64, y: f64, shapes: &[Shape]) -> Option<[u8; 3]> {
-    if !inside_rounded(x, y, 0.0, 0.0, 1.0, 1.0, TILE_RADIUS) {
-        return None;
-    }
-    let mut colour = None;
-    for (left, top, width, height, fill) in shapes {
-        // The prints share the tile's corner language, a little tighter.
-        if inside_rounded(x, y, *left, *top, *width, *height, TILE_RADIUS * 0.55) {
-            colour = Some(*fill);
-        }
-    }
-    colour
-}
-
-/// Whether a point is inside a rounded rectangle, with the radius clamped to half the short side.
-fn inside_rounded(x: f64, y: f64, left: f64, top: f64, width: f64, height: f64, radius: f64) -> bool {
-    if x < left || y < top || x > left + width || y > top + height {
-        return false;
-    }
-    let radius = radius.min(width / 2.0).min(height / 2.0);
-    if radius <= 0.0 {
-        return true;
-    }
-    let cx = x.clamp(left + radius, left + width - radius);
-    let cy = y.clamp(top + radius, top + height - radius);
-    let (dx, dy) = (x - cx, y - cy);
-    dx * dx + dy * dy <= radius * radius
+    out
 }
 
 /// The same mark as `assets/icon.svg`, for the file a human can open.
+///
+/// The picture is the PNG, carried inside the SVG, so the file shows the engraving rather than a
+/// second drawing of it.
 #[must_use]
 pub fn svg() -> String {
-    let mut svg = format!("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" role=\"img\" aria-label=\"{DESCRIPTION}\">\n");
-    for (index, (left, top, width, height, fill)) in mark().iter().enumerate() {
-        let radius = if index == 0 { TILE_RADIUS } else { TILE_RADIUS * 0.55 };
-        svg.push_str(&format!(
-            "  <rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"{:.1}\" fill=\"#{:02x}{:02x}{:02x}\"/>\n",
-            left * 100.0,
-            top * 100.0,
-            width * 100.0,
-            height * 100.0,
-            radius * 100.0,
-            fill[0],
-            fill[1],
-            fill[2]
-        ));
-    }
-    svg.push_str("</svg>\n");
-    svg
+    format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {SIZE} {SIZE}\" role=\"img\" aria-label=\"{DESCRIPTION}\">\n  <image width=\"{SIZE}\" height=\"{SIZE}\" href=\"data:image/png;base64,{}\"/>\n</svg>\n",
+        base64(&png())
+    )
 }
 
 /// A PNG of the rendered mark: RGBA8, one filter byte per row, a zlib stream of stored blocks.
@@ -211,6 +146,34 @@ pub fn icns() -> Vec<u8> {
     out
 }
 
+fn base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    let mut index = 0;
+    while index + 3 <= bytes.len() {
+        let value = (u32::from(bytes[index]) << 16) | (u32::from(bytes[index + 1]) << 8) | u32::from(bytes[index + 2]);
+        for shift in [18, 12, 6, 0] {
+            out.push(TABLE[((value >> shift) & 0x3f) as usize] as char);
+        }
+        index += 3;
+    }
+    let rest = bytes.len() - index;
+    if rest == 1 {
+        let value = u32::from(bytes[index]) << 16;
+        out.push(TABLE[((value >> 18) & 0x3f) as usize] as char);
+        out.push(TABLE[((value >> 12) & 0x3f) as usize] as char);
+        out.push('=');
+        out.push('=');
+    } else if rest == 2 {
+        let value = (u32::from(bytes[index]) << 16) | (u32::from(bytes[index + 1]) << 8);
+        out.push(TABLE[((value >> 18) & 0x3f) as usize] as char);
+        out.push(TABLE[((value >> 12) & 0x3f) as usize] as char);
+        out.push(TABLE[((value >> 6) & 0x3f) as usize] as char);
+        out.push('=');
+    }
+    out
+}
+
 fn png_of(width: u32, height: u32, pixels: &[u8]) -> Vec<u8> {
     let mut raw = Vec::with_capacity(height as usize * (1 + width as usize * 4));
     for row in 0..height as usize {
@@ -276,53 +239,47 @@ mod tests {
 
     use super::*;
 
-    /// The committed SVG is this drawing, not a file someone edited once.
+    /// The committed SVG and the readme's PNG are this picture, not files someone edited once.
     ///
-    /// The window icon is generated at build time from `rgba()`, so the SVG is the only copy on disk that
-    /// could go stale — and the way to find out is to compare it, not to trust that it was regenerated.
-    /// `SORTLENS_UPDATE_ICON=1` rewrites the file when the mark changes on purpose; CI runs it without.
+    /// `SORTLENS_UPDATE_ICON=1` rewrites them when the mark changes on purpose; CI runs it without.
     #[test]
     fn the_committed_svg_is_the_drawing() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/icon.svg");
-        if std::env::var("SORTLENS_UPDATE_ICON").is_ok_and(|value| value == "1") {
-            std::fs::write(&path, svg()).expect("rewrite assets/icon.svg");
+        let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
+        let update = std::env::var("SORTLENS_UPDATE_ICON").is_ok_and(|value| value == "1");
+        let svg_path = assets.join("icon.svg");
+        let png_path = assets.join("icon.png");
+        if update {
+            std::fs::write(&svg_path, svg()).expect("rewrite assets/icon.svg");
+            std::fs::write(&png_path, png()).expect("rewrite assets/icon.png");
             return;
         }
-        let on_disk = std::fs::read_to_string(&path).expect("assets/icon.svg");
+        let on_disk = std::fs::read_to_string(&svg_path).expect("assets/icon.svg");
         assert_eq!(
             on_disk,
             svg(),
-            "assets/icon.svg no longer matches the drawing: SORTLENS_UPDATE_ICON=1 cargo test -p sortlens-icon"
+            "assets/icon.svg no longer matches the mark: SORTLENS_UPDATE_ICON=1 cargo test -p sortlens-icon"
+        );
+        let png_on_disk = std::fs::read(&png_path).expect("assets/icon.png");
+        assert_eq!(
+            png_on_disk,
+            png(),
+            "assets/icon.png no longer matches the mark: SORTLENS_UPDATE_ICON=1 cargo test -p sortlens-icon"
         );
     }
 
-    /// The PNG really is a PNG, and a decoder that was not written for it can read it.
+    /// The PNG really is a PNG, and a decoder that was not written for it reads the engraving back.
     #[test]
     fn the_window_icon_decodes_to_the_mark() {
         let thumbnail = sortlens_thumbs::decode_image(&png(), SIZE as u32).expect("decode");
         assert_eq!((thumbnail.width, thumbnail.height), (SIZE as u32, SIZE as u32));
         assert!(thumbnail.is_consistent());
-        let pixel = |x: usize, y: usize| {
-            let index = (y * SIZE + x) * 4;
-            [
-                thumbnail.rgba[index],
-                thumbnail.rgba[index + 1],
-                thumbnail.rgba[index + 2],
-                thumbnail.rgba[index + 3],
-            ]
-        };
-        assert_eq!(pixel(2, 2)[3], 0, "the rounded corner is transparent");
-        assert_eq!(pixel(SIZE / 2, SIZE / 2), [242, 240, 235, 255], "the front print");
-        // The lens sits at 58% + half of 17%, which is where the red has to be.
-        let lens = (0.665 * SIZE as f64) as usize;
-        assert_eq!(pixel(lens, lens), [198, 46, 46, 255], "the lens");
+        assert_eq!(thumbnail.rgba, rgba(), "the PNG is the master raster");
+        assert_eq!(thumbnail.rgba[3], 0, "the rounded corner is transparent");
+        let center = (SIZE / 2 * SIZE + SIZE / 2) * 4;
+        assert_eq!(thumbnail.rgba[center + 3], 255, "the aperture is opaque");
     }
 
-    /// The committed packaging icons are this drawing too, not files someone dropped in once.
-    ///
-    /// `assets/icon.ico` and `assets/icon.icns` are generated bytes, exactly like the SVG; the same
-    /// env var rewrites them when the mark changes on purpose, and CI runs the test without it, so a
-    /// stale packaging file fails the suite instead of shipping a mark nobody drew.
+    /// The committed packaging icons are this picture too, not files someone dropped in once.
     #[test]
     fn the_committed_packaging_icons_are_the_drawing() {
         let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets");
@@ -335,14 +292,14 @@ mod tests {
                 let on_disk = std::fs::read(&path).unwrap_or_else(|error| panic!("read {name}: {error}"));
                 assert_eq!(
                     on_disk, bytes,
-                    "assets/{name} no longer matches the drawing: SORTLENS_UPDATE_ICON=1 cargo test -p sortlens-icon"
+                    "assets/{name} no longer matches the mark: SORTLENS_UPDATE_ICON=1 cargo test -p sortlens-icon"
                 );
             }
         }
     }
 
     /// The `.ico` parses as an ICONDIR whose entries are the sizes a Windows desktop asks for, and
-    /// every embedded PNG decodes to exactly that square of the drawing.
+    /// every embedded PNG decodes to exactly that square of the mark.
     #[test]
     fn the_ico_carries_one_png_per_desktop_size() {
         let ico = ico();
@@ -369,20 +326,15 @@ mod tests {
             let embedded = &ico[offset..offset + length];
             let thumbnail =
                 sortlens_thumbs::decode_image(embedded, size).unwrap_or_else(|error| panic!("decode the {size} px entry: {error}"));
-            assert_eq!(
-                (thumbnail.width, thumbnail.height),
-                (size, size),
-                "the {size} px entry is that square"
-            );
+            assert_eq!((thumbnail.width, thumbnail.height), (size, size), "the {size} px entry is that square");
             assert!(thumbnail.is_consistent(), "the {size} px entry is a real image");
-            // 40% of the tile is the front print at every size, clear of the lens (58%+) and of
-            // every corner radius, so this one pixel proves the entry is the drawing, not noise.
-            let at = (0.40 * f64::from(size)) as usize;
+            let rendered = render(size as usize);
+            let at = size as usize / 2;
             let index = (at * size as usize + at) * 4;
             assert_eq!(
                 &thumbnail.rgba[index..index + 4],
-                &[242, 240, 235, 255],
-                "the {size} px entry is the front print at 40% of the tile"
+                &rendered[index..index + 4],
+                "the {size} px entry is the aperture, not another picture"
             );
             offset += length;
         }
@@ -412,12 +364,13 @@ mod tests {
                 "{name} is the {expected} px slot"
             );
             assert!(thumbnail.is_consistent(), "{name} is a real image");
-            let at = (0.40 * f64::from(expected)) as usize;
+            let rendered = render(expected as usize);
+            let at = expected as usize / 2;
             let index = (at * expected as usize + at) * 4;
             assert_eq!(
                 &thumbnail.rgba[index..index + 4],
-                &[242, 240, 235, 255],
-                "{name} is the front print at 40% of the tile"
+                &rendered[index..index + 4],
+                "{name} is the aperture, not another picture"
             );
             seen.push(name.to_string());
             offset += length;
@@ -435,7 +388,7 @@ mod tests {
         assert_eq!(icns(), icns());
     }
 
-    /// A square, opaque in the middle, transparent at the corners: the shape, not just a colour.
+    /// A square, opaque in the middle, transparent at the corners: the tile, not a filled rectangle.
     #[test]
     fn the_icon_is_square_and_rounded() {
         let pixels = rgba();
@@ -443,6 +396,6 @@ mod tests {
         let alpha = |x: usize, y: usize| pixels[(y * SIZE + x) * 4 + 3];
         assert_eq!(alpha(0, 0), 0);
         assert_eq!(alpha(SIZE - 1, SIZE - 1), 0);
-        assert_eq!(alpha(SIZE / 2, 4), 255, "the top edge, away from the corners");
+        assert_eq!(alpha(SIZE / 2, 24), 255, "the top of the tile, away from the corners");
     }
 }
