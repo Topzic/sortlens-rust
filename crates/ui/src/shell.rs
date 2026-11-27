@@ -4399,6 +4399,8 @@ struct PhotoMenuActions {
     reveal: bool,
     open_external: bool,
     add_to: Option<sortlens_core::CollectionId>,
+    /// `Some(None)` clears the colour; the outer option keeps "nothing asked" apart from "clear".
+    label: Option<Option<sortlens_core::ColorLabel>>,
 }
 
 /// The Add to Collection submenu: every collection, or one line saying there are none yet.
@@ -4416,7 +4418,7 @@ fn add_to_collection_menu(ui: &mut Ui, collections: &[sortlens_engine::Collectio
     }
 }
 
-/// A photo cell's context menu: export, reveal, open elsewhere, then add to a collection.
+/// A photo cell's context menu: export, reveal, open elsewhere, a colour label, then add to a collection.
 ///
 /// One function rather than a closure so a test can paint the menu without a mouse, and so its words and
 /// the actions they set stay in the same place.
@@ -4446,9 +4448,50 @@ fn photo_menu(ui: &mut Ui, collections: &[sortlens_engine::Collection], actions:
         ui.close();
     }
     ui.separator();
+    // The palette the folder and collection menus carry, so a label can be set and cleared from the
+    // menu as well as the 6-9 keys — and so Purple, which has no key, is reachable at all.
+    ui.menu_button(tl!("Colour"), |ui| colour_menu(ui, actions));
     ui.menu_button(tl!("Add to Collection"), |ui| {
         add_to_collection_menu(ui, collections, actions);
     });
+}
+
+/// The Colour submenu: no label, then the five the inspector and the filter chip use.
+///
+/// Its own function for the same reason the collection picker has one: a test can paint every row
+/// without a mouse opening a submenu, and the words cannot drift from the shell's `colour_word`.
+fn colour_menu(ui: &mut Ui, actions: &mut PhotoMenuActions) {
+    if ui.button(tl!("None")).clicked() {
+        actions.label = Some(None);
+        ui.close();
+    }
+    for label in sortlens_core::ColorLabel::ALL {
+        if ui.button(colour_word(label)).clicked() {
+            actions.label = Some(Some(label));
+            ui.close();
+        }
+    }
+}
+
+/// The batch writes one cell's context menu asked for, performed after the grid is painted.
+///
+/// One struct rather than two out-parameters because the grid already takes as many arguments as
+/// it can carry, and the next menu row that writes should not need a new one at every layer.
+#[derive(Default)]
+struct CellRequests {
+    add_to: Option<(PhotoId, sortlens_core::CollectionId)>,
+    label: Option<(Vec<PhotoId>, Option<sortlens_core::ColorLabel>)>,
+}
+
+/// Which photos a colour chosen from one cell's menu lands on: the whole selection when that cell
+/// is part of it, and that one photo when it is not. Right-clicking an unselected cell must not
+/// recolour five photos elsewhere in the grid.
+fn menu_label_targets(state: &UiState, photo: PhotoId) -> Vec<PhotoId> {
+    if state.selection.contains(photo) {
+        state.selection.ids()
+    } else {
+        vec![photo]
+    }
 }
 
 /// What a click, a modifier-click, a double-click and the context menu mean on one cell.
@@ -4463,7 +4506,7 @@ fn cell_gestures(
     response: &egui::Response,
     filter: &Filter,
     actions: &mut Vec<Action>,
-    add_to: &mut Option<(PhotoId, sortlens_core::CollectionId)>,
+    requests: &mut CellRequests,
 ) {
     if response.clicked() {
         // Three gestures, three meanings: click replaces, ⌘-click toggles, and ⇧-click takes the run from the
@@ -4502,7 +4545,10 @@ fn cell_gestures(
             actions.push(Action::OpenExternal(photo.id));
         }
         if let Some(collection) = menu.add_to {
-            *add_to = Some((photo.id, collection));
+            requests.add_to = Some((photo.id, collection));
+        }
+        if let Some(colour) = menu.label {
+            requests.label = Some((menu_label_targets(state, photo.id), colour));
         }
     });
 }
@@ -4712,7 +4758,7 @@ fn square_grid(
     thumbs: &mut Thumbnails,
     filter: &Filter,
     actions: &mut Vec<Action>,
-    add_to: &mut Option<(PhotoId, sortlens_core::CollectionId)>,
+    requests: &mut CellRequests,
 ) -> Rect {
     let gap = t.grid_gap;
     let (columns, cell) = grid_layout(ui.available_width(), gap, state.density.min_cell());
@@ -4741,7 +4787,7 @@ fn square_grid(
                                 let selected = state.selection.contains(photo.id);
                                 let response = photo_cell(ui, t, photo, selected, cell, caption, thumbs);
                                 painted_rects.push((photo.id, response.rect));
-                                cell_gestures(ui, state, engine, photo, &response, filter, actions, add_to);
+                                cell_gestures(ui, state, engine, photo, &response, filter, actions, requests);
                             }
                             None => {
                                 let (_, response) = ui.allocate_exact_size(vec2(cell, cell + caption), Sense::hover());
@@ -4772,7 +4818,7 @@ fn justified_grid(
     thumbs: &mut Thumbnails,
     filter: &Filter,
     actions: &mut Vec<Action>,
-    add_to: &mut Option<(PhotoId, sortlens_core::CollectionId)>,
+    requests: &mut CellRequests,
 ) -> Rect {
     let gap = t.grid_gap;
     let width = ui.available_width();
@@ -4819,7 +4865,7 @@ fn justified_grid(
                         let selected = state.selection.contains(photo.id);
                         let response = photo_cell_sized(ui, t, photo, selected, vec2(wanted, row.height), CAPTION, thumbs, Fit::Contain);
                         painted_rects.push((photo.id, response.rect));
-                        cell_gestures(ui, state, engine, photo, &response, filter, actions, add_to);
+                        cell_gestures(ui, state, engine, photo, &response, filter, actions, requests);
                     }
                 });
                 ui.add_space(gap);
@@ -4839,15 +4885,21 @@ fn grid(
     filter: &Filter,
     actions: &mut Vec<Action>,
 ) {
-    let mut add_to: Option<(PhotoId, sortlens_core::CollectionId)> = None;
+    let mut requests = CellRequests::default();
     let grid_rect = match state.grid_mode {
-        GridMode::Square => square_grid(ui, t, state, engine, thumbs, filter, actions, &mut add_to),
-        GridMode::Justified => justified_grid(ui, t, state, engine, thumbs, filter, actions, &mut add_to),
+        GridMode::Square => square_grid(ui, t, state, engine, thumbs, filter, actions, &mut requests),
+        GridMode::Justified => justified_grid(ui, t, state, engine, thumbs, filter, actions, &mut requests),
     };
     marquee(ui, state, t, grid_rect);
-    if let Some((photo, collection)) = add_to {
+    if let Some((photo, collection)) = requests.add_to {
         match engine.add_to_collection(&[photo], collection) {
             Ok(_) => state.notice(tl!("Added to collection")),
+            Err(error) => state.notice_problem(error.to_string()),
+        }
+    }
+    if let Some((targets, colour)) = requests.label {
+        match engine.label(&targets, colour) {
+            Ok(_) => state.notice(label_notice(colour, targets.len())),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -19169,8 +19221,11 @@ mod tests {
         let photo_texts = paint_menu(&ctx, |ui| photo_menu(ui, &no_collections, &mut photo_english));
         assert_painted(
             &photo_texts,
-            &["Export…", "Show in folder", "Open in default app", "Add to Collection"],
+            &["Export…", "Show in folder", "Open in default app", "Colour", "Add to Collection"],
         );
+        let mut colour_english = PhotoMenuActions::default();
+        let colour_texts = paint_menu(&ctx, |ui| colour_menu(ui, &mut colour_english));
+        assert_painted(&colour_texts, &["None", "Red", "Yellow", "Green", "Blue", "Purple"]);
         let mut empty_english = PhotoMenuActions::default();
         let empty_texts = paint_menu(&ctx, |ui| add_to_collection_menu(ui, &no_collections, &mut empty_english));
         assert_painted(&empty_texts, &["No collections yet"]);
@@ -19179,6 +19234,8 @@ mod tests {
                 && !photo_english.reveal
                 && !photo_english.open_external
                 && photo_english.add_to.is_none()
+                && photo_english.label.is_none()
+                && colour_english.label.is_none()
                 && empty_english.add_to.is_none(),
             "painting a photo menu acts on nothing"
         );
@@ -19223,7 +19280,7 @@ mod tests {
         let photo_texts = paint_menu(&ctx, |ui| photo_menu(ui, &no_collections, &mut photo_arabic));
         assert_painted(
             &photo_texts,
-            &["تصدير…", "إظهار في المجلد", "افتح في التطبيق الافتراضي", "أضف إلى مجموعة"],
+            &["تصدير…", "إظهار في المجلد", "افتح في التطبيق الافتراضي", "اللون", "أضف إلى مجموعة"],
         );
         assert!(
             !photo_texts.iter().any(|text| {
@@ -19234,6 +19291,9 @@ mod tests {
             }),
             "no English photo row is left: {photo_texts:?}"
         );
+        let mut colour_arabic = PhotoMenuActions::default();
+        let colour_texts = paint_menu(&ctx, |ui| colour_menu(ui, &mut colour_arabic));
+        assert_painted(&colour_texts, &["بلا", "أحمر", "أصفر", "أخضر", "أزرق", "بنفسجي"]);
         let mut empty_arabic = PhotoMenuActions::default();
         let empty_texts = paint_menu(&ctx, |ui| add_to_collection_menu(ui, &no_collections, &mut empty_arabic));
         assert_painted(&empty_texts, &["لا مجموعات بعد"]);
@@ -19242,11 +19302,25 @@ mod tests {
                 && !photo_arabic.reveal
                 && !photo_arabic.open_external
                 && photo_arabic.add_to.is_none()
+                && colour_arabic.label.is_none()
                 && empty_arabic.add_to.is_none(),
             "painting the Arabic photo menu acts on nothing"
         );
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+    }
+
+    /// The Colour row acts on what the person is looking at: the selection when the cell is part of
+    /// it, and that one photo when it is not. Right-clicking an unselected cell must not recolour a
+    /// selection somewhere else in the grid.
+    #[test]
+    fn a_colour_from_a_cell_lands_on_the_selection_or_that_photo() {
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.replace(PhotoId(2));
+        state.selection.toggle(PhotoId(5));
+        assert_eq!(menu_label_targets(&state, PhotoId(2)), vec![PhotoId(2), PhotoId(5)]);
+        assert_eq!(menu_label_targets(&state, PhotoId(5)), vec![PhotoId(2), PhotoId(5)]);
+        assert_eq!(menu_label_targets(&state, PhotoId(7)), vec![PhotoId(7)]);
     }
 
     /// The sources ask different questions, and each one is the whole question rather than a nudge.
