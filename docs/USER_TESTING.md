@@ -45,14 +45,14 @@ the only copy of a photograph.
 
 ### Library
 
-- [ ] **UT-A01 Add a folder.** As a photographer I can add a folder from the sidebar and see its photos in the grid without the files moving. Pass: the folder row appears, its count matches the photos shown, and a notice names the index. Note:
-- [ ] **UT-A02 Several folders.** As a photographer I can add a second folder and browse all photos, then one folder at a time. Pass: both rows show their own counts, and scoping one folder hides the other. Note:
-- [ ] **UT-A03 Subfolders.** As a photographer I can open a folder and walk into a subfolder, then back up. Pass: the canvas title is the folder's own name, and Up one level returns to the parent. Note:
-- [ ] **UT-A04 Counts.** As a photographer I can trust the number beside a folder, a source, and a collection after I rate or reject a photo. Pass: the count changes on the next frame and matches the grid. Note:
-- [ ] **UT-A05 Pin a folder.** As a photographer I can pin a folder from its menu and see it as a favourite. Pass: the pin survives a relaunch. Note:
-- [ ] **UT-A06 Folder colour.** As a photographer I can set a folder's colour and see the dot on its row. Pass: the colour is the same swatch the photo labels use. Note:
-- [ ] **UT-A07 Folder search.** As a photographer I can type part of a folder name and see only the matching rows. Pass: clearing the field restores the full list. Note:
-- [ ] **UT-A08 Folder sort.** As a photographer I can sort folders by name, count, and date. Pass: the order changes and is still right after a relaunch. Note:
+- [x] **UT-A01 Add a folder.** As a photographer I can add a folder from the sidebar and see its photos in the grid without the files moving. Pass: the folder row appears, its count matches the photos shown, and a notice names the index. Note:
+- [x] **UT-A02 Several folders.** As a photographer I can add a second folder and browse all photos, then one folder at a time. Pass: both rows show their own counts, and scoping one folder hides the other. Note:
+- [x] **UT-A03 Subfolders.** As a photographer I can open a folder and walk into a subfolder, then back up. Pass: the canvas title is the folder's own name, and Up one level returns to the parent. Note:
+- [x] **UT-A04 Counts.** As a photographer I can trust the number beside a folder, a source, and a collection after I rate or reject a photo. Pass: the count changes on the next frame and matches the grid. Note:
+- [x] **UT-A05 Pin a folder.** As a photographer I can pin a folder from its menu and see it as a favourite. Pass: the pin survives a relaunch. Note:
+- [x] **UT-A06 Folder colour.** As a photographer I can set a folder's colour and see the dot on its row. Pass: the colour is the same swatch the photo labels use. Note:
+- [ ] **UT-A07 Folder search.** As a photographer I can type part of a folder name and see only the matching rows. Pass: clearing the field restores the full list. Note: blocked: the FOLDERS header has no search control in the window; SL-A07 is roadmap work, not a control to test.
+- [ ] **UT-A08 Folder sort.** As a photographer I can sort folders by name, count, and date. Pass: the order changes and is still right after a relaunch. Note: blocked: the FOLDERS header has no sort control (only the canvas sort combo); SL-A08 is roadmap work.
 - [ ] **UT-A13 Missing photos.** As a photographer I can open Missing and see a photo whose file is gone. Pass: the row says the file is missing, and a present photo is not in the list. Note:
 - [ ] **UT-A14 Sources.** As a photographer I can switch All Photos, Recently Added, Picks, Rated, and Rejects. Pass: each row's grid is that set, and All Photos clears the scope. Note:
 - [ ] **UT-A15 Rejects bin.** As a photographer I can open the rejects bin, read a batch, restore it, and see the photos return. Pass: restore puts the files back and the batch leaves the bin. Use a copy. Note:
@@ -186,3 +186,9 @@ Append one line per finished or blocked story. Do not rewrite history.
 
 | Date | Story | Result |
 | --- | --- | --- |
+| 2026-11-26 | UT-A01 | Pass — added ~/Pictures (27 photos, 1 unreadable); folder row showed 27, the grid showed 27, and the notice named the index. |
+| 2026-11-26 | UT-A02 | Pass — Pictures 27 and sortlens-ut-a02 5 both listed their own counts; scoping Pictures showed 27 and hid the 5. |
+| 2026-11-26 | UT-A03 | Pass — breadcrumb read Pictures › Sortlens Demo with 27 photos; Up one level returned to Pictures at 27. |
+| 2026-11-26 | UT-A04 | Pass — set a photo to 2 stars from the bottom-bar stars; Rated went 0 → 1 and opening Rated showed exactly that one photo (header 1 photo, 1 shown). |
+| 2026-11-26 | UT-A05 | Pass — right-click Pictures → Add to favourites put a star before its name and a “Pinned to the top” notice; the star was still there after a relaunch. |
+| 2026-11-26 | UT-A06 | Pass — right-click Pictures → Colour → Yellow put a yellow dot beside the star and the notice read “Pinned and yellow”; the menu offered None, Red, Yellow, Green, Blue and Purple, the label palette. |
