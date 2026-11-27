@@ -10,29 +10,33 @@ is the order a person walks them.
 
 ## How a pass runs
 
-One story per wake. Feature stories come first, in the order written. Interface stories start
-only after every feature story is checked or recorded as blocked.
+One wake walks several stories. A click that passes is short, so the wake keeps going. Feature
+stories come first, in the order written. Interface stories start only after every feature story
+is checked or recorded as blocked. The next wake starts again at the first story that is still
+unchecked.
 
-1. Read this file and take the first unchecked feature story. Do not start a second one.
+1. `git fetch` before editing so this file is the latest one on `main`. Other agents work in
+   this repository. This pass does not take the plan loop's lease and does not ship a roadmap slice.
 2. Launch the desktop app if it is not already showing a window: `cargo run -p sortlens`.
    Use a real library with photographs in it. If the machine has none, add one small folder of
    the owner's photos and say which folder. Do not invent a second app, and do not drive this
    through a browser. The window is a native egui app.
-3. Do the clicks and keystrokes in the story. Look at the window after each one. A pass needs
-   the control to be reachable, the result to be the one the story names, and the screen to
-   still match `docs/UX.md` (nothing clipped, overlapping, or left in English by accident).
-4. If it fails, fix the smallest change that makes this story pass. Re-run the same story in
-   the window. Repeat until it passes or you are blocked by something this repository cannot
-   supply (a device, Xcode, an Apple identity, a screen reader). A blocked story stays
-   unchecked, with the blocker written in its note.
-5. When it passes, change `- [ ]` to `- [x]` and append one line to the log: the date, the
-   story id, and what the window showed.
-6. A story whose feature `docs/ROADMAP.md` lists as backlog, or as waiting on something outside
-   the repository, is not built in this pass. Write `blocked: <reason>` in its note and move to
-   the next story on the following wake. Do not check it off.
-7. Leave the working tree as the fix. Commit a finished story on the current branch only when
-   the change is a real fix and the gates that change requires are green (`cargo xtask ci`, and
-   `cargo xtask screenshots` when `crates/ui` changed). Do not push from a wake.
+3. Take the next unchecked story. Do the clicks and keystrokes. Look at the window after each
+   one. A pass needs the control to be reachable, the result to be the one the story names, and
+   the screen to still match `docs/UX.md` (nothing clipped, overlapping, or left in English by
+   accident).
+4. When it passes, change `- [ ]` to `- [x]` and append one line to the log: the date, the
+   story id, and what the window showed. Then take the next story in the same wake.
+5. A story whose feature `docs/ROADMAP.md` lists as backlog, or as waiting on something outside
+   the repository, is not built in this pass. Write `blocked: <reason>` in its note, leave the
+   box unchecked, and continue with the next story.
+6. If a story fails, errors, or needs a code change, stop the walk. Fix the smallest change
+   that makes that story pass, and try it again in the window. When the gates that change
+   requires are green (`cargo xtask ci`, and `cargo xtask screenshots` when `crates/ui`
+   changed), commit the fix and the checklist on the current branch, push, and end the wake.
+   Do not start another story after a fix.
+7. If the wake only checked stories and changed no code, commit the checklist and push that
+   too, so the next wake does not repeat them, then end. A blocked story is not a fix.
 
 Destructive stories (delete, empty the rejects bin, apply a cull) use a copy of a folder, never
 the only copy of a photograph.
