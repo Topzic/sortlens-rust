@@ -1966,6 +1966,10 @@ fn top_bar(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
         let room = ui.available_rect_before_wrap();
         let strip = Rect::from_min_size(room.min, vec2(room.width(), state.title_bar_h.unwrap_or(t.top_bar_h)));
         let bar = ui.interact(strip, ui.scope_id().with("title_bar_drag"), Sense::click_and_drag());
+        // A drag surface that names nothing is a blank rectangle to a screen reader, and this one is the
+        // only way the window moves: it registers the role the platform gives a strip you take hold of,
+        // and says what taking hold of it does.
+        crate::a11y::label_widget(ui, &bar, egui::Role::TitleBar, "Move the window", false);
         if bar.drag_started() {
             actions.push(Action::BeginWindowDrag);
         }
