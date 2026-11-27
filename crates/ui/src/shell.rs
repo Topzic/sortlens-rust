@@ -8584,7 +8584,11 @@ struct PinScene<'a> {
 /// The shapes are drawn at the radius [`places::dot_at`] hit-tests, so tapping aims at what was seen.
 fn paint_places_pins(ui: &mut Ui, t: &Tokens, state: &UiState, engine: &Engine, thumbs: &mut Thumbnails, scene: PinScene<'_>) {
     let painter = ui.painter_at(scene.map);
-    for (index, dot) in scene.dots.iter().enumerate() {
+    // Clicking prefers the largest dot, so paint it last: the disc the pointer will open is the disc on top.
+    let mut order: Vec<usize> = (0..scene.dots.len()).collect();
+    order.sort_by(|a, b| scene.dots[*a].radius.total_cmp(&scene.dots[*b].radius));
+    for index in order {
+        let dot = &scene.dots[index];
         let cluster = &scene.clusters[dot.cluster];
         let selected = cluster.members.iter().any(|id| state.selection.contains(*id));
         let scale = if scene.hovered == Some(index) { 1.07 } else { 1.0 };
