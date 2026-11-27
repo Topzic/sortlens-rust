@@ -208,6 +208,7 @@ mod tests {
             include_str!("sharpness.rs"),
             include_str!("charts.rs"),
             include_str!("a11y.rs"),
+            include_str!("places.rs"),
         ];
         let mut keys: Vec<String> = Vec::new();
         for source in sources {

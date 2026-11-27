@@ -1156,3 +1156,5 @@
 	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	{path} không có nguồn trong bảng siêu dữ liệu; hãy thêm một hàng `attribution`, hoặc ghi nguồn và giấy phép của các ô bản đồ vào {attribution} bên cạnh
 	{path} is not an MBTiles archive: {reason}	{path} không phải là kho lưu trữ MBTiles: {reason}
 	{path} has no tiles in its `tiles` table, so there is nothing to draw	{path} không có ô bản đồ nào trong bảng `tiles`, nên không có gì để vẽ
+	Selected {n} photo(s) near {name} ({coordinates})	Đã chọn {n} ảnh gần {name} ({coordinates})
+	Selected {n} photo(s) at {coordinates}	Đã chọn {n} ảnh tại {coordinates}

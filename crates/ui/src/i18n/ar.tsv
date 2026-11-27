@@ -1157,3 +1157,5 @@
 	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	لا يحتوي {path} على نسبة في جدول بياناته الوصفية؛ أضف صفًا باسم `attribution`، أو اكتب نسبة البلاطات ورخصتها في {attribution} بجانبه
 	{path} is not an MBTiles archive: {reason}	{path} ليس أرشيف MBTiles: {reason}
 	{path} has no tiles in its `tiles` table, so there is nothing to draw	لا يحتوي {path} على بلاطات في جدول `tiles`، لذا لا يوجد ما يُرسم
+	Selected {n} photo(s) near {name} ({coordinates})	حُدّدت {n} صورة قرب {name} ({coordinates})
+	Selected {n} photo(s) at {coordinates}	حُدّدت {n} صورة عند {coordinates}

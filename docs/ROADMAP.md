@@ -791,9 +791,12 @@ remap a moved drive; run the wizard on a clean machine.
     outlives its file puts names on a map whose authority the person deleted — and a missing file is *not* reported as
     a fault, because most libraries have none and a red line for that teaches people to ignore red lines.
   - `places::LABEL_KM` (30 km) decides how much slack a match gets; `place_label` returns `None` rather than a guess;
-    `selection_notice` has two forms — "Selected 42 photo(s) near Brighton (50.82N 0.14W)" and "Selected 1 photo(s) at
-    25.00N 40.00W" — written as one function so the named and unnamed forms cannot drift, and both say the coordinate
-    so a name is never mistaken for a finer resolution than the file has.
+    `selection_notice` has two catalogue templates — "Selected {n} photo(s) near {name} ({coordinates})" and
+    "Selected {n} photo(s) at {coordinates}" — written as one function so the named and unnamed forms cannot drift, and
+    both say the coordinate so a name is never mistaken for a finer resolution than the file has. The count and the
+    coordinate are values, the latter through `format::decimal`, so English keeps "Selected 42 photo(s) near Brighton
+    (50.82N 0.14W)" byte for byte and an Arabic map reads the same notice in its own words and digits.
+    `the_places_click_notice_speaks_the_interface_language` holds both (hundred-and-seventy-seventh entry).
   - A dot with a name prints it below the dot; the footer states whether names are in use (`Named from places.txt ·
     N place(s)`) or why they are not.
   - Tests: the file reader (good, missing, too large via a sparse file, empty), the naming rule over named/unnamed and
@@ -984,8 +987,10 @@ and none of M9 is closed until the remaining rows are ticked.
   the counts are templates — so a Japanese map reads `位置情報のある写真 3 枚 · 1 地点` and an Arabic one
   writes `٣ صورة بموقع`. The tile refusal's own sentence followed (hundred-and-seventy-sixth entry): the
   shell words each of `TileError`'s eight faults from its variant through `fmt`, so an Arabic frame reads
-  `تعذّرت قراءة /photos/tiles: denied` where it read the crate's English. What stays English on that view is
-  the click notice and the map's assistive name, which the row does not count as painted chrome.
+  `تعذّرت قراءة /photos/tiles: denied` where it read the crate's English. The click notice followed
+  (hundred-and-seventy-seventh entry): both of its forms are catalogue templates with the count and the
+  coordinate as values, so an Arabic map reads its own sentence and digits while English keeps its bytes.
+  What stays English on that view is the map's assistive name, which the row does not count as painted chrome.
   The Detail view followed (hundred-and-first entry): its `Nothing selected` state and `Back to the grid`
   button, the `Previous`/`Next` controls, `Lookahead`, the keyboard hint and the zoom/compare row
   (`Fit  Z`, `1:1  Z`, `Swap  S`, `Close compare  C`, `Compare  C`) are catalogue rows, and its position
@@ -1539,9 +1544,12 @@ The widget sweep followed (hundred-and-seventy-third entry):
   notices, the library, backup and sync notices, the suggestion pass through remove-root, and the
   server supervision's refusals — with the host's own listing test, so what the shell sweeps do not
   read is that crate's notices and its listing is what holds them. The Places click notice
-  (`places::selection_notice`) is the last painted English family named here; after it, the
-  whole-source audit that reads `crates/ui/src` and `apps/sortlens/src` is what can tick the row.
-  SL-L07 stays unticked until that audit passes.
+  (`places::selection_notice`) was the last painted English family named here: it is two catalogue
+  templates now (hundred-and-seventy-seventh entry), the count and the coordinate placeholders in the
+  reader's digits, English byte for byte. **Proved to bite:** with the function back on its two
+  `format!` literals the Arabic frame paints `Selected 3 photo(s) at …`. What the row still names is
+  the map's assistive name; beyond that, the whole-source audit that reads `crates/ui/src` and
+  `apps/sortlens/src` is what can tick the row. SL-L07 stays unticked until that audit passes.
 - [x] Localised numbers/dates (B) — SL-L08 — **done 2026-11-25** (Phase 4 item 2e): `crates/ui/src/format.rs`
   writes the shell's counts, file sizes and dates the way the interface language writes them — English
   keeps its Latin digits, thin-space grouping and ISO date exactly, Japanese groups with commas and

@@ -14930,6 +14930,106 @@ mod tests {
         crate::i18n::set_current(english);
     }
 
+    /// The Places click notice speaks the interface language (SL-L07).
+    ///
+    /// A clicked dot leaves a receipt built by two `format!` literals, so an Arabic map read
+    /// `Selected 3 photo(s) at 33.87S 151.21E`. Both sentences are catalogue rows with the count, the
+    /// place and the coordinate as values; English is byte-identical to the sentence it painted, and an
+    /// Arabic frame paints its own words and digits with no English behind it.
+    #[test]
+    fn the_places_click_notice_speaks_the_interface_language() {
+        let english = crate::i18n::from_code("en").expect("English is offered");
+        crate::i18n::set_current(english);
+        let brighton = sortlens_geo::LatLon {
+            lat: 50.8225,
+            lon: -0.1372,
+        };
+        let sydney = sortlens_geo::LatLon {
+            lat: -33.8688,
+            lon: 151.2093,
+        };
+        assert_eq!(
+            places::selection_notice(42, brighton, Some("Brighton")),
+            "Selected 42 photo(s) near Brighton (50.82N 0.14W)",
+            "English keeps the sentence the dot has always left"
+        );
+        assert_eq!(places::selection_notice(3, sydney, None), "Selected 3 photo(s) at 33.87S 151.21E");
+
+        // Arabic words the sentence itself and writes the count and the coordinate in its digits.
+        crate::i18n::set_current(crate::i18n::from_code("ar").expect("Arabic is offered"));
+        let arabic = places::selection_notice(3, sydney, None);
+        assert!(arabic.contains('٣'), "the count is the reader's digits: {arabic}");
+        assert!(!arabic.contains("Selected") && !arabic.contains("photo"), "{arabic}");
+
+        // The receipt is painted by the bell, the sink every notice uses. The mark-insensitive
+        // comparison is the one the catalogue's bidi isolates require.
+        let plain = |text: &str| -> String {
+            text.chars()
+                .filter(|ch| !matches!(ch, '\u{2066}' | '\u{2067}' | '\u{2068}' | '\u{2069}'))
+                .collect()
+        };
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.bell_open = true;
+        state.notices.push_back(Notice {
+            text: places::selection_notice(3, sydney, None),
+            kind: NoticeKind::Info,
+            at: std::time::Instant::now(),
+            read: true,
+        });
+        let paint = |ctx: &egui::Context, state: &mut UiState| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0))),
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        bell_popover(ui, state, &tokens);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+        let _ = paint(&ctx, &mut state);
+        let arabic_frame: Vec<String> = painted_texts(&paint(&ctx, &mut state))
+            .into_iter()
+            .map(|text| plain(&text))
+            .collect();
+        assert!(
+            arabic_frame
+                .iter()
+                .any(|text| text.contains("حُدّدت") && text.contains('٣') && text.contains("١٥١٫٢١")),
+            "the Arabic receipt is not painted: {arabic_frame:?}"
+        );
+        assert!(
+            !arabic_frame.iter().any(|text| text.contains("Selected")),
+            "English is still painted in Arabic: {arabic_frame:?}"
+        );
+
+        // English keeps its bytes on the frame too.
+        crate::i18n::set_current(english);
+        state.notices.clear();
+        state.notices.push_back(Notice {
+            text: places::selection_notice(3, sydney, None),
+            kind: NoticeKind::Info,
+            at: std::time::Instant::now(),
+            read: true,
+        });
+        let _ = paint(&ctx, &mut state);
+        let english_frame: Vec<String> = painted_texts(&paint(&ctx, &mut state))
+            .into_iter()
+            .map(|text| plain(&text))
+            .collect();
+        assert!(
+            english_frame.iter().any(|text| text == "Selected 3 photo(s) at 33.87S 151.21E"),
+            "the English receipt moved: {english_frame:?}"
+        );
+        crate::i18n::set_current(english);
+    }
+
     /// A click on a dot selects that dot's photographs, all of them, and a click on the map does not clear anything.
     ///
     /// Real pointer events through `run_ui`: the map is found by the rectangle the view fills with the grid colour, so

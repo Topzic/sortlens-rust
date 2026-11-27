@@ -1156,3 +1156,5 @@
 	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	{path} 의 메타데이터 테이블에 저작자 표시가 없습니다. `attribution` 행을 추가하거나 옆의 {attribution} 에 타일의 저작자 표시와 라이선스를 적어 주세요
 	{path} is not an MBTiles archive: {reason}	{path} 은(는) MBTiles 아카이브가 아닙니다: {reason}
 	{path} has no tiles in its `tiles` table, so there is nothing to draw	{path} 의 `tiles` 테이블에 타일이 없어 그릴 것이 없습니다
+	Selected {n} photo(s) near {name} ({coordinates})	{name} 근처 사진 {n}장을 선택했습니다 ({coordinates})
+	Selected {n} photo(s) at {coordinates}	{coordinates}의 사진 {n}장을 선택했습니다

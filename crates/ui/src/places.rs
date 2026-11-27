@@ -628,19 +628,28 @@ pub fn place_label(gazetteer: &sortlens_geo::Gazetteer, at: LatLon) -> Option<&s
 /// What the notice says when a dot is clicked.
 ///
 /// Written as one function so the two forms cannot drift: a named dot says where it is by name and a coordinate, an
-/// unnamed one says the coordinate alone rather than pretending to know a place.
+/// unnamed one says the coordinate alone rather than pretending to know a place. Both sentences are catalogue rows
+/// with the count, the name and the coordinate as values, so a reader's language places them and writes its own
+/// digits; English is byte-identical to the sentence this function used to build.
 #[must_use]
 pub fn selection_notice(count: usize, at: LatLon, name: Option<&str>) -> String {
     let coordinates = format!(
-        "{:.2}{} {:.2}{}",
-        at.lat.abs(),
+        "{}{} {}{}",
+        crate::format::decimal(at.lat.abs(), 2),
         if at.lat >= 0.0 { 'N' } else { 'S' },
-        at.lon.abs(),
+        crate::format::decimal(at.lon.abs(), 2),
         if at.lon >= 0.0 { 'E' } else { 'W' }
     );
+    let digits = crate::i18n::count(count as u64);
     match name {
-        Some(name) => format!("Selected {count} photo(s) near {name} ({coordinates})"),
-        None => format!("Selected {count} photo(s) at {coordinates}"),
+        Some(name) => crate::i18n::fmt(
+            "Selected {n} photo(s) near {name} ({coordinates})",
+            &[("n", &digits), ("name", name), ("coordinates", &coordinates)],
+        ),
+        None => crate::i18n::fmt(
+            "Selected {n} photo(s) at {coordinates}",
+            &[("n", &digits), ("coordinates", &coordinates)],
+        ),
     }
 }
 

@@ -1156,3 +1156,5 @@
 	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	{path} 的中繼資料表沒有來源；請新增 `attribution` 列，或在旁邊的 {attribution} 寫下圖磚的來源與授權
 	{path} is not an MBTiles archive: {reason}	{path} 不是 MBTiles 封存檔：{reason}
 	{path} has no tiles in its `tiles` table, so there is nothing to draw	{path} 的 `tiles` 表沒有圖磚，因此沒有東西可繪製
+	Selected {n} photo(s) near {name} ({coordinates})	已選取 {name} 附近的 {n} 張相片（{coordinates}）
+	Selected {n} photo(s) at {coordinates}	已選取位於 {coordinates} 的 {n} 張相片

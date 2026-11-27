@@ -1157,3 +1157,5 @@
 	{path} has no attribution in its metadata table; add an `attribution` row, or write the tiles' credit and licence into {attribution} beside it	{path} のメタデータテーブルに出典がありません。`attribution` 行を追加するか、隣の {attribution} にタイルのクレジットとライセンスを書いてください
 	{path} is not an MBTiles archive: {reason}	{path} は MBTiles アーカイブではありません: {reason}
 	{path} has no tiles in its `tiles` table, so there is nothing to draw	{path} の `tiles` テーブルにタイルがないため、描画するものがありません
+	Selected {n} photo(s) near {name} ({coordinates})	{name} 付近の写真を {n} 枚選択しました ({coordinates})
+	Selected {n} photo(s) at {coordinates}	{coordinates} の写真を {n} 枚選択しました

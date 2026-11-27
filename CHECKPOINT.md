@@ -1,5 +1,48 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-seventh) — a clicked dot's receipt speaks the interface language
+
+- **Why it came up.** The hundred-and-seventy-sixth entry's Next named `places::selection_notice`, the
+  last painted English family the SL-L07 row names. The `CI` run for `b29b56a` (`45909181409`) was
+  green at STEP 1b, so this was a roadmap slice rather than a repair.
+- **What is routed.** `crates/ui/src/places.rs`: both forms — `Selected {n} photo(s) near {name}
+  ({coordinates})` and `Selected {n} photo(s) at {coordinates}` — are catalogue rows. The count goes
+  through `i18n::count` and each coordinate through `format::decimal`, so an Arabic map clicks a dot
+  and reads `حُدّدت ٣ صورة عند ٣٣٫٨٧S ١٥١٫٢١E` where it read Latin digits, and the compass letters
+  `N`/`S`/`E`/`W` stay the international convention. Two rows per catalogue (12 in all). English is
+  byte-identical: `Selected 42 photo(s) near Brighton (50.82N 0.14W)`, so no committed scene moves.
+- **The test.** `the_places_click_notice_speaks_the_interface_language` holds both English sentences
+  byte for byte, words the unnamed form in Arabic, paints the receipt through `bell_popover` at
+  700×500 and asserts the frame carries the Arabic sentence with Arabic-Indic digits and no
+  `Selected` behind it, then paints English and asserts the exact sentence. **Proved to bite:** with
+  the function back on its two `format!` literals the Arabic frame paints
+  `Selected 3 photo(s) at ٣٣٫٨٧S ١٥١٫٢١E` and the test fails there.
+- **Gates.** `cargo fmt --all`; `cargo xtask ci` exit 0 with every step ok (fmt, workspace clippy, the
+  whole suite, `layers`, `roots`, `assets`, `fonts`, `version`, `attribution`, `a11y`, `docs`,
+  `templates`, `workflows`); `cargo xtask snapshot` 5 passed. `cargo xtask deny` fails on this
+  checkout for an environment reason: the advisory-DB fetch writes macOS AppleDouble `._*` files into
+  the exFAT volume at `.toolchain/cargo/advisory-dbs`, which cargo-deny then reads as invalid UTF-8
+  (`._RUSTSEC-2024-0362.md`); with those removed, `cargo deny --offline check` reports *advisories ok,
+  bans ok, licenses ok, sources ok*, and CI's Linux `deny` job is the proof. `cargo xtask screenshots`
+  fails 23 of 30 scenes on this Mac with 105–255 differing pixels each — including scenes this slice
+  cannot reach (`empty_welcome`, `shortcuts`) — while the committed baselines are untouched
+  (`git status` is clean under `tests/snapshots`), so the mismatch is the machine's renderer and fonts,
+  the known Mac problem recorded in the fifty-sixth entry; CI's `screenshots` job is the proof.
+  `crates/ui` changed, so the phone gate applies: `cargo xtask mobile` cannot run here (no Android
+  NDK, no Xcode). No release workflow was dispatched — source, catalogue rows, tests and docs, no build
+  or release surface.
+- **Docs.** `docs/ROADMAP.md`'s SL-L07 row records the routed notice, the bite proof and that the map's
+  assistive name is the one English string the row does not count as painted chrome; the places bullet
+  and the Places paragraph now say the two forms are templates. `docs/UX.md`'s Places paragraph says
+  the click notice is the reader's sentence in the reader's digits.
+- **Files.** `crates/ui/src/places.rs` (the routed function), `crates/ui/src/shell.rs` (the paint test),
+  `crates/ui/src/i18n.rs` (the audit reads `places.rs` now), the six
+  `crates/ui/src/i18n/*.tsv` (two rows each), `docs/ROADMAP.md`, `docs/UX.md` and this file.
+- **Next.** The whole-source audit that can tick SL-L07: sweep `crates/ui/src` and `apps/sortlens/src`
+  for painted literals the widget, notice and spoken sweeps do not reach, and read the host's routes in
+  the catalogue audit. The Places click notice is routed by this entry; the map's assistive name is the
+  one English string the row excludes. No release run is in flight.
+
 ## 2026-11-26 (hundred-and-seventy-fourth) — the notices speak the interface language
 
 - **Why it came up.** The hundred-and-seventy-third entry's Next named the notice sink — the words
@@ -9903,15 +9946,18 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-seventy-sixth entry).** Read this commit's `CI` run with one
-`gh run view` — the English paint is unchanged and no baseline moved. Then the Places click notice in
-`crates/ui/src/places.rs`: `selection_notice`'s `Selected {n} photo(s) at {lat}{lon}` and its
-`near {name}` form are the last painted English family the SL-L07 row names, so route them with rows
-and a paint test in English and Arabic. After that the whole-source audit: sweep `crates/ui/src` and
+**Next tick (after the hundred-and-seventy-seventh entry).** Read this commit's `CI` run with one
+`gh run view` — English keeps every byte, so no baseline should have moved; the `screenshots` job is
+the one that matters. Then the whole-source audit that can tick SL-L07: sweep `crates/ui/src` and
 `apps/sortlens/src` for painted literals the widget, notice and spoken sweeps do not reach, and read
-the host's routes in the catalogue audit. The palette chrome and the host's own words are already
-routed, so the two entries that named them as next were stale. SL-L07 stays unticked until the audit
-passes. No release run is in flight.
+the host's routes in the catalogue audit. The Places click notice is routed (this tick), and the map's
+assistive name is the one English string the row says it does not count as painted chrome. SL-L07
+stays unticked until that audit passes. No release run is in flight.
+
+**Lease note.** STEP 0's id `scheduled-task:c79b9a35-9424-4ccd-8278-6d54deaadb78` does not exist
+(`task_not_found`); the two live tasks are `scheduled-task:command:mcp:…:schedule-task:sortlens-continue-loop`
+and the daily one, and both were already disabled, so no second tick could start. STEP 5 re-enabled the
+loop task by its real id and it returned a `nextRunAt`; the prompt's id needs fixing in the task text.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
