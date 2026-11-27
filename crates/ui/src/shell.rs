@@ -2318,21 +2318,14 @@ fn search_field(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, room: f32
 /// the window show one engraving.
 fn app_mark(ui: &mut Ui, size: f32) {
     use std::sync::OnceLock;
-    static MARK: OnceLock<(String, egui::load::Bytes)> = OnceLock::new();
-    let (uri, bytes) = MARK.get_or_init(|| {
-        let png = sortlens_icon::png();
-        (
-            "bytes://sortlens/app-mark.png".to_string(),
-            std::sync::Arc::<[u8]>::from(png).into(),
-        )
+    static MARK: OnceLock<egui::TextureHandle> = OnceLock::new();
+    let texture = MARK.get_or_init(|| {
+        let rgba = sortlens_icon::rgba();
+        let image = egui::ColorImage::from_rgba_unmultiplied([sortlens_icon::SIZE, sortlens_icon::SIZE], &rgba);
+        ui.ctx().load_texture("sortlens-app-mark", image, egui::TextureOptions::LINEAR)
     });
-    ui.ctx().include_bytes(uri.clone(), bytes.clone());
-    ui.add(
-        egui::Image::from_bytes(uri.clone(), bytes.clone())
-            .fit_to_exact_size(Vec2::splat(size))
-            .sense(Sense::hover()),
-    )
-    .on_hover_text(tl!("Sortlens"));
+    ui.add(egui::Image::new(texture).fit_to_exact_size(Vec2::splat(size)).sense(Sense::hover()))
+        .on_hover_text(tl!("Sortlens"));
 }
 
 /// The Filter chip: a toggle for the filter bar, carrying the count of what is narrowing the view.
