@@ -44,6 +44,20 @@ fn title_bar_height(frame: &Frame) -> Option<f32> {
     }
 }
 
+/// Keep the canvas on the folder it was showing when that root is repointed or removed.
+///
+/// A root is the canvas's scope, so a stale path leaves an empty grid: `Some` follows a repointed
+/// folder into its new place, `None` drops back to the whole library when the folder is removed.
+fn follow_root(root: &mut Option<String>, folder: &mut String, from: &str, to: Option<&str>) {
+    if root.as_deref() != Some(from) {
+        return;
+    }
+    *root = to.map(str::to_owned);
+    if to.is_none() {
+        folder.clear();
+    }
+}
+
 fn folder_name(path: &str) -> String {
     path.trim_end_matches(['/', '\\'])
         .rsplit(['/', '\\'])
@@ -455,10 +469,15 @@ impl App {
                 {
                     let to = folder.to_string_lossy().to_string();
                     match self.engine.remap_root(&from, &to) {
-                        Ok(count) => self.ui.notice(i18n::fmt(
-                            "Repointed {n} photo(s) to {folder}",
-                            &[("n", &i18n::count(count as u64)), ("folder", &folder_name(&to))],
-                        )),
+                        Ok(count) => {
+                            // The canvas was showing the old path, which no longer resolves: follow the
+                            // root it was pointing at instead of leaving an empty grid behind.
+                            follow_root(&mut self.ui.root, &mut self.ui.folder, &from, Some(&to));
+                            self.ui.notice(i18n::fmt(
+                                "Repointed {n} photo(s) to {folder}",
+                                &[("n", &i18n::count(count as u64)), ("folder", &folder_name(&to))],
+                            ))
+                        }
                         Err(error) => self.ui.notice(error.to_string()),
                     }
                 }
@@ -535,10 +554,14 @@ impl App {
                 }
             }
             Action::RemoveRoot(root) => match self.engine.remove_root(&root) {
-                Ok(count) => self.ui.notice(i18n::fmt(
-                    "Removed {n} photos from {folder}",
-                    &[("n", &i18n::count(count as u64)), ("folder", &folder_name(&root))],
-                )),
+                Ok(count) => {
+                    // Removing the root being shown would leave the canvas on a path that is gone.
+                    follow_root(&mut self.ui.root, &mut self.ui.folder, &root, None);
+                    self.ui.notice(i18n::fmt(
+                        "Removed {n} photos from {folder}",
+                        &[("n", &i18n::count(count as u64)), ("folder", &folder_name(&root))],
+                    ))
+                }
                 Err(error) => self.ui.notice(error.to_string()),
             },
             Action::ServerStart => match self.sync.start(&library_dir()) {
@@ -671,6 +694,38 @@ mod tests {
 
     fn sortlens_icon_size() -> u32 {
         u32::try_from(sortlens_icon::SIZE).expect("a 512 px icon")
+    }
+
+    /// Pointing a folder at its new place used to repoint the catalog and leave the canvas on the
+    /// path that no longer exists, so the grid went empty until the row was clicked again.
+    #[test]
+    fn a_repointed_root_follows_into_the_canvas() {
+        let mut root = Some("/private/tmp/a".to_string());
+        let mut folder = "day1/".to_string();
+        follow_root(&mut root, &mut folder, "/private/tmp/a", Some("/private/tmp/b"));
+        assert_eq!(root.as_deref(), Some("/private/tmp/b"));
+        // The relative subfolder still holds under the new root, so it stays selected.
+        assert_eq!(folder, "day1/");
+    }
+
+    /// Removing the folder being shown drops back to the library rather than to a dead breadcrumb.
+    #[test]
+    fn removing_the_shown_root_clears_the_canvas() {
+        let mut root = Some("/private/tmp/a".to_string());
+        let mut folder = "day1/".to_string();
+        follow_root(&mut root, &mut folder, "/private/tmp/a", None);
+        assert_eq!(root, None);
+        assert!(folder.is_empty());
+    }
+
+    /// A folder that is not the one on screen leaves the canvas where the photographer put it.
+    #[test]
+    fn another_root_leaves_the_canvas_alone() {
+        let mut root = Some("/private/tmp/a".to_string());
+        let mut folder = "day1/".to_string();
+        follow_root(&mut root, &mut folder, "/private/tmp/b", None);
+        assert_eq!(root.as_deref(), Some("/private/tmp/a"));
+        assert_eq!(folder, "day1/");
     }
 
     /// The bar starts after the traffic lights macOS paints over it, and leaves no dead strip where
