@@ -10090,6 +10090,21 @@ fn apply_notice(applied: usize, failed: usize) -> String {
     line
 }
 
+/// The cull batch's count line: what Apply would change, and how much the rejects weigh on disk.
+///
+/// The size is the rejects' own bytes — the files a "Move to the Trash" batch would take — so a
+/// person reads the count, the size and the warning before anything moves (UT-C10).
+fn apply_count_line(rejects: usize, picks: usize, bytes: u64) -> String {
+    crate::i18n::fmt(
+        "{rejects} rejects · {picks} picks · {bytes}",
+        &[
+            ("rejects", &format_count(rejects as u64)),
+            ("picks", &format_count(picks as u64)),
+            ("bytes", &sortlens_core::format_bytes(bytes)),
+        ],
+    )
+}
+
 /// Emptying the bin forgets restore records; this is the count of what will be forgotten.
 fn forgotten_notice(batches: usize, files: usize) -> String {
     crate::i18n::fmt(
@@ -11111,21 +11126,29 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
         }
         None => (0, 0),
     };
-    let mut open = state.apply_open;
+    // What the rejects weigh on disk, so the size is in front of a person before a file leaves the
+    // disk. It is the rejects' own bytes: the picks stay where they are.
+    let bytes = engine
+        .cull()
+        .map(|session| {
+            session
+                .rejects()
+                .into_iter()
+                .filter_map(|id| engine.photo(id).map(|photo| photo.size))
+                .sum()
+        })
+        .unwrap_or(0);
+    let mut open = true;
+    // The buttons close the dialog themselves: `open` is the window's own X, and a click on Apply
+    // or Cancel must not be undone by writing the captured flag back after the frame.
+    let mut close = false;
     dialog_window(tl!("Apply cull batch"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
         .default_width(380.0)
         .show(ui.ctx(), |ui| {
-            ui.label(
-                RichText::new(crate::i18n::fmt(
-                    "{rejects} rejects · {picks} picks",
-                    &[("rejects", &format_count(rejects as u64)), ("picks", &format_count(picks as u64))],
-                ))
-                .size(13.0)
-                .strong(),
-            );
+            ui.label(RichText::new(apply_count_line(rejects, picks, bytes)).size(13.0).strong());
             ui.add_space(6.0);
             ui.label(RichText::new(tl!("What happens to the rejects")).size(11.0).color(t.text_muted));
             for mode in DeleteMode::ALL {
@@ -11145,14 +11168,14 @@ fn apply_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engin
                         Ok(report) => state.notice(apply_notice(report.applied.len(), report.failed.len())),
                         Err(error) => state.notice_problem(error.to_string()),
                     }
-                    state.apply_open = false;
+                    close = true;
                 }
                 if ui.button(RichText::new(tl!("Cancel")).size(12.0)).clicked() {
-                    state.apply_open = false;
+                    close = true;
                 }
             });
         });
-    state.apply_open = open;
+    state.apply_open = open && !close;
 }
 
 /// The size the picture would have at fit, which is what zoom is relative to.
@@ -20612,6 +20635,61 @@ mod tests {
         assert!(english_receipt.contains("0 skipped"), "{english_receipt}");
 
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The cull batch's count line states the size as well as the counts (UT-C10): the rejects' own
+    /// bytes are in front of a person before a "Move to the Trash" batch takes a file.
+    #[test]
+    fn the_apply_count_line_states_the_rejects_size() {
+        assert_eq!(apply_count_line(2, 0, 87_000_000), "2 rejects · 0 picks · 87 MB");
+        assert_eq!(apply_count_line(1, 3, 1_400_000), "1 rejects · 3 picks · 1.4 MB");
+        assert_eq!(apply_count_line(0, 0, 0), "0 rejects · 0 picks · 0 B");
+    }
+
+    /// The Apply dialog closes on its own Cancel. The frame captures `open` before it paints, and
+    /// writing that flag back afterwards used to undo the button's click and leave the modal up over
+    /// the batch receipt it had just produced (UT-C10).
+    #[test]
+    fn the_apply_dialog_closes_when_cancel_is_pressed() {
+        let ctx = egui::Context::default();
+        let tokens = Tokens::CHARCOAL;
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-apply-close-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        state.apply_open = true;
+        let paint = |ctx: &egui::Context, state: &mut UiState, engine: &mut Engine, events: Vec<egui::Event>| {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1100.0, 780.0))),
+                    events,
+                    ..egui::RawInput::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        apply_dialog(ui, state, &tokens, engine);
+                    });
+                },
+            );
+            out.textures_delta.clear();
+            out
+        };
+
+        // A window lays itself out on its first frame, so the second is the one with its buttons.
+        let _ = paint(&ctx, &mut state, &mut engine, Vec::new());
+        let first = paint(&ctx, &mut state, &mut engine, Vec::new());
+        let at = label_at(&first, "Cancel").expect("the dialog offers Cancel").center();
+        let button = |pressed: bool| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        let _ = paint(&ctx, &mut state, &mut engine, vec![egui::Event::PointerMoved(at), button(true)]);
+        let _ = paint(&ctx, &mut state, &mut engine, vec![button(false)]);
+
+        assert!(!state.apply_open, "Cancel closes the dialog it stands in");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

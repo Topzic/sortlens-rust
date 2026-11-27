@@ -117,7 +117,7 @@
 	, {n} failed	，{n} 個失敗
 	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	已暫存 {n} 張照片。套用後會以{mode}記錄這些決定 — 可以一步復原。
 	Apply cull batch	套用篩選批次
-	{rejects} rejects · {picks} picks	已排除 {rejects} · 精選 {picks}
+	{rejects} rejects · {picks} picks · {bytes}	已排除 {rejects} · 精選 {picks} · {bytes}
 	What happens to the rejects	已排除的照片會怎麼處理
 	Apply	套用
 	Applied {n} photo(s)	已套用 {n} 張照片

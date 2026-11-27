@@ -117,7 +117,7 @@
 	, {n} failed	, {n} lỗi
 	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	Đã giữ {n} ảnh. {mode} Áp dụng để ghi nhận quyết định — bạn có thể hoàn tác như một bước.
 	Apply cull batch	Áp dụng lô loại ảnh
-	{rejects} rejects · {picks} picks	{rejects} ảnh loại · {picks} ảnh chọn
+	{rejects} rejects · {picks} picks · {bytes}	{rejects} ảnh loại · {picks} ảnh chọn · {bytes}
 	What happens to the rejects	Điều gì xảy ra với ảnh loại
 	Apply	Áp dụng
 	Applied {n} photo(s)	Đã áp dụng {n} ảnh

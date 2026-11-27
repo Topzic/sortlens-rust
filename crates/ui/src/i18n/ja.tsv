@@ -117,7 +117,7 @@
 	, {n} failed	、{n} 件失敗
 	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	{n} 枚を保留中。「適用」で{mode}として決定を記録します。元に戻すのは 1 回で済みます。
 	Apply cull batch	選別バッチを適用
-	{rejects} rejects · {picks} picks	却下 {rejects} · ピック {picks}
+	{rejects} rejects · {picks} picks · {bytes}	却下 {rejects} · ピック {picks} · {bytes}
 	What happens to the rejects	却下された写真の扱い
 	Apply	適用
 	Applied {n} photo(s)	{n} 枚の写真に適用しました

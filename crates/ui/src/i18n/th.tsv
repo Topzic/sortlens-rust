@@ -117,7 +117,7 @@
 	, {n} failed	, ล้มเหลว {n} รูป
 	{n} photos staged. {mode} Apply to record the decisions — you can undo it as one step.	พักการตัดสินใจไว้ {n} รูป {mode} ใช้เพื่อบันทึกการตัดสินใจ — ย้อนกลับได้ในขั้นเดียว
 	Apply cull batch	ใช้ชุดการคัด
-	{rejects} rejects · {picks} picks	ตัดออก {rejects} · เลือก {picks}
+	{rejects} rejects · {picks} picks · {bytes}	ตัดออก {rejects} · เลือก {picks} · {bytes}
 	What happens to the rejects	จะเกิดอะไรกับรูปที่ตัดออก
 	Apply	ใช้
 	Applied {n} photo(s)	ใช้แล้ว {n} รูป
