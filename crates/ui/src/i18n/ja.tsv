@@ -280,6 +280,7 @@
 	Colour cleared on {n} collections	{n} 件のコレクションの色を解除しました
 	{n} collections	{n} 件のコレクション
 	Delete collection	コレクションを削除
+	Delete 1 collection	コレクションを 1 件削除
 	Delete {n} collections	コレクションを {n} 件削除
 	Pinned {n} collections to the top	{n} 件のコレクションを先頭に固定しました
 	Unpinned	固定を解除しました
@@ -819,6 +820,9 @@
 	match {mode}	{mode} で一致
 	any	いずれか
 	all	すべて
+	{name} leaves the sidebar. Nothing on disk is deleted.	{name} はサイドバーから外れます。ディスク上のファイルは削除されません。
+	The photos stay in the library. Nothing on disk is deleted.	写真はライブラリに残ります。ディスク上のファイルは削除されません。
+	Take #{tag} off every photo. One undo brings it back.	すべての写真から #{tag} を外します。元に戻す操作 1 回で復元できます。
 	{source} keywords	{source} のキーワード
 	Manual	手動
 	AI	AI

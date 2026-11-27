@@ -280,6 +280,7 @@
 	Colour cleared on {n} collections	Đã xóa màu trên {n} bộ sưu tập
 	{n} collections	{n} bộ sưu tập
 	Delete collection	Xóa bộ sưu tập
+	Delete 1 collection	Xóa 1 bộ sưu tập
 	Delete {n} collections	Xóa {n} bộ sưu tập
 	Pinned {n} collections to the top	Đã ghim {n} bộ sưu tập lên đầu
 	Unpinned	Đã bỏ ghim
@@ -859,6 +860,9 @@
 	Read-only · another window has this library	Chỉ đọc · một cửa sổ khác đang dùng thư viện này
 	Close the other Sortlens window to edit here. Everything stays readable meanwhile.	Hãy đóng cửa sổ Sortlens kia để chỉnh sửa ở đây. Trong lúc đó mọi thứ vẫn đọc được.
 	Rename keyword	Đổi tên từ khóa
+	{name} leaves the sidebar. Nothing on disk is deleted.	{name} rời khỏi thanh bên. Không có tệp nào trên đĩa bị xóa.
+	The photos stay in the library. Nothing on disk is deleted.	Ảnh vẫn ở trong thư viện. Không có tệp nào trên đĩa bị xóa.
+	Take #{tag} off every photo. One undo brings it back.	Gỡ #{tag} khỏi mọi ảnh. Một lần hoàn tác sẽ đưa nó trở lại.
 	#{tag} appears on every photo it was added to.	#{tag} xuất hiện trên mọi ảnh đã thêm nó.
 	Manual	Thủ công
 	AI	AI

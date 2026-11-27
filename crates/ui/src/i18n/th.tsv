@@ -280,6 +280,7 @@
 	Colour cleared on {n} collections	ล้างสีบนคอลเลกชัน {n} แห่งแล้ว
 	{n} collections	คอลเลกชัน {n} รายการ
 	Delete collection	ลบคอลเลกชัน
+	Delete 1 collection	ลบคอลเลกชัน 1 รายการ
 	Delete {n} collections	ลบคอลเลกชัน {n} รายการ
 	Pinned {n} collections to the top	ปักหมุดคอลเลกชัน {n} รายการไว้ด้านบนแล้ว
 	Unpinned	ยกเลิกการปักหมุดแล้ว
@@ -604,6 +605,9 @@
 	Pick	เลือก
 	Reject	ตัดออก
 	Defer	เลื่อน
+	{name} leaves the sidebar. Nothing on disk is deleted.	{name} จะออกจากแถบด้านข้าง ไม่มีไฟล์ใดถูกลบบนดิสก์
+	The photos stay in the library. Nothing on disk is deleted.	รูปภาพยังอยู่ในคลังภาพ ไม่มีไฟล์ใดถูกลบบนดิสก์
+	Take #{tag} off every photo. One undo brings it back.	นำ #{tag} ออกจากทุกภาพ การเลิกทำหนึ่งครั้งจะคืนกลับมา
 	Manual	ด้วยมือ
 	AI	AI
 	XMP	XMP

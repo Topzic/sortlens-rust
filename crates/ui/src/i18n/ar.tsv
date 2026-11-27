@@ -280,6 +280,7 @@
 	Colour cleared on {n} collections	أُزيل اللون عن {n} مجموعات
 	{n} collections	{n} مجموعات
 	Delete collection	حذف المجموعة
+	Delete 1 collection	حذف مجموعة واحدة
 	Delete {n} collections	حذف {n} مجموعات
 	Pinned {n} collections to the top	ثُبّتت {n} مجموعات في الأعلى
 	Unpinned	أُزيل التثبيت
@@ -745,6 +746,9 @@
 	Label	التسمية
 	Status	الحالة
 	missing	مفقودة
+	{name} leaves the sidebar. Nothing on disk is deleted.	{name} يغادر الشريط الجانبي. لا يُحذف شيء على القرص.
+	The photos stay in the library. Nothing on disk is deleted.	تبقى الصور في المكتبة. لا يُحذف شيء على القرص.
+	Take #{tag} off every photo. One undo brings it back.	أزل #{tag} من كل صورة. تراجع واحد يعيده.
 	present	موجودة
 	Image	صورة
 	pick	مختارة

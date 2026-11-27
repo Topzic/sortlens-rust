@@ -280,6 +280,7 @@
 	Colour cleared on {n} collections	已清除 {n} 個選集的顏色
 	{n} collections	{n} 個選集
 	Delete collection	刪除選集
+	Delete 1 collection	刪除 1 個選集
 	Delete {n} collections	刪除 {n} 個選集
 	Pinned {n} collections to the top	已將 {n} 個選集釘選到最上方
 	Unpinned	已取消釘選
@@ -942,6 +943,9 @@
 	; {error}	；{error}
 	 (stopped)	（已停止）
 	; removed {n} from this phone	；已從這支手機移除 {n} 張
+	{name} leaves the sidebar. Nothing on disk is deleted.	{name} 會從側邊欄移除。磁碟上的檔案不會被刪除。
+	The photos stay in the library. Nothing on disk is deleted.	相片會留在圖庫中。磁碟上的檔案不會被刪除。
+	Take #{tag} off every photo. One undo brings it back.	從每張相片移除 #{tag}。復原一次即可還原。
 	; none of the {n} were removed from this phone	；這 {n} 張都沒有從這支手機移除
 	Manual	手動
 	AI	AI

@@ -372,6 +372,21 @@ pub enum Action {
     SendCancel,
 }
 
+/// A destructive context-menu row waiting for the person to say yes.
+///
+/// The menus used to act on the click: a folder row, a collection or a keyword vanished the moment
+/// the pointer landed. Destructive rows ask first, so the menu records what it would do and the
+/// dialog below asks the same question the row names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfirmAction {
+    /// Take this root's row out of the library. The files stay where they are.
+    RemoveFolder(String),
+    /// Delete these collections. Their photos stay in the library.
+    DeleteCollections(Vec<sortlens_core::CollectionId>),
+    /// Take this keyword off every photo. One undo brings it back.
+    DeleteKeyword(String),
+}
+
 /// What the host knows about the library's sync server, fed every frame the Settings dialog is
 /// open. The desktop owns the process; the shell only paints what it is told.
 ///
@@ -972,6 +987,8 @@ pub struct UiState {
     pub collection_selection: CollectionSelection,
     /// Whether the confirm dialog for deleting a set chosen in the similarity view is open.
     pub similar_delete_open: bool,
+    /// A destructive context-menu action waiting on a yes or a cancel.
+    pub confirm_action: Option<ConfirmAction>,
     /// How much of the library the sharpness review offers to select, in percent.
     ///
     /// The cut is relative on purpose: a sharpness score is unitless and only comparable inside one library, so an
@@ -1310,6 +1327,7 @@ impl UiState {
             places_centre: None,
             places_tray: None,
             similar_delete_open: false,
+            confirm_action: None,
         }
     }
 
@@ -1817,6 +1835,7 @@ fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
         export_dialog(ui, state, t, engine, actions);
     }
     similar_delete_dialog(ui, state, t, engine);
+    confirm_action_dialog(ui, state, engine, actions);
     if state.suggest_open {
         suggest_dialog(ui, state, t, engine, actions);
     }
@@ -1836,6 +1855,9 @@ fn dialogs(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine, ac
 /// The shortcut editor is deliberately absent: it owns the keyboard while it records (its own Escape
 /// cancels the rebind), and `keyboard` never reaches here while it is open.
 fn dismiss_top_window(state: &mut UiState) -> bool {
+    if state.confirm_action.take().is_some() {
+        return true;
+    }
     if state.rename_target.take().is_some() {
         return true;
     }
@@ -3187,6 +3209,7 @@ fn folder_menu(
     mark: &sortlens_engine::FolderMark,
     remark: &mut Option<(String, sortlens_engine::FolderMark)>,
     actions: &mut Vec<Action>,
+    confirm: &mut Option<ConfirmAction>,
 ) {
     if ui.button(folder_pin_label(mark.favourite)).clicked() {
         *remark = Some((
@@ -3218,7 +3241,7 @@ fn folder_menu(
         ui.close();
     }
     if ui.button(tl!("Remove from library")).clicked() {
-        actions.push(Action::RemoveRoot(root.to_owned()));
+        *confirm = Some(ConfirmAction::RemoveFolder(root.to_owned()));
         ui.close();
     }
 }
@@ -3244,6 +3267,7 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
     // per row would be one string normalisation per row per frame.
     let marks = engine.folder_marks();
     let mut remark: Option<(String, sortlens_engine::FolderMark)> = None;
+    let mut confirm = None;
     for volume in volumes {
         let root = volume.root.clone();
         let count = volume.photos;
@@ -3275,13 +3299,34 @@ fn folders_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut En
             state.sort = sort;
             state.search = search;
         }
-        response.context_menu(|ui| folder_menu(ui, &root, &mark, &mut remark, actions));
+        response.context_menu(|ui| folder_menu(ui, &root, &mark, &mut remark, actions, &mut confirm));
     }
     if let Some((path, mark)) = remark {
         match engine.set_folder_mark(&path, mark.clone()) {
             Ok(_) => state.notice(folder_mark_notice(mark.favourite, mark.colour)),
             Err(error) => state.notice_problem(error.to_string()),
         }
+    }
+    if confirm.is_some() {
+        state.confirm_action = confirm;
+    }
+}
+
+/// Delete the collections a person just confirmed, and say what happened.
+///
+/// Separate from the menu so the confirmation dialog and the menu cannot word two different
+/// outcomes: the notice counts the same ids the dialog counted in its question.
+fn delete_collections_now(state: &mut UiState, engine: &mut Engine, ids: &[sortlens_core::CollectionId]) {
+    let many = ids.len();
+    match engine.delete_collections(ids) {
+        Ok(_) => {
+            if state.collection_filter.is_some_and(|filter| ids.contains(&filter)) {
+                state.collection_filter = None;
+            }
+            state.collection_selection.clear();
+            state.notice(collection_delete_notice(many));
+        }
+        Err(error) => state.notice_problem(error.to_string()),
     }
 }
 
@@ -3411,7 +3456,6 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                         if vocabulary.is_empty() {
                             hint(ui, t, tl!("Select a photo, press K and type a keyword."));
                         }
-                        let mut tag_delete: Option<String> = None;
                         for (tag, count) in vocabulary.iter().take(12) {
                             let selected = state.tag_filters.iter().any(|active| active == tag);
                             let aliases = engine.registry_aliases_of(tag);
@@ -3436,12 +3480,9 @@ fn left_panel(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &mut Engine,
                                     state.tag_edit = Some((tag.clone(), tag.clone()));
                                 }
                                 if menu.delete {
-                                    tag_delete = Some(tag.clone());
+                                    state.confirm_action = Some(ConfirmAction::DeleteKeyword(tag.clone()));
                                 }
                             });
-                        }
-                        if let Some(tag) = tag_delete {
-                            delete_keyword_everywhere(state, engine, &tag);
                         }
                     }
 
@@ -9482,6 +9523,9 @@ fn collection_target_label(count: usize) -> String {
 
 /// The delete row of a multi-row menu, its count in the reader's digits.
 fn collection_delete_label(count: usize) -> String {
+    if count == 1 {
+        return tl!("Delete 1 collection").to_owned();
+    }
     crate::i18n::fmt("Delete {n} collections", &[("n", &format_count(count as u64))])
 }
 
@@ -9658,17 +9702,7 @@ fn collections_section(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mu
         state.rename_target = Some((id, name));
     }
     if let Some(ids) = menu_actions.delete {
-        let many = ids.len();
-        match engine.delete_collections(&ids) {
-            Ok(_) => {
-                if state.collection_filter.is_some_and(|filter| ids.contains(&filter)) {
-                    state.collection_filter = None;
-                }
-                state.collection_selection.clear();
-                state.notice(collection_delete_notice(many));
-            }
-            Err(error) => state.notice_problem(error.to_string()),
-        }
+        state.confirm_action = Some(ConfirmAction::DeleteCollections(ids));
     }
     // What a batch will act on, said out loud: a tick you cannot see is a tick that surprises you.
     if state.collection_selection.len() > 1 {
@@ -10091,6 +10125,66 @@ fn similar_delete_dialog(ui: &mut Ui, state: &mut UiState, t: &Tokens, engine: &
             });
         });
     state.similar_delete_open = open && !close;
+}
+
+/// The title a destructive row's confirmation carries: the row's own words, so the question and
+/// the click that asked it read the same.
+fn confirm_action_title(action: &ConfirmAction) -> String {
+    match action {
+        ConfirmAction::RemoveFolder(_) => tl!("Remove from library").to_owned(),
+        ConfirmAction::DeleteCollections(ids) => collection_delete_label(ids.len()),
+        ConfirmAction::DeleteKeyword(_) => tl!("Delete everywhere").to_owned(),
+    }
+}
+
+/// What the confirmed action will do, in one sentence, before it happens.
+fn confirm_action_body(action: &ConfirmAction) -> String {
+    match action {
+        ConfirmAction::RemoveFolder(root) => crate::i18n::fmt(
+            "{name} leaves the sidebar. Nothing on disk is deleted.",
+            &[("name", &folder_name(root))],
+        ),
+        ConfirmAction::DeleteCollections(_) => tl!("The photos stay in the library. Nothing on disk is deleted.").to_owned(),
+        ConfirmAction::DeleteKeyword(tag) => crate::i18n::fmt("Take #{tag} off every photo. One undo brings it back.", &[("tag", tag)]),
+    }
+}
+
+/// Ask before a destructive context-menu row acts.
+///
+/// The folder row, a collection and a keyword each used to vanish on the click that chose them.
+/// One dialog for all three keeps the question in one place, and keeps the answer's count and
+/// wording the same as the receipt that follows it.
+fn confirm_action_dialog(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut Vec<Action>) {
+    let Some(action) = state.confirm_action.clone() else {
+        return;
+    };
+    let mut open = true;
+    let mut close = false;
+    dialog_window(confirm_action_title(&action))
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .default_width(360.0)
+        .show(ui.ctx(), |ui| {
+            ui.label(RichText::new(confirm_action_body(&action)).size(12.0));
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new(confirm_action_title(&action)).size(12.0)).clicked() {
+                    match &action {
+                        ConfirmAction::RemoveFolder(root) => actions.push(Action::RemoveRoot(root.clone())),
+                        ConfirmAction::DeleteCollections(ids) => delete_collections_now(state, engine, ids),
+                        ConfirmAction::DeleteKeyword(tag) => delete_keyword_everywhere(state, engine, tag),
+                    }
+                    close = true;
+                }
+                if ui.button(RichText::new(tl!("Cancel")).size(12.0)).clicked() {
+                    close = true;
+                }
+            });
+        });
+    if !open || close {
+        state.confirm_action = None;
+    }
 }
 
 /// What an export left behind, kept as the pieces a receipt is written from rather than as a
@@ -18770,9 +18864,10 @@ mod tests {
         let mark = sortlens_engine::FolderMark::default();
         let mut remark = None;
         let mut menu_actions: Vec<Action> = Vec::new();
+        let mut menu_confirm = None;
         let mut menu = menu_ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                folder_menu(ui, "/photos", &mark, &mut remark, &mut menu_actions);
+                folder_menu(ui, "/photos", &mark, &mut remark, &mut menu_actions, &mut menu_confirm);
             });
         });
         let texts = painted_texts(&menu);
@@ -18783,15 +18878,36 @@ mod tests {
             "no English menu row is left: {texts:?}"
         );
         assert!(menu_actions.is_empty(), "painting a menu is not a click");
+        assert!(menu_confirm.is_none(), "and it asks nothing until a row is clicked");
+
+        // Clicking the destructive row asks: the menu records what it would do and tells the
+        // host nothing yet.
+        let remove = label_at(&menu, "أزل من المكتبة").expect("the remove row was painted");
+        let mut clicked_confirm = None;
+        let mut clicked_actions: Vec<Action> = Vec::new();
+        for input in press_and_release(remove.center()) {
+            let mut clicked_menu = menu_ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    folder_menu(ui, "/photos", &mark, &mut remark, &mut clicked_actions, &mut clicked_confirm);
+                });
+            });
+            clicked_menu.textures_delta.clear();
+        }
+        assert_eq!(clicked_confirm, Some(ConfirmAction::RemoveFolder("/photos".to_owned())));
+        assert!(
+            clicked_actions.is_empty(),
+            "the row asks before the host is told to remove anything"
+        );
 
         let pinned = sortlens_engine::FolderMark {
             favourite: true,
             ..sortlens_engine::FolderMark::default()
         };
         let mut pinned_remark = None;
+        let mut pinned_confirm = None;
         let mut pinned_menu = menu_ctx.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                folder_menu(ui, "/photos", &pinned, &mut pinned_remark, &mut menu_actions);
+                folder_menu(ui, "/photos", &pinned, &mut pinned_remark, &mut menu_actions, &mut pinned_confirm);
             });
         });
         let pinned_texts = painted_texts(&pinned_menu);
@@ -18818,6 +18934,7 @@ mod tests {
         crate::i18n::set_current(crate::i18n::from_code("en").expect("English is offered"));
         assert_eq!(collection_target_label(3), "3 collections");
         assert_eq!(collection_delete_label(3), "Delete 3 collections");
+        assert_eq!(collection_delete_label(1), "Delete 1 collection", "one collection is not a plural");
         assert_eq!(collection_pin_notice(true, 1), "Pinned to the top");
         assert_eq!(collection_pin_notice(true, 3), "Pinned 3 collections to the top");
         assert_eq!(collection_pin_notice(false, 1), "Unpinned");
