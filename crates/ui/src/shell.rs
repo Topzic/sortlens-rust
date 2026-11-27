@@ -5069,8 +5069,12 @@ fn keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine, actions: &mut
     }
     if state.view.is_detail() {
         // Arrows, Space, Z, D and Esc belong to the detail view; rating and flag keys still work
-        // below, which is why this does not return.
-        detail_keyboard(ui, state, engine);
+        // below, which is why this does not return. A close is different: it makes the grid the view
+        // inside this same frame, and the grid reads Escape as "drop the selection" — one press cannot
+        // mean both "go back" and "deselect", so the press is spent on the close.
+        if detail_keyboard(ui, state, engine) {
+            return;
+        }
     }
     if cull_keyboard(ui, state, engine) {
         return;
@@ -5835,7 +5839,8 @@ fn welcome_indexing(ui: &mut Ui, t: &Tokens, engine: &Engine) {
     });
 }
 
-fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
+/// The detail view's own keys. Returns whether the press closed the view, so the caller can spend it.
+fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool {
     let mut close = false;
     let mut zoom = false;
     let mut compare = false;
@@ -5883,6 +5888,7 @@ fn detail_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) {
         }
         state.selection.replace(next);
     }
+    close
 }
 
 /// The modifier shortcuts the command registry promises. Returns whether one fired, so the plain
@@ -6322,6 +6328,22 @@ fn detail_actions(
     }
 }
 
+/// The size a 1:1 view draws a photograph at: the record's own pixel size, or the decoded texture's
+/// when the record never learned one.
+///
+/// Most camera raws index with no pixel size at all, and a one-pixel rectangle is not a zoom — it is an
+/// empty canvas with a dot in it. The texture is the largest resolution the window actually holds, so it
+/// stands in and the zoom stays real; only its magnification is the best available rather than the file's.
+fn one_to_one_size(photo: &Photo, texture: Vec2) -> Vec2 {
+    let width = if photo.width > 0 { photo.width as f32 } else { texture.x };
+    let height = if photo.height > 0 { photo.height as f32 } else { texture.y };
+    if width > 0.0 && height > 0.0 {
+        vec2(width, height)
+    } else {
+        vec2(1.0, 1.0)
+    }
+}
+
 fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, thumbs: &mut Thumbnails, actions: &mut Vec<Action>) {
     let filter = state.filter();
     let Some(id) = state.selection.primary() else {
@@ -6415,13 +6437,6 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         1.5
     };
     let fitted = fit_rect(area.shrink(6.0), aspect);
-    let target = if state.detail_zoom {
-        // 1:1 shows the image at its pixel size, cropped by the available area.
-        let width = photo.width.max(1) as f32;
-        Rect::from_center_size(area.center(), vec2(width, width / aspect))
-    } else {
-        fitted
-    };
     match &other {
         // Two panes, one magnification: both photos are drawn at the smaller of the two fit scales,
         // so the pane that would need less room is letterboxed instead of being blown up. That is
@@ -6480,6 +6495,12 @@ fn detail_view(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine
         }
         None => match thumbs.sharp_or_blur(ui.ctx(), &photo, 2000) {
             Some((texture, _tier)) => {
+                // 1:1 shows the image at its pixel size, cropped by the available area.
+                let target = if state.detail_zoom {
+                    Rect::from_center_size(area.center(), one_to_one_size(&photo, texture.size_vec2()))
+                } else {
+                    fitted
+                };
                 let uv = cover_uv(texture.size_vec2(), target.size());
                 let painter = ui.painter().with_clip_rect(area.intersect(ui.clip_rect()));
                 painter.image(texture.id(), target, uv, cached_tint(&photo));
@@ -26991,6 +27012,70 @@ mod tests {
             output.textures_delta.clear();
         }
         assert!(state.detail_zoom, "a click on the photograph zooms to 1:1");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// UT-B18: most of a raw library indexes with no pixel size, and 1:1 drew that in a one-pixel
+    /// rectangle — an empty canvas with a dot. The decoded texture stands in, so the zoom is still a zoom.
+    #[test]
+    fn a_one_to_one_view_uses_the_texture_size_when_the_record_has_none() {
+        let photo = Photo::from_scan(PhotoId(1), "/photos", "IMG_0001.NEF", 1_000, Some(7), MediaKind::Image, 9);
+        assert_eq!(photo.width, 0, "a scan records no pixel size until metadata says so");
+        assert_eq!(
+            one_to_one_size(&photo, vec2(2000.0, 1333.0)),
+            vec2(2000.0, 1333.0),
+            "the texture is the largest resolution the window holds"
+        );
+        let sized = Photo {
+            width: 5568,
+            height: 3712,
+            ..photo
+        };
+        assert_eq!(
+            one_to_one_size(&sized, vec2(128.0, 85.0)),
+            vec2(5568.0, 3712.0),
+            "a record that knows its pixels is drawn at them, not at the thumbnail"
+        );
+        let blank = Photo::from_scan(PhotoId(2), "/photos", "empty.jpg", 1, None, MediaKind::Image, 10);
+        assert_eq!(one_to_one_size(&blank, Vec2::ZERO), vec2(1.0, 1.0), "never a degenerate rectangle");
+    }
+
+    /// UT-B18: back from the detail view keeps the photograph. Escape closed the view and the grid then
+    /// read the same press as "drop the selection", so the grid came back with nothing selected.
+    #[test]
+    fn escape_from_the_detail_view_keeps_the_photo_selected() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-detail-escape-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-detail-escape");
+        for index in 1..=2 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [50, 60 * index as u8, 120], 64, 48), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let id = engine.page(&Filter::default(), Sort::Natural, 0, 1).photos[0].id;
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.selection.replace(id);
+        state.view = View::Detail;
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        crate::icons::install(&ctx);
+        let screen = vec2(1280.0, 800.0);
+
+        key_shell(&ctx, screen, Key::Escape, &mut state, &mut engine, &mut thumbs, &mut actions);
+        assert_eq!(state.view, View::Library, "Escape closed the detail view");
+        assert_eq!(state.selection.primary(), Some(id), "and left the photograph selected");
+        assert_eq!(state.selection.len(), 1, "one press, one meaning");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 
