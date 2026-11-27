@@ -180,6 +180,20 @@ when a person would hesitate, mis-click, or read one control as two different th
 - [ ] **UT-U17 Language.** In Japanese and in Arabic, a wrapped label stays inside its control, a count uses that language's digits, and English is left only for a name, a key cap, or a path. Note:
 - [ ] **UT-U18 Focus.** Keyboard focus is visible, and Tab does not land on a control hidden under a closed dock or a closed dialog. Note:
 
+## Field notes
+
+Hard-won points from a pass, so the next one does not relearn them:
+
+- Launch with `. ./scripts/env.sh` then `cargo run -p sortlens`. If cargo is blocked on a stale target lock, run `./target/debug/sortlens` directly instead of waiting.
+- Take a screenshot with Cmd+Shift+3 and read the newest `~/Desktop/Screenshot*.png`. The image is 1920×1080 and the window is 1280×800 at about (320,69), so pixels map 1:1 to clicks. The chat preview is scaled: crop the PNG (PIL or `sips`) and measure a row before clicking. A y guessed from the preview can be 20–40 points out.
+- At the default sidebar height the six sources are near y=354, 386, 415, 445, 474 and 503, and Pictures is near 570. They move when the panel scrolls or the window resizes, so crop before every click.
+- The folder menu's `Add to favourites` is the pin; the row then carries a `★` prefix, and there is no separate Favourites section. `Colour` opens its swatches on hover, not on click; clicking the row can dismiss the menu and select the folder beneath it. The notice combines the two (`Pinned and yellow`).
+- Source counts are scoped to the selected root: `All Photos` is the count inside the current folder, not the library total. The canvas title stays `Library`; the folder's name is in the breadcrumb (`Pictures › Sortlens Demo`). `Clear filters` also forgets the folder scope.
+- The search field takes focus on launch, so `0–5`, `P`/`U`/`X` and `⌘K` type into it until the grid has focus. Click a photo first; the palette did not open while the field was focused.
+- A menu is only clickable while it is open. Take a screenshot after each state change, and do not click a row underneath a just-closed menu.
+- Folder search and folder sort (A07, A08) are not built: the FOLDERS header has no search or sort control. Record them blocked as roadmap work; do not build them during a pass. The same goes for a story blocked on a device, Xcode, or an Apple identity.
+- Screenshots stay on the Desktop and are never committed. The checklist and any fix are what go to git.
+
 ## Log
 
 Append one line per finished or blocked story. Do not rewrite history.
