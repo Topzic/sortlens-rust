@@ -6746,7 +6746,10 @@ fn paint_overlay(ui: &mut Ui, t: &Tokens, thumbs: &mut Thumbnails, engine: &Engi
 }
 
 fn cull_keyboard(ui: &mut Ui, state: &mut UiState, engine: &mut Engine) -> bool {
-    if engine.cull().is_none() {
+    // These keys belong to the cull screen, not to the session: a queue restored from a previous run
+    // (or one whose screen the shell has left) stays open in the engine while the Library is on
+    // screen, and swallowing every press there cost the grid its ratings, flags and ⌘A.
+    if state.view != View::Cull || engine.cull().is_none() {
         return false;
     }
     let mut decision = None;
@@ -16824,6 +16827,88 @@ mod tests {
                     && text.galley.rect.translate(text.pos.to_vec2()).min.x > 260.0)
         });
         assert!(!still_painted, "the removed keyword has no chip left");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A queue left open in the engine must not own the Library's keys.
+    ///
+    /// `cull_keyboard` answered `true` whenever a session existed, so a queue restored from a previous run —
+    /// the engine keeps one, the shell opens the Library — swallowed every press: ⌘A, the digits, P/U/X and
+    /// Escape were dead until the reader opened the cull screen and came back. The gate is the screen, not
+    /// the session; this test holds the Library's own keys to that.
+    #[test]
+    fn a_cull_session_behind_the_library_does_not_swallow_the_grid_keys() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-cull-behind-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-cull-behind");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [40 * index as u8, 90, 150], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let engine_cell = std::cell::RefCell::new(&mut engine);
+        assert_eq!(engine_cell.borrow().count(&Filter::default()), 3);
+
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Midnight, 0.0);
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        // The held modifier is its own event — a physical Command key press arrives as one, and egui keeps
+        // `input.modifiers` from it, so a chord built only from the key press would read as unmodified.
+        let key = |key: Key, modifiers: egui::Modifiers| egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 700.0))),
+            events: vec![
+                egui::Event::ModifiersChanged(modifiers),
+                egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers,
+                },
+            ],
+            ..egui::RawInput::default()
+        };
+        let mut frame = |state: &mut UiState, input: egui::RawInput| {
+            let mut output = ctx.run_ui(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, state, &mut engine_cell.borrow_mut(), &mut thumbs);
+                });
+            });
+            output.textures_delta.clear();
+            output
+        };
+
+        // A session that the shell is not showing, which is what a restored queue looks like: the engine
+        // has one, the Library is the screen.
+        frame(&mut state, key(Key::C, egui::Modifiers::NONE));
+        assert!(engine_cell.borrow().cull().is_some(), "the session is open");
+        state.view = View::Library;
+
+        // A click on the grid takes the caret out of the launch-time search field in the window; this is that
+        // click, without pinning the test to where the cells land at this window size.
+        frame(&mut state, egui::RawInput::default());
+        ctx.memory_mut(|memory| {
+            if let Some(focused) = memory.focused() {
+                memory.surrender_focus(focused);
+            }
+        });
+
+        frame(&mut state, key(Key::A, egui::Modifiers::COMMAND));
+        assert_eq!(state.selection.ids().len(), 3, "⌘A reached the grid");
+
+        // The digits sit behind the same gate, so one of them is checked too.
+        let first = state.selection.primary().expect("a photo selected");
+        frame(&mut state, key(Key::Num2, egui::Modifiers::NONE));
+        assert_eq!(engine_cell.borrow().photo(first).expect("photo").rating, 2, "2 rated the photo");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
