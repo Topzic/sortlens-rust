@@ -50,6 +50,7 @@ scripts and AI agents.
 | [`docs/FEATURES.md`](docs/FEATURES.md) | All 176 features with evidence (vendor docs, screenshots, inference), priority, phase and Rust approach |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Crates and layers, op-log storage, command registry, threading, safety rails, testing, distribution |
 | [`docs/UX.md`](docs/UX.md) | The five surfaces, every screen, information architecture, keyboard map, themes, accessibility |
+| [`docs/USER_TESTING.md`](docs/USER_TESTING.md) | Click-through user stories for the live window, and the interface-polish stories that follow them |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Checkbox tracker per milestone, acceptance demos, backlog |
 | Fonts | egui's own faces by default; craft-fonts fallbacks when `CRAFT_FONTS_DIR` is set (see below) |
 | [`docs/TOOLING.md`](docs/TOOLING.md) | Deep audit: getartcraft.com, craft-libs, craft-fonts, craft-extensions, rustup, and the Sortlens repo |
