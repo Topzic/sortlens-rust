@@ -896,7 +896,7 @@ re-checks its own contrast pairs after applying.
   where the toggle's name ends on `A–Z`.
   The keyword packs empty state followed (hundred-and-fifty-sixth entry): `No packs installed.` and
   the instruction beneath it are rows, so an Arabic Settings says where a pack file goes in Arabic.
-  The instruction names the menu path `Organise ▸ Keyword Packs`, and that path stays ASCII in all
+  The instruction names the menu path `Organise › Keyword Packs`, and that path stays ASCII in all
   six catalogues because the menus paint their own English labels — a translated path would name
   words the reader cannot find on screen.
   The pack rows followed (hundred-and-seventy-first entry): the line under a pack file that cannot be

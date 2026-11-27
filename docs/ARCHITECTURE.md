@@ -752,7 +752,7 @@ back, counting the toggle's route outside the test module so one branch cannot s
 The keyword packs empty state takes it as well (hundred-and-fifty-sixth entry): both
 `RichText::new(tl!(…))` lines are keys, and
 `the_keyword_packs_empty_state_speaks_the_interface_language` reads both back and then the Arabic
-rows. The instruction's menu path (`Organise ▸ Keyword Packs`) stays ASCII in every catalogue
+rows. The instruction's menu path (`Organise › Keyword Packs`) stays ASCII in every catalogue
 because menu labels are painted from the command table's own English strings; a translated path
 would be a sentence about words no menu shows.
 

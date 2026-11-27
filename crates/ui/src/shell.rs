@@ -12267,7 +12267,7 @@ fn keyword_packs(ui: &mut Ui, t: &Tokens, engine: &Engine, actions: &mut Vec<Act
         ui.label(RichText::new(tl!("No packs installed.")).size(10.5).color(t.text_faint));
         ui.label(
             RichText::new(tl!(
-                "Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where."
+                "Put a .json pack in the library's packs folder; Organise › Keyword Packs lists where."
             ))
             .size(10.5)
             .color(t.text_faint),
@@ -23531,8 +23531,8 @@ mod tests {
         const LINES: [(&str, &str); 2] = [
             ("No packs installed.", "لا حزم مثبّتة."),
             (
-                "Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.",
-                "ضع حزمة .json في مجلد الحزم في المكتبة؛ يوضّح Organise ▸ Keyword Packs مكانه.",
+                "Put a .json pack in the library's packs folder; Organise › Keyword Packs lists where.",
+                "ضع حزمة .json في مجلد الحزم في المكتبة؛ يوضّح Organise › Keyword Packs مكانه.",
             ),
         ];
         // The source with each line's own indentation trimmed away, so a wrapped call still

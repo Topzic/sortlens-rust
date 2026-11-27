@@ -1324,7 +1324,7 @@ and none of M9 is closed until the remaining rows are ticked.
   one branch cannot stay a literal — then English unchanged and the Arabic rows.
   The keyword packs empty state followed (hundred-and-fifty-sixth entry): both lines a library with
   no pack file shows — `No packs installed.` and `Put a .json pack in the library's packs folder;
-  Organise ▸ Keyword Packs lists where.` — are `tl!` rows in all six languages, so an Arabic
+  Organise › Keyword Packs lists where.` — are `tl!` rows in all six languages, so an Arabic
   Settings tells the reader where to put a pack in Arabic. The menu path inside the second row stays
   ASCII in every catalogue, because the menus themselves are painted from their own English labels:
   a translated path would point at words no screen shows.

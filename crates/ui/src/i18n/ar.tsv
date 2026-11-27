@@ -1036,7 +1036,7 @@
 	Keeps the partial download; installing again resumes it	يحتفظ بالتنزيل الجزئي؛ التثبيت مجددًا يستأنفه
 	Delete the file from the model store; you can install it again later	يحذف الملف من مخزن النماذج؛ يمكنك تثبيته مجددًا لاحقًا
 	No packs installed.	لا حزم مثبّتة.
-	Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.	ضع حزمة .json في مجلد الحزم في المكتبة؛ يوضّح Organise ▸ Keyword Packs مكانه.
+	Put a .json pack in the library's packs folder; Organise › Keyword Packs lists where.	ضع حزمة .json في مجلد الحزم في المكتبة؛ يوضّح Organise › Keyword Packs مكانه.
 	Serving on 127.0.0.1:{port}	يُقدَّم على 127.0.0.1:{port}
 	Pairing code  {code}	رمز الاقتران  {code}
 	The code lives ten minutes; a fresh one is printed here when it does.	يعيش الرمز عشر دقائق؛ ويُطبع هنا رمز جديد عند انتهائه.

@@ -1035,7 +1035,7 @@
 	Keeps the partial download; installing again resumes it	保留未完成的下載；再次安裝會從中斷處繼續
 	Delete the file from the model store; you can install it again later	從模型存放區刪除檔案；你之後可以再次安裝
 	No packs installed.	尚未安裝任何套件。
-	Put a .json pack in the library's packs folder; Organise ▸ Keyword Packs lists where.	將 .json 套件放入圖庫的 packs 資料夾；Organise ▸ Keyword Packs 會標示位置。
+	Put a .json pack in the library's packs folder; Organise › Keyword Packs lists where.	將 .json 套件放入圖庫的 packs 資料夾；Organise › Keyword Packs 會標示位置。
 	Serving on 127.0.0.1:{port}	正在 127.0.0.1:{port} 提供服務
 	Pairing code  {code}	配對碼  {code}
 	The code lives ten minutes; a fresh one is printed here when it does.	代碼有效期為十分鐘；到期後這裡會印出新的一組。
