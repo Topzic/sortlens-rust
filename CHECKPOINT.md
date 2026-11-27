@@ -1,5 +1,37 @@
 # Checkpoint
 
+## 2026-11-26 (hundred-and-seventy-ninth) — the loop reaches its exit condition
+
+- **Why it came up.** The hundred-and-seventy-eighth entry's Next asked the next tick to judge whether the
+  rows left are the exit condition rather than invent a slice. The `CI` run for `68ace8d` (`45922749262`)
+  was still in progress at STEP 1b and is green on the one re-read allowed for a recorded run: all three
+  `ci` legs, `deny`, `snapshot`, `screenshots` and both `mobile` targets succeeded, so SL-L07's commit is
+  verified by the remote gates as well as locally.
+- **The judgment.** The exit condition is met. SL-L07 is ticked, and this tick re-ran its gate against the
+  code on disk — `every_painted_literal_in_the_shell_and_the_host_comes_from_the_catalogues` (1 passed,
+  0 failed) — so the tick is not resting on the entry's word. `docs/ROADMAP.md` has exactly three unticked
+  boxes left, and each names something this machine does not have.
+- **What each open row is waiting on, unchanged.** SL-J10 (`apps/sortlens-mobile`): a device run and the
+  iOS Photos library (Android NDK, Xcode, a device), an `.ipa` (the Apple signing identity), a Play App
+  Bundle (Play-distribution tooling) and a persistent release key (an owner-held secret). `craft-ipc`: a
+  consumer that must reach a *running* window through a local socket; nothing in the app consumes it, so
+  building one would be inventing a product surface. Benchmarks part 2: a GPU, a window and a long
+  single-process run of the real app — none measurable on this machine, and `docs/PERF.md` already says
+  what would unblock each.
+- **Why nothing shipped.** Every candidate would either reopen closed phases, rebuild recorded work, or
+  pretend; a green APK leg and a green audit are not a device run and not a new feature. Inventing a
+  slice here is the drift the loop's anti-drift rules name.
+- **Not done, deliberately.** No source, test, baseline or roadmap box changed; SL-L07 stays ticked on its
+  audit and SL-J10 and the other two rows stay open with their unblockers. No release workflow dispatched
+  (nothing touched a build or release surface). The scheduled task is left **disabled**: this is the
+  exit path, not the stall guard.
+- **Files.** `CHECKPOINT.md` only.
+- **Gates.** The audit test above. No code changed, so `cargo xtask ci`/`snapshot`/`deny`/`screenshots`/
+  `mobile` would report on the same tree; the green `CI` run for `68ace8d` is the last full gate and it
+  includes all five.
+- **Next.** None while those blockers stand. A later tick should resume only when an unblocker lands (a
+  device and its toolchains, an Apple identity and a Play tooling decision, a consumer asking for a local
+  socket, or a GPU-class machine for the benches) — otherwise this is the loop's end.
 ## 2026-11-26 (hundred-and-seventy-eighth) — the audit that closes the interface language
 
 - **Why it came up.** The hundred-and-seventy-seventh entry's Next named the whole-source audit that
@@ -9997,18 +10029,17 @@ Gates every commit: `. scripts/env.sh && cargo xtask ci`, `snapshot`, `deny`, an
 `crates/ui` or phone-facing crates change (`mobile` needs the Android NDK and Xcode, so a machine without them
 says so rather than skipping it silently). The full text is in `docs/ROADMAP.md` "Completion phases".
 
-**Next tick (after the hundred-and-seventy-seventh entry).** Read this commit's `CI` run with one
-`gh run view` — English keeps every byte, so no baseline should have moved; the `screenshots` job is
-the one that matters. Then the whole-source audit that can tick SL-L07: sweep `crates/ui/src` and
-`apps/sortlens/src` for painted literals the widget, notice and spoken sweeps do not reach, and read
-the host's routes in the catalogue audit. The Places click notice is routed (this tick), and the map's
-assistive name is the one English string the row says it does not count as painted chrome. SL-L07
-stays unticked until that audit passes. No release run is in flight.
+**Next tick.** None. The loop is at its exit condition (the hundred-and-seventy-ninth entry): SL-L07
+is ticked on its whole-source audit, and the three rows still open — SL-J10, `craft-ipc`, Benchmarks
+part 2 — each wait on an unblocker this machine does not have. A future tick means an unblocker
+landed, not that a slice should be invented. No release run is in flight.
 
 **Lease note.** STEP 0's id `scheduled-task:c79b9a35-9424-4ccd-8278-6d54deaadb78` does not exist
 (`task_not_found`); the two live tasks are `scheduled-task:command:mcp:…:schedule-task:sortlens-continue-loop`
-and the daily one, and both were already disabled, so no second tick could start. STEP 5 re-enabled the
-loop task by its real id and it returned a `nextRunAt`; the prompt's id needs fixing in the task text.
+and the daily one. The hundred-and-seventy-eighth tick re-enabled the loop task by its real id (it
+returned a `nextRunAt`); this tick disabled the same real id at STEP 0 and leaves it disabled on the
+exit path. The prompt's stale id still needs fixing in the task text, which STEP 0 forbids this tick
+from touching.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
