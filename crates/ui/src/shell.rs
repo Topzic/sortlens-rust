@@ -3903,6 +3903,11 @@ fn tag_source_explanation(source: sortlens_core::TagSource) -> &'static str {
 }
 
 fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo: &Photo) {
+    // The panel writes to the whole selection, not just the photo whose name it prints. A photographer who has
+    // picked five frames and typed a keyword means the five; the chips still describe the primary, because that
+    // is the photograph the inspector is naming.
+    let selected = state.selection.ids();
+    let targets = if selected.is_empty() { vec![photo.id] } else { selected };
     match photo.label {
         Some(label) => {
             ui.label(RichText::new(colour_word(label)).size(12.0).color(t.text));
@@ -3941,8 +3946,8 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
         }
     });
     if let Some(tag) = remove {
-        match engine.set_tag(&[photo.id], &tag, false) {
-            Ok(_) => state.notice(crate::i18n::fmt("Removed keyword {tag}", &[("tag", &tag)])),
+        match engine.set_tag(&targets, &tag, false) {
+            Ok(changed) => state.notice(tag_taken_off(&tag, changed)),
             Err(error) => state.notice_problem(error.to_string()),
         }
     }
@@ -3962,11 +3967,15 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
         let entered = field.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));
         let clicked = ui.add(Button::new(RichText::new(tl!("Add")).size(11.0))).clicked();
         if (entered || clicked) && !state.tag_input.trim().is_empty() {
-            match engine.set_tag(&[photo.id], &state.tag_input, true) {
-                Ok(0) => state.notice(tl!("That keyword is already on this photo")),
-                Ok(_) => {
-                    let name = state.tag_input.trim().to_lowercase();
-                    state.notice(crate::i18n::fmt("Added keyword {name}", &[("name", &name)]));
+            let name = state.tag_input.trim().to_lowercase();
+            match engine.set_tag(&targets, &name, true) {
+                // One photo keeps the sentence that names it; several say how many already carried the word.
+                Ok(0) if targets.len() == 1 => state.notice(tl!("That keyword is already on this photo")),
+                Ok(changed) => {
+                    // The count is the photos this click actually wrote, not the size of the selection: a
+                    // keyword three of five frames already carried is news about two.
+                    let written = if changed == 0 { targets.len() } else { changed };
+                    state.notice(tagged_notice(&name, changed, written));
                     state.tag_input.clear();
                 }
                 Err(error) => state.notice_problem(error.to_string()),
@@ -3994,10 +4003,14 @@ fn tags(ui: &mut Ui, t: &Tokens, state: &mut UiState, engine: &mut Engine, photo
                 }
             }
         });
-        if let Some(tag) = add
-            && let Err(error) = engine.set_tag(&[photo.id], &tag, true)
-        {
-            state.notice_problem(error.to_string());
+        if let Some(tag) = add {
+            match engine.set_tag(&targets, &tag, true) {
+                Ok(changed) => {
+                    let written = if changed == 0 { targets.len() } else { changed };
+                    state.notice(tagged_notice(&tag, changed, written));
+                }
+                Err(error) => state.notice_problem(error.to_string()),
+            }
         }
     }
 }
@@ -27050,6 +27063,65 @@ mod tests {
         );
         assert!(engine.undo().expect("undo"));
         assert!(!engine.photo(ids[0]).expect("photo").dismissed(&dismissed[0]));
+        assert!(actions.is_empty(), "the tab writes through the engine, not through the host");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// UT-D05: the Tags tab writes the whole selection, and the toast says how many photographs it touched.
+    ///
+    /// The field used to commit to the primary alone, so a keyword typed with three frames picked reached one and
+    /// the toast said “Added keyword x” as if the other two had never been mentioned.
+    #[test]
+    fn the_tags_tab_writes_the_whole_selection_and_counts_what_changed() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-tags-batch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("photos");
+        std::fs::create_dir_all(&root).expect("root");
+        let fixture = sortlens_testkit::Fixture::new("ui-tags-batch");
+        for index in 1..=3 {
+            let name = format!("IMG_000{index}.jpg");
+            std::fs::copy(fixture.jpeg(&name, [30 + index * 20, 70, 140], 48, 32), root.join(&name)).expect("copy");
+        }
+        let mut engine = Engine::open(&dir).expect("open");
+        engine.begin_scan(root.to_string_lossy().to_string()).expect("scan");
+        for _ in 0..600 {
+            if engine.poll().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let ids: Vec<PhotoId> = engine.all_photos().iter().map(|photo| photo.id).collect();
+        assert_eq!(ids.len(), 3);
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.right_tab = RightTab::Tags;
+        state.selection.select_many(&ids);
+        state.tag_input = "shoreline".to_string();
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let mut actions: Vec<Action> = Vec::new();
+        let ctx = egui::Context::default();
+        let screen = vec2(1200.0, 800.0);
+
+        let painted = paint_shell(&ctx, screen, &mut state, &mut engine, &mut thumbs, &mut actions);
+        // `Add keyword` is the field's hint and also starts with `Add`, so the button is the exact word.
+        let add = exact_label_at(&painted, "Add").expect("the tags panel has an Add button");
+        click_shell(&ctx, screen, add.center(), &mut state, &mut engine, &mut thumbs, &mut actions);
+
+        for id in &ids {
+            assert!(
+                engine.photo(*id).expect("photo").has_tag("shoreline"),
+                "the keyword reached every selected photo"
+            );
+        }
+        let told = state.live_notice().map(|(text, _)| text.to_string()).unwrap_or_default();
+        assert_eq!(told, "Tagged “shoreline” on 3 photos", "the toast counts the photos it wrote");
+
+        assert!(engine.undo().expect("undo"), "one undo takes the keyword off the whole selection");
+        for id in &ids {
+            assert!(
+                engine.photo(*id).expect("photo").tags.is_empty(),
+                "the undo reached every selected photo"
+            );
+        }
         assert!(actions.is_empty(), "the tab writes through the engine, not through the host");
         let _ = std::fs::remove_dir_all(&dir);
     }
