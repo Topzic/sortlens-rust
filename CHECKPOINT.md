@@ -10034,12 +10034,16 @@ is ticked on its whole-source audit, and the three rows still open — SL-J10, `
 part 2 — each wait on an unblocker this machine does not have. A future tick means an unblocker
 landed, not that a slice should be invented. No release run is in flight.
 
-**Lease note.** STEP 0's id `scheduled-task:c79b9a35-9424-4ccd-8278-6d54deaadb78` does not exist
-(`task_not_found`); the two live tasks are `scheduled-task:command:mcp:…:schedule-task:sortlens-continue-loop`
-and the daily one. The hundred-and-seventy-eighth tick re-enabled the loop task by its real id (it
-returned a `nextRunAt`); this tick disabled the same real id at STEP 0 and leaves it disabled on the
-exit path. The prompt's stale id still needs fixing in the task text, which STEP 0 forbids this tick
-from touching.
+**Lease note.** The live lease is `scheduled-task:command:mcp:6c864c39-52f6-49f8-b58e-82d40c2823ce:schedule-task:sortlens-continue-loop`
+(the "continuous coder" — `Sortlens: phone replacement loop`); the old `c79b9a35` id is stale. The full in-repo
+contract this scheduler is reproducing (commit-and-push-last rules, lease, safety, security, the
+`docs/MOBILE_PLAN.md` doc-update obligation and the bootstrap commit that adds the doc to git) lives at
+[`docs/scheduled_prompts/sortlens-continue-loop.md`](../docs/scheduled_prompts/sortlens-continue-loop.md);
+re-apply that prompt body to the scheduler when the lease moves. Each tick disables that exact id at STEP 0
+and re-enables the same id after the slice is committed and pushed, checking the returned `nextRunAt`. The
+previously-disabled-on-exit behaviour is gone — disabled now means "I cannot leave a clean tree this tick
+owns"; a tick that just shipped a slice re-enables. The next tick also has a bootstrap step to commit and
+push the working tree's `docs/MOBILE_PLAN.md` on its own, since the loop's doc had been left untracked.
 
 **Phase 1 — core engine and media gaps**
 1. **Video poster frames** (SL-B11 part 2) — **done 2026-11-22**, see the twenty-first entry.
