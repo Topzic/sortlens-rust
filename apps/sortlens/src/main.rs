@@ -151,7 +151,6 @@ struct App {
     engine: Engine,
     ui: UiState,
     store: SettingsStore<Prefs>,
-    applied_theme: ThemeKind,
     thumbs: Thumbnails,
     /// The quit guard has been answered, so the next close goes through.
     confirmed_close: bool,
@@ -216,7 +215,6 @@ impl App {
             engine,
             ui,
             store,
-            applied_theme: kind,
             thumbs: Thumbnails::new(cache_dir()),
             confirmed_close: false,
             sync: Sync::new(),
@@ -284,10 +282,14 @@ impl App {
                 self.store.update(|prefs| prefs.appearance.language = code);
             }
             Action::SetTheme(kind) => {
-                if kind != self.applied_theme {
-                    apply_theme(ctx, kind);
-                    self.applied_theme = kind;
+                // The shell paints from its own copy of the preset, so the swap has to land there
+                // as well as in the context's visuals: otherwise every panel keeps the colours it
+                // was built with until the next launch reads the setting.
+                if kind != self.ui.theme {
+                    self.ui.apply_theme(ctx, kind);
                     self.store.update(|prefs| prefs.appearance.theme = kind.id().to_owned());
+                    // An idle window would otherwise show the old preset until the pointer moves.
+                    ctx.request_repaint();
                 }
             }
             Action::Quit => {

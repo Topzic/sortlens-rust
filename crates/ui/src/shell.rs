@@ -1334,6 +1334,16 @@ impl UiState {
         }
     }
 
+    /// Switch every panel to `kind`: install the preset on the context and remember it here.
+    ///
+    /// The shell paints from `self.theme`'s tokens rather than from egui's `Visuals`, so a host
+    /// that only installs the visuals leaves the window in the old colours until the next launch
+    /// re-reads the setting. A host answers `Action::SetTheme` with this, then persists the id.
+    pub fn apply_theme(&mut self, ctx: &egui::Context, kind: ThemeKind) {
+        crate::theme::apply(ctx, kind);
+        self.theme = kind;
+    }
+
     /// Show or hide the sidebar.
     ///
     /// A phone cannot hold both docks beside a grid, so there opening one puts the other away. On a desktop both
@@ -24450,6 +24460,73 @@ mod tests {
             ThemeKind::Charcoal,
             "the shell waits for the host, as every SetTheme does"
         );
+    }
+
+    /// The host's half of that swap: the preset has to land in the state the panels paint from,
+    /// not only in the context's `Visuals`.
+    ///
+    /// Its absence was a restart-shaped bug: Settings and the Appearance button both asked for the
+    /// new preset and persisted it, but every panel — and the button's idea of "next" — kept the
+    /// old one, so nothing changed until the next launch read the file back.
+    #[test]
+    fn applying_a_preset_reaches_the_state_the_panels_paint_from() {
+        let ctx = egui::Context::default();
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        state.apply_theme(&ctx, ThemeKind::Paper);
+        assert_eq!(state.theme, ThemeKind::Paper, "the panels paint from this");
+        assert_eq!(
+            ctx.style_of(ThemeKind::Paper.egui_theme()).visuals.panel_fill,
+            ThemeKind::Paper.tokens().panel,
+            "and the context carries the same preset"
+        );
+    }
+
+    /// And the frame after the swap is really painted in the new preset, which is the thing a
+    /// restart used to be needed for: the bar a person sees is the new one, and the old one is gone.
+    #[test]
+    fn the_frame_after_a_theme_swap_is_painted_in_the_new_preset() {
+        let dir = std::env::temp_dir().join(format!("sortlens-ui-theme-swap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut engine = Engine::open(&dir).expect("open");
+        let mut thumbs = Thumbnails::new(dir.join("cache"));
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1200.0, 800.0))),
+            ..egui::RawInput::default()
+        };
+        let mut state = UiState::new(ThemeKind::Charcoal, 0.0);
+        // The fills of the frames this shell paints, so "the bar is Paper" is a painted fact.
+        let mut painted_fills = |state: &mut UiState| {
+            let mut fills = Vec::new();
+            for _ in 0..3 {
+                let mut output = ctx.run_ui(input.clone(), |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        show(ui, state, &mut engine, &mut thumbs);
+                    });
+                });
+                output.textures_delta.clear();
+                fills = output
+                    .shapes
+                    .iter()
+                    .filter_map(|clipped| match &clipped.shape {
+                        egui::Shape::Rect(rect) => Some(rect.fill),
+                        _ => None,
+                    })
+                    .collect();
+            }
+            fills
+        };
+
+        let charcoal = ThemeKind::Charcoal.tokens();
+        let before = painted_fills(&mut state);
+        assert!(before.contains(&charcoal.chrome), "the bar opens in Charcoal");
+
+        state.apply_theme(&ctx, ThemeKind::Paper);
+        let paper = ThemeKind::Paper.tokens();
+        let after = painted_fills(&mut state);
+        assert!(after.contains(&paper.chrome), "the next frame paints the bar in Paper");
+        assert!(!after.contains(&charcoal.chrome), "and the Charcoal bar is gone");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Phase 3 item 11: the palette is a front door to the command registry, not a second command list.

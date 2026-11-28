@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use craft_settings::store::SettingsStore;
 use sortlens_engine::Engine;
-use sortlens_ui::{Action, ThemeKind, Thumbnails, UiState, apply as apply_theme, i18n};
+use sortlens_ui::{Action, Thumbnails, UiState, apply as apply_theme, i18n};
 
 use crate::prefs::PhonePrefs;
 use crate::send::DesktopLink;
@@ -30,8 +30,6 @@ pub struct App {
     /// The choices the shell offers, kept on the device: the file is what a restart opens from.
     store: SettingsStore<PhonePrefs>,
     thumbs: Thumbnails,
-    /// The theme the context currently carries.
-    applied_theme: ThemeKind,
     /// The link to a paired desktop, built from the settings document the file reopens.
     link: DesktopLink,
 }
@@ -69,7 +67,6 @@ impl App {
             ui,
             store,
             thumbs: Thumbnails::new(places::cache_dir(&data_dir)),
-            applied_theme: kind,
             link: DesktopLink::open(&desktop.host, desktop.port, &desktop.token, &desktop.device),
         }
     }
@@ -100,11 +97,14 @@ impl App {
         // `tick` is what saves on a debounce (the desktop's own rule).
         prefs::record(&mut self.store, &action);
         match action {
-            Action::SetTheme(kind) if kind != self.applied_theme => {
-                apply_theme(ctx, kind);
-                self.applied_theme = kind;
+            Action::SetTheme(kind) => {
+                // The panels paint from the shell's copy of the preset, not from the context's
+                // visuals: without this the phone keeps the old colours until it is relaunched.
+                if kind != self.ui.theme {
+                    self.ui.apply_theme(ctx, kind);
+                    ctx.request_repaint();
+                }
             }
-            Action::SetTheme(_) => {}
             Action::SetDensity(density) => self.ui.density = density,
             Action::SetGrid(mode) => self.ui.grid_mode = mode,
             Action::SetMotion(motion) => self.ui.motion = motion,
